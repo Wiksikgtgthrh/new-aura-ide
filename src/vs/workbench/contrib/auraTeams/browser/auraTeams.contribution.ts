@@ -26,6 +26,7 @@ import { AuraTeamsEditorInput, AuraTeamsEditorInputSerializer } from './auraTeam
 import { AuraTeamsMyTasksView, AURA_TEAMS_OPEN_BOARD_COMMAND_ID } from './auraTeamsMyTasksView.js';
 import { AURA_TEAMS_MEMBER_SETTING } from '../common/auraTeamsService.js';
 import { IAuraTeamsGitService } from './auraTeamsGitService.js';
+import { AuraTeamsSyncContribution, AURA_TEAMS_SUPABASE_URL_SETTING, AURA_TEAMS_SUPABASE_KEY_SETTING, AURA_TEAMS_SUPABASE_PROJECT_SETTING } from './auraTeamsSync.js';
 import { auraMarketInstalledKey } from '../../auraMarket/common/auraMarketCatalog.js';
 
 export const AURA_TEAMS_VIEW_CONTAINER_ID = 'workbench.view.auraTeams';
@@ -151,10 +152,14 @@ class AuraTeamsPluginContribution extends Disposable {
 
 	static readonly ID = 'workbench.contrib.auraTeamsPlugin';
 
-	constructor(@IStorageService storageService: IStorageService) {
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
 		super();
 		if (storageService.get(auraMarketInstalledKey('aura-teams'), StorageScope.APPLICATION, 'false') === 'true') {
 			registerAuraTeamsPlugin();
+			this._register(instantiationService.createInstance(AuraTeamsSyncContribution));
 		}
 	}
 }
@@ -169,6 +174,21 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			default: '',
 			markdownDescription: localize('auraTeams.memberName', "Ваше имя в команде. По нему собирается раздел «Мои задачи» и подставляется исполнитель при создании задачи."),
+		},
+		[AURA_TEAMS_SUPABASE_URL_SETTING]: {
+			type: 'string',
+			default: '',
+			markdownDescription: localize('auraTeams.supabase.url', "URL проекта Supabase (например `https://xyz.supabase.co` или адрес self-hosted). Вместе с `#auraTeams.supabase.anonKey#` включает синхронизацию доски между участниками. Схема таблицы — `resources/aura/supabase/001_aura_tasks.sql`."),
+		},
+		[AURA_TEAMS_SUPABASE_KEY_SETTING]: {
+			type: 'string',
+			default: '',
+			markdownDescription: localize('auraTeams.supabase.anonKey', "Публичный anon-ключ Supabase. Это не секрет уровня service_role: доступ ограничивают политики RLS из миграции."),
+		},
+		[AURA_TEAMS_SUPABASE_PROJECT_SETTING]: {
+			type: 'string',
+			default: '',
+			markdownDescription: localize('auraTeams.supabase.project', "Идентификатор доски в общей базе. По умолчанию — имя первой папки workspace; задайте явно, если участники открывают репозиторий под разными именами папок."),
 		},
 	},
 });
