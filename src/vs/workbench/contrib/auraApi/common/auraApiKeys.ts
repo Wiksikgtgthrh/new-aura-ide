@@ -57,7 +57,20 @@ export interface IAuraApiKeysService {
 	checkAll(): Promise<void>;
 	bestKey(): IAuraApiKey | undefined;
 	selectForChat(id: string): Promise<void>;
+	/** Умная загрузка: один baseUrl + список ключей (по одному на строку), общие модель/группа/приоритет. */
+	smartImport(baseUrl: string, model: string, keysText: string, group?: string, priority?: AuraApiKeyPriority): Promise<{ added: number; skipped: number }>;
+	/** Опрашивает GET {baseUrl}/models и возвращает список id доступных моделей. */
+	discoverModels(baseUrl: string, secret?: string): Promise<string[]>;
 }
+
+/** Справочник популярных моделей для подсказок при добавлении ключей. */
+export const POPULAR_MODELS: readonly string[] = [
+	'gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'o3', 'o4-mini',
+	'claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5',
+	'gemini-2.5-pro', 'gemini-2.5-flash',
+	'deepseek-chat', 'deepseek-reasoner',
+	'llama-3.3-70b', 'qwen-2.5-72b', 'mistral-large',
+];
 
 const STORAGE_KEYS = 'auraApi.keys';
 const STORAGE_SELECTED = 'auraApi.chat.selectedKeyId';
@@ -304,6 +317,45 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 		)[0];
 	}
 
+	async smartImport(baseUrl: string, model: string, keysText: string, group?: string, priority: AuraApiKeyPriority = 'medium'): Promise<{ added: number; skipped: number }> {
+		let added = 0, skipped = 0;
+		const url = baseUrl.trim().replace(/\/+$/, '');
+		for (const line of keysText.split(/\r?\n/)) {
+			const secret = line.trim();
+			if (!secret) { continue; }
+			// поддержка и "чистый ключ", и "название | ключ"
+			const parts = secret.split('|').map(p => p.trim());
+			const name = parts.length >= 2 ? parts[0] : undefined;
+			const value = parts.length >= 2 ? parts[1] : parts[0];
+			if (!value || !url || !model.trim()) { skipped++; continue; }
+			await this.addKey({
+				name: name ?? `${model.trim()} #${this.keys.length + 1}`,
+				baseUrl: url,
+				model: model.trim(),
+				expectedModel: model.trim(),
+				group: group?.trim() || undefined,
+				priority,
+			}, value);
+			added++;
+		}
+		return { added, skipped };
+	}
+
+	async discoverModels(baseUrl: string, secret?: string): Promise<string[]> {
+		const base = baseUrl.trim().replace(/\/+$/, '');
+		const headers: Record<string, string> = secret ? { 'Authorization': `Bearer ${secret}` } : {};
+		try {
+			const res = await this.timedRequest(`${base}/models`, { type: 'GET', headers, timeout: 10000 });
+			if (res.status === undefined || res.status < 200 || res.status >= 300) { return []; }
+			const parsed = JSON.parse(res.body);
+			const data = parsed?.data;
+			if (!Array.isArray(data)) { return []; }
+			return data.map((m: { id?: string }) => m?.id).filter((id: unknown): id is string => typeof id === 'string').sort();
+		} catch {
+			return [];
+		}
+	}
+
 	async selectForChat(id: string): Promise<void> {
 		const key = this.keys.find(k => k.id === id);
 		if (!key) { return; }
@@ -316,3 +368,4 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 }
 
 registerSingleton(IAuraApiKeysService, AuraApiKeysService, InstantiationType.Delayed);
+

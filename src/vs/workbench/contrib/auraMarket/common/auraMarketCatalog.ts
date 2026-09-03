@@ -64,14 +64,6 @@ export const AURA_MARKET_ITEMS: IAuraMarketItem[] = [
 			'Кнопка «В чат» у строки проверяет ключ и делает его активным эндпоинтом (auraApi.chat.baseUrl / auraApi.chat.model) для чата с ИИ.',
 		].join('\n'),
 	},
-	{
-		id: 'example.starter-skills',
-		name: 'Starter Skills Pack',
-		kind: 'skillset',
-		author: 'Aura',
-		description: 'Пример набора скилов — замените на свой.',
-		docs: 'Здесь будет документация набора скилов.',
-	},
 ];
 
 export type AuraMarketFilter = 'all' | AuraMarketItemKind;
