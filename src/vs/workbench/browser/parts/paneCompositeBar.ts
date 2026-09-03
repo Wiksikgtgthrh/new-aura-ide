@@ -85,6 +85,13 @@ export interface IPaneCompositeBarOptions {
 	readonly colors: (theme: IColorTheme) => ICompositeBarColors;
 }
 
+// Aura IDE fork: скрытые view-контейнеры не показываются в bar (регистрация сохраняется, открытие — командами)
+const AURA_HIDDEN_VIEW_CONTAINER_IDS = new Set<string>([
+	'workbench.view.debug', // Debug
+	'workbench.panel.chat', // Chat (ChatViewContainerId)
+	'copilot-chat', // Copilot "Chat Debug" (пустая иконка в bar)
+]);
+
 export class PaneCompositeBar extends Disposable {
 
 	private readonly viewContainerDisposables = this._register(new DisposableMap<string, IDisposable>());
@@ -434,6 +441,11 @@ export class PaneCompositeBar extends Disposable {
 		const viewContainer = isString(viewContainerOrId) ? this.getViewContainer(viewContainerOrId) : viewContainerOrId;
 		const viewContainerId = isString(viewContainerOrId) ? viewContainerOrId : viewContainerOrId.id;
 
+		// Aura IDE fork: контейнеры из скрытого набора не показываются
+		if (AURA_HIDDEN_VIEW_CONTAINER_IDS.has(viewContainerId)) {
+			return true;
+		}
+
 		if (viewContainer) {
 			if (viewContainer.hideIfEmpty) {
 				if (this.viewService.isViewContainerActive(viewContainerId)) {
@@ -462,6 +474,10 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private addComposite(viewContainer: ViewContainer): void {
+		// Aura IDE fork: скрытые контейнеры не добавляются в bar
+		if (AURA_HIDDEN_VIEW_CONTAINER_IDS.has(viewContainer.id)) {
+			return;
+		}
 		this.compositeBar.addComposite({ id: viewContainer.id, name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
 	}
 
@@ -536,6 +552,10 @@ export class PaneCompositeBar extends Disposable {
 		const compositeItems = this.compositeBar.getCompositeBarItems();
 
 		for (const cachedViewContainer of this.cachedViewContainers) {
+			// Aura IDE fork: пропускаем скрытые контейнеры
+			if (AURA_HIDDEN_VIEW_CONTAINER_IDS.has(cachedViewContainer.id)) {
+				continue;
+			}
 			newCompositeItems.push({
 				id: cachedViewContainer.id,
 				name: cachedViewContainer.name,
@@ -546,6 +566,10 @@ export class PaneCompositeBar extends Disposable {
 		}
 
 		for (const viewContainer of this.getViewContainers()) {
+			// Aura IDE fork: пропускаем скрытые контейнеры
+			if (AURA_HIDDEN_VIEW_CONTAINER_IDS.has(viewContainer.id)) {
+				continue;
+			}
 			// Add missing view containers
 			if (!newCompositeItems.some(({ id }) => id === viewContainer.id)) {
 				const index = compositeItems.findIndex(({ id }) => id === viewContainer.id);
