@@ -76,8 +76,8 @@ export interface IAuraApiKeysService {
 	selectForChat(id: string): Promise<void>;
 	/** Умная загрузка: один baseUrl + список ключей (по одному на строку), общие модель/группа/приоритет. */
 	smartImport(baseUrl: string, model: string, keysText: string, group?: string, priority?: AuraApiKeyPriority): Promise<{ added: number; skipped: number }>;
-	/** Опрашивает GET {baseUrl}/models и возвращает список id доступных моделей. */
-	discoverModels(baseUrl: string, secret?: string): Promise<string[]>;
+	/** Дискавери моделей по провайдеру (уровень 1 — «врёт», доступ реально проверяет probeModel). */
+	discoverModels(baseUrl: string, secret?: string, provider?: AuraProvider): Promise<string[]>;
 
 	/* ---- Этап 2: группы, роутер, probe моделей ---- */
 	/** Управление группами (приоритет 0 = высший). */
@@ -407,16 +407,39 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 		return { added, skipped };
 	}
 
-	async discoverModels(baseUrl: string, secret?: string): Promise<string[]> {
+	async discoverModels(baseUrl: string, secret?: string, provider: AuraProvider = detectProvider(secret ?? '', baseUrl) ?? 'openai-compatible'): Promise<string[]> {
 		const base = baseUrl.trim().replace(/\/+$/, '');
-		const headers: Record<string, string> = secret ? { 'Authorization': `Bearer ${secret}` } : {};
+		let url: string;
+		const headers: Record<string, string> = {};
+		switch (provider) {
+			case 'anthropic':
+				url = `${base}/v1/models`;
+				if (secret) { headers['x-api-key'] = secret; headers['anthropic-version'] = '2023-06-01'; }
+				break;
+			case 'google':
+				url = `${base}/v1beta/models${secret ? `?key=${encodeURIComponent(secret)}` : ''}`;
+				break;
+			case 'openrouter':
+				url = `${base}/api/v1/models`;
+				if (secret) { headers['Authorization'] = `Bearer ${secret}`; }
+				break;
+			case 'litellm':
+			case 'openai-compatible':
+			default:
+				url = `${base}/models`;
+				if (secret) { headers['Authorization'] = `Bearer ${secret}`; }
+				break;
+		}
 		try {
-			const res = await this.timedRequest(`${base}/models`, { type: 'GET', headers, timeout: 10000 });
+			const res = await this.timedRequest(url, { type: 'GET', headers, timeout: 10000 });
 			if (res.status === undefined || res.status < 200 || res.status >= 300) { return []; }
 			const parsed = JSON.parse(res.body);
 			const data = parsed?.data;
 			if (!Array.isArray(data)) { return []; }
-			return data.map((m: { id?: string }) => m?.id).filter((id: unknown): id is string => typeof id === 'string').sort();
+			return data
+				.map((m: { id?: string; name?: string }) => m?.id ?? (typeof m?.name === 'string' ? m.name.replace(/^models\//, '') : undefined))
+				.filter((id: unknown): id is string => typeof id === 'string')
+				.sort();
 		} catch {
 			return [];
 		}

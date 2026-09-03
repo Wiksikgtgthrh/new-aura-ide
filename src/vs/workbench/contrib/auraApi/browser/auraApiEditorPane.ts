@@ -42,7 +42,10 @@ export class AuraApiEditorPane extends EditorPane {
 		const toolbar = append(this.rootEl, $('.aura-api-toolbar'));
 		this.mkButton(toolbar, '+ Добавить ключ', () => this.showAddForm());
 		this.mkButton(toolbar, 'Массовый импорт', () => this.showBulkForm());
-		this.mkButton(toolbar, 'Проверить все', () => { void this.keysService.checkAll(); });
+		this.mkButton(toolbar, 'Проверить все (очередь)', () => {
+			void this.keysService.checkAllQueued().then(() => this.notificationService.info('Проверка всех ключей завершена.'));
+		});
+		this.mkButton(toolbar, 'Проверить группу', () => this.checkGroup());
 		this.mkButton(toolbar, 'Обновить', () => this.renderTable());
 
 		// --- Фильтр по группе ---
@@ -75,9 +78,9 @@ export class AuraApiEditorPane extends EditorPane {
 		if (!this.tableBody) { return; }
 		this.tableBody.textContent = '';
 
-		// обновить список групп
+		// обновить список групп (из сервиса — включая пустые созданные)
 		const keys = this.keysService.getKeys();
-		const groups = Array.from(new Set(keys.map(k => k.group).filter((g): g is string => !!g))).sort();
+		const groups = this.keysService.getGroups().map(g => g.name);
 		if (this.groupSelect) {
 			const prev = this.groupSelect.value;
 			this.groupSelect.textContent = '';
@@ -124,10 +127,18 @@ export class AuraApiEditorPane extends EditorPane {
 			// Пинг
 			append(row, $('td')).textContent = s.pingMs !== undefined ? `${s.pingMs} мс` : (s.checking ? '…' : '—');
 
-			// Статус / ошибка
+			// Статус / ошибка (health из ядра + cooldown)
 			const statusCell = append(row, $('td'));
-			if (s.checking) {
+			const healthLabel: Record<string, string> = { ok: 'OK', unauthorized: '401', forbidden: '403', ratelimited: '429', notfound: '404', down: '5xx', unknown: '?' };
+			if (s.cooldownUntil !== undefined && s.cooldownUntil > Date.now()) {
+				statusCell.textContent = s.cooldownUntil === Number.POSITIVE_INFINITY ? 'Cooldown: до ручной перепроверки (401)' : `Cooldown до ${new Date(s.cooldownUntil).toLocaleTimeString()}`;
+				statusCell.classList.add('aura-api-warn');
+			} else if (s.checking) {
 				statusCell.textContent = 'Проверка…';
+			} else if (s.health && s.health !== 'ok') {
+				const hb = append(statusCell, $('span.aura-api-err'));
+				hb.textContent = `${healthLabel[s.health] ?? s.health}: ${s.error ?? ''}`;
+				hb.title = s.error ?? '';
 			} else if (s.ok === true) {
 				const ok = append(statusCell, $('span.aura-api-ok'));
 				ok.textContent = s.excludedHighPing ? 'Работает, но исключён (высокий пинг)' : 'Работает';
@@ -157,6 +168,7 @@ export class AuraApiEditorPane extends EditorPane {
 			// Действия
 			const actions = append(row, $('td.aura-api-actions'));
 			this.mkRowButton(actions, 'Проверить', () => void this.keysService.checkKey(key.id));
+			this.mkRowButton(actions, 'Probe', () => this.probeKey(key));
 			this.mkRowButton(actions, 'В чат', () => this.selectForChat(key));
 			this.mkRowButton(actions, 'Удалить', () => void this.keysService.removeKey(key.id));
 		}
@@ -166,6 +178,24 @@ export class AuraApiEditorPane extends EditorPane {
 		const b = append(parent, $('button.aura-api-btn-small')) as HTMLButtonElement;
 		b.textContent = label;
 		this._register(addDisposableListener(b, EventType.CLICK, run));
+	}
+
+	private async probeKey(key: IAuraApiKey): Promise<void> {
+		const r = await this.keysService.probeModel(key.id);
+		const msg = r.available === 'yes'
+			? `Модель ${key.model} доступна, подлинность ${r.authenticityPct ?? '—'}%${r.error ? ` (${r.error})` : ''}`
+			: `Модель ${key.model}: ${r.available} — ${r.error ?? 'нет данных'}`;
+		if (r.available === 'yes') { this.notificationService.info(msg); } else { this.notificationService.warn(msg); }
+	}
+
+	private checkGroup(): void {
+		if (!this.groupFilter) {
+			this.notificationService.warn('Сначала выберите группу в фильтре.');
+			return;
+		}
+		const groupKeys = this.keysService.getKeys().filter(k => k.group === this.groupFilter);
+		for (const k of groupKeys) { void this.keysService.checkKey(k.id); }
+		this.notificationService.info(`Запущена проверка группы «${this.groupFilter}» (${groupKeys.length} ключей).`);
 	}
 
 	private async selectForChat(key: IAuraApiKey): Promise<void> {
@@ -194,7 +224,7 @@ export class AuraApiEditorPane extends EditorPane {
 		const baseUrl = this.formInput(form, 'Base URL', 'https://api.openai.com/v1');
 		const model = this.formInput(form, 'Модель', 'gpt-4o');
 		const expected = this.formInput(form, 'Ожидаемая модель (для проверки подлинности, опц.)', '');
-		const group = this.formInput(form, 'Группа (опц.)', '');
+		const group = this.formInput(form, 'Группа (опц., новое имя = создать)', '');
 		const secret = this.formInput(form, 'API ключ', 'sk-...', true);
 		const row = append(form, $('.aura-api-form-buttons'));
 		this.mkButton(row, 'Сохранить и проверить', () => {
@@ -221,13 +251,16 @@ export class AuraApiEditorPane extends EditorPane {
 		const form = append(this.rootEl, $('.aura-api-form'));
 		append(form, $('h3')).textContent = 'Массовый импорт';
 		const hint = append(form, $('p.aura-api-hint'));
-		hint.textContent = 'Построчно: название | baseUrl | модель | ключ — или вставьте JSON-массив [{ "name", "baseUrl", "model", "key", "group"?, "priority"? }, ...]';
+		hint.textContent = 'Вставьте что угодно: сырые ключи по строкам (sk-…, sk-ant-…, AIza…), «название | baseUrl | ключ», CSV с заголовком, .env-строки (OPENAI_API_KEY=…) или JSON-массив. Провайдер и baseUrl определятся автоматически; повторная вставка того же ключа будет пропущена.';
 		const area = append(form, $('textarea.aura-api-bulk')) as HTMLTextAreaElement;
-		area.rows = 8;
+		area.rows = 10;
+		const group = this.formInput(form, 'Группа для всех (опц., новое имя = создать)', '');
 		const row = append(form, $('.aura-api-form-buttons'));
-		this.mkButton(row, 'Импортировать', () => {
-			void this.keysService.addKeysBulk(area.value).then(r => {
-				this.notificationService.info(`Импортировано: ${r.added}, пропущено: ${r.skipped}.`);
+		this.mkButton(row, 'Импортировать и проверить', () => {
+			void this.keysService.bulkImport(area.value, group.value.trim() || undefined).then(r => {
+				const errNote = r.errors.length > 0 ? ` Ошибки: ${r.errors.slice(0, 3).join('; ')}${r.errors.length > 3 ? ` (+${r.errors.length - 3})` : ''}` : '';
+				this.notificationService.info(`Импортировано: ${r.added}, пропущено: ${r.skipped}.${errNote}`);
+				if (r.added > 0) { void this.keysService.checkAllQueued(); }
 			});
 			form.remove();
 		});
