@@ -1486,8 +1486,10 @@ export class CodeApplication extends Disposable {
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const args = this.environmentMainService.args;
 
-		// Handle agents window first based on context
-		if (args['agents']) {
+		// Handle agents window first based on context.
+		// Only honor the flag when it was passed explicitly on the command line,
+		// so that a normal desktop launch opens the classic VS Code editor.
+		if (args['agents'] && process.argv.some(a => a === '--agents' || a === '--sessions')) {
 			return windowsMainService.openAgentsWindow({
 				context,
 				cli: args,
