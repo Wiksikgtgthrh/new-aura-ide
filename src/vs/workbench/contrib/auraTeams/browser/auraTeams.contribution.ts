@@ -11,7 +11,8 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { IEditorFactoryRegistry, EditorExtensions } from '../../../common/editor.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -24,11 +25,15 @@ import { AuraTeamsEditorPane } from './auraTeamsEditorPane.js';
 import { AuraTeamsEditorInput, AuraTeamsEditorInputSerializer } from './auraTeamsEditorInput.js';
 import { AuraTeamsMyTasksView, AURA_TEAMS_OPEN_BOARD_COMMAND_ID } from './auraTeamsMyTasksView.js';
 import { AURA_TEAMS_MEMBER_SETTING } from '../common/auraTeamsService.js';
+import { IAuraTeamsGitService } from './auraTeamsGitService.js';
 import { auraMarketInstalledKey } from '../../auraMarket/common/auraMarketCatalog.js';
 
 export const AURA_TEAMS_VIEW_CONTAINER_ID = 'workbench.view.auraTeams';
 const AURA_TEAMS_MY_TASKS_VIEW_ID = 'auraTeams.myTasks';
 const AURA_TEAMS_SHOW_MY_TASKS_COMMAND_ID = 'auraTeams.showMyTasks';
+export const AURA_TEAMS_SMART_COMMIT_COMMAND_ID = 'auraTeams.smartCommit';
+const AURA_TEAMS_CHECKPOINT_COMMAND_ID = 'auraTeams.createCheckpoint';
+const AURA_TEAMS_RESTORE_COMMAND_ID = 'auraTeams.restoreCheckpoint';
 
 export const auraTeamsViewIcon = registerIcon('aura-teams-view-icon', Codicon.organization, localize('auraTeamsViewIcon', 'Icon of the Aura Teams plugin.'));
 
@@ -89,6 +94,55 @@ function registerAuraTeamsPlugin(): void {
 		}
 		override run(accessor: ServicesAccessor): void {
 			void accessor.get(IViewsService).openView(AURA_TEAMS_MY_TASKS_VIEW_ID, true);
+		}
+	});
+
+	// --- Git: умный коммит, контрольные точки ---
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: AURA_TEAMS_SMART_COMMIT_COMMAND_ID,
+				title: localize2('auraTeams.smartCommit', "Aura Teams: Умный коммит (сообщение по diff)"),
+				category: localize2('auraTeams.category', "Aura Teams"),
+				icon: Codicon.sparkle,
+				f1: true,
+				menu: [{ id: MenuId.SCMTitle, group: 'navigation', order: 1, when: ContextKeyExpr.equals('scmProvider', 'git') }],
+			});
+		}
+		override run(accessor: ServicesAccessor, taskId?: string): Promise<void> {
+			return accessor.get(IAuraTeamsGitService).smartCommit(typeof taskId === 'string' ? taskId : undefined);
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: AURA_TEAMS_CHECKPOINT_COMMAND_ID,
+				title: localize2('auraTeams.checkpoint', "Aura Teams: Контрольная точка"),
+				category: localize2('auraTeams.category', "Aura Teams"),
+				icon: Codicon.bookmark,
+				f1: true,
+				menu: [{ id: MenuId.SCMTitle, group: 'navigation', order: 2, when: ContextKeyExpr.equals('scmProvider', 'git') }],
+			});
+		}
+		override run(accessor: ServicesAccessor): Promise<void> {
+			return accessor.get(IAuraTeamsGitService).createCheckpoint();
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: AURA_TEAMS_RESTORE_COMMAND_ID,
+				title: localize2('auraTeams.restoreCheckpoint', "Aura Teams: Откатиться к контрольной точке"),
+				category: localize2('auraTeams.category', "Aura Teams"),
+				icon: Codicon.history,
+				f1: true,
+				menu: [{ id: MenuId.SCMTitle, group: 'navigation', order: 3, when: ContextKeyExpr.equals('scmProvider', 'git') }],
+			});
+		}
+		override run(accessor: ServicesAccessor): Promise<void> {
+			return accessor.get(IAuraTeamsGitService).restoreCheckpoint();
 		}
 	});
 }

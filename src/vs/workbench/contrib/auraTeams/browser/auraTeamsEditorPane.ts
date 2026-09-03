@@ -16,6 +16,8 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { AuraTeamsEditorInput } from './auraTeamsEditorInput.js';
 import { IAuraTeamsService } from '../common/auraTeamsService.js';
+import { IAuraTeamsGitService } from './auraTeamsGitService.js';
+import { commitSubject } from '../common/auraTeamsGit.js';
 import {
 	AURA_TASK_PRIORITY_LABEL, AURA_TASK_STATUS_LABEL, AURA_TASK_STATUSES, AuraTaskPriority, AuraTaskStatus, IAuraTask, branchNameForTask,
 } from '../common/auraTeamsModel.js';
@@ -40,6 +42,7 @@ export class AuraTeamsEditorPane extends EditorPane {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IAuraTeamsGitService private readonly gitService: IAuraTeamsGitService,
 	) {
 		super(AuraTeamsEditorPane.ID, group, telemetryService, themeService, storageService);
 		this._register(this.teams.onDidChange(() => this.render()));
@@ -186,7 +189,7 @@ export class AuraTeamsEditorPane extends EditorPane {
 	}
 
 	private async editTaskFlow(task: IAuraTask): Promise<void> {
-		type Action = 'title' | 'desc' | 'priority' | 'assignee' | 'status' | 'branch' | 'delete';
+		type Action = 'title' | 'desc' | 'priority' | 'assignee' | 'status' | 'branch' | 'commit' | 'history' | 'revert' | 'delete';
 		const picked = await this.quickInputService.pick<{ label: string; description?: string; id: Action }>([
 			{ label: '$(edit) Переименовать', description: task.title, id: 'title' },
 			{ label: '$(note) Описание', description: task.description || '—', id: 'desc' },
@@ -194,6 +197,9 @@ export class AuraTeamsEditorPane extends EditorPane {
 			{ label: '$(account) Исполнитель', description: task.assignee || '—', id: 'assignee' },
 			{ label: '$(arrow-right) Переместить в колонку', description: AURA_TASK_STATUS_LABEL[task.status], id: 'status' },
 			{ label: '$(git-branch) Ветка задачи', description: task.branch || 'создать и переключиться', id: 'branch' },
+			{ label: '$(sparkle) Умный коммит по задаче', description: 'сообщение по diff + трейлер Aura-Task', id: 'commit' },
+			{ label: '$(history) История задачи', description: 'коммиты с трейлером Aura-Task', id: 'history' },
+			{ label: '$(discard) Откатить задачу', description: 'обратные коммиты на всю историю задачи', id: 'revert' },
 			{ label: '$(trash) Удалить', id: 'delete' },
 		], { title: task.title, placeHolder: 'Что изменить?' });
 		if (!picked) { return; }
@@ -229,6 +235,15 @@ export class AuraTeamsEditorPane extends EditorPane {
 			case 'branch':
 				await this.checkoutBranch(task);
 				break;
+			case 'commit':
+				await this.gitService.smartCommit(task.id);
+				break;
+			case 'history':
+				await this.showTaskHistory(task);
+				break;
+			case 'revert':
+				await this.gitService.revertTask(task.id);
+				break;
 			case 'delete': {
 				const { confirmed } = await this.dialogService.confirm({ message: `Удалить задачу «${task.title}»?`, primaryButton: 'Удалить', type: 'warning' });
 				if (confirmed) { this.teams.removeTask(task.id); }
@@ -243,6 +258,26 @@ export class AuraTeamsEditorPane extends EditorPane {
 			{ placeHolder: 'Приоритет' },
 		);
 		return p?.id as AuraTaskPriority | undefined;
+	}
+
+	private async showTaskHistory(task: IAuraTask): Promise<void> {
+		const commits = await this.gitService.taskHistory(task.id);
+		if (commits.length === 0) {
+			this.notificationService.info(`У задачи «${task.title}» пока нет коммитов. Сделайте «Умный коммит по задаче» — он добавит трейлер Aura-Task.`);
+			return;
+		}
+		const picked = await this.quickInputService.pick(
+			commits.map(c => ({
+				label: commitSubject(c.message),
+				description: c.hash.slice(0, 7),
+				detail: [c.authorName, c.authorDate ? new Date(c.authorDate).toLocaleString() : undefined].filter(Boolean).join(' · '),
+				hash: c.hash,
+			})),
+			{ title: `История: ${task.title}`, placeHolder: 'Открыть коммит в Git Graph', matchOnDescription: true },
+		);
+		if (picked) {
+			await this.commandService.executeCommand('git.viewCommit', undefined, picked.hash).then(undefined, () => undefined);
+		}
 	}
 
 	/** Ветка задачи: если есть — переключаемся штатной командой git; иначе создаём через терминал. */
