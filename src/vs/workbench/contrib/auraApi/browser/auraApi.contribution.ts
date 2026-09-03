@@ -12,7 +12,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
-import { Extensions as EditorPaneExtensions, IEditorFactoryRegistry, EditorExtensions } from '../../../common/editor.js';
+import { IEditorFactoryRegistry, EditorExtensions } from '../../../common/editor.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -78,7 +78,7 @@ function registerAuraApiPlugin(): void {
 	registered = true;
 
 	// Центральная вкладка менеджера
-	Registry.as<IEditorPaneRegistry>(EditorPaneExtensions.EditorPane).registerEditorPane(
+	Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 		EditorPaneDescriptor.create(AuraApiEditorPane, AuraApiEditorPane.ID, localize('auraApiEditor', "Aura API")),
 		[new SyncDescriptor(AuraApiEditorInput)]
 	);

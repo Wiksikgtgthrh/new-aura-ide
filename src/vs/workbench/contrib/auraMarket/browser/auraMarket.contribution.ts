@@ -8,7 +8,7 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
-import { Extensions as EditorPaneExtensions, IEditorFactoryRegistry, EditorExtensions } from '../../../common/editor.js';
+import { IEditorFactoryRegistry, EditorExtensions } from '../../../common/editor.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -37,7 +37,7 @@ const AURA_MARKET_LAUNCHER_VIEW_ID = 'auraMarket.launcher';
 const auraMarketViewIcon = registerIcon('aura-market-view-icon', Codicon.package, localize('auraMarketViewIcon', 'View icon of the Aura Market view container.'));
 
 // --- Центральная вкладка ---
-Registry.as<IEditorPaneRegistry>(EditorPaneExtensions.EditorPane).registerEditorPane(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(AuraMarketEditorPane, AuraMarketEditorPane.ID, localize('auraMarketEditor', "Aura Market")),
 	[new SyncDescriptor(AuraMarketEditorInput)]
 );

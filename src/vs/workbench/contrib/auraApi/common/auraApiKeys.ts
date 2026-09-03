@@ -201,6 +201,7 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 			data: init.data,
 			headers: init.headers,
 			timeout: init.timeout ?? 15000,
+			callSite: 'auraApi.checkKey',
 		}, CancellationToken.None);
 		const body = await asText(ctx) ?? '';
 		return { ms: Date.now() - start, status: ctx.res.statusCode, body };

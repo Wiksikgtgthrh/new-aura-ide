@@ -151,4 +151,8 @@ export class AuraMarketEditorPane extends EditorPane {
 			}
 		}
 	}
+
+	override layout(_dimension: import('../../../../base/browser/dom.js').Dimension): void {
+		// Вёрстка резиновая (flex), перерисовка по размеру не требуется.
+	}
 }
