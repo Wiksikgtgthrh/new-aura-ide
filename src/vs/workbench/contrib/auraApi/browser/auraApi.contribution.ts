@@ -21,6 +21,11 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/
 import { AuraApiEditorPane } from './auraApiEditorPane.js';
 import { AuraApiEditorInput, AuraApiEditorInputSerializer } from './auraApiEditorInput.js';
 import { auraMarketInstalledKey } from '../../auraMarket/common/auraMarketCatalog.js';
+import { IAuraApiKeysService } from '../common/auraApiKeys.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { AuraApiChatProvider, AURA_API_VENDOR, AURA_API_SYSTEM_PROMPT_SETTING } from './auraApiChatProvider.js';
+import { ILanguageModelsService } from '../../chat/common/languageModels.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 
 export const AURA_API_OPEN_COMMAND_ID = 'auraApi.openManager';
 const AURA_API_VIEW_CONTAINER_ID = 'workbench.view.auraApi';
@@ -39,12 +44,38 @@ class AuraApiPluginContribution extends Disposable {
 
 	static readonly ID = 'workbench.contrib.auraApiPlugin';
 
-	constructor(@IStorageService storageService: IStorageService) {
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
 		super();
 		if (storageService.get(auraMarketInstalledKey('aura-api'), StorageScope.APPLICATION, 'false') === 'true') {
 			registerAuraApiPlugin();
+			registerAuraApiChatBridge(this.instantiationService);
 		}
 	}
 }
 
 registerWorkbenchContribution2(AuraApiPluginContribution.ID, AuraApiPluginContribution, WorkbenchPhase.AfterRestored);
+
+export function registerAuraApiChatBridge(instantiationService: IInstantiationService): void {
+	instantiationService.invokeFunction(accessor => {
+		const languageModels = accessor.get(ILanguageModelsService);
+		const keysService = accessor.get(IAuraApiKeysService);
+		const configurationService = accessor.get(IConfigurationService);
+		languageModels.registerLanguageModelProvider(AURA_API_VENDOR, new AuraApiChatProvider(keysService, configurationService));
+	});
+}
+
+// Настройка: системные правила/промпт для моделей Aura API в чате
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'auraApi',
+	title: localize('auraApi.config', "Aura API"),
+	properties: {
+		[AURA_API_SYSTEM_PROMPT_SETTING]: {
+			type: 'string',
+			default: '',
+			markdownDescription: localize('auraApi.chat.systemPrompt', "Системные правила для моделей Aura API: как модель должна себя вести в чате (стиль, ограничения, соглашения проекта). Добавляется первым системным сообщением к каждому запросу. Дополнительно работают штатные файлы правил: AGENTS.md и .github/copilot-instructions.md в корне проекта."),
+		},
+	},
+});
