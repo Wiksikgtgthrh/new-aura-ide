@@ -4,7 +4,7 @@
 
 import './media/auraApiEditor.css';
 import { $, append, addDisposableListener, EventType } from '../../../../base/browser/dom.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -18,6 +18,9 @@ import { AuraApiEditorInput } from './auraApiEditorInput.js';
 import { IAuraApiKeysService, IAuraApiKey, IAuraApiKeyStatus, AuraApiKeyPriority } from '../common/auraApiKeys.js';
 
 type AuraStatusFilter = '' | 'ok' | 'error' | 'cooldown' | 'unchecked';
+
+/** Строк за одну порцию рендера; дальше подгрузка по прокрутке. */
+const ROW_CHUNK = 100;
 
 export class AuraApiEditorPane extends EditorPane {
 
@@ -267,86 +270,126 @@ export class AuraApiEditorPane extends EditorPane {
 			return;
 		}
 
-		for (const key of visible) {
-			const s = this.keysService.getStatus(key.id);
-			const row = append(this.tableBody, $('tr.aura-api-row'));
-			row.classList.toggle('selected', this.selected.has(key.id));
-
-			const checkCell = append(row, $('td.aura-api-check'));
-			const check = append(checkCell, $('input')) as HTMLInputElement;
-			check.type = 'checkbox';
-			check.checked = this.selected.has(key.id);
-			check.setAttribute('aria-label', `Выбрать ${key.name}`);
-			this.rowDisposables.add(addDisposableListener(check, EventType.CHANGE, () => {
-				if (check.checked) { this.selected.add(key.id); } else { this.selected.delete(key.id); }
-				this.renderTable();
-			}));
-
-			append(row, $('td')).textContent = key.name;
-			append(row, $('td.aura-api-url')).textContent = key.baseUrl;
-			append(row, $('td')).textContent = key.model;
-			append(row, $('td')).textContent = key.group ?? '—';
-
-			// Приоритет (селектор)
-			const prioCell = append(row, $('td'));
-			const prio = append(prioCell, $('select.aura-api-select')) as HTMLSelectElement;
-			for (const [value, label] of [['high', 'Высокий'], ['medium', 'Средний'], ['low', 'Низкий']] as Array<[AuraApiKeyPriority, string]>) {
-				const opt = append(prio, $('option')) as HTMLOptionElement;
-				opt.value = value; opt.textContent = label;
+		// Рендер порциями: первые ROW_CHUNK строк сразу, остальные — по мере прокрутки.
+		// При сотнях ключей это держит перерисовку (на каждый onDidChange) в пределах кадра.
+		const renderRows = (from: number, to: number) => {
+			for (const key of visible.slice(from, to)) {
+				this.renderRow(key);
 			}
-			prio.value = key.priority;
-			this.rowDisposables.add(addDisposableListener(prio, EventType.CHANGE, () => {
-				void this.keysService.updateKey(key.id, { priority: prio.value as AuraApiKeyPriority });
-			}));
-
-			// Пинг
-			append(row, $('td')).textContent = s.pingMs !== undefined ? `${s.pingMs} мс` : (s.checking ? '…' : '—');
-
-			// Статус / ошибка (health из ядра + cooldown)
-			const statusCell = append(row, $('td'));
-			const healthLabel: Record<string, string> = { ok: 'OK', unauthorized: '401', forbidden: '403', ratelimited: '429', notfound: '404', down: '5xx', unknown: '?' };
-			if (s.cooldownUntil !== undefined && s.cooldownUntil > Date.now()) {
-				statusCell.textContent = s.cooldownUntil === Number.POSITIVE_INFINITY ? 'Cooldown: до ручной перепроверки (401)' : `Cooldown до ${new Date(s.cooldownUntil).toLocaleTimeString()}`;
-				statusCell.classList.add('aura-api-warn');
-			} else if (s.checking) {
-				statusCell.textContent = 'Проверка…';
-			} else if (s.health && s.health !== 'ok') {
-				const hb = append(statusCell, $('span.aura-api-err'));
-				hb.textContent = `${healthLabel[s.health] ?? s.health}: ${s.error ?? ''}`;
-				hb.title = s.error ?? '';
-			} else if (s.ok === true) {
-				const ok = append(statusCell, $('span.aura-api-ok'));
-				ok.textContent = s.excludedHighPing ? 'Работает, но исключён (высокий пинг)' : 'Работает';
-			} else if (s.ok === false) {
-				const err = append(statusCell, $('span.aura-api-err'));
-				err.textContent = `Ошибка: ${s.error ?? 'неизвестная'}`;
-				err.title = s.error ?? '';
-			} else {
-				statusCell.textContent = 'Не проверен';
-			}
-
-			// Подлинность модели %
-			append(row, $('td')).textContent = s.authenticityPct !== undefined && s.authenticityPct !== null ? `${s.authenticityPct}%` : '—';
-
-			// Безопасность %
-			const secCell = append(row, $('td'));
-			if (s.securityPct !== undefined && s.securityPct !== null) {
-				secCell.textContent = `${s.securityPct}%`;
-				if (s.securityNotes && s.securityNotes.length > 0) {
-					secCell.title = 'Замечания: ' + s.securityNotes.join('; ');
-					secCell.classList.add('aura-api-warn');
+		};
+		renderRows(0, ROW_CHUNK);
+		if (visible.length > ROW_CHUNK) {
+			const sentinel = append(this.tableBody, $('tr.aura-api-more'));
+			const cell = append(sentinel, $('td.aura-api-empty')) as HTMLTableCellElement;
+			cell.colSpan = 11;
+			let rendered = ROW_CHUNK;
+			const update = () => { cell.textContent = `Показано ${rendered} из ${visible.length}. Прокрутите вниз, чтобы загрузить ещё.`; };
+			update();
+			const observer = new IntersectionObserver(entries => {
+				if (!entries.some(e => e.isIntersecting) || rendered >= visible.length) {
+					return;
 				}
-			} else {
-				secCell.textContent = '—';
-			}
-
-			// Действия
-			const actions = append(row, $('td.aura-api-actions'));
-			this.mkRowButton(actions, 'Проверить', () => void this.keysService.checkKey(key.id));
-			this.mkRowButton(actions, 'Probe', () => this.probeKey(key));
-			this.mkRowButton(actions, 'В чат', () => this.selectForChat(key));
-			this.mkRowButton(actions, 'Удалить', () => void this.keysService.removeKey(key.id));
+				const next = Math.min(rendered + ROW_CHUNK, visible.length);
+				const anchor = sentinel;
+				for (const key of visible.slice(rendered, next)) {
+					this.tableBody.insertBefore(this.renderRow(key, false), anchor);
+				}
+				rendered = next;
+				if (rendered >= visible.length) {
+					observer.disconnect();
+					sentinel.remove();
+				} else {
+					update();
+				}
+			}, { root: this.tableBody.closest('.aura-api-table-wrap') });
+			observer.observe(sentinel);
+			this.rowDisposables.add(toDisposable(() => observer.disconnect()));
 		}
+	}
+
+	private renderRow(key: IAuraApiKey, attach = true): HTMLElement {
+		const s = this.keysService.getStatus(key.id);
+		const row = $('tr.aura-api-row');
+		if (attach) {
+			this.tableBody.appendChild(row);
+		}
+		row.classList.toggle('selected', this.selected.has(key.id));
+
+		const checkCell = append(row, $('td.aura-api-check'));
+		const check = append(checkCell, $('input')) as HTMLInputElement;
+		check.type = 'checkbox';
+		check.checked = this.selected.has(key.id);
+		check.setAttribute('aria-label', `Выбрать ${key.name}`);
+		this.rowDisposables.add(addDisposableListener(check, EventType.CHANGE, () => {
+			if (check.checked) { this.selected.add(key.id); } else { this.selected.delete(key.id); }
+			this.renderTable();
+		}));
+
+		append(row, $('td')).textContent = key.name;
+		append(row, $('td.aura-api-url')).textContent = key.baseUrl;
+		append(row, $('td')).textContent = key.model;
+		append(row, $('td')).textContent = key.group ?? '—';
+
+		// Приоритет (селектор)
+		const prioCell = append(row, $('td'));
+		const prio = append(prioCell, $('select.aura-api-select')) as HTMLSelectElement;
+		for (const [value, label] of [['high', 'Высокий'], ['medium', 'Средний'], ['low', 'Низкий']] as Array<[AuraApiKeyPriority, string]>) {
+			const opt = append(prio, $('option')) as HTMLOptionElement;
+			opt.value = value; opt.textContent = label;
+		}
+		prio.value = key.priority;
+		this.rowDisposables.add(addDisposableListener(prio, EventType.CHANGE, () => {
+			void this.keysService.updateKey(key.id, { priority: prio.value as AuraApiKeyPriority });
+		}));
+
+		// Пинг
+		append(row, $('td')).textContent = s.pingMs !== undefined ? `${s.pingMs} мс` : (s.checking ? '…' : '—');
+
+		// Статус / ошибка (health из ядра + cooldown)
+		const statusCell = append(row, $('td'));
+		const healthLabel: Record<string, string> = { ok: 'OK', unauthorized: '401', forbidden: '403', ratelimited: '429', notfound: '404', down: '5xx', unknown: '?' };
+		if (s.cooldownUntil !== undefined && s.cooldownUntil > Date.now()) {
+			statusCell.textContent = s.cooldownUntil === Number.POSITIVE_INFINITY ? 'Cooldown: до ручной перепроверки (401)' : `Cooldown до ${new Date(s.cooldownUntil).toLocaleTimeString()}`;
+			statusCell.classList.add('aura-api-warn');
+		} else if (s.checking) {
+			statusCell.textContent = 'Проверка…';
+		} else if (s.health && s.health !== 'ok') {
+			const hb = append(statusCell, $('span.aura-api-err'));
+			hb.textContent = `${healthLabel[s.health] ?? s.health}: ${s.error ?? ''}`;
+			hb.title = s.error ?? '';
+		} else if (s.ok === true) {
+			const ok = append(statusCell, $('span.aura-api-ok'));
+			ok.textContent = s.excludedHighPing ? 'Работает, но исключён (высокий пинг)' : 'Работает';
+		} else if (s.ok === false) {
+			const err = append(statusCell, $('span.aura-api-err'));
+			err.textContent = `Ошибка: ${s.error ?? 'неизвестная'}`;
+			err.title = s.error ?? '';
+		} else {
+			statusCell.textContent = 'Не проверен';
+		}
+
+		// Подлинность модели %
+		append(row, $('td')).textContent = s.authenticityPct !== undefined && s.authenticityPct !== null ? `${s.authenticityPct}%` : '—';
+
+		// Безопасность %
+		const secCell = append(row, $('td'));
+		if (s.securityPct !== undefined && s.securityPct !== null) {
+			secCell.textContent = `${s.securityPct}%`;
+			if (s.securityNotes && s.securityNotes.length > 0) {
+				secCell.title = 'Замечания: ' + s.securityNotes.join('; ');
+				secCell.classList.add('aura-api-warn');
+			}
+		} else {
+			secCell.textContent = '—';
+		}
+
+		// Действия
+		const actions = append(row, $('td.aura-api-actions'));
+		this.mkRowButton(actions, 'Проверить', () => void this.keysService.checkKey(key.id));
+		this.mkRowButton(actions, 'Probe', () => this.probeKey(key));
+		this.mkRowButton(actions, 'В чат', () => this.selectForChat(key));
+		this.mkRowButton(actions, 'Удалить', () => void this.keysService.removeKey(key.id));
+		return row;
 	}
 
 	private mkRowButton(parent: HTMLElement, label: string, run: () => void): void {
