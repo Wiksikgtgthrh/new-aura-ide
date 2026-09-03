@@ -4,7 +4,8 @@
 .aura-api-btn { padding: 7px 13px; border: 1px solid color-mix(in srgb, var(--vscode-button-background) 45%, transparent); border-radius: 8px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 12px; font-weight: 600; transition: transform .16s ease, background .16s ease, box-shadow .16s ease; }
 .aura-api-btn:hover { background: var(--vscode-button-hoverBackground); transform: translateY(-1px); box-shadow: 0 5px 14px color-mix(in srgb, var(--vscode-button-background) 28%, transparent); }
 .aura-api-btn-small { padding: 2px 8px; margin-right: 4px; border: none; border-radius: 3px; background: var(--vscode-button-secondaryBackground, var(--vscode-input-background)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); cursor: pointer; font-size: 11px; }
-.aura-api-group-filter { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.aura-api-group-filter { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+.aura-api-search { min-width: 200px; }
 .aura-api-select { background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border, transparent); border-radius: 3px; padding: 2px 6px; }
 .aura-api-table-wrap { flex: 1; overflow: auto; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: 12px; background: color-mix(in srgb, var(--vscode-editorWidget-background) 34%, transparent); }
 .aura-api-table { width: 100%; border-collapse: collapse; font-size: 12px; }
