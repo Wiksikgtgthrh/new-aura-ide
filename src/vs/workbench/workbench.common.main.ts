@@ -483,3 +483,6 @@ import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
 import './contrib/opener/browser/opener.contribution.js';
 
 //#endregion
+
+// Aura Market (custom marketplace panel)
+import 'vs/workbench/contrib/auraMarket/browser/auraMarket.contribution.js';

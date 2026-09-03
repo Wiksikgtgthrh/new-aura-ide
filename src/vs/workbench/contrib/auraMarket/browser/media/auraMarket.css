@@ -1,0 +1,131 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.aura-market-view {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 8px;
+	box-sizing: border-box;
+	gap: 8px;
+}
+
+.aura-market-search-input {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 4px 8px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 4px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	outline: none;
+}
+
+.aura-market-search-input:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+.aura-market-chips {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.aura-market-chip {
+	padding: 3px 10px;
+	border-radius: 12px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
+	color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.aura-market-chip.active {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.aura-market-chip:hover {
+	opacity: 0.9;
+}
+
+.aura-market-list {
+	flex: 1;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.aura-market-empty {
+	padding: 16px 8px;
+	color: var(--vscode-descriptionForeground);
+	text-align: center;
+}
+
+.aura-market-item {
+	border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+	border-radius: 6px;
+	padding: 8px 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	background: var(--vscode-sideBar-background);
+}
+
+.aura-market-item-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.aura-market-item-name {
+	font-weight: 600;
+}
+
+.aura-market-item-badge {
+	font-size: 10px;
+	padding: 1px 8px;
+	border-radius: 10px;
+	white-space: nowrap;
+}
+
+.aura-market-item-badge.badge-plugin {
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.aura-market-item-badge.badge-skillset {
+	background: var(--vscode-charts-purple, #a371f7);
+	color: #ffffff;
+}
+
+.aura-market-item-description {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.aura-market-item-meta {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.aura-market-install {
+	align-self: flex-start;
+	margin-top: 4px;
+	padding: 3px 12px;
+	border: none;
+	border-radius: 4px;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.aura-market-install:hover {
+	background: var(--vscode-button-hoverBackground);
+}
