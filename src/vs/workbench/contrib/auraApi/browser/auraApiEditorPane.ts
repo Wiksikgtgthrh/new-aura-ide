@@ -4,12 +4,15 @@
 
 import './media/auraApiEditor.css';
 import { $, append, addDisposableListener, EventType } from '../../../../base/browser/dom.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { AuraApiEditorInput } from './auraApiEditorInput.js';
 import { IAuraApiKeysService, IAuraApiKey, IAuraApiKeyStatus, AuraApiKeyPriority } from '../common/auraApiKeys.js';
@@ -27,6 +30,12 @@ export class AuraApiEditorPane extends EditorPane {
 	private statusFilter: AuraStatusFilter = '';
 	private groupSelect?: HTMLSelectElement;
 	private inputId = 0;
+	private readonly selected = new Set<string>();
+	private selectAll?: HTMLInputElement;
+	private bulkBar!: HTMLElement;
+	private bulkCount!: HTMLElement;
+	/** Слушатели строк таблицы живут до следующей перерисовки, а не до dispose панели. */
+	private readonly rowDisposables = this._register(new DisposableStore());
 
 	constructor(
 		group: IEditorGroup,
@@ -35,6 +44,8 @@ export class AuraApiEditorPane extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IAuraApiKeysService private readonly keysService: IAuraApiKeysService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super(AuraApiEditorPane.ID, group, telemetryService, themeService, storageService);
 		this._register(this.keysService.onDidChange(() => this.renderTable()));
@@ -92,14 +103,104 @@ export class AuraApiEditorPane extends EditorPane {
 			this.renderTable();
 		}));
 
+		// --- Групповые операции над выбранными ключами ---
+		this.bulkBar = append(this.rootEl, $('.aura-api-bulk-bar'));
+		this.bulkCount = append(this.bulkBar, $('span.aura-api-bulk-count'));
+		this.mkButton(this.bulkBar, 'Проверить', () => {
+			for (const id of this.selected) { void this.keysService.checkKey(id); }
+		});
+		this.mkButton(this.bulkBar, 'В группу…', () => this.moveSelectedToGroup());
+		this.mkButton(this.bulkBar, 'Приоритет…', () => this.setSelectedPriority());
+		this.mkButton(this.bulkBar, 'Удалить', () => this.removeSelected());
+		this.mkButton(this.bulkBar, 'Снять выбор', () => {
+			this.selected.clear();
+			this.renderTable();
+		});
+
 		// --- Таблица ключей ---
 		const tableWrap = append(this.rootEl, $('.aura-api-table-wrap'));
 		const table = append(tableWrap, $('table.aura-api-table'));
 		const head = append(table, $('tr.aura-api-head'));
+		const selectAllCell = append(head, $('th.aura-api-check'));
+		this.selectAll = append(selectAllCell, $('input')) as HTMLInputElement;
+		this.selectAll.type = 'checkbox';
+		this.selectAll.setAttribute('aria-label', 'Выбрать все видимые ключи');
+		this._register(addDisposableListener(this.selectAll, EventType.CHANGE, () => {
+			const visibleIds = this.visibleKeys().map(k => k.id);
+			if (this.selectAll!.checked) {
+				for (const id of visibleIds) { this.selected.add(id); }
+			} else {
+				for (const id of visibleIds) { this.selected.delete(id); }
+			}
+			this.renderTable();
+		}));
 		for (const col of ['Название', 'Base URL', 'Модель', 'Группа', 'Приоритет', 'Пинг', 'Статус', 'Модель %', 'Защита %', 'Действия']) {
 			append(head, $('th')).textContent = col;
 		}
 		this.tableBody = append(table, $('tbody'));
+	}
+
+	private visibleKeys(): IAuraApiKey[] {
+		return this.keysService.getKeys().filter(k => {
+			if (this.groupFilter && k.group !== this.groupFilter) {
+				return false;
+			}
+			if (this.searchText && !`${k.name} ${k.model} ${k.baseUrl}`.toLowerCase().includes(this.searchText)) {
+				return false;
+			}
+			return this.matchesStatusFilter(this.keysService.getStatus(k.id));
+		});
+	}
+
+	private selectedKeys(): IAuraApiKey[] {
+		return this.keysService.getKeys().filter(k => this.selected.has(k.id));
+	}
+
+	private async moveSelectedToGroup(): Promise<void> {
+		const groups = this.keysService.getGroups().map(g => g.name);
+		const picked = await this.quickInputService.pick(
+			[{ label: '$(close) Без группы', id: '' }, ...groups.map(g => ({ label: g, id: g })), { label: '$(add) Новая группа…', id: '__new__' }],
+			{ placeHolder: `Перенести ${this.selected.size} ключей в группу` },
+		);
+		if (!picked) { return; }
+		let target = picked.id ?? '';
+		if (target === '__new__') {
+			const name = await this.quickInputService.input({ prompt: 'Название новой группы', placeHolder: 'например, prod' });
+			if (!name?.trim()) { return; }
+			target = name.trim();
+			this.keysService.createGroup(target);
+		}
+		for (const key of this.selectedKeys()) {
+			await this.keysService.updateKey(key.id, { group: target || undefined });
+		}
+		this.notificationService.info(target ? `Перенесено в «${target}»: ${this.selected.size} ключей.` : `Убрано из групп: ${this.selected.size} ключей.`);
+	}
+
+	private async setSelectedPriority(): Promise<void> {
+		const picked = await this.quickInputService.pick(
+			[{ label: 'Высокий', id: 'high' }, { label: 'Средний', id: 'medium' }, { label: 'Низкий', id: 'low' }],
+			{ placeHolder: `Приоритет для ${this.selected.size} ключей` },
+		);
+		if (!picked) { return; }
+		for (const key of this.selectedKeys()) {
+			await this.keysService.updateKey(key.id, { priority: picked.id as AuraApiKeyPriority });
+		}
+	}
+
+	private async removeSelected(): Promise<void> {
+		const count = this.selected.size;
+		const { confirmed } = await this.dialogService.confirm({
+			message: `Удалить ${count} ключей?`,
+			detail: 'Секреты будут удалены из системного хранилища. Действие нельзя отменить.',
+			primaryButton: 'Удалить',
+			type: 'warning',
+		});
+		if (!confirmed) { return; }
+		for (const key of this.selectedKeys()) {
+			await this.keysService.removeKey(key.id);
+		}
+		this.selected.clear();
+		this.notificationService.info(`Удалено ключей: ${count}.`);
 	}
 
 	private matchesStatusFilter(status: IAuraApiKeyStatus): boolean {
@@ -122,6 +223,7 @@ export class AuraApiEditorPane extends EditorPane {
 
 	private renderTable(): void {
 		if (!this.tableBody) { return; }
+		this.rowDisposables.clear();
 		this.tableBody.textContent = '';
 
 		// обновить список групп (из сервиса — включая пустые созданные)
@@ -140,19 +242,25 @@ export class AuraApiEditorPane extends EditorPane {
 			this.groupFilter = this.groupSelect.value;
 		}
 
-		const visible = keys.filter(k => {
-			if (this.groupFilter && k.group !== this.groupFilter) {
-				return false;
-			}
-			if (this.searchText && !`${k.name} ${k.model} ${k.baseUrl}`.toLowerCase().includes(this.searchText)) {
-				return false;
-			}
-			return this.matchesStatusFilter(this.keysService.getStatus(k.id));
-		});
+		// выбор переживает удаления и фильтры, но мёртвые id чистим
+		const liveIds = new Set(keys.map(k => k.id));
+		for (const id of this.selected) {
+			if (!liveIds.has(id)) { this.selected.delete(id); }
+		}
+		this.bulkBar.classList.toggle('hidden', this.selected.size === 0);
+		this.bulkCount.textContent = `Выбрано: ${this.selected.size}`;
+
+		const visible = this.visibleKeys();
+		if (this.selectAll) {
+			const visibleSelected = visible.filter(k => this.selected.has(k.id)).length;
+			this.selectAll.checked = visible.length > 0 && visibleSelected === visible.length;
+			this.selectAll.indeterminate = visibleSelected > 0 && visibleSelected < visible.length;
+			this.selectAll.disabled = visible.length === 0;
+		}
 		if (visible.length === 0) {
 			const row = append(this.tableBody, $('tr'));
 			const cell = append(row, $('td.aura-api-empty')) as HTMLTableCellElement;
-			cell.colSpan = 10;
+			cell.colSpan = 11;
 			cell.textContent = keys.length === 0
 				? 'Ключи не добавлены. Нажмите «+ Добавить ключ» или «Массовый импорт».'
 				: 'Ничего не найдено. Смягчите поиск или сбросьте фильтры группы и статуса.';
@@ -162,6 +270,17 @@ export class AuraApiEditorPane extends EditorPane {
 		for (const key of visible) {
 			const s = this.keysService.getStatus(key.id);
 			const row = append(this.tableBody, $('tr.aura-api-row'));
+			row.classList.toggle('selected', this.selected.has(key.id));
+
+			const checkCell = append(row, $('td.aura-api-check'));
+			const check = append(checkCell, $('input')) as HTMLInputElement;
+			check.type = 'checkbox';
+			check.checked = this.selected.has(key.id);
+			check.setAttribute('aria-label', `Выбрать ${key.name}`);
+			this.rowDisposables.add(addDisposableListener(check, EventType.CHANGE, () => {
+				if (check.checked) { this.selected.add(key.id); } else { this.selected.delete(key.id); }
+				this.renderTable();
+			}));
 
 			append(row, $('td')).textContent = key.name;
 			append(row, $('td.aura-api-url')).textContent = key.baseUrl;
@@ -176,7 +295,7 @@ export class AuraApiEditorPane extends EditorPane {
 				opt.value = value; opt.textContent = label;
 			}
 			prio.value = key.priority;
-			this._register(addDisposableListener(prio, EventType.CHANGE, () => {
+			this.rowDisposables.add(addDisposableListener(prio, EventType.CHANGE, () => {
 				void this.keysService.updateKey(key.id, { priority: prio.value as AuraApiKeyPriority });
 			}));
 
@@ -233,7 +352,7 @@ export class AuraApiEditorPane extends EditorPane {
 	private mkRowButton(parent: HTMLElement, label: string, run: () => void): void {
 		const b = append(parent, $('button.aura-api-btn-small')) as HTMLButtonElement;
 		b.textContent = label;
-		this._register(addDisposableListener(b, EventType.CLICK, run));
+		this.rowDisposables.add(addDisposableListener(b, EventType.CLICK, run));
 	}
 
 	private async probeKey(key: IAuraApiKey): Promise<void> {
