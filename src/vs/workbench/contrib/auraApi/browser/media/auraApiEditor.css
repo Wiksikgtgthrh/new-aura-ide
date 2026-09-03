@@ -1,0 +1,23 @@
+.aura-api-editor { display: flex; flex-direction: column; height: 100%; padding: 12px; box-sizing: border-box; gap: 10px; overflow-y: auto; }
+.aura-api-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.aura-api-btn { padding: 4px 12px; border: none; border-radius: 4px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 12px; }
+.aura-api-btn:hover { background: var(--vscode-button-hoverBackground); }
+.aura-api-btn-small { padding: 2px 8px; margin-right: 4px; border: none; border-radius: 3px; background: var(--vscode-button-secondaryBackground, var(--vscode-input-background)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); cursor: pointer; font-size: 11px; }
+.aura-api-group-filter { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.aura-api-select { background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border, transparent); border-radius: 3px; padding: 2px 6px; }
+.aura-api-table-wrap { flex: 1; overflow: auto; }
+.aura-api-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.aura-api-table th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--vscode-panel-border); color: var(--vscode-descriptionForeground); position: sticky; top: 0; background: var(--vscode-editor-background); }
+.aura-api-table td { padding: 6px 8px; border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); vertical-align: top; }
+.aura-api-url { font-family: monospace; font-size: 11px; }
+.aura-api-ok { color: var(--vscode-charts-green, #4ec9b0); }
+.aura-api-err { color: var(--vscode-errorForeground, #f48771); }
+.aura-api-warn { color: var(--vscode-editorWarning-foreground, #cca700); }
+.aura-api-empty { text-align: center; color: var(--vscode-descriptionForeground); padding: 24px; }
+.aura-api-form { border: 1px solid var(--vscode-panel-border); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px; max-width: 640px; }
+.aura-api-field { display: flex; flex-direction: column; gap: 4px; }
+.aura-api-input { padding: 4px 8px; border: 1px solid var(--vscode-input-border, transparent); border-radius: 4px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); }
+.aura-api-bulk { width: 100%; box-sizing: border-box; padding: 6px; border: 1px solid var(--vscode-input-border, transparent); border-radius: 4px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); font-family: monospace; }
+.aura-api-hint { font-size: 12px; color: var(--vscode-descriptionForeground); margin: 0; }
+.aura-api-form-buttons { display: flex; gap: 8px; }
+.aura-api-launcher { display: flex; flex-direction: column; gap: 8px; padding: 12px; }

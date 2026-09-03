@@ -486,3 +486,6 @@ import './contrib/opener/browser/opener.contribution.js';
 
 // Aura Market (custom marketplace panel)
 import './contrib/auraMarket/browser/auraMarket.contribution.js';
+
+// Aura API (key manager: ping, authenticity, security)
+import './contrib/auraApi/browser/auraApi.contribution.js';

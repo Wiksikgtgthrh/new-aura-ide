@@ -1,0 +1,317 @@
+/*---------------------------------------------------------------------------------------------
+ *  Aura API — менеджер API-ключей: хранение, проверка пинга/ошибок,
+ *  эвристика подлинности модели и безопасности ответов.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
+import { IRequestService, asText } from '../../../../platform/request/common/request.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+
+export const IAuraApiKeysService = createDecorator<IAuraApiKeysService>('auraApiKeysService');
+
+export type AuraApiKeyPriority = 'high' | 'medium' | 'low';
+
+export interface IAuraApiKey {
+	readonly id: string;
+	name: string;
+	baseUrl: string;
+	model: string;
+	expectedModel?: string;
+	group?: string;
+	priority: AuraApiKeyPriority;
+	createdAt: number;
+}
+
+export interface IAuraApiKeyStatus {
+	checking: boolean;
+	lastChecked?: number;
+	pingMs?: number;
+	ok?: boolean;
+	error?: string;
+	authenticityPct?: number | null;
+	securityPct?: number | null;
+	securityNotes?: string[];
+	excludedHighPing?: boolean;
+}
+
+export interface IAuraApiKeysService {
+	readonly _serviceBrand: undefined;
+	readonly onDidChange: Event<void>;
+	getKeys(): IAuraApiKey[];
+	getSecretKeyRef(id: string): string;
+	addKey(input: Omit<IAuraApiKey, 'id' | 'createdAt'>, secret: string): Promise<IAuraApiKey>;
+	addKeysBulk(text: string): Promise<{ added: number; skipped: number }>;
+	removeKey(id: string): Promise<void>;
+	updateKey(id: string, patch: Partial<IAuraApiKey>): Promise<void>;
+	getSecret(id: string): Promise<string | undefined>;
+	getStatus(id: string): IAuraApiKeyStatus;
+	checkKey(id: string): Promise<IAuraApiKeyStatus>;
+	checkAll(): Promise<void>;
+	bestKey(): IAuraApiKey | undefined;
+	selectForChat(id: string): Promise<void>;
+}
+
+const STORAGE_KEYS = 'auraApi.keys';
+const STORAGE_SELECTED = 'auraApi.chat.selectedKeyId';
+const SECRET_PREFIX = 'auraApi.key.';
+const HIGH_PING_MS = 3000;
+
+/** Эвристика «вредоносности» ответа модели: ищем подозрительные паттерны команд. */
+const MALICIOUS_PATTERNS: Array<{ re: RegExp; note: string }> = [
+	{ re: /rm\s+-rf\s+\/|del\s+\/[sfq]/i, note: 'деструктивная команда удаления' },
+	{ re: /powershell[^\n]*-enc\b|powershell[^\n]*-encodedcommand/i, note: 'скрытый PowerShell payload' },
+	{ re: /curl[^\n|]*\|\s*(ba)?sh|wget[^\n|]*\|\s*(ba)?sh/i, note: 'скачивание и исполнение скрипта из сети' },
+	{ re: /\bIEX\b|Invoke-Expression/i, note: 'динамическое исполнение кода' },
+	{ re: /reg\s+add[^\n]*Run/i, note: 'прописывание в автозагрузку' },
+];
+
+export class AuraApiKeysService extends Disposable implements IAuraApiKeysService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
+
+	private keys: IAuraApiKey[] = [];
+	private readonly statuses = new Map<string, IAuraApiKeyStatus>();
+
+	constructor(
+		@IStorageService private readonly storageService: IStorageService,
+		@ISecretStorageService private readonly secretStorage: ISecretStorageService,
+		@IRequestService private readonly requestService: IRequestService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService private readonly logService: ILogService,
+	) {
+		super();
+		this.load();
+	}
+
+	private load(): void {
+		try {
+			const raw = this.storageService.get(STORAGE_KEYS, StorageScope.APPLICATION, '[]');
+			this.keys = JSON.parse(raw) as IAuraApiKey[];
+		} catch {
+			this.keys = [];
+		}
+	}
+
+	private save(): void {
+		this.storageService.store(STORAGE_KEYS, JSON.stringify(this.keys), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this._onDidChange.fire();
+	}
+
+	getKeys(): IAuraApiKey[] {
+		const weight = (p: AuraApiKeyPriority) => p === 'high' ? 0 : p === 'medium' ? 1 : 2;
+		return [...this.keys].sort((a, b) => weight(a.priority) - weight(b.priority) || a.name.localeCompare(b.name));
+	}
+
+	getSecretKeyRef(id: string): string {
+		return SECRET_PREFIX + id;
+	}
+
+	async addKey(input: Omit<IAuraApiKey, 'id' | 'createdAt'>, secret: string): Promise<IAuraApiKey> {
+		const key: IAuraApiKey = { ...input, id: generateUuid(), createdAt: Date.now() };
+		this.keys.push(key);
+		await this.secretStorage.set(this.getSecretKeyRef(key.id), secret);
+		this.save();
+		void this.checkKey(key.id); // авто-проверка при добавлении
+		return key;
+	}
+
+	async addKeysBulk(text: string): Promise<{ added: number; skipped: number }> {
+		let added = 0, skipped = 0;
+		// Формат JSON: [{ name, baseUrl, model, key, group?, priority? }, ...]
+		const trimmed = text.trim();
+		if (trimmed.startsWith('[')) {
+			try {
+				const arr = JSON.parse(trimmed) as Array<Record<string, string>>;
+				for (const item of arr) {
+					const secret = item.key ?? item.apiKey ?? item.token;
+					if (item.baseUrl && item.model && secret) {
+						await this.addKey({
+							name: item.name ?? item.model,
+							baseUrl: item.baseUrl,
+							model: item.model,
+							expectedModel: item.expectedModel ?? item.model,
+							group: item.group,
+							priority: (item.priority as AuraApiKeyPriority) ?? 'medium',
+						}, secret);
+						added++;
+					} else { skipped++; }
+				}
+				return { added, skipped };
+			} catch { /* не JSON — идём в построчный формат */ }
+		}
+		// Построчный: "название | baseUrl | модель | ключ" или просто "ключ" на строку
+		for (const line of trimmed.split(/\r?\n/)) {
+			const l = line.trim();
+			if (!l) { continue; }
+			const parts = l.split('|').map(p => p.trim());
+			if (parts.length >= 4) {
+				await this.addKey({ name: parts[0], baseUrl: parts[1], model: parts[2], expectedModel: parts[2], priority: 'medium' }, parts[3]);
+				added++;
+			} else if (parts.length === 1) {
+				await this.addKey({ name: `Key ${this.keys.length + 1}`, baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o', priority: 'medium' }, parts[0]);
+				added++;
+			} else { skipped++; }
+		}
+		return { added, skipped };
+	}
+
+	async removeKey(id: string): Promise<void> {
+		this.keys = this.keys.filter(k => k.id !== id);
+		this.statuses.delete(id);
+		await this.secretStorage.delete(this.getSecretKeyRef(id));
+		this.save();
+	}
+
+	async updateKey(id: string, patch: Partial<IAuraApiKey>): Promise<void> {
+		const key = this.keys.find(k => k.id === id);
+		if (key) { Object.assign(key, patch); this.save(); }
+	}
+
+	async getSecret(id: string): Promise<string | undefined> {
+		return this.secretStorage.get(this.getSecretKeyRef(id));
+	}
+
+	getStatus(id: string): IAuraApiKeyStatus {
+		return this.statuses.get(id) ?? { checking: false };
+	}
+
+	private setStatus(id: string, patch: Partial<IAuraApiKeyStatus>): IAuraApiKeyStatus {
+		const next = { ...this.getStatus(id), ...patch };
+		this.statuses.set(id, next);
+		this._onDidChange.fire();
+		return next;
+	}
+
+	private async timedRequest(url: string, init: { type: 'GET' | 'POST'; data?: string; headers?: Record<string, string>; timeout?: number }): Promise<{ ms: number; status?: number; body: string }> {
+		const start = Date.now();
+		const ctx = await this.requestService.request({
+			type: init.type,
+			url,
+			data: init.data,
+			headers: init.headers,
+			timeout: init.timeout ?? 15000,
+		}, CancellationToken.None);
+		const body = await asText(ctx) ?? '';
+		return { ms: Date.now() - start, status: ctx.res.statusCode, body };
+	}
+
+	async checkKey(id: string): Promise<IAuraApiKeyStatus> {
+		const key = this.keys.find(k => k.id === id);
+		if (!key) { return this.getStatus(id); }
+		this.setStatus(id, { checking: true, error: undefined });
+
+		const base = key.baseUrl.replace(/\/+$/, '');
+		const secret = await this.getSecret(id);
+		const authHeaders: Record<string, string> = {
+			'Content-Type': 'application/json',
+			...(secret ? { 'Authorization': `Bearer ${secret}` } : {}),
+		};
+
+		try {
+			// 1. Пинг + доступность: GET /models
+			const ping = await this.timedRequest(`${base}/models`, { type: 'GET', headers: authHeaders, timeout: 10000 });
+			if (ping.status === 401 || ping.status === 403) {
+				return this.setStatus(id, { checking: false, lastChecked: Date.now(), pingMs: ping.ms, ok: false, error: `HTTP ${ping.status}: ключ отклонён (недействителен или нет доступа)` });
+			}
+			if (ping.status === 404) {
+				return this.setStatus(id, { checking: false, lastChecked: Date.now(), pingMs: ping.ms, ok: false, error: 'HTTP 404: baseUrl не похож на OpenAI-совместимый API (нет /models)' });
+			}
+			if (ping.status !== undefined && (ping.status < 200 || ping.status >= 300)) {
+				return this.setStatus(id, { checking: false, lastChecked: Date.now(), pingMs: ping.ms, ok: false, error: `HTTP ${ping.status}` });
+			}
+
+			const excludedHighPing = ping.ms > HIGH_PING_MS;
+
+			// 2. Подлинность модели: спрашиваем её саму, кто она
+			let authenticityPct: number | null = null;
+			let securityPct: number | null = null;
+			let securityNotes: string[] = [];
+			try {
+				const chat = await this.timedRequest(`${base}/chat/completions`, {
+					type: 'POST',
+					headers: authHeaders,
+					timeout: 20000,
+					data: JSON.stringify({
+						model: key.model,
+						messages: [{ role: 'user', content: 'Identify yourself: reply with ONLY your exact underlying model name and version, nothing else.' }],
+						max_tokens: 50,
+					}),
+				});
+				if (chat.status !== undefined && chat.status >= 200 && chat.status < 300) {
+					let answer = '';
+					try {
+						const parsed = JSON.parse(chat.body);
+						answer = String(parsed?.choices?.[0]?.message?.content ?? '');
+					} catch { answer = chat.body; }
+					const expected = (key.expectedModel ?? key.model).toLowerCase();
+					const family = expected.split(/[-.]/).filter(w => w.length > 3);
+					const answerL = answer.toLowerCase();
+					if (answerL.includes(expected)) { authenticityPct = 100; }
+					else if (family.length > 0 && family.every(w => answerL.includes(w))) { authenticityPct = 80; }
+					else if (family.some(w => answerL.includes(w))) { authenticityPct = 50; }
+					else { authenticityPct = answer ? 20 : null; }
+
+					// 3. Безопасность: сканируем ответ модели на вредоносные паттерны
+					securityNotes = MALICIOUS_PATTERNS.filter(p => p.re.test(chat.body)).map(p => p.note);
+					const httpsPenalty = base.startsWith('http://') ? 20 : 0;
+					securityPct = Math.max(0, 100 - securityNotes.length * 25 - httpsPenalty);
+					if (httpsPenalty) { securityNotes.push('baseUrl без HTTPS — трафик не зашифрован'); }
+				}
+			} catch (e) {
+				this.logService.warn('[AuraAPI] authenticity probe failed', e);
+			}
+
+			return this.setStatus(id, {
+				checking: false, lastChecked: Date.now(), pingMs: ping.ms, ok: true,
+				authenticityPct, securityPct, securityNotes,
+				excludedHighPing,
+				error: excludedHighPing ? `Высокий пинг (${ping.ms} мс > ${HIGH_PING_MS} мс) — ключ исключён из использования` : undefined,
+			});
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : String(e);
+			return this.setStatus(id, { checking: false, lastChecked: Date.now(), ok: false, error: `Сеть: ${msg}` });
+		}
+	}
+
+	async checkAll(): Promise<void> {
+		for (const key of this.keys) {
+			await this.checkKey(key.id);
+		}
+	}
+
+	bestKey(): IAuraApiKey | undefined {
+		const healthy = this.keys.filter(k => {
+			const s = this.getStatus(k.id);
+			return s.ok === true && !s.excludedHighPing;
+		});
+		if (healthy.length === 0) { return undefined; }
+		const weight = (p: AuraApiKeyPriority) => p === 'high' ? 0 : p === 'medium' ? 1 : 2;
+		return healthy.sort((a, b) =>
+			weight(a.priority) - weight(b.priority) ||
+			(this.getStatus(a.id).pingMs ?? 99999) - (this.getStatus(b.id).pingMs ?? 99999)
+		)[0];
+	}
+
+	async selectForChat(id: string): Promise<void> {
+		const key = this.keys.find(k => k.id === id);
+		if (!key) { return; }
+		// Мост в чат: активный эндпоинт пишется в настройки, откуда его смогут читать провайдеры моделей.
+		await this.configurationService.updateValue('auraApi.chat.baseUrl', key.baseUrl);
+		await this.configurationService.updateValue('auraApi.chat.model', key.model);
+		this.storageService.store(STORAGE_SELECTED, id, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this._onDidChange.fire();
+	}
+}
+
+registerSingleton(IAuraApiKeysService, AuraApiKeysService, InstantiationType.Delayed);
