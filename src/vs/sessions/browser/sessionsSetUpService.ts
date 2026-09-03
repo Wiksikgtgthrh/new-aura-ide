@@ -179,7 +179,13 @@ class SessionsSetUpWidget extends Disposable {
 
 		const isFirstLaunch = !this.storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false);
 
-		if (isFirstLaunch) {
+		if (this._allowSignedOutWhenUsable.get()) {
+			// Signed-out operation is permitted by configuration: skip the forced
+			// sign-in/welcome dialogs entirely (including the first-launch flow)
+			// and open the window directly.
+			this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			void this._proceedWithoutGitHub().finally(() => this._initialSetupFlow = false);
+		} else if (isFirstLaunch) {
 			void this._showWelcome(true).finally(() => this._initialSetupFlow = false);
 		} else {
 			void this._watchSignInState().finally(() => this._initialSetupFlow = false);
