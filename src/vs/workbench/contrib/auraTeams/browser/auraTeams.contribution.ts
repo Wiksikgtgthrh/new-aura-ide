@@ -1,0 +1,120 @@
+/*---------------------------------------------------------------------------------------------
+ *  Aura Teams — регистрация: вкладка доски, «Мои задачи» в сайдбаре, команды, настройки.
+ *  Как и Aura API, активируется только после установки через Aura Market.
+ *--------------------------------------------------------------------------------------------*/
+
+import { localize, localize2 } from '../../../../nls.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
+import { IEditorFactoryRegistry, EditorExtensions } from '../../../common/editor.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { AuraTeamsEditorPane } from './auraTeamsEditorPane.js';
+import { AuraTeamsEditorInput, AuraTeamsEditorInputSerializer } from './auraTeamsEditorInput.js';
+import { AuraTeamsMyTasksView, AURA_TEAMS_OPEN_BOARD_COMMAND_ID } from './auraTeamsMyTasksView.js';
+import { AURA_TEAMS_MEMBER_SETTING } from '../common/auraTeamsService.js';
+import { auraMarketInstalledKey } from '../../auraMarket/common/auraMarketCatalog.js';
+
+export const AURA_TEAMS_VIEW_CONTAINER_ID = 'workbench.view.auraTeams';
+const AURA_TEAMS_MY_TASKS_VIEW_ID = 'auraTeams.myTasks';
+const AURA_TEAMS_SHOW_MY_TASKS_COMMAND_ID = 'auraTeams.showMyTasks';
+
+export const auraTeamsViewIcon = registerIcon('aura-teams-view-icon', Codicon.organization, localize('auraTeamsViewIcon', 'Icon of the Aura Teams plugin.'));
+
+let registered = false;
+
+function registerAuraTeamsPlugin(): void {
+	if (registered) { return; }
+	registered = true;
+
+	Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+		EditorPaneDescriptor.create(AuraTeamsEditorPane, AuraTeamsEditorPane.ID, localize('auraTeamsEditor', "Aura Teams")),
+		[new SyncDescriptor(AuraTeamsEditorInput)]
+	);
+	Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(AuraTeamsEditorInput.ID, AuraTeamsEditorInputSerializer);
+
+	const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
+		id: AURA_TEAMS_VIEW_CONTAINER_ID,
+		title: localize2('auraTeams', "Aura Teams"),
+		ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [AURA_TEAMS_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
+		icon: auraTeamsViewIcon,
+		hideIfEmpty: false,
+		order: 8,
+	}, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
+
+	Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
+		id: AURA_TEAMS_MY_TASKS_VIEW_ID,
+		name: localize2('auraTeams.myTasks', "Мои задачи"),
+		containerIcon: auraTeamsViewIcon,
+		ctorDescriptor: new SyncDescriptor(AuraTeamsMyTasksView),
+		canToggleVisibility: true,
+		canMoveView: true,
+	}], container);
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: AURA_TEAMS_OPEN_BOARD_COMMAND_ID,
+				title: localize2('auraTeams.openBoard', "Aura Teams: Открыть канбан-доску"),
+				category: localize2('auraTeams.category', "Aura Teams"),
+				f1: true,
+			});
+		}
+		override run(accessor: ServicesAccessor): void {
+			const editorService = accessor.get(IEditorService);
+			const instantiation = accessor.get(IInstantiationService);
+			void editorService.openEditor(instantiation.createInstance(AuraTeamsEditorInput), { pinned: true });
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: AURA_TEAMS_SHOW_MY_TASKS_COMMAND_ID,
+				title: localize2('auraTeams.showMyTasks', "Aura Teams: Мои задачи"),
+				category: localize2('auraTeams.category', "Aura Teams"),
+				f1: true,
+			});
+		}
+		override run(accessor: ServicesAccessor): void {
+			void accessor.get(IViewsService).openView(AURA_TEAMS_MY_TASKS_VIEW_ID, true);
+		}
+	});
+}
+
+class AuraTeamsPluginContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.auraTeamsPlugin';
+
+	constructor(@IStorageService storageService: IStorageService) {
+		super();
+		if (storageService.get(auraMarketInstalledKey('aura-teams'), StorageScope.APPLICATION, 'false') === 'true') {
+			registerAuraTeamsPlugin();
+		}
+	}
+}
+
+registerWorkbenchContribution2(AuraTeamsPluginContribution.ID, AuraTeamsPluginContribution, WorkbenchPhase.AfterRestored);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'auraTeams',
+	title: localize('auraTeams.config', "Aura Teams"),
+	properties: {
+		[AURA_TEAMS_MEMBER_SETTING]: {
+			type: 'string',
+			default: '',
+			markdownDescription: localize('auraTeams.memberName', "Ваше имя в команде. По нему собирается раздел «Мои задачи» и подставляется исполнитель при создании задачи."),
+		},
+	},
+});
