@@ -9,6 +9,9 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import {
 	ILanguageModelChatProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatResponse,
 	ILanguageModelChatRequestOptions, ILanguageModelChatInfoOptions, ILanguageModelChatMetadata,
@@ -19,6 +22,11 @@ import { AuraSseParser, AuraToolCallAccumulator, IAuraToolCall } from '../common
 
 export const AURA_API_VENDOR = 'auraApi';
 export const AURA_API_SYSTEM_PROMPT_SETTING = 'auraApi.chat.systemPrompt';
+export const AURA_API_PROJECT_RULES_SETTING = 'auraApi.chat.useProjectRules';
+
+/** Файлы правил проекта, которые подставляются в системный промпт (первый найденный в порядке списка — на корень). */
+const PROJECT_RULE_FILES = ['AGENTS.md', '.github/copilot-instructions.md'];
+const PROJECT_RULES_MAX_CHARS = 16_000;
 
 interface IOpenAIToolCall {
 	id: string;
@@ -178,8 +186,37 @@ export class AuraApiChatProvider implements ILanguageModelChatProvider {
 	constructor(
 		private readonly keysService: IAuraApiKeysService,
 		private readonly configurationService: IConfigurationService,
+		private readonly fileService: IFileService,
+		private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		this.keysService.onDidChange(() => this._onDidChange.fire());
+	}
+
+	/**
+	 * Правила проекта (AGENTS.md / copilot-instructions.md) из каждой папки workspace.
+	 * Читаются на каждый запрос, чтобы правки файла подхватывались без перезагрузки.
+	 */
+	private async projectRules(): Promise<string> {
+		if (this.configurationService.getValue<boolean>(AURA_API_PROJECT_RULES_SETTING) === false) {
+			return '';
+		}
+		const sections: string[] = [];
+		for (const folder of this.workspaceContextService.getWorkspace().folders) {
+			for (const relative of PROJECT_RULE_FILES) {
+				const uri = joinPath(folder.uri, relative);
+				try {
+					const content = (await this.fileService.readFile(uri)).value.toString().trim();
+					if (content) {
+						sections.push(`# Правила проекта (${folder.name}/${relative})\n\n${content}`);
+						break; // один файл правил на папку — первый по приоритету
+					}
+				} catch {
+					// файла нет — это норма
+				}
+			}
+		}
+		const joined = sections.join('\n\n');
+		return joined.length > PROJECT_RULES_MAX_CHARS ? `${joined.slice(0, PROJECT_RULES_MAX_CHARS)}\n\n[правила обрезаны]` : joined;
 	}
 
 	/** Здоровые ключи как модели чата. */
@@ -219,7 +256,9 @@ export class AuraApiChatProvider implements ILanguageModelChatProvider {
 		if (!preferred) { throw new Error(`Aura API: нет живых ключей (modelId=${modelId})`); }
 		const candidates: IAuraApiKey[] = [preferred, ...this.usableKeys().filter(k => k.id !== preferred.id)];
 
-		const systemPrompt = (this.configurationService.getValue<string>(AURA_API_SYSTEM_PROMPT_SETTING) ?? '').trim();
+		const userPrompt = (this.configurationService.getValue<string>(AURA_API_SYSTEM_PROMPT_SETTING) ?? '').trim();
+		const rules = await this.projectRules();
+		const systemPrompt = [userPrompt, rules].filter(Boolean).join('\n\n');
 		const oaiMessages = toOpenAIMessages(messages, systemPrompt);
 		const tools = toOpenAITools(options.tools as IRequestTool[] | undefined);
 		// LanguageModelChatToolMode.Required === 2: модель обязана вызвать инструмент
