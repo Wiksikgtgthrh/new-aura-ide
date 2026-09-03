@@ -2592,6 +2592,16 @@ export class Repository {
 		}
 	}
 
+	async revertCommit(commitHash: string): Promise<void> {
+		try {
+			await this.exec(['revert', '--no-edit', commitHash]);
+		} catch (err) {
+			// Конфликт при revert — отменяем, чтобы не оставить репозиторий в промежуточном состоянии
+			await this.exec(['revert', '--abort']).catch(() => undefined);
+			throw err;
+		}
+	}
+
 	async cherryPickAbort(): Promise<void> {
 		await this.exec(['cherry-pick', '--abort']);
 	}

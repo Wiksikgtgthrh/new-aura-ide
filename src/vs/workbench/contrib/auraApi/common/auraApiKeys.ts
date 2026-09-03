@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -104,8 +104,9 @@ export const POPULAR_MODELS: readonly string[] = [
 	'llama-3.3-70b', 'qwen-2.5-72b', 'mistral-large',
 ];
 
-const STORAGE_KEYS = 'auraApi.keys';
-const STORAGE_SELECTED = 'auraApi.chat.selectedKeyId';
+export const AURA_HEALTH_INTERVAL_SETTING = 'auraApi.health.intervalMinutes';
+
+const STORAGE_KEYS = 'auraApi.keys';const STORAGE_SELECTED = 'auraApi.chat.selectedKeyId';
 const SECRET_PREFIX = 'auraApi.key.';
 const HIGH_PING_MS = 3000;
 const STORAGE_GROUPS = 'auraApi.groups';
@@ -132,6 +133,7 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 	private groups: IAuraApiGroup[] = [];
 	private readonly statuses = new Map<string, IAuraApiKeyStatus>();
 	private readonly checkLimiter = new Limiter<unknown>(QUEUE_PARALLEL);
+	private readonly healthTimer = this._register(new MutableDisposable());
 	private checkCts: CancellationTokenSource | undefined;
 
 	constructor(
@@ -143,6 +145,37 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 	) {
 		super();
 		this.load();
+		this.registerHealthTimer();
+	}
+
+	/** Периодическая автопроверка ключей: auraApi.health.intervalMinutes (0 = выключено). */
+	private registerHealthTimer(): void {
+		const schedule = () => {
+			this.healthTimer.clear();
+			const minutes = this.configurationService.getValue<number>(AURA_HEALTH_INTERVAL_SETTING) ?? 0;
+			if (!(minutes > 0) || this.keys.length === 0) {
+				return;
+			}
+			const handle = setInterval(() => {
+				if (this.keys.length > 0) {
+					void this.checkAllQueued();
+				}
+			}, minutes * 60_000);
+			this.healthTimer.value = toDisposable(() => clearInterval(handle));
+		};
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AURA_HEALTH_INTERVAL_SETTING)) {
+				schedule();
+			}
+		}));
+		this._register(this.onDidChange(() => {
+			// Таймер нужен только когда ключи есть: первый добавленный ключ его заводит.
+			const running = !!this.healthTimer.value;
+			if (running !== this.keys.length > 0) {
+				schedule();
+			}
+		}));
+		schedule();
 	}
 
 	private load(): void {

@@ -120,7 +120,11 @@ export class AuraMarketEditorPane extends EditorPane {
 			const card = append(this.listEl, $('.aura-market-card'));
 
 			const headerRow = append(card, $('.aura-market-card-header'));
-			append(headerRow, $('span.aura-market-card-name')).textContent = item.name;
+			const title = append(headerRow, $('.aura-market-card-title'));
+			if (item.icon) {
+				append(title, $(`span.codicon.codicon-${item.icon}.aura-market-card-icon`));
+			}
+			append(title, $('span.aura-market-card-name')).textContent = item.name;
 			const badge = append(headerRow, $('span.aura-market-item-badge'));
 			badge.textContent = item.kind === 'plugin' ? 'Плагин' : 'Наборы скилов';
 			badge.classList.add(item.kind === 'plugin' ? 'badge-plugin' : 'badge-skillset');
@@ -132,10 +136,17 @@ export class AuraMarketEditorPane extends EditorPane {
 			const actions = append(card, $('.aura-market-card-actions'));
 			const installBtn = append(actions, $('button.aura-market-install')) as HTMLButtonElement;
 			const installed = this.isInstalled(item);
-			installBtn.textContent = installed ? 'Установлено ✓' : 'Установить';
-			installBtn.disabled = installed;
-			if (installed) { installBtn.classList.add('installed'); }
-			this._register(addDisposableListener(installBtn, EventType.CLICK, () => this.install(item, installBtn)));
+			if (item.comingSoon) {
+				installBtn.textContent = 'В разработке';
+				installBtn.disabled = true;
+				installBtn.classList.add('installed');
+				installBtn.title = 'Плагин ещё не собран — смотрите объём работ в документации.';
+			} else {
+				installBtn.textContent = installed ? 'Установлено ✓' : 'Установить';
+				installBtn.disabled = installed;
+				if (installed) { installBtn.classList.add('installed'); }
+				this._register(addDisposableListener(installBtn, EventType.CLICK, () => this.install(item, installBtn)));
+			}
 
 			if (item.docs) {
 				const docsBtn = append(actions, $('button.aura-api-btn-small')) as HTMLButtonElement;

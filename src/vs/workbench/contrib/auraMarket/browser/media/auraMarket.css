@@ -137,6 +137,8 @@
 .aura-market-tab-list { display: flex; flex-direction: column; gap: 10px; max-width: 860px; }
 .aura-market-card { border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; background: var(--vscode-editor-background); }
 .aura-market-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.aura-market-card-title { display: flex; align-items: center; gap: 8px; }
+.aura-market-card-icon { color: var(--vscode-textLink-foreground); }
 .aura-market-card-name { font-weight: 600; font-size: 14px; }
 .aura-market-card-desc { color: var(--vscode-foreground); }
 .aura-market-card-meta { font-size: 11px; color: var(--vscode-descriptionForeground); }

@@ -3,9 +3,16 @@
 .aura-api-btn { padding: 4px 12px; border: none; border-radius: 4px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 12px; }
 .aura-api-btn:hover { background: var(--vscode-button-hoverBackground); }
 .aura-api-btn-small { padding: 2px 8px; margin-right: 4px; border: none; border-radius: 3px; background: var(--vscode-button-secondaryBackground, var(--vscode-input-background)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); cursor: pointer; font-size: 11px; }
-.aura-api-group-filter { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.aura-api-group-filter { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+.aura-api-search { min-width: 200px; }
 .aura-api-select { background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border, transparent); border-radius: 3px; padding: 2px 6px; }
 .aura-api-table-wrap { flex: 1; overflow: auto; }
+.aura-api-bulk-bar { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-radius: 4px; background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background)); border: 1px solid var(--vscode-focusBorder); }
+.aura-api-bulk-bar.hidden { display: none; }
+.aura-api-bulk-count { font-weight: 600; margin-right: 4px; }
+.aura-api-check { width: 24px; text-align: center; }
+.aura-api-check input { margin: 0; cursor: pointer; }
+.aura-api-row.selected td { background: var(--vscode-list-inactiveSelectionBackground); }
 .aura-api-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .aura-api-table th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--vscode-panel-border); color: var(--vscode-descriptionForeground); position: sticky; top: 0; background: var(--vscode-editor-background); }
 .aura-api-table td { padding: 6px 8px; border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); vertical-align: top; }

@@ -64,7 +64,7 @@ export function maskSecret(secret: string): string {
 	if (s.length <= 8) {
 		return s.slice(0, 2) + '…';
 	}
-	return `${s.slice(0, 3)}…${s.slice(-4)}`;
+	return `${s.slice(0, 3)}…${s.slice(-5)}`;
 }
 
 /** Синхронный отпечаток для дедупликации повторной вставки (без async-crypto). */
@@ -382,6 +382,154 @@ export function resolveKey(state: IAuraRouterState, now: number, modelId?: strin
 		}
 	}
 	return undefined;
+}
+
+/* ------------------------------- SSE-стриминг --------------------------------- */
+
+export interface IAuraStreamDelta {
+	/** Текстовая дельта ответа. */
+	readonly text?: string;
+	/** Модель, которую реально вернул провайдер (для проверки подлинности на лету). */
+	readonly model?: string;
+	/** Причина завершения из последнего chunk-а со значением. */
+	readonly finishReason?: string;
+	/** Фрагменты tool_calls: OpenAI шлёт id/name в первом чанке, аргументы — кусками по index. */
+	readonly toolCalls?: readonly IAuraToolCallDelta[];
+}
+
+export interface IAuraToolCallDelta {
+	readonly index: number;
+	readonly id?: string;
+	readonly name?: string;
+	readonly argumentsChunk?: string;
+}
+
+/** Собранный вызов инструмента (аргументы — распарсенный JSON или {} при мусоре). */
+export interface IAuraToolCall {
+	readonly id: string;
+	readonly name: string;
+	readonly parameters: unknown;
+}
+
+/** Разбор одного SSE-события OpenAI (`data: {...}`); `[DONE]` и служебные строки дают undefined. */
+export function parseSseChunk(raw: string): IAuraStreamDelta | undefined {
+	const line = raw.trim();
+	if (!line.startsWith('data:')) {
+		return undefined;
+	}
+	const payload = line.slice('data:'.length).trim();
+	if (!payload || payload === '[DONE]') {
+		return undefined;
+	}
+	interface IRawToolCall { index?: unknown; id?: unknown; function?: { name?: unknown; arguments?: unknown } }
+	let parsed: {
+		model?: unknown;
+		choices?: Array<{ delta?: { content?: unknown; tool_calls?: IRawToolCall[] }; message?: { content?: unknown; tool_calls?: IRawToolCall[] }; finish_reason?: unknown }>;
+	};
+	try {
+		parsed = JSON.parse(payload);
+	} catch {
+		return undefined; // битый chunk не должен рвать поток
+	}
+	const choice = parsed.choices?.[0];
+	const content = choice?.delta?.content ?? choice?.message?.content;
+	const rawCalls = choice?.delta?.tool_calls ?? choice?.message?.tool_calls;
+	const toolCalls = Array.isArray(rawCalls)
+		? rawCalls.map((c, i): IAuraToolCallDelta => ({
+			index: typeof c.index === 'number' ? c.index : i,
+			id: typeof c.id === 'string' ? c.id : undefined,
+			name: typeof c.function?.name === 'string' ? c.function.name : undefined,
+			argumentsChunk: typeof c.function?.arguments === 'string' ? c.function.arguments : undefined,
+		}))
+		: undefined;
+	const delta: IAuraStreamDelta = {
+		text: typeof content === 'string' && content.length > 0 ? content : undefined,
+		model: typeof parsed.model === 'string' ? parsed.model : undefined,
+		finishReason: typeof choice?.finish_reason === 'string' ? choice.finish_reason : undefined,
+		toolCalls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
+	};
+	return delta.text === undefined && delta.model === undefined && delta.finishReason === undefined && delta.toolCalls === undefined ? undefined : delta;
+}
+
+/**
+ * Аккумулятор tool_calls: склеивает фрагменты по index и отдаёт готовые вызовы
+ * в конце потока. Аргументы приходят как строка JSON кусками.
+ */
+export class AuraToolCallAccumulator {
+
+	private readonly calls = new Map<number, { id?: string; name?: string; args: string }>();
+
+	get isEmpty(): boolean {
+		return this.calls.size === 0;
+	}
+
+	append(deltas: readonly IAuraToolCallDelta[] | undefined): void {
+		for (const d of deltas ?? []) {
+			const entry = this.calls.get(d.index) ?? { args: '' };
+			if (d.id) {
+				entry.id = d.id;
+			}
+			if (d.name) {
+				entry.name = d.name;
+			}
+			if (d.argumentsChunk) {
+				entry.args += d.argumentsChunk;
+			}
+			this.calls.set(d.index, entry);
+		}
+	}
+
+	finish(): IAuraToolCall[] {
+		const result: IAuraToolCall[] = [];
+		for (const [index, entry] of [...this.calls.entries()].sort((a, b) => a[0] - b[0])) {
+			if (!entry.name) {
+				continue; // без имени вызывать нечего
+			}
+			let parameters: unknown = {};
+			if (entry.args.trim()) {
+				try {
+					parameters = JSON.parse(entry.args);
+				} catch {
+					parameters = {}; // модель оборвала JSON — не роняем весь ответ
+				}
+			}
+			result.push({ id: entry.id ?? `call_${index}`, name: entry.name, parameters });
+		}
+		this.calls.clear();
+		return result;
+	}
+}
+
+/**
+ * Инкрементальный разборщик SSE: принимает произвольные куски тела ответа и отдаёт
+ * готовые дельты. Хвост без завершающего перевода строки сохраняется до следующего куска.
+ */
+export class AuraSseParser {
+
+	private buffer = '';
+
+	append(chunk: string): IAuraStreamDelta[] {
+		this.buffer += chunk;
+		const deltas: IAuraStreamDelta[] = [];
+		let newline: number;
+		while ((newline = this.buffer.indexOf('\n')) !== -1) {
+			const line = this.buffer.slice(0, newline);
+			this.buffer = this.buffer.slice(newline + 1);
+			const delta = parseSseChunk(line);
+			if (delta) {
+				deltas.push(delta);
+			}
+		}
+		return deltas;
+	}
+
+	/** Досбор остатка буфера после закрытия потока. */
+	flush(): IAuraStreamDelta[] {
+		const rest = this.buffer;
+		this.buffer = '';
+		const delta = parseSseChunk(rest);
+		return delta ? [delta] : [];
+	}
 }
 
 /** Failover: применить исход запроса к ключу (cooldown/статус). */

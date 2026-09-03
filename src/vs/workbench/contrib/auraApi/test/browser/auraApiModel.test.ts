@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import {
-	applyRequestOutcome, auraSecretStorageKey, classifyHttpStatus, cooldownMsForStatus,
-	detectProvider, isKeyEligible, maskSecret, modelAuthenticityPercent, parseKeysBulk,
+	applyRequestOutcome, auraSecretStorageKey, AuraSseParser, AuraToolCallAccumulator, classifyHttpStatus, cooldownMsForStatus,
+	detectProvider, isKeyEligible, maskSecret, modelAuthenticityPercent, parseKeysBulk, parseSseChunk,
 	pickWeightedKey, resolveKey, secretFingerprint,
 	type IAuraApiGroup, type IAuraApiKey, type IAuraRouterState,
 } from '../../common/auraApiModel.js';
@@ -155,6 +155,66 @@ suite('AuraApiModel — классификатор HTTP и cooldown', () => {
 		assert.strictEqual(modelAuthenticityPercent('gpt-4o', 'llama-3-8b'), 10);
 		assert.strictEqual(modelAuthenticityPercent('gpt-4o', undefined, 80), 80);
 		assert.strictEqual(modelAuthenticityPercent('gpt-4o', undefined), 50);
+	});
+});
+
+suite('AuraApiModel — SSE-стриминг', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('parseSseChunk: дельта, [DONE], мусор и не-data строки', () => {
+		assert.deepStrictEqual(
+			parseSseChunk('data: {"model":"gpt-4o","choices":[{"delta":{"content":"Привет"}}]}'),
+			{ text: 'Привет', model: 'gpt-4o', finishReason: undefined, toolCalls: undefined });
+		assert.strictEqual(parseSseChunk('data: [DONE]'), undefined);
+		assert.strictEqual(parseSseChunk('data: {битый'), undefined);
+		assert.strictEqual(parseSseChunk(': heartbeat'), undefined);
+		assert.strictEqual(parseSseChunk(''), undefined);
+	});
+
+	test('parseSseChunk: finish_reason без текста', () => {
+		assert.deepStrictEqual(
+			parseSseChunk('data: {"choices":[{"delta":{},"finish_reason":"stop"}]}'),
+			{ text: undefined, model: undefined, finishReason: 'stop', toolCalls: undefined });
+	});
+
+	test('AuraSseParser: дельты собираются в порядке, чанк режется посреди строки', () => {
+		const parser = new AuraSseParser();
+		const deltas = [
+			...parser.append('data: {"choices":[{"delta":{"content":"При'),
+			...parser.append('вет"}}]}\ndata: {"choices":[{"delta":{"content":", мир"}}]}\n'),
+			...parser.append('data: [DONE]\n'),
+			...parser.flush(),
+		];
+		assert.deepStrictEqual(deltas.map(d => d.text), ['Привет', ', мир']);
+	});
+
+	test('AuraSseParser: хвост без перевода строки отдаётся во flush', () => {
+		const parser = new AuraSseParser();
+		assert.deepStrictEqual(parser.append('data: {"choices":[{"delta":{"content":"хвост"}}]}'), []);
+		assert.deepStrictEqual(parser.flush().map(d => d.text), ['хвост']);
+	});
+
+	test('parseSseChunk: tool_calls фрагмент', () => {
+		const delta = parseSseChunk('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"read_file","arguments":"{\\"pa"}}]}}]}');
+		assert.deepStrictEqual(delta?.toolCalls, [{ index: 0, id: 'call_1', name: 'read_file', argumentsChunk: '{"pa' }]);
+	});
+
+	test('AuraToolCallAccumulator: аргументы склеиваются по index, порядок по index', () => {
+		const acc = new AuraToolCallAccumulator();
+		acc.append([{ index: 1, id: 'call_b', name: 'run' }]);
+		acc.append([{ index: 0, id: 'call_a', name: 'read_file', argumentsChunk: '{"path":' }]);
+		acc.append([{ index: 0, argumentsChunk: '"a.ts"}' }, { index: 1, argumentsChunk: '{"cmd":"ls"}' }]);
+		assert.deepStrictEqual(acc.finish(), [
+			{ id: 'call_a', name: 'read_file', parameters: { path: 'a.ts' } },
+			{ id: 'call_b', name: 'run', parameters: { cmd: 'ls' } },
+		]);
+		assert.strictEqual(acc.isEmpty, true);
+	});
+
+	test('AuraToolCallAccumulator: битый JSON → {}, без имени → пропуск', () => {
+		const acc = new AuraToolCallAccumulator();
+		acc.append([{ index: 0, name: 'x', argumentsChunk: '{oops' }, { index: 1, id: 'call_noname', argumentsChunk: '{}' }]);
+		assert.deepStrictEqual(acc.finish(), [{ id: 'call_0', name: 'x', parameters: {} }]);
 	});
 });
 
