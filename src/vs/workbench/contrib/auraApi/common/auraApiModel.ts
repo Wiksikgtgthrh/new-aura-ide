@@ -64,7 +64,7 @@ export function maskSecret(secret: string): string {
 	if (s.length <= 8) {
 		return s.slice(0, 2) + '…';
 	}
-	return `${s.slice(0, 3)}…${s.slice(-4)}`;
+	return `${s.slice(0, 3)}…${s.slice(-5)}`;
 }
 
 /** Синхронный отпечаток для дедупликации повторной вставки (без async-crypto). */
