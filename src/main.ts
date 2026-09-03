@@ -694,7 +694,7 @@ async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
 	// Try to use the app locale which is only valid
 	// after the app ready event has been fired.
 
-	let userLocale = app.getLocale();
+	let userLocale = app.getLocale() || 'ru'; /* Aura IDE: локаль по умолчанию — русская (argv.json locale всё ещё побеждает, см. getUserDefinedLocale) */
 	if (!userLocale) {
 		return {
 			userLocale: 'en',

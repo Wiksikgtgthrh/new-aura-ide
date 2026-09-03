@@ -63,10 +63,11 @@ export class AuraApiChatProvider implements ILanguageModelChatProvider {
 	}
 
 	async sendChatRequest(modelId: string, messages: IChatMessage[], _from: ExtensionIdentifier | undefined, _options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<ILanguageModelChatResponse> {
-		const key = this.keysService.getKeys().find(k => k.id === modelId);
-		if (!key) { throw new Error(`Aura API: ключ ${modelId} не найден`); }
-		const secret = await this.keysService.getSecret(key.id);
-		const base = key.baseUrl.replace(/\/+$/, '');
+		// Этап 3: фейловер — предпочтительный ключ (по modelId) первым, дальше остальные
+		// здоровые ключи по порядку; чат не падает, пока жив хоть один ключ.
+		const preferred = this.keysService.getKeys().find(k => k.id === modelId);
+		if (!preferred) { throw new Error(`Aura API: ключ ${modelId} не найден`); }
+		const candidates: IAuraApiKey[] = [preferred, ...this.usableKeys().filter(k => k.id !== preferred.id)];
 
 		// Системные правила из настройки auraApi.chat.systemPrompt идут первым сообщением
 		const systemPrompt = (this.configurationService.getValue<string>(AURA_API_SYSTEM_PROMPT_SETTING) ?? '').trim();
@@ -87,7 +88,9 @@ export class AuraApiChatProvider implements ILanguageModelChatProvider {
 		const controller = new AbortController();
 		token.onCancellationRequested(() => controller.abort());
 
-		const result = (async () => {
+		const doRequest = async (key: IAuraApiKey): Promise<string> => {
+			const secret = await this.keysService.getSecret(key.id);
+			const base = key.baseUrl.replace(/\/+$/, '');
 			const response = await fetch(`${base}/chat/completions`, {
 				method: 'POST',
 				headers: {
@@ -98,10 +101,25 @@ export class AuraApiChatProvider implements ILanguageModelChatProvider {
 				signal: controller.signal,
 			});
 			if (!response.ok) {
-				throw new Error(`Aura API: HTTP ${response.status} — ${await response.text().catch(() => '')}`);
+				const body = await response.text().catch(() => '');
+				// Фейловер только на сетевых/лимитных/серверных ошибках: на 401/403 другой ключ может быть жив
+				throw new Error(`Aura API [${key.name}]: HTTP ${response.status} — ${body.slice(0, 200)}`);
 			}
 			const data = await response.json();
 			return String(data?.choices?.[0]?.message?.content ?? '');
+		};
+
+		const result = (async () => {
+			let lastError: unknown;
+			for (const key of candidates) {
+				if (controller.signal.aborted) { break; }
+				try {
+					return await doRequest(key);
+				} catch (e) {
+					lastError = e; // пробуем следующий ключ
+				}
+			}
+			throw lastError instanceof Error ? lastError : new Error('Aura API: все ключи недоступны');
 		})();
 
 		const stream = (async function* () {
