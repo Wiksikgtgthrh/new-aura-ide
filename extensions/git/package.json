@@ -934,6 +934,51 @@
         "category": "Git API"
       },
       {
+        "command": "git.api.diff",
+        "title": "%command.api.diff%",
+        "category": "Git API"
+      },
+      {
+        "command": "git.api.setInputBox",
+        "title": "%command.api.setInputBox%",
+        "category": "Git API"
+      },
+      {
+        "command": "git.api.log",
+        "title": "%command.api.log%",
+        "category": "Git API"
+      },
+      {
+        "command": "git.api.getRefs",
+        "title": "%command.api.getRefs%",
+        "category": "Git API"
+      },
+      {
+        "command": "git.api.tag",
+        "title": "%command.api.tag%",
+        "category": "Git API"
+      },
+      {
+        "command": "git.api.deleteTag",
+        "title": "%command.api.deleteTag%",
+        "category": "Git API"
+      },
+      {
+        "command": "git.api.createStash",
+        "title": "%command.api.createStash%",
+        "category": "Git API"
+      },
+      {
+        "command": "git.api.reset",
+        "title": "%command.api.reset%",
+        "category": "Git API"
+      },
+      {
+        "command": "git.api.revertCommit",
+        "title": "%command.api.revertCommit%",
+        "category": "Git API"
+      },
+      {
         "command": "git.acceptMerge",
         "title": "%command.git.acceptMerge%",
         "category": "Git",
@@ -1715,6 +1760,42 @@
         },
         {
           "command": "git.api.getRemoteSources",
+          "when": "false"
+        },
+        {
+          "command": "git.api.diff",
+          "when": "false"
+        },
+        {
+          "command": "git.api.setInputBox",
+          "when": "false"
+        },
+        {
+          "command": "git.api.log",
+          "when": "false"
+        },
+        {
+          "command": "git.api.getRefs",
+          "when": "false"
+        },
+        {
+          "command": "git.api.tag",
+          "when": "false"
+        },
+        {
+          "command": "git.api.deleteTag",
+          "when": "false"
+        },
+        {
+          "command": "git.api.createStash",
+          "when": "false"
+        },
+        {
+          "command": "git.api.reset",
+          "when": "false"
+        },
+        {
+          "command": "git.api.revertCommit",
           "when": "false"
         },
         {
