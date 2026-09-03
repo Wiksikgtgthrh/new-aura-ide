@@ -384,6 +384,78 @@ export function resolveKey(state: IAuraRouterState, now: number, modelId?: strin
 	return undefined;
 }
 
+/* ------------------------------- SSE-стриминг --------------------------------- */
+
+export interface IAuraStreamDelta {
+	/** Текстовая дельта ответа. */
+	readonly text?: string;
+	/** Модель, которую реально вернул провайдер (для проверки подлинности на лету). */
+	readonly model?: string;
+	/** Причина завершения из последнего chunk-а со значением. */
+	readonly finishReason?: string;
+}
+
+/** Разбор одного SSE-события OpenAI (`data: {...}`); `[DONE]` и служебные строки дают undefined. */
+export function parseSseChunk(raw: string): IAuraStreamDelta | undefined {
+	const line = raw.trim();
+	if (!line.startsWith('data:')) {
+		return undefined;
+	}
+	const payload = line.slice('data:'.length).trim();
+	if (!payload || payload === '[DONE]') {
+		return undefined;
+	}
+	let parsed: {
+		model?: unknown;
+		choices?: Array<{ delta?: { content?: unknown }; message?: { content?: unknown }; finish_reason?: unknown }>;
+	};
+	try {
+		parsed = JSON.parse(payload);
+	} catch {
+		return undefined; // битый chunk не должен рвать поток
+	}
+	const choice = parsed.choices?.[0];
+	const content = choice?.delta?.content ?? choice?.message?.content;
+	const delta: IAuraStreamDelta = {
+		text: typeof content === 'string' && content.length > 0 ? content : undefined,
+		model: typeof parsed.model === 'string' ? parsed.model : undefined,
+		finishReason: typeof choice?.finish_reason === 'string' ? choice.finish_reason : undefined,
+	};
+	return delta.text === undefined && delta.model === undefined && delta.finishReason === undefined ? undefined : delta;
+}
+
+/**
+ * Инкрементальный разборщик SSE: принимает произвольные куски тела ответа и отдаёт
+ * готовые дельты. Хвост без завершающего перевода строки сохраняется до следующего куска.
+ */
+export class AuraSseParser {
+
+	private buffer = '';
+
+	append(chunk: string): IAuraStreamDelta[] {
+		this.buffer += chunk;
+		const deltas: IAuraStreamDelta[] = [];
+		let newline: number;
+		while ((newline = this.buffer.indexOf('\n')) !== -1) {
+			const line = this.buffer.slice(0, newline);
+			this.buffer = this.buffer.slice(newline + 1);
+			const delta = parseSseChunk(line);
+			if (delta) {
+				deltas.push(delta);
+			}
+		}
+		return deltas;
+	}
+
+	/** Досбор остатка буфера после закрытия потока. */
+	flush(): IAuraStreamDelta[] {
+		const rest = this.buffer;
+		this.buffer = '';
+		const delta = parseSseChunk(rest);
+		return delta ? [delta] : [];
+	}
+}
+
 /** Failover: применить исход запроса к ключу (cooldown/статус). */
 export function applyRequestOutcome(key: IAuraApiKey, status: number, now: number, error?: string): void {
 	const cooldownMs = cooldownMsForStatus(status);

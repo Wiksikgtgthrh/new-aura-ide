@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import {
-	applyRequestOutcome, auraSecretStorageKey, classifyHttpStatus, cooldownMsForStatus,
-	detectProvider, isKeyEligible, maskSecret, modelAuthenticityPercent, parseKeysBulk,
+	applyRequestOutcome, auraSecretStorageKey, AuraSseParser, classifyHttpStatus, cooldownMsForStatus,
+	detectProvider, isKeyEligible, maskSecret, modelAuthenticityPercent, parseKeysBulk, parseSseChunk,
 	pickWeightedKey, resolveKey, secretFingerprint,
 	type IAuraApiGroup, type IAuraApiKey, type IAuraRouterState,
 } from '../../common/auraApiModel.js';
@@ -155,6 +155,43 @@ suite('AuraApiModel — классификатор HTTP и cooldown', () => {
 		assert.strictEqual(modelAuthenticityPercent('gpt-4o', 'llama-3-8b'), 10);
 		assert.strictEqual(modelAuthenticityPercent('gpt-4o', undefined, 80), 80);
 		assert.strictEqual(modelAuthenticityPercent('gpt-4o', undefined), 50);
+	});
+});
+
+suite('AuraApiModel — SSE-стриминг', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('parseSseChunk: дельта, [DONE], мусор и не-data строки', () => {
+		assert.deepStrictEqual(
+			parseSseChunk('data: {"model":"gpt-4o","choices":[{"delta":{"content":"Привет"}}]}'),
+			{ text: 'Привет', model: 'gpt-4o', finishReason: undefined });
+		assert.strictEqual(parseSseChunk('data: [DONE]'), undefined);
+		assert.strictEqual(parseSseChunk('data: {битый'), undefined);
+		assert.strictEqual(parseSseChunk(': heartbeat'), undefined);
+		assert.strictEqual(parseSseChunk(''), undefined);
+	});
+
+	test('parseSseChunk: finish_reason без текста', () => {
+		assert.deepStrictEqual(
+			parseSseChunk('data: {"choices":[{"delta":{},"finish_reason":"stop"}]}'),
+			{ text: undefined, model: undefined, finishReason: 'stop' });
+	});
+
+	test('AuraSseParser: дельты собираются в порядке, чанк режется посреди строки', () => {
+		const parser = new AuraSseParser();
+		const deltas = [
+			...parser.append('data: {"choices":[{"delta":{"content":"При'),
+			...parser.append('вет"}}]}\ndata: {"choices":[{"delta":{"content":", мир"}}]}\n'),
+			...parser.append('data: [DONE]\n'),
+			...parser.flush(),
+		];
+		assert.deepStrictEqual(deltas.map(d => d.text), ['Привет', ', мир']);
+	});
+
+	test('AuraSseParser: хвост без перевода строки отдаётся во flush', () => {
+		const parser = new AuraSseParser();
+		assert.deepStrictEqual(parser.append('data: {"choices":[{"delta":{"content":"хвост"}}]}'), []);
+		assert.deepStrictEqual(parser.flush().map(d => d.text), ['хвост']);
 	});
 });
 
