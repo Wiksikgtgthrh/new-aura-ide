@@ -247,12 +247,4 @@ export class AuraApiEditorPane extends EditorPane {
 		this.renderTable();
 	}
 
-	override async setInput(input: AuraApiEditorInput): Promise<void> {
-		await super.setInput(input, undefined, undefined, CancellationTokenNone());
-		this.renderTable();
-	}
 }
-
-// минимальный CancellationToken.None без лишнего импорта вверху
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-function CancellationTokenNone() { return CancellationToken.None; }

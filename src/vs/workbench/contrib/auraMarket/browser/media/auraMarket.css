@@ -129,3 +129,18 @@
 .aura-market-install:hover {
 	background: var(--vscode-button-hoverBackground);
 }
+
+/* --- Aura Market как центральная вкладка --- */
+.aura-market-tab { display: flex; flex-direction: column; height: 100%; padding: 16px; box-sizing: border-box; gap: 10px; overflow-y: auto; }
+.aura-market-tab-title { margin: 0; }
+.aura-market-tab-subtitle { margin: 0; color: var(--vscode-descriptionForeground); }
+.aura-market-tab-list { display: flex; flex-direction: column; gap: 10px; max-width: 860px; }
+.aura-market-card { border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; background: var(--vscode-editor-background); }
+.aura-market-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.aura-market-card-name { font-weight: 600; font-size: 14px; }
+.aura-market-card-desc { color: var(--vscode-foreground); }
+.aura-market-card-meta { font-size: 11px; color: var(--vscode-descriptionForeground); }
+.aura-market-card-actions { display: flex; gap: 8px; margin-top: 4px; }
+.aura-market-install.installed { opacity: 0.7; cursor: default; }
+.aura-market-docs { margin: 6px 0 0; padding: 10px; border-radius: 6px; background: var(--vscode-textCodeBlock-background, var(--vscode-input-background)); font-size: 12px; line-height: 1.5; white-space: pre-wrap; max-height: 420px; overflow-y: auto; }
+.aura-market-launcher { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
