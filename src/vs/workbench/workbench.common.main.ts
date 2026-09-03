@@ -489,3 +489,6 @@ import './contrib/auraMarket/browser/auraMarket.contribution.js';
 
 // Aura API (key manager: ping, authenticity, security)
 import './contrib/auraApi/browser/auraApi.contribution.js';
+
+// Aura Teams (kanban board, my tasks)
+import './contrib/auraTeams/browser/auraTeams.contribution.js';
