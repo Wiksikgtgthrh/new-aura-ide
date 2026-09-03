@@ -7,7 +7,6 @@ import './media/auraMarket.css';
 import { $, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
-import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -53,7 +52,7 @@ export class AuraMarketViewPane extends ViewPane {
 	private chipsContainer!: HTMLElement;
 
 	constructor(
-		options: IViewletViewOptions,
+		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -65,7 +64,7 @@ export class AuraMarketViewPane extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
-		super(options as IViewPaneOptions, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
