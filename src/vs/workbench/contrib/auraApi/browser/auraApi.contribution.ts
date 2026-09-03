@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Aura API — встроенный плагин Aura Market.
- *  Регистрация (вкладка менеджера, команда, провайдер чата) происходит ТОЛЬКО
+ *  Регистрация (вкладка менеджера, иконка слева, команда, провайдер чата) происходит ТОЛЬКО
  *  если плагин установлен через Aura Market (флаг auraMarket.installed.aura-api).
  *  Клик по иконке слева сразу открывает центральную вкладку.
  *--------------------------------------------------------------------------------------------*/
@@ -17,8 +17,20 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
@@ -29,13 +41,42 @@ import { IAuraApiKeysService } from '../common/auraApiKeys.js';
 import { auraMarketInstalledKey } from '../../auraMarket/common/auraMarketCatalog.js';
 
 export const AURA_API_OPEN_COMMAND_ID = 'auraApi.openManager';
+export const AURA_API_VIEW_CONTAINER_ID = 'workbench.view.auraApi';
+const AURA_API_LAUNCHER_VIEW_ID = 'auraApi.launcher';
 
-// Иконка плагина (используется в заголовке вкладки и палитре)
-registerIcon('aura-api-view-icon', Codicon.key, localize('auraApiViewIcon', 'Icon of the Aura API plugin.'));
+// Иконка плагина (в activity bar и в заголовке вкладки)
+export const auraApiViewIcon = registerIcon('aura-api-view-icon', Codicon.key, localize('auraApiViewIcon', 'Icon of the Aura API plugin.'));
+
+// --- Иконка слева: клик = сразу открыть вкладку менеджера и закрыть пустой сайдбар ---
+class AuraApiLauncherViewPane extends ViewPane {
+	constructor(
+		options: IViewPaneOptions,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
+		@IHoverService hoverService: IHoverService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IViewsService private readonly viewsService: IViewsService,
+	) {
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+	}
+
+	protected override renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+		// Сразу открываем вкладку менеджера Aura API и закрываем пустой сайдбар
+		void this.commandService.executeCommand(AURA_API_OPEN_COMMAND_ID);
+		void this.viewsService.closeViewContainer(AURA_API_VIEW_CONTAINER_ID);
+	}
+}
 
 let registered = false;
 
-/** Регистрирует вкладку менеджера, команду и мост в чат. Вызывается один раз. */
+/** Регистрирует вкладку менеджера, иконку слева, команду и мост в чат. Вызывается один раз. */
 function registerAuraApiPlugin(instantiationService: IInstantiationService): void {
 	if (registered) { return; }
 	registered = true;
@@ -47,7 +88,26 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 	);
 	Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(AuraApiEditorInput.ID, AuraApiEditorInputSerializer);
 
-	// Команда: открыть менеджер (иконка слева вызывает её напрямую)
+	// Иконка слева: клик по ней сразу открывает вкладку
+	const auraApiContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
+		id: AURA_API_VIEW_CONTAINER_ID,
+		title: localize2('auraApi', "Aura API"),
+		ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [AURA_API_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
+		icon: auraApiViewIcon,
+		hideIfEmpty: false,
+		order: 7,
+	}, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
+
+	Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
+		id: AURA_API_LAUNCHER_VIEW_ID,
+		name: localize2('auraApi.launcher', "Aura API"),
+		containerIcon: auraApiViewIcon,
+		ctorDescriptor: new SyncDescriptor(AuraApiLauncherViewPane),
+		canToggleVisibility: true,
+		canMoveView: true,
+	}], auraApiContainer);
+
+	// Команда: открыть менеджер
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({

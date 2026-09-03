@@ -6475,7 +6475,7 @@
           "id": "copilot-chat",
           "name": "Chat Debug",
           "icon": "assets/debug-icon.svg",
-          "when": "github.copilot.chat.showLogView"
+          "when": "false"
         }
       ],
       "context-inspector": [
@@ -6489,11 +6489,6 @@
     },
     "viewsContainers": {
       "activitybar": [
-        {
-          "id": "copilot-chat",
-          "title": "Chat Debug",
-          "icon": "assets/debug-icon.svg"
-        },
         {
           "id": "context-inspector",
           "title": "Language Context Inspector",

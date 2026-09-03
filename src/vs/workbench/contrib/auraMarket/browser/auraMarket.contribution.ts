@@ -1,5 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Aura Market — регистрация: иконка магазина слева, вкладка по центру.
+ *  Клик по иконке слева сразу открывает центральную вкладку (сайдбар закрывается).
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../nls.js';
@@ -13,20 +14,28 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AuraMarketEditorPane } from './auraMarketEditorPane.js';
 import { AuraMarketEditorInput, AuraMarketEditorInputSerializer } from './auraMarketEditorInput.js';
 
 export const AURA_MARKET_OPEN_COMMAND_ID = 'auraMarket.open';
-const AURA_MARKET_ICON_ID = 'aura-market-view-icon';
-
-// Иконка магазина (упаковка/витрина) — регистрируется и используется Aura API/Aura Market вкладками
-export const auraMarketViewIcon = registerIcon(AURA_MARKET_ICON_ID, Codicon.package, localize('auraMarketViewIcon', 'View icon of the Aura Market view container.'));
-
-// Регистрируем контейнер и launcher для совместимости с API (виртуальный viewlet)
-const AURA_MARKET_VIEW_CONTAINER_ID = 'workbench.view.auraMarket';
+export const AURA_MARKET_VIEW_CONTAINER_ID = 'workbench.view.auraMarket';
 const AURA_MARKET_LAUNCHER_VIEW_ID = 'auraMarket.launcher';
-void AURA_MARKET_VIEW_CONTAINER_ID;
-void AURA_MARKET_LAUNCHER_VIEW_ID;
+
+// Иконка магазина (упаковка/витрина)
+export const auraMarketViewIcon = registerIcon('aura-market-view-icon', Codicon.package, localize('auraMarketViewIcon', 'View icon of the Aura Market view container.'));
 
 // --- Центральная вкладка ---
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -51,4 +60,47 @@ registerAction2(class extends Action2 {
 	}
 });
 
+// --- Иконка слева: клик = сразу открыть вкладку и закрыть пустой сайдбар ---
+class AuraMarketLauncherViewPane extends ViewPane {
+	constructor(
+		options: IViewPaneOptions,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
+		@IHoverService hoverService: IHoverService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IViewsService private readonly viewsService: IViewsService,
+	) {
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+	}
 
+	protected override renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+		// Сразу открываем вкладку маркета и закрываем пустой сайдбар
+		void this.commandService.executeCommand(AURA_MARKET_OPEN_COMMAND_ID);
+		void this.viewsService.closeViewContainer(AURA_MARKET_VIEW_CONTAINER_ID);
+	}
+}
+
+const auraMarketContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
+	id: AURA_MARKET_VIEW_CONTAINER_ID,
+	title: localize2('auraMarket', "Aura Market"),
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [AURA_MARKET_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
+	icon: auraMarketViewIcon,
+	hideIfEmpty: false,
+	order: 6,
+}, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
+
+Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
+	id: AURA_MARKET_LAUNCHER_VIEW_ID,
+	name: localize2('auraMarket.launcher', "Aura Market"),
+	containerIcon: auraMarketViewIcon,
+	ctorDescriptor: new SyncDescriptor(AuraMarketLauncherViewPane),
+	canToggleVisibility: true,
+	canMoveView: true,
+}], auraMarketContainer);
