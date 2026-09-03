@@ -17,11 +17,16 @@ import { AuraMarketEditorPane } from './auraMarketEditorPane.js';
 import { AuraMarketEditorInput, AuraMarketEditorInputSerializer } from './auraMarketEditorInput.js';
 
 export const AURA_MARKET_OPEN_COMMAND_ID = 'auraMarket.open';
+const AURA_MARKET_ICON_ID = 'aura-market-view-icon';
+
+// Иконка магазина (упаковка/витрина) — регистрируется и используется Aura API/Aura Market вкладками
+export const auraMarketViewIcon = registerIcon(AURA_MARKET_ICON_ID, Codicon.package, localize('auraMarketViewIcon', 'View icon of the Aura Market view container.'));
+
+// Регистрируем контейнер и launcher для совместимости с API (виртуальный viewlet)
 const AURA_MARKET_VIEW_CONTAINER_ID = 'workbench.view.auraMarket';
 const AURA_MARKET_LAUNCHER_VIEW_ID = 'auraMarket.launcher';
-
-// Иконка магазина (упаковка/витрина)
-const auraMarketViewIcon = registerIcon('aura-market-view-icon', Codicon.package, localize('auraMarketViewIcon', 'View icon of the Aura Market view container.'));
+void AURA_MARKET_VIEW_CONTAINER_ID;
+void AURA_MARKET_LAUNCHER_VIEW_ID;
 
 // --- Центральная вкладка ---
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
