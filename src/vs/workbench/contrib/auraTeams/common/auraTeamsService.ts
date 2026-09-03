@@ -22,9 +22,16 @@ export const AURA_TEAMS_MEMBER_SETTING = 'auraTeams.memberName';
 
 const STORAGE_BOARD = 'auraTeams.board';
 
+/** Локальное изменение доски — для отправки на сервер синхронизации. */
+export type AuraTeamsLocalChange =
+	| { kind: 'upsert'; tasks: readonly IAuraTask[] }
+	| { kind: 'remove'; id: string };
+
 export interface IAuraTeamsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void>;
+	/** Только локальные правки пользователя (не applyRemote) — источник для синхронизации. */
+	readonly onDidChangeLocally: Event<AuraTeamsLocalChange>;
 	/** Имя текущего участника из настройки auraTeams.memberName. */
 	readonly memberName: string;
 	getTasks(): readonly IAuraTask[];
@@ -35,6 +42,11 @@ export interface IAuraTeamsService {
 	updateTask(id: string, patch: Partial<Omit<IAuraTask, 'id' | 'createdAt'>>): IAuraTask | undefined;
 	moveTask(id: string, status: AuraTaskStatus, index?: number): IAuraTask | undefined;
 	removeTask(id: string): boolean;
+	/** Применить состояние с сервера: заменить доску целиком, не порождая onDidChangeLocally. */
+	applyRemote(tasks: readonly IAuraTask[]): void;
+	/** Точечное серверное событие. */
+	applyRemoteUpsert(task: IAuraTask): void;
+	applyRemoteRemove(id: string): void;
 }
 
 export class AuraTeamsService extends Disposable implements IAuraTeamsService {
@@ -43,6 +55,9 @@ export class AuraTeamsService extends Disposable implements IAuraTeamsService {
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
+
+	private readonly _onDidChangeLocally = this._register(new Emitter<AuraTeamsLocalChange>());
+	readonly onDidChangeLocally = this._onDidChangeLocally.event;
 
 	private board: IAuraTeamsBoard;
 
@@ -86,22 +101,25 @@ export class AuraTeamsService extends Disposable implements IAuraTeamsService {
 
 	createTask(draft: IAuraTaskDraft): IAuraTask {
 		const task = createTask(this.board, draft, generateUuid(), Date.now());
-		this.save();
+		this.save({ kind: 'upsert', tasks: [task] });
 		return task;
 	}
 
 	updateTask(id: string, patch: Partial<Omit<IAuraTask, 'id' | 'createdAt'>>): IAuraTask | undefined {
 		const task = updateTask(this.board, id, patch, Date.now());
 		if (task) {
-			this.save();
+			this.save({ kind: 'upsert', tasks: [task] });
 		}
 		return task;
 	}
 
 	moveTask(id: string, status: AuraTaskStatus, index?: number): IAuraTask | undefined {
+		const before = new Map(this.board.tasks.map(t => [t.id, `${t.status}:${t.order}`]));
 		const task = moveTask(this.board, id, status, index, Date.now());
 		if (task) {
-			this.save();
+			// переиндексация задевает соседей — отправляем все задачи, у которых сменились колонка/порядок
+			const touched = this.board.tasks.filter(t => before.get(t.id) !== `${t.status}:${t.order}`);
+			this.save({ kind: 'upsert', tasks: touched });
 		}
 		return task;
 	}
@@ -109,12 +127,37 @@ export class AuraTeamsService extends Disposable implements IAuraTeamsService {
 	removeTask(id: string): boolean {
 		const removed = removeTask(this.board, id);
 		if (removed) {
-			this.save();
+			this.save({ kind: 'remove', id });
 		}
 		return removed;
 	}
 
-	private save(): void {
+	applyRemote(tasks: readonly IAuraTask[]): void {
+		this.board = { version: 1, tasks: [...tasks] };
+		this.persist();
+	}
+
+	applyRemoteUpsert(task: IAuraTask): void {
+		const local = this.board.tasks.find(t => t.id === task.id);
+		if (local && local.updatedAt > task.updatedAt) {
+			return; // локальная правка свежее — сервер догонит нашим upsert
+		}
+		this.board.tasks = [...this.board.tasks.filter(t => t.id !== task.id), task];
+		this.persist();
+	}
+
+	applyRemoteRemove(id: string): void {
+		if (removeTask(this.board, id)) {
+			this.persist();
+		}
+	}
+
+	private save(change: AuraTeamsLocalChange): void {
+		this.persist();
+		this._onDidChangeLocally.fire(change);
+	}
+
+	private persist(): void {
 		this.storageService.store(STORAGE_BOARD, JSON.stringify(this.board), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		this._onDidChange.fire();
 	}
