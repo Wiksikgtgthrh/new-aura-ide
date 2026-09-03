@@ -62,18 +62,14 @@ export class AuraApiChatProvider implements ILanguageModelChatProvider {
 		});
 	}
 
-	async sendChatRequest(modelId: string, messages: IChatMessage[], _from: ExtensionIdentifier | undefined, _options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<ILanguageModelChatResponse> {
-		// Этап 3: фейловер — предпочтительный ключ (по modelId) первым, дальше остальные
-		// здоровые ключи по порядку; чат не падает, пока жив хоть один ключ.
-		// Этап 2: выбор ключа через роутер (группы → веса → cooldown), с fallback на старый список
+	async sendChatRequest(modelId: string, messages: IChatMessage[], _from: ExtensionIdentifier | undefined, options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<ILanguageModelChatResponse> {
+		// Выбор ключа через роутер (группы → веса → cooldown), fallback — старый список
 		const routed = this.keysService.resolveKeyForModel ? this.keysService.resolveKeyForModel() : undefined;
 		const preferred = this.keysService.getKeys().find(k => k.id === modelId) ?? routed;
 		if (!preferred) { throw new Error(`Aura API: нет живых ключей (modelId=${modelId})`); }
 		const candidates: IAuraApiKey[] = [preferred, ...this.usableKeys().filter(k => k.id !== preferred.id)];
 
-		// Системные правила из настройки auraApi.chat.systemPrompt идут первым сообщением
 		const systemPrompt = (this.configurationService.getValue<string>(AURA_API_SYSTEM_PROMPT_SETTING) ?? '').trim();
-
 		const oaiMessages: IOpenAIMessage[] = [];
 		if (systemPrompt) {
 			oaiMessages.push({ role: 'system', content: systemPrompt });
@@ -87,46 +83,74 @@ export class AuraApiChatProvider implements ILanguageModelChatProvider {
 			oaiMessages.push({ role: m.role === 1 /* User */ ? 'user' : 'assistant', content: text });
 		}
 
+
 		const controller = new AbortController();
 		token.onCancellationRequested(() => controller.abort());
 
-		const doRequest = async (key: IAuraApiKey): Promise<string> => {
-			const secret = await this.keysService.getSecret(key.id);
-			const base = key.baseUrl.replace(/\/+$/, '');
-			const response = await fetch(`${base}/chat/completions`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					...(secret ? { 'Authorization': `Bearer ${secret}` } : {}),
-				},
-				body: JSON.stringify({ model: key.model, messages: oaiMessages, stream: false }),
-				signal: controller.signal,
-			});
-			if (!response.ok) {
-				const body = await response.text().catch(() => '');
-				// Фейловер только на сетевых/лимитных/серверных ошибках: на 401/403 другой ключ может быть жив
-				throw new Error(`Aura API [${key.name}]: HTTP ${response.status} — ${body.slice(0, 200)}`);
-			}
-			const data = await response.json();
-			return String(data?.choices?.[0]?.message?.content ?? '');
-		};
+		// eslint-disable-next-line @typescript-eslint/no-this-alias
+		const self = this;
+		let resolveResult!: (v: string) => void;
+		let rejectResult!: (e: unknown) => void;
+		const result = new Promise<string>((res, rej) => { resolveResult = res; rejectResult = rej; });
 
-		const result = (async () => {
+		const stream = (async function* () {
 			let lastError: unknown;
+			let yielded = false; // стрим начался — фейловер на другой ключ уже невозможен (иначе дубли текста)
 			for (const key of candidates) {
 				if (controller.signal.aborted) { break; }
 				try {
-					return await doRequest(key);
+					const secret = await self.keysService.getSecret(key.id);
+					const base = key.baseUrl.replace(/\/+$/, '');
+					const response = await fetch(`${base}/chat/completions`, {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+							...(secret ? { 'Authorization': `Bearer ${secret}` } : {}),
+						},
+						body: JSON.stringify({ model: key.model, messages: oaiMessages, stream: true }),
+						signal: controller.signal,
+					});
+					if (!response.ok || !response.body) {
+						const body = await response.text().catch(() => '');
+						throw new Error(`Aura API [${key.name}]: HTTP ${response.status} — ${body.slice(0, 200)}`);
+					}
+					// SSE: читаем дельты и репортим их по мере поступления
+					const reader = response.body.getReader();
+					const decoder = new TextDecoder();
+					let buffer = '';
+					let fullText = '';
+					for (;;) {
+						const { done, value } = await reader.read();
+						if (done) { break; }
+						buffer += decoder.decode(value, { stream: true });
+						const lines = buffer.split('\n');
+						buffer = lines.pop() ?? '';
+						for (const line of lines) {
+							const trimmedLine = line.trim();
+							if (!trimmedLine.startsWith('data:')) { continue; }
+							const payload = trimmedLine.slice(5).trim();
+							if (payload === '[DONE]') { continue; }
+							try {
+								const json = JSON.parse(payload);
+								const delta = json?.choices?.[0]?.delta?.content;
+								if (typeof delta === 'string' && delta.length > 0) {
+									fullText += delta;
+									yielded = true;
+									yield { type: 'text' as const, value: delta };
+								}
+							} catch { /* неполный JSON-чанк — пропускаем */ }
+						}
+					}
+					resolveResult(fullText);
+					return;
 				} catch (e) {
-					lastError = e; // пробуем следующий ключ
+					if (yielded) { rejectResult(e); throw e; }
+					lastError = e; // ошибка до первого байта — пробуем следующий ключ
 				}
 			}
-			throw lastError instanceof Error ? lastError : new Error('Aura API: все ключи недоступны');
-		})();
-
-		const stream = (async function* () {
-			const text = await result;
-			yield { type: 'text' as const, value: text };
+			const err = lastError instanceof Error ? lastError : new Error('Aura API: все ключи недоступны');
+			rejectResult(err);
+			throw err;
 		})();
 
 		return { stream, result };
