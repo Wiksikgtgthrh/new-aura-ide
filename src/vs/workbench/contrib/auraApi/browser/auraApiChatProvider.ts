@@ -65,8 +65,10 @@ export class AuraApiChatProvider implements ILanguageModelChatProvider {
 	async sendChatRequest(modelId: string, messages: IChatMessage[], _from: ExtensionIdentifier | undefined, _options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<ILanguageModelChatResponse> {
 		// Этап 3: фейловер — предпочтительный ключ (по modelId) первым, дальше остальные
 		// здоровые ключи по порядку; чат не падает, пока жив хоть один ключ.
-		const preferred = this.keysService.getKeys().find(k => k.id === modelId);
-		if (!preferred) { throw new Error(`Aura API: ключ ${modelId} не найден`); }
+		// Этап 2: выбор ключа через роутер (группы → веса → cooldown), с fallback на старый список
+		const routed = this.keysService.resolveKeyForModel ? this.keysService.resolveKeyForModel() : undefined;
+		const preferred = this.keysService.getKeys().find(k => k.id === modelId) ?? routed;
+		if (!preferred) { throw new Error(`Aura API: нет живых ключей (modelId=${modelId})`); }
 		const candidates: IAuraApiKey[] = [preferred, ...this.usableKeys().filter(k => k.id !== preferred.id)];
 
 		// Системные правила из настройки auraApi.chat.systemPrompt идут первым сообщением

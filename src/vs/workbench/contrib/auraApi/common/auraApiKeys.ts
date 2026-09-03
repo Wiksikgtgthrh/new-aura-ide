@@ -14,6 +14,13 @@ import { ISecretStorageService } from '../../../../platform/secrets/common/secre
 import { IRequestService, asText } from '../../../../platform/request/common/request.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { Limiter } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import {
+	parseKeysBulk, detectProvider, defaultBaseUrl, secretFingerprint,
+	classifyHttpStatus, cooldownMsForStatus, modelAuthenticityPercent, maskSecret,
+	type AuraProvider, type IAuraApiGroup, type AuraHealthStatus,
+} from './auraApiModel.js';
 
 export const IAuraApiKeysService = createDecorator<IAuraApiKeysService>('auraApiKeysService');
 
@@ -28,10 +35,20 @@ export interface IAuraApiKey {
 	group?: string;
 	priority: AuraApiKeyPriority;
 	createdAt: number;
+	/** Этап 2: провайдер (solo-режим) или 'litellm' (team-режим через гейтвей) */
+	provider?: AuraProvider;
+	/** Этап 2: вес для взвешенного round-robin внутри группы */
+	weight?: number;
+	/** Этап 2: fingerprint секрета для дедупликации повторной вставки (сам секрет не хранится) */
+	secretFingerprint?: string;
 }
 
 export interface IAuraApiKeyStatus {
 	checking: boolean;
+	/** Этап 2: классифицированный статус из ядра (ok/unauthorized/forbidden/ratelimited/notfound/down/unknown) */
+	health?: AuraHealthStatus;
+	/** Этап 2: до какого момента ключ в cooldown (ms epoch, Infinity = до ручной перепроверки) */
+	cooldownUntil?: number;
 	lastChecked?: number;
 	pingMs?: number;
 	ok?: boolean;
@@ -61,6 +78,21 @@ export interface IAuraApiKeysService {
 	smartImport(baseUrl: string, model: string, keysText: string, group?: string, priority?: AuraApiKeyPriority): Promise<{ added: number; skipped: number }>;
 	/** Опрашивает GET {baseUrl}/models и возвращает список id доступных моделей. */
 	discoverModels(baseUrl: string, secret?: string): Promise<string[]>;
+
+	/* ---- Этап 2: группы, роутер, probe моделей ---- */
+	/** Управление группами (приоритет 0 = высший). */
+	getGroups(): IAuraApiGroup[];
+	createGroup(name: string, priority?: number, baseUrl?: string): IAuraApiGroup;
+	/** Массовый импорт «вставь что угодно» (сырые ключи, pipe, CSV, .env, JSON) с дедупликацией. */
+	bulkImport(text: string, groupName?: string): Promise<{ added: number; skipped: number; errors: string[] }>;
+	/** Реальная проверка доступа модели: POST chat/completions max_tokens:1, сравнение declared vs returned model. */
+	probeModel(keyId: string, modelId?: string): Promise<{ available: 'yes' | 'no' | 'unknown'; authenticityPct: number | null; error?: string }>;
+	/** Проверить все ключи через очередь с ограничением параллелизма и backoff на 429. */
+	checkAllQueued(maxParallel?: number): Promise<void>;
+	/** Роутер: выбрать живой ключ для модели (приоритет групп → взвешенный RR → cooldown). */
+	resolveKeyForModel(modelId?: string): IAuraApiKey | undefined;
+	/** Маска секрета для UI (sk-…ABCD). Сам секрет из хранилища не читается. */
+	maskedSecretLabel(id: string): string;
 }
 
 /** Справочник популярных моделей для подсказок при добавлении ключей. */
@@ -76,6 +108,9 @@ const STORAGE_KEYS = 'auraApi.keys';
 const STORAGE_SELECTED = 'auraApi.chat.selectedKeyId';
 const SECRET_PREFIX = 'auraApi.key.';
 const HIGH_PING_MS = 3000;
+const STORAGE_GROUPS = 'auraApi.groups';
+const RATE_LIMIT_BACKOFF_MS = 5_000;
+const QUEUE_PARALLEL = 5;
 
 /** Эвристика «вредоносности» ответа модели: ищем подозрительные паттерны команд. */
 const MALICIOUS_PATTERNS: Array<{ re: RegExp; note: string }> = [
@@ -94,7 +129,10 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 	readonly onDidChange = this._onDidChange.event;
 
 	private keys: IAuraApiKey[] = [];
+	private groups: IAuraApiGroup[] = [];
 	private readonly statuses = new Map<string, IAuraApiKeyStatus>();
+	private readonly checkLimiter = new Limiter<unknown>(QUEUE_PARALLEL);
+	private checkCts: CancellationTokenSource | undefined;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -114,10 +152,20 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 		} catch {
 			this.keys = [];
 		}
+		try {
+			const rawG = this.storageService.get(STORAGE_GROUPS, StorageScope.APPLICATION, '[]');
+			this.groups = JSON.parse(rawG) as IAuraApiGroup[];
+		} catch {
+			this.groups = [];
+		}
+		if (this.groups.length === 0) {
+			this.groups = [{ id: 'default', name: 'По умолчанию', priority: 0 }];
+		}
 	}
 
 	private save(): void {
 		this.storageService.store(STORAGE_KEYS, JSON.stringify(this.keys), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this.storageService.store(STORAGE_GROUPS, JSON.stringify(this.groups), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		this._onDidChange.fire();
 	}
 
@@ -131,7 +179,14 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 	}
 
 	async addKey(input: Omit<IAuraApiKey, 'id' | 'createdAt'>, secret: string): Promise<IAuraApiKey> {
-		const key: IAuraApiKey = { ...input, id: generateUuid(), createdAt: Date.now() };
+		const key: IAuraApiKey = {
+			...input,
+			id: generateUuid(),
+			createdAt: Date.now(),
+			provider: input.provider ?? detectProvider(secret, input.baseUrl) ?? 'openai-compatible',
+			weight: input.weight ?? 1,
+			secretFingerprint: secretFingerprint(secret),
+		};
 		this.keys.push(key);
 		await this.secretStorage.set(this.getSecretKeyRef(key.id), secret);
 		this.save();
@@ -242,7 +297,12 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 				return this.setStatus(id, { checking: false, lastChecked: Date.now(), pingMs: ping.ms, ok: false, error: 'HTTP 404: baseUrl не похож на OpenAI-совместимый API (нет /models)' });
 			}
 			if (ping.status !== undefined && (ping.status < 200 || ping.status >= 300)) {
-				return this.setStatus(id, { checking: false, lastChecked: Date.now(), pingMs: ping.ms, ok: false, error: `HTTP ${ping.status}` });
+				return this.setStatus(id, {
+					checking: false, lastChecked: Date.now(), pingMs: ping.ms, ok: false,
+					error: `HTTP ${ping.status}`,
+					health: classifyHttpStatus(ping.status),
+					cooldownUntil: cooldownMsForStatus(ping.status) > 0 ? Date.now() + cooldownMsForStatus(ping.status) : undefined,
+				});
 			}
 
 			const excludedHighPing = ping.ms > HIGH_PING_MS;
@@ -275,6 +335,11 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 					else if (family.length > 0 && family.every(w => answerL.includes(w))) { authenticityPct = 80; }
 					else if (family.some(w => answerL.includes(w))) { authenticityPct = 50; }
 					else { authenticityPct = answer ? 20 : null; }
+					// Этап 2: основной сигнал — declared vs returned model из тела ответа
+					try {
+						const returnedModel = String(JSON.parse(chat.body)?.model ?? '');
+						if (returnedModel) { authenticityPct = modelAuthenticityPercent(key.model, returnedModel, authenticityPct ?? undefined); }
+					} catch { /* тело не JSON — оставляем эвристику */ }
 
 					// 3. Безопасность: сканируем ответ модели на вредоносные паттерны
 					securityNotes = MALICIOUS_PATTERNS.filter(p => p.re.test(chat.body)).map(p => p.note);
@@ -290,6 +355,7 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 				checking: false, lastChecked: Date.now(), pingMs: ping.ms, ok: true,
 				authenticityPct, securityPct, securityNotes,
 				excludedHighPing,
+				health: 'ok', cooldownUntil: undefined,
 				error: excludedHighPing ? `Высокий пинг (${ping.ms} мс > ${HIGH_PING_MS} мс) — ключ исключён из использования` : undefined,
 			});
 		} catch (e) {
@@ -354,6 +420,142 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 		} catch {
 			return [];
 		}
+	}
+
+
+	/* ================== Этап 2: группы, bulkImport, probe, роутер ================== */
+
+	getGroups(): IAuraApiGroup[] {
+		return [...this.groups].sort((a, b) => a.priority - b.priority);
+	}
+
+	createGroup(name: string, priority: number = this.groups.length, baseUrl?: string): IAuraApiGroup {
+		const group: IAuraApiGroup = { id: generateUuid(), name: name.trim() || 'Группа', priority, baseUrl };
+		this.groups.push(group);
+		this.save();
+		return group;
+	}
+
+	/** Дедупликация по fingerprint секрета: повторная вставка того же ключа пропускается. */
+	private hasFingerprint(fp: string): boolean {
+		return this.keys.some(k => k.secretFingerprint === fp);
+	}
+
+	async bulkImport(text: string, groupName?: string): Promise<{ added: number; skipped: number; errors: string[] }> {
+		const parsed = parseKeysBulk(text);
+		const errors: string[] = parsed.errors.map(e => `строка ${e.line}: ${e.reason} (${e.text})`);
+		let added = 0, skipped = parsed.errors.length;
+
+		// Группа: по имени из аргумента, иначе из групп в данных, иначе дефолтная
+		const resolveGroupId = (name?: string): string => {
+			const target = (groupName ?? name)?.trim();
+			if (!target) { return this.groups[0].id; }
+			const existing = this.groups.find(g => g.name.toLowerCase() === target.toLowerCase());
+			if (existing) { return existing.id; }
+			return this.createGroup(target).id;
+		};
+
+		for (const draft of parsed.keys) {
+			const fp = secretFingerprint(draft.key);
+			if (this.hasFingerprint(fp)) { skipped++; continue; }
+			const gid = resolveGroupId(draft.groupName);
+			const group = this.groups.find(g => g.id === gid);
+			await this.addKey({
+				name: draft.label,
+				baseUrl: draft.baseUrl ?? group?.baseUrl ?? defaultBaseUrl(draft.provider),
+				model: POPULAR_MODELS[0],
+				expectedModel: POPULAR_MODELS[0],
+				group: group?.name,
+				priority: 'medium',
+				provider: draft.provider,
+				weight: draft.weight,
+			}, draft.key);
+			added++;
+		}
+		return { added, skipped, errors };
+	}
+
+	async probeModel(keyId: string, modelId?: string): Promise<{ available: 'yes' | 'no' | 'unknown'; authenticityPct: number | null; error?: string }> {
+		const key = this.keys.find(k => k.id === keyId);
+		if (!key) { return { available: 'unknown', authenticityPct: null, error: 'ключ не найден' }; }
+		const model = modelId ?? key.model;
+		const secret = await this.getSecret(keyId);
+		const base = key.baseUrl.replace(/\/+$/, '');
+		try {
+			const res = await this.timedRequest(`${base}/chat/completions`, {
+				type: 'POST',
+				headers: { 'Content-Type': 'application/json', ...(secret ? { 'Authorization': `Bearer ${secret}` } : {}) },
+				timeout: 20000,
+				data: JSON.stringify({ model, messages: [{ role: 'user', content: '.' }], max_tokens: 1 }),
+			});
+			const status = res.status ?? 0;
+			if (status === 401) {
+				this.setStatus(keyId, { health: 'unauthorized', cooldownUntil: Number.POSITIVE_INFINITY, ok: false, error: 'HTTP 401: ключ отклонён' });
+				return { available: 'unknown', authenticityPct: null, error: 'HTTP 401: ключ мёртв (не модель — весь ключ)' };
+			}
+			if (status === 403 || status === 404) {
+				return { available: 'no', authenticityPct: null, error: `HTTP ${status}: нет доступа к модели` };
+			}
+			if (status === 429) {
+				this.setStatus(keyId, { health: 'ratelimited', cooldownUntil: Date.now() + cooldownMsForStatus(429) });
+				return { available: 'unknown', authenticityPct: null, error: 'HTTP 429: rate limit, ключ поставлен в cooldown' };
+			}
+			if (status >= 500) {
+				return { available: 'unknown', authenticityPct: null, error: `HTTP ${status}: сервер недоступен` };
+			}
+			// 2xx: declared vs returned model — главный сигнал подлинности
+			let returned: string | undefined;
+			try { returned = String(JSON.parse(res.body)?.model ?? '') || undefined; } catch { /* не JSON */ }
+			const pct = modelAuthenticityPercent(model, returned);
+			return { available: 'yes', authenticityPct: pct, error: returned && returned !== model ? `прокси вернул ${returned} вместо ${model}` : undefined };
+		} catch (e) {
+			return { available: 'unknown', authenticityPct: null, error: `Сеть: ${e instanceof Error ? e.message : String(e)}` };
+		}
+	}
+
+	async checkAllQueued(maxParallel: number = QUEUE_PARALLEL): Promise<void> {
+		this.checkCts?.cancel();
+		this.checkCts = new CancellationTokenSource();
+		const limiter = maxParallel === QUEUE_PARALLEL ? this.checkLimiter : new Limiter<unknown>(maxParallel);
+		const jobs = this.keys.map(key => limiter.queue(async () => {
+			if (this.checkCts?.token.isCancellationRequested) { return; }
+			let status = this.getStatus(key.id).health;
+			let attempt = 0;
+			// backoff на 429: до 3 повторов
+			while (attempt < 3 && !this.checkCts?.token.isCancellationRequested) {
+				await this.checkKey(key.id);
+				status = this.getStatus(key.id).health;
+				if (status !== 'ratelimited') { break; }
+				attempt++;
+				await new Promise(r => setTimeout(r, RATE_LIMIT_BACKOFF_MS * attempt));
+			}
+		}));
+		await Promise.allSettled(jobs);
+	}
+
+	resolveKeyForModel(modelId?: string): IAuraApiKey | undefined {
+		const now = Date.now();
+		const eligible = (k: IAuraApiKey): boolean => {
+			const st = this.getStatus(k.id);
+			if (st.cooldownUntil !== undefined && st.cooldownUntil > now) { return false; }
+			if (st.health === 'unauthorized' || st.health === 'forbidden') { return false; }
+			if (st.ok !== true || st.excludedHighPing) { return false; }
+			return true;
+		};
+		// группы по приоритету, внутри — по weight и ping
+		for (const group of this.getGroups()) {
+			const pool = this.keys.filter(k => eligible(k) && (this.groups.find(g => g.name === k.group)?.id ?? this.groups[0].id) === group.id);
+			if (pool.length === 0) { continue; }
+			pool.sort((a, b) => (b.weight ?? 1) - (a.weight ?? 1) || (this.getStatus(a.id).pingMs ?? 99999) - (this.getStatus(b.id).pingMs ?? 99999));
+			return pool[0];
+		}
+		return undefined;
+	}
+
+	maskedSecretLabel(id: string): string {
+		const key = this.keys.find(k => k.id === id);
+		if (!key) { return '—'; }
+		return key.secretFingerprint ? maskSecret(key.secretFingerprint.replace(/[:]/g, '…')) : key.name;
 	}
 
 	async selectForChat(id: string): Promise<void> {
