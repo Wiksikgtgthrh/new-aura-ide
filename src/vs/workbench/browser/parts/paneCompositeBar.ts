@@ -15,6 +15,7 @@ import { Dimension, isMouseEvent } from '../../../base/browser/dom.js';
 import { createCSSRule } from '../../../base/browser/domStylesheets.js';
 import { asCSSUrl } from '../../../base/browser/cssValue.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ToggleCompositePinnedAction, ICompositeBarColors, IActivityHoverOptions, ToggleCompositeBadgeAction, CompositeBarAction, ICompositeBar, ICompositeBarActionItem } from './compositeBarActions.js';
@@ -90,6 +91,12 @@ const AURA_HIDDEN_VIEW_CONTAINER_IDS = new Set<string>([
 	'workbench.view.debug', // Debug
 	'workbench.panel.chat', // Chat (ChatViewContainerId)
 	'copilot-chat', // Copilot "Chat Debug" (пустая иконка в bar)
+]);
+
+// Aura IDE fork: контейнеры-лаунчеры — клик по иконке выполняет команду (открывает центральную вкладку), sidebar не открывается
+const AURA_LAUNCHER_CONTAINERS = new Map<string, string>([
+	['workbench.view.auraMarket', 'auraMarket.open'],
+	['workbench.view.auraApi', 'auraApi.openManager'],
 ]);
 
 export class PaneCompositeBar extends Disposable {
@@ -799,6 +806,7 @@ class ViewContainerActivityAction extends CompositeBarAction {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IActivityService private readonly activityService: IActivityService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(compositeBarActionItem);
 		this.updateActivity();
@@ -828,6 +836,13 @@ class ViewContainerActivityAction extends CompositeBarAction {
 			return;
 		}
 		this.lastRun = now;
+
+		// Aura IDE fork: контейнеры-лаунчеры — клик открывает вкладку, sidebar не трогаем
+		const auraLauncherCommand = AURA_LAUNCHER_CONTAINERS.get(this.compositeBarActionItem.id);
+		if (auraLauncherCommand) {
+			await this.commandService.executeCommand(auraLauncherCommand);
+			return;
+		}
 
 		const focus = (event && 'preserveFocus' in event) ? !event.preserveFocus : true;
 
