@@ -37,7 +37,7 @@ import { ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { AuraApiEditorPane } from './auraApiEditorPane.js';
 import { AuraApiEditorInput, AuraApiEditorInputSerializer } from './auraApiEditorInput.js';
 import { AuraApiChatProvider, AURA_API_VENDOR, AURA_API_SYSTEM_PROMPT_SETTING } from './auraApiChatProvider.js';
-import { IAuraApiKeysService } from '../common/auraApiKeys.js';
+import { IAuraApiKeysService, AURA_HEALTH_INTERVAL_SETTING } from '../common/auraApiKeys.js';
 import { auraMarketInstalledKey } from '../../auraMarket/common/auraMarketCatalog.js';
 
 export const AURA_API_OPEN_COMMAND_ID = 'auraApi.openManager';
@@ -166,6 +166,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			default: '',
 			markdownDescription: localize('auraApi.chat.systemPrompt', "Системные правила для моделей Aura API: как модель должна себя вести в чате (стиль, ограничения, соглашения проекта). Добавляется первым системным сообщением к каждому запросу. Дополнительно работают штатные файлы правил: AGENTS.md и .github/copilot-instructions.md в корне проекта."),
+		},
+		[AURA_HEALTH_INTERVAL_SETTING]: {
+			type: 'number',
+			default: 0,
+			minimum: 0,
+			markdownDescription: localize('auraApi.health.intervalMinutes', "Интервал автоматической проверки ключей Aura API в минутах. `0` — автопроверка выключена, ключи проверяются только вручную."),
 		},
 	},
 });

@@ -12,7 +12,9 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { AuraApiEditorInput } from './auraApiEditorInput.js';
-import { IAuraApiKeysService, IAuraApiKey, AuraApiKeyPriority } from '../common/auraApiKeys.js';
+import { IAuraApiKeysService, IAuraApiKey, IAuraApiKeyStatus, AuraApiKeyPriority } from '../common/auraApiKeys.js';
+
+type AuraStatusFilter = '' | 'ok' | 'error' | 'cooldown' | 'unchecked';
 
 export class AuraApiEditorPane extends EditorPane {
 
@@ -21,7 +23,10 @@ export class AuraApiEditorPane extends EditorPane {
 	private rootEl!: HTMLElement;
 	private tableBody!: HTMLElement;
 	private groupFilter = '';
+	private searchText = '';
+	private statusFilter: AuraStatusFilter = '';
 	private groupSelect?: HTMLSelectElement;
+	private inputId = 0;
 
 	constructor(
 		group: IEditorGroup,
@@ -48,10 +53,40 @@ export class AuraApiEditorPane extends EditorPane {
 		this.mkButton(toolbar, 'Проверить группу', () => this.checkGroup());
 		this.mkButton(toolbar, 'Обновить', () => this.renderTable());
 
-		// --- Фильтр по группе ---
+		// --- Поиск и фильтры ---
 		const filterWrap = append(toolbar, $('.aura-api-group-filter'));
-		append(filterWrap, $('span')).textContent = 'Группа: ';
+
+		const searchLabel = append(filterWrap, $('label')) as HTMLLabelElement;
+		searchLabel.htmlFor = 'aura-api-search';
+		searchLabel.textContent = 'Поиск:';
+		const search = append(filterWrap, $('input.aura-api-input.aura-api-search')) as HTMLInputElement;
+		search.id = searchLabel.htmlFor;
+		search.type = 'search';
+		search.placeholder = 'название, модель или URL';
+		this._register(addDisposableListener(search, EventType.INPUT, () => {
+			this.searchText = search.value.trim().toLowerCase();
+			this.renderTable();
+		}));
+
+		const statusLabel = append(filterWrap, $('label')) as HTMLLabelElement;
+		statusLabel.htmlFor = 'aura-api-status-filter';
+		statusLabel.textContent = 'Статус:';
+		const statusSelect = append(filterWrap, $('select.aura-api-select')) as HTMLSelectElement;
+		statusSelect.id = statusLabel.htmlFor;
+		for (const [value, label] of [['', 'Любой'], ['ok', 'Работают'], ['error', 'С ошибкой'], ['cooldown', 'В cooldown'], ['unchecked', 'Не проверены']] as Array<[AuraStatusFilter, string]>) {
+			const opt = append(statusSelect, $('option')) as HTMLOptionElement;
+			opt.value = value; opt.textContent = label;
+		}
+		this._register(addDisposableListener(statusSelect, EventType.CHANGE, () => {
+			this.statusFilter = statusSelect.value as AuraStatusFilter;
+			this.renderTable();
+		}));
+
+		const groupLabel = append(filterWrap, $('label')) as HTMLLabelElement;
+		groupLabel.htmlFor = 'aura-api-group-filter';
+		groupLabel.textContent = 'Группа:';
 		this.groupSelect = append(filterWrap, $('select.aura-api-select')) as HTMLSelectElement;
+		this.groupSelect.id = groupLabel.htmlFor;
 		this._register(addDisposableListener(this.groupSelect, EventType.CHANGE, () => {
 			this.groupFilter = this.groupSelect!.value;
 			this.renderTable();
@@ -65,6 +100,17 @@ export class AuraApiEditorPane extends EditorPane {
 			append(head, $('th')).textContent = col;
 		}
 		this.tableBody = append(table, $('tbody'));
+	}
+
+	private matchesStatusFilter(status: IAuraApiKeyStatus): boolean {
+		const inCooldown = status.cooldownUntil !== undefined && status.cooldownUntil > Date.now();
+		switch (this.statusFilter) {
+			case 'ok': return status.ok === true && !inCooldown && !status.excludedHighPing;
+			case 'error': return status.ok === false || (status.health !== undefined && status.health !== 'ok');
+			case 'cooldown': return inCooldown;
+			case 'unchecked': return status.ok === undefined && !status.checking;
+			default: return true;
+		}
 	}
 
 	private mkButton(parent: HTMLElement, label: string, run: () => void): HTMLButtonElement {
@@ -94,12 +140,22 @@ export class AuraApiEditorPane extends EditorPane {
 			this.groupFilter = this.groupSelect.value;
 		}
 
-		const visible = keys.filter(k => !this.groupFilter || k.group === this.groupFilter);
+		const visible = keys.filter(k => {
+			if (this.groupFilter && k.group !== this.groupFilter) {
+				return false;
+			}
+			if (this.searchText && !`${k.name} ${k.model} ${k.baseUrl}`.toLowerCase().includes(this.searchText)) {
+				return false;
+			}
+			return this.matchesStatusFilter(this.keysService.getStatus(k.id));
+		});
 		if (visible.length === 0) {
 			const row = append(this.tableBody, $('tr'));
 			const cell = append(row, $('td.aura-api-empty')) as HTMLTableCellElement;
 			cell.colSpan = 10;
-			cell.textContent = 'Ключи не добавлены. Нажмите «+ Добавить ключ» или «Массовый импорт».';
+			cell.textContent = keys.length === 0
+				? 'Ключи не добавлены. Нажмите «+ Добавить ключ» или «Массовый импорт».'
+				: 'Ничего не найдено. Смягчите поиск или сбросьте фильтры группы и статуса.';
 			return;
 		}
 
@@ -253,6 +309,7 @@ export class AuraApiEditorPane extends EditorPane {
 		const hint = append(form, $('p.aura-api-hint'));
 		hint.textContent = 'Вставьте что угодно: сырые ключи по строкам (sk-…, sk-ant-…, AIza…), «название | baseUrl | ключ», CSV с заголовком, .env-строки (OPENAI_API_KEY=…) или JSON-массив. Провайдер и baseUrl определятся автоматически; повторная вставка того же ключа будет пропущена.';
 		const area = append(form, $('textarea.aura-api-bulk')) as HTMLTextAreaElement;
+		area.setAttribute('aria-label', 'Ключи для массового импорта');
 		area.rows = 10;
 		const group = this.formInput(form, 'Группа для всех (опц., новое имя = создать)', '');
 		const row = append(form, $('.aura-api-form-buttons'));
@@ -269,8 +326,12 @@ export class AuraApiEditorPane extends EditorPane {
 
 	private formInput(parent: HTMLElement, label: string, placeholder: string, password = false): HTMLInputElement {
 		const wrap = append(parent, $('.aura-api-field'));
-		append(wrap, $('label')).textContent = label;
+		const inputId = `aura-api-input-${++this.inputId}`;
+		const inputLabel = append(wrap, $('label')) as HTMLLabelElement;
+		inputLabel.htmlFor = inputId;
+		inputLabel.textContent = label;
 		const input = append(wrap, $('input.aura-api-input')) as HTMLInputElement;
+		input.id = inputId;
 		input.type = password ? 'password' : 'text';
 		input.placeholder = placeholder;
 		return input;
