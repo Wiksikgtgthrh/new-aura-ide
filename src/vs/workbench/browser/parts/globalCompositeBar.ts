@@ -443,7 +443,9 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	protected override async resolveMainMenuActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
 		await super.resolveMainMenuActions(accountsMenu, disposables);
 
-		const providers = this.authenticationService.getProviderIds().filter(p => !p.startsWith(INTERNAL_AUTH_PROVIDER_PREFIX));
+		// Aura Team owns the GitHub connection flow. Keep the providers available to
+		// extensions, but do not advertise the stock registration in the Accounts UI.
+		const providers = this.authenticationService.getProviderIds().filter(p => !p.startsWith(INTERNAL_AUTH_PROVIDER_PREFIX) && p !== 'github' && p !== 'github-enterprise');
 		const otherCommands = accountsMenu.getActions();
 		let menus: IAction[] = [];
 

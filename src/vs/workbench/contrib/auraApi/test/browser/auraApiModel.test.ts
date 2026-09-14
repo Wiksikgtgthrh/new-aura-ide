@@ -91,9 +91,11 @@ suite('AuraApiModel — bulk-парсер', () => {
 	});
 
 	test('невалидный JSON → ошибка, не падение', () => {
-		const r = parseKeysBulk('[{"key":');
+		const secret = 'sk-secret-that-must-never-be-rendered';
+		const r = parseKeysBulk(`[{"key":"${secret}`);
 		assert.strictEqual(r.keys.length, 0);
 		assert.strictEqual(r.errors.length, 1);
+		assert.ok(!r.errors[0].text.includes(secret));
 	});
 
 	test('мусорная строка → ошибка с замаскированным текстом', () => {

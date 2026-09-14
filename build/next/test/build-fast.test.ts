@@ -74,7 +74,7 @@ suite('build-fast planning', () => {
 		);
 	});
 
-	test('routes client, extension, and Copilot changes independently', () => {
+	test('routes client and extension changes while ignoring excluded Copilot sources', () => {
 		assert.deepStrictEqual(
 			createBuildPlan(savedState(), environment, [
 				'extensions/configuration-editing/src/configurationEditingMain.ts',
@@ -90,7 +90,7 @@ suite('build-fast planning', () => {
 				],
 				client: 'incremental',
 				extensions: 'full',
-				copilot: 'full',
+				copilot: 'skip',
 			}
 		);
 	});
@@ -106,21 +106,21 @@ suite('build-fast planning', () => {
 				changedPaths: [],
 				client: 'full',
 				extensions: 'full',
-				copilot: 'full',
+				copilot: 'skip',
 			},
 			{
 				reason: 'build configuration or dependencies changed',
 				changedPaths: ['build/next/index.ts'],
 				client: 'full',
 				extensions: 'full',
-				copilot: 'full',
+				copilot: 'skip',
 			},
 			{
 				reason: 'build configuration or dependencies changed',
 				changedPaths: ['gulpfile.mjs'],
 				client: 'full',
 				extensions: 'full',
-				copilot: 'full',
+				copilot: 'skip',
 			}
 		]);
 	});

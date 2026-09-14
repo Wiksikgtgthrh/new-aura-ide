@@ -10,6 +10,7 @@
 .aura-api-table th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--vscode-panel-border); color: var(--vscode-descriptionForeground); position: sticky; top: 0; background: var(--vscode-editor-background); }
 .aura-api-table td { padding: 6px 8px; border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); vertical-align: top; }
 .aura-api-url { font-family: monospace; font-size: 11px; }
+.aura-api-key { font-family: var(--monaco-monospace-font); white-space: nowrap; color: var(--vscode-descriptionForeground); }
 .aura-api-ok { color: var(--vscode-charts-green, #4ec9b0); }
 .aura-api-err { color: var(--vscode-errorForeground, #f48771); }
 .aura-api-warn { color: var(--vscode-editorWarning-foreground, #cca700); }
@@ -21,3 +22,9 @@
 .aura-api-hint { font-size: 12px; color: var(--vscode-descriptionForeground); margin: 0; }
 .aura-api-form-buttons { display: flex; gap: 8px; }
 .aura-api-launcher { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+.aura-api-chat-keys { display: flex; flex-direction: column; gap: 6px; padding: 8px; overflow: auto; }
+.aura-api-chat-key { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; padding: 7px 8px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: 4px; }
+.aura-api-chat-key-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aura-api-chat-key code { color: var(--vscode-descriptionForeground); }
+.aura-api-chat-key small { grid-column: 1 / -1; color: var(--vscode-descriptionForeground); }
+.aura-api-chat-empty { padding: 12px; color: var(--vscode-descriptionForeground); }

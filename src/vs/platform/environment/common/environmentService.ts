@@ -217,11 +217,12 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	}
 
 	get skipBuiltinExtensions(): readonly string[] {
+		const defaults = ['GitHub.copilot', 'GitHub.copilot-chat'];
 		const value = env['VSCODE_SKIP_BUILTIN_EXTENSIONS'];
 		if (!value) {
-			return [];
+			return defaults;
 		}
-		return value.split(',').map(id => id.trim()).filter(id => id);
+		return [...new Set([...defaults, ...value.split(',').map(id => id.trim()).filter(id => id)])];
 	}
 
 	@memoize

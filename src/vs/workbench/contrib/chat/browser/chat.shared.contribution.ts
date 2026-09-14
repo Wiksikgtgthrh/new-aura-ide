@@ -1998,8 +1998,10 @@ configurationRegistry.registerConfiguration({
 			),
 			default: {
 				[AGENTS_SOURCE_FOLDER]: true,
-				[CLAUDE_AGENTS_SOURCE_FOLDER]: true,
-				[COPILOT_USER_AGENTS_SOURCE_FOLDER]: true,
+				// Aura exposes project-owned agents only. Global Claude/Copilot agent
+				// folders can still be enabled explicitly in settings when needed.
+				[CLAUDE_AGENTS_SOURCE_FOLDER]: false,
+				[COPILOT_USER_AGENTS_SOURCE_FOLDER]: false,
 			},
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {

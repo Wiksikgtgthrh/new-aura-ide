@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        :root { --bg-card: var(--vscode-sideBar-background); --text-main: var(--vscode-foreground); --accent: #007acc; }
+        body { font-family: var(--vscode-font-family); color: var(--text-main); padding: 10px; }
+        #tasks-container { display: flex; flex-direction: column; gap: 10px; }
+        
+        .task-card {
+            background: var(--bg-card);
+            border-left: 4px solid var(--accent);
+            border-radius: 4px;
+            padding: 12px;
+            animation: fadeIn 0.4s ease-out;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .status-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; background: #444; }
+        .status-done { background: #28a745; }
+    </style>
+</head>
+<body>
+    <div id="tasks-container">Loading...</div>
+    <script>
+        const vscode = acquireVsCodeApi();
+        window.addEventListener('message', event => {
+            const message = event.data;
+            if (message.command === 'updateTasks') {
+                const container = document.getElementById('tasks-container');
+                container.innerHTML = message.tasks.map(t => `
+                    <div class="task-card">
+                        <span class="status-pill ${t.status === 'done' ? 'status-done' : ''}">${t.status}</span>
+                        <h3>${t.title}</h3>
+                    </div>
+                `).join('');
+            }
+        });
+    </script>
+</body>
+</html>

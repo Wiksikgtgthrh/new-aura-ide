@@ -1,0 +1,111 @@
+{
+	"name": "aura-team",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.1.0",
+	"publisher": "aura",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.100.0"
+	},
+	"extensionDependencies": [
+		"vscode.git"
+	],
+	"activationEvents": [
+		"onView:auraTeam.members",
+		"onView:auraTeam.project",
+		"onView:auraTeam.tasks",
+		"onView:auraTeam.keys"
+	],
+	"main": "./out/extension",
+	"scripts": {
+		"compile": "gulp compile-extension:aura-team",
+		"watch": "gulp watch-extension:aura-team"
+	},
+	"contributes": {
+		"configuration": {
+			"title": "%configuration.title%",
+			"properties": {
+				"auraTeam.serverUrl": {
+					"type": "string",
+					"default": "http://localhost:3210",
+					"description": "%configuration.serverUrl%"
+				},
+				"auraTeam.githubClientId": {
+					"type": "string",
+					"default": "",
+					"description": "%configuration.githubClientId%"
+				},
+				"auraTeam.simpleMode": {
+					"type": "boolean",
+					"default": true,
+					"description": "%configuration.simpleMode%"
+				}
+			}
+		},
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "auraTeam",
+					"title": "%container.title%",
+					"icon": "media/aura-team.svg"
+				}
+			]
+		},
+		"views": {
+			"auraTeam": [
+				{ "id": "auraTeam.members", "name": "%view.members%" },
+				{ "id": "auraTeam.project", "name": "%view.project%" },
+				{ "id": "auraTeam.tasks", "name": "%view.tasks%" },
+				{ "id": "auraTeam.keys", "name": "%view.keys%" }
+			]
+		},
+		"commands": [
+			{ "command": "auraTeam.signIn", "title": "%command.signIn%", "category": "Aura Team" },
+			{ "command": "auraTeam.signOut", "title": "%command.signOut%", "category": "Aura Team" },
+			{ "command": "auraTeam.selectTeam", "title": "%command.selectTeam%", "category": "Aura Team" },
+			{ "command": "auraTeam.connectGitHub", "title": "%command.connectGitHub%", "category": "Aura Team" },
+			{ "command": "auraTeam.connectAuraApi", "title": "%command.connectAuraApi%", "category": "Aura Team" },
+			{ "command": "auraTeam.refresh", "title": "%command.refresh%", "category": "Aura Team" },
+			{ "command": "auraTeam.createTeam", "title": "%command.createTeam%", "category": "Aura Team" },
+			{ "command": "auraTeam.joinTeam", "title": "%command.joinTeam%", "category": "Aura Team" },
+			{ "command": "auraTeam.createInvite", "title": "%command.createInvite%", "category": "Aura Team" },
+			{ "command": "auraTeam.changeRole", "title": "%command.changeRole%", "category": "Aura Team" },
+			{ "command": "auraTeam.createProject", "title": "%command.createProject%", "category": "Aura Team" },
+			{ "command": "auraTeam.createTask", "title": "%command.createTask%", "category": "Aura Team" },
+			{ "command": "auraTeam.storeApiKey", "title": "%command.storeApiKey%", "category": "Aura Team" },
+			{ "command": "auraTeam.disableApiKey", "title": "%command.disableApiKey%", "category": "Aura Team" },
+			{ "command": "auraTeam.uploadArchive", "title": "%command.uploadArchive%", "category": "Aura Team" },
+			{ "command": "auraTeam.downloadArchive", "title": "%command.downloadArchive%", "category": "Aura Team" },
+			{ "command": "auraTeam.openBoard", "title": "%command.openBoard%", "category": "Aura Team", "icon": "$(project)" },
+			{ "command": "auraTeam.toggleSimpleMode", "title": "%command.toggleSimpleMode%", "category": "Aura Team", "icon": "$(settings-gear)" },
+			{ "command": "auraTeam.getProject", "title": "%command.getProject%", "category": "Aura Team", "icon": "$(repo-clone)" },
+			{ "command": "auraTeam.saveWork", "title": "%command.saveWork%", "category": "Aura Team", "icon": "$(cloud-upload)" },
+			{ "command": "auraTeam.updateProject", "title": "%command.updateProject%", "category": "Aura Team", "icon": "$(sync)" },
+			{ "command": "auraTeam.undoChanges", "title": "%command.undoChanges%", "category": "Aura Team" },
+			{ "command": "auraTeam.revertLastCommit", "title": "%command.revertLastCommit%", "category": "Aura Team" },
+			{ "command": "auraTeam.restoreFile", "title": "%command.restoreFile%", "category": "Aura Team" },
+			{ "command": "auraTeam.relink", "title": "%command.relink%", "category": "Aura Team" },
+			{ "command": "auraTeam.history", "title": "%command.history%", "category": "Aura Team" }
+		],
+		"menus": {
+			"view/title": [
+				{ "command": "auraTeam.openBoard", "when": "view == auraTeam.tasks", "group": "navigation" },
+				{ "command": "auraTeam.storeApiKey", "when": "view == auraTeam.keys", "group": "navigation" },
+				{ "command": "auraTeam.selectTeam", "when": "view == auraTeam.members", "group": "navigation" },
+				{ "command": "auraTeam.updateProject", "when": "view == auraTeam.project", "group": "navigation@1" },
+				{ "command": "auraTeam.saveWork", "when": "view == auraTeam.project", "group": "navigation@2" },
+				{ "command": "auraTeam.history", "when": "view == auraTeam.project", "group": "navigation@3" },
+				{ "command": "auraTeam.toggleSimpleMode", "when": "view == auraTeam.project", "group": "navigation@4" },
+				{ "command": "auraTeam.refresh", "when": "view =~ /auraTeam\\./", "group": "navigation" }
+			],
+			"view/item/context": [
+				{ "command": "auraTeam.disableApiKey", "when": "view == auraTeam.keys && viewItem == teamKey", "group": "inline" },
+				{ "command": "auraTeam.getProject", "when": "view == auraTeam.project", "group": "inline" }
+			]
+		}
+	},
+	"devDependencies": {
+		"@types/node": "24.x"
+	}
+}

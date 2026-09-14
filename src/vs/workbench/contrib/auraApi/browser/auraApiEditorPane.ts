@@ -61,7 +61,7 @@ export class AuraApiEditorPane extends EditorPane {
 		const tableWrap = append(this.rootEl, $('.aura-api-table-wrap'));
 		const table = append(tableWrap, $('table.aura-api-table'));
 		const head = append(table, $('tr.aura-api-head'));
-		for (const col of ['Название', 'Base URL', 'Модель', 'Группа', 'Приоритет', 'Пинг', 'Статус', 'Модель %', 'Защита %', 'Действия']) {
+		for (const col of ['Название', 'Ключ', 'Base URL', 'Модель', 'Группа', 'Приоритет', 'Пинг', 'Статус', 'Модель %', 'Защита %', 'Действия']) {
 			append(head, $('th')).textContent = col;
 		}
 		this.tableBody = append(table, $('tbody'));
@@ -98,7 +98,7 @@ export class AuraApiEditorPane extends EditorPane {
 		if (visible.length === 0) {
 			const row = append(this.tableBody, $('tr'));
 			const cell = append(row, $('td.aura-api-empty')) as HTMLTableCellElement;
-			cell.colSpan = 10;
+			cell.colSpan = 11;
 			cell.textContent = 'Ключи не добавлены. Нажмите «+ Добавить ключ» или «Массовый импорт».';
 			return;
 		}
@@ -108,6 +108,7 @@ export class AuraApiEditorPane extends EditorPane {
 			const row = append(this.tableBody, $('tr.aura-api-row'));
 
 			append(row, $('td')).textContent = key.name;
+			append(row, $('td.aura-api-key')).textContent = this.keysService.maskedSecretLabel(key.id);
 			append(row, $('td.aura-api-url')).textContent = key.baseUrl;
 			append(row, $('td')).textContent = key.model;
 			append(row, $('td')).textContent = key.group ?? '—';

@@ -18,7 +18,7 @@ import { Limiter } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import {
 	parseKeysBulk, detectProvider, defaultBaseUrl, secretFingerprint,
-	classifyHttpStatus, cooldownMsForStatus, modelAuthenticityPercent, maskSecret,
+	classifyHttpStatus, cooldownMsForStatus, modelAuthenticityPercent,
 	type AuraProvider, type IAuraApiGroup, type AuraHealthStatus,
 } from './auraApiModel.js';
 
@@ -578,7 +578,9 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 	maskedSecretLabel(id: string): string {
 		const key = this.keys.find(k => k.id === id);
 		if (!key) { return '—'; }
-		return key.secretFingerprint ? maskSecret(key.secretFingerprint.replace(/[:]/g, '…')) : key.name;
+		if (!key.secretFingerprint) { return '••••'; }
+		const [prefix = '', , suffix = ''] = key.secretFingerprint.split(':');
+		return `${prefix.slice(0, 3)}…${suffix}`;
 	}
 
 	async selectForChat(id: string): Promise<void> {

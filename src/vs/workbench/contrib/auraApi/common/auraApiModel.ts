@@ -192,7 +192,7 @@ export function parseKeysBulk(text: string): IAuraBulkParseResult {
 				}
 			});
 		} catch {
-			errors.push({ line: 1, text: trimmed.slice(0, 40), reason: 'невалидный JSON' });
+			errors.push({ line: 1, text: '[JSON скрыт]', reason: 'невалидный JSON' });
 		}
 		return { keys, errors };
 	}

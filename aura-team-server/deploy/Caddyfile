@@ -1,0 +1,7 @@
+team.example.com {
+	reverse_proxy 127.0.0.1:3210
+	encode zstd gzip
+	request_body {
+		max_size 51MB
+	}
+}
