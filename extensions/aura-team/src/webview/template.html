@@ -427,6 +427,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 .auth-logo svg { width: 26px; height: 26px; }
 .auth-card h1 { text-align: center; font-size: 19px; font-weight: 800; letter-spacing: -.3px; }
 .auth-card .sub { text-align: center; color: var(--muted); font-size: 12.5px; margin: 6px 0 22px; }
+.auth-tabs { display: flex; gap: 6px; background: color-mix(in srgb, var(--muted) 14%, transparent); padding: 4px; border-radius: 10px; margin: 0 0 18px; }
+.auth-tab { flex: 1; padding: 8px 10px; border: none; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.auth-tab.on { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
 .pw-toggle { position: relative; }
 .pw-toggle .eye { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--muted); padding: 4px; border-radius: 6px; }
 .pw-toggle .eye:hover { color: var(--text); background: var(--card-hover); }
@@ -542,6 +545,10 @@ const DICT = {
 		loginEmail: 'Email', loginPassword: 'Пароль', loginBtn: 'Войти',
 		noAccount: 'Нет аккаунта?', registerLink: 'Создать на сервере',
 		loginFail: 'Вход не удался', orLocalProfile: 'или продолжите с локальным профилем (демо):',
+		tabLogin: 'Вход', tabRegister: 'Создать аккаунт', regName: 'Имя', regServerPass: 'Пароль (10+ символов)',
+		regServerBtn: 'Зарегистрироваться', regServerDone: 'Аккаунт создан — проверьте почту/лог сервера и верифицируйте email',
+		verifNote: 'После регистрации приходит ссылка верификации (в письме или в логе сервера).',
+		regNameShort: 'Имя — минимум 2 символа', regBadEmail: 'Некорректный email', regPassShort: 'Пароль — минимум 10 символов',
 	}
 };
 const lang = (navigator.language || 'en').toLowerCase().startsWith('ru') ? 'ru' : 'en';
@@ -551,6 +558,7 @@ const T = (key) => DICT[lang][key] ?? key;
 let state = null;
 let route = ['teams','keys','profile'].includes('__INITIAL_VIEW__') ? '__INITIAL_VIEW__' : 'teams';
 let teamTab = 'members';
+let authTab = 'login';
 const pending = new Map();
 let reqId = 1;
 
@@ -736,17 +744,42 @@ function updateChrome() {
 
 /* ---------- Экран регистрации / авторизации ---------- */
 function loginFormHtml() {
-	return `<div class="field">
-			<label>${esc(T('loginEmail'))}</label>
-			<input id="loginEmail" type="email" maxlength="120" placeholder="you@team.dev" autofocus>
+	const loginActive = authTab === 'login';
+	const regActive = authTab === 'register';
+	return `<div class="auth-tabs">
+			<button class="auth-tab${loginActive ? ' on' : ''}" data-auth-tab="login">${esc(T('tabLogin'))}</button>
+			<button class="auth-tab${regActive ? ' on' : ''}" data-auth-tab="register">${esc(T('tabRegister'))}</button>
 		</div>
-		<div class="field">
-			<label>${esc(T('loginPassword'))}</label>
-			<input id="loginPassword" type="password" maxlength="200" placeholder="••••••••">
+		<div id="blockLogin" ${loginActive ? '' : 'class="hidden"'}>
+			<div class="field">
+				<label>${esc(T('loginEmail'))}</label>
+				<input id="loginEmail" type="email" maxlength="120" placeholder="you@team.dev"${loginActive ? ' autofocus' : ''}>
+			</div>
+			<div class="field">
+				<label>${esc(T('loginPassword'))}</label>
+				<input id="loginPassword" type="password" maxlength="200" placeholder="••••••••">
+			</div>
+			<button class="btn primary lg" id="loginSubmit" style="width:100%;justify-content:center">${esc(T('loginBtn'))}</button>
+			<div class="progress-bar hidden" id="loginProgress"><div class="fill"></div></div>
+			<div class="center" style="margin-top:12px"><button class="btn ghost sm" id="goRegister">${esc(T('noAccount'))} ${esc(T('registerLink'))}</button></div>
 		</div>
-		<button class="btn primary lg" id="loginSubmit" style="width:100%;justify-content:center">${esc(T('loginBtn'))}</button>
-		<div class="progress-bar hidden" id="loginProgress"><div class="fill"></div></div>
-		<div class="center" style="margin-top:12px"><button class="btn ghost sm" id="openRegister">${esc(T('noAccount'))} ${esc(T('registerLink'))}</button></div>`;
+		<div id="blockRegister" ${regActive ? '' : 'class="hidden"'}>
+			<div class="field">
+				<label>${esc(T('regName'))} *</label>
+				<input id="regServerName" maxlength="40" placeholder="Alex"${regActive ? ' autofocus' : ''}>
+			</div>
+			<div class="field">
+				<label>${esc(T('loginEmail'))}</label>
+				<input id="regServerEmail" type="email" maxlength="120" placeholder="you@team.dev">
+			</div>
+			<div class="field">
+				<label>${esc(T('regServerPass'))}</label>
+				<input id="regServerPassword" type="password" maxlength="200" placeholder="••••••••">
+			</div>
+			<button class="btn primary lg" id="regServerSubmit" style="width:100%;justify-content:center">${esc(T('regServerBtn'))}</button>
+			<div class="progress-bar hidden" id="regServerProgress"><div class="fill"></div></div>
+			<div class="sub" style="margin-top:10px">${esc(T('verifNote'))}</div>
+		</div>`;
 }
 
 function renderAuth() {
@@ -784,7 +817,9 @@ function wireLoginForm() {
 	const password = document.getElementById('loginPassword');
 	const submit = document.getElementById('loginSubmit');
 	const progress = document.getElementById('loginProgress');
-	document.getElementById('openRegister')?.addEventListener('click', () => { void svc('auraTeam.openRegister'); });
+	const switchTab = (tab) => { authTab = tab; render(); };
+	document.querySelectorAll('[data-auth-tab]').forEach((t) => t.addEventListener('click', () => switchTab(t.dataset.authTab)));
+	document.getElementById('goRegister')?.addEventListener('click', () => switchTab('register'));
 	const go = async (event) => {
 		if (!submit || !email || !password) { return; }
 		ripple(event);
@@ -802,6 +837,33 @@ function wireLoginForm() {
 	};
 	submit?.addEventListener('click', go);
 	password?.addEventListener('keydown', (event) => { if (event.key === 'Enter') { void go(event); } });
+	const regSubmit = document.getElementById('regServerSubmit');
+	const regName = document.getElementById('regServerName');
+	const regEmail = document.getElementById('regServerEmail');
+	const regPass = document.getElementById('regServerPassword');
+	const regProgress = document.getElementById('regServerProgress');
+	const goReg = async (event) => {
+		if (!regSubmit || !regName || !regEmail || !regPass) { return; }
+		ripple(event);
+		const name = regName.value.trim();
+		const mail = regEmail.value.trim();
+		const pass = regPass.value;
+		if (name.length < 2) { toast(T('regNameShort'), 'err'); return; }
+		if (!/^\S+@\S+\.\S+$/.test(mail)) { toast(T('regBadEmail'), 'err'); return; }
+		if (pass.length < 10) { toast(T('regPassShort'), 'err'); return; }
+		regSubmit.disabled = true;
+		regProgress?.classList.remove('hidden');
+		try {
+			const res = await svc('auraTeam.register', [{ displayName: name, email: mail, password: pass }]);
+			toast(res?.message || T('regServerDone'), 'ok');
+			authTab = 'login';
+			render();
+		} catch (err) { toast(err?.message || T('loginFail'), 'err'); }
+		regSubmit.disabled = false;
+		regProgress?.classList.add('hidden');
+	};
+	regSubmit?.addEventListener('click', goReg);
+	regPass?.addEventListener('keydown', (event) => { if (event.key === 'Enter') { void goReg(event); } });
 }
 function wireAuth() {
 	wireLoginForm();

@@ -91,6 +91,11 @@ export class AuraApiClient implements vscode.Disposable {
 		await this.storeTokens(tokens);
 	}
 
+	/** Регистрация аккаунта на сервере. Пользователь должен верифицировать email до первого входа. */
+	async register(email: string, password: string, displayName: string): Promise<{ ok: boolean; message: string }> {
+		return this.request('/v1/auth/register', { method: 'POST', body: JSON.stringify({ email, password, displayName }) }, false);
+	}
+
 	async signOut(): Promise<void> {
 		await Promise.all([
 			this.context.secrets.delete('auraTeam.accessToken'),

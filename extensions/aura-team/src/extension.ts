@@ -186,6 +186,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			await broadcast();
 		}
 	}, false);
+	register('auraTeam.register', async (data?: { displayName?: string; email?: string; password?: string }) => {
+		const email = data?.email?.trim();
+		const displayName = data?.displayName?.trim();
+		const password = data?.password ?? '';
+		if (!email?.includes('@')) { throw new Error(vscode.l10n.t('Enter a valid email.')); }
+		if (!displayName || displayName.length < 2) { throw new Error(vscode.l10n.t('Display name must be at least 2 characters.')); }
+		if (password.length < 10) { throw new Error(vscode.l10n.t('Password must be at least 10 characters.')); }
+		return await api.register(email, password, displayName);
+	}, false);
 	register('auraTeam.openRegister', async () => { await vscode.env.openExternal(vscode.Uri.parse(`${serverUrl().replace(/\/$/, '')}/register`)); });
 	register('auraTeam.signOut', async () => { await api.signOut(); await refresh(); });
 	register('auraTeam.selectTeam', async (teamId?: string) => {
