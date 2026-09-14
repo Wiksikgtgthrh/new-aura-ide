@@ -13,10 +13,10 @@ log() { echo -e "\n\033[1;32m==>\033[0m $*"; }
 
 if [[ $EUID -ne 0 ]]; then log "Запустите скрипт от root: sudo bash $0"; exit 1; fi
 
-log "1/7 Установка зависимостей (curl, ufw, Node 22)"
+log "1/7 Установка зависимостей (curl, git, ufw, Node 22)"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq curl ca-certificates ufw >/dev/null
+apt-get install -y -qq curl git ca-certificates ufw >/dev/null
 if ! command -v node >/dev/null || [[ $(node -v | cut -d. -f1 | tr -d v) -lt 22 ]]; then
 	curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
 	apt-get install -y -qq nodejs >/dev/null
