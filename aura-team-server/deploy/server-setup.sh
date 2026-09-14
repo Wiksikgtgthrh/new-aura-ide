@@ -47,7 +47,7 @@ chmod 600 /etc/aura-team.env
 log "Секреты записаны в /etc/aura-team.env (chmod 600)"
 
 log "4/7 npm install && build"
-npm install --no-audit --no-fund --omit=optional >/dev/null 2>&1
+npm install --no-audit --no-fund --omit=dev >/dev/null 2>&1
 npm run build
 
 log "5/7 systemd-сервис aura-team"
