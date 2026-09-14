@@ -133,7 +133,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			supportsMultipleEditorsPerDocument: false
 		}),
 		vscode.workspace.registerTextDocumentContentProvider(PANEL_SCHEME, { provideTextDocumentContent: () => '' }),
-		vscode.window.registerWebviewViewProvider('auraTeam.home', new AuraTeamLauncherViewProvider(context.extensionUri, () => openTab('team'))),
+		vscode.window.registerWebviewViewProvider('auraTeam.home', new AuraTeamLauncherViewProvider(() => openTab('team'))),
 		vscode.commands.registerCommand('auraTeam.invoke', async (id: string, args: unknown[]) => handlerFor(id, args)),
 		vscode.commands.registerCommand('auraTeam.broadcast', () => broadcast()),
 		vscode.commands.registerCommand('auraTeam.open', () => openTab('team')),
@@ -319,7 +319,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 /** Минимальный лаунчер в activity bar: клик по иконке открывает вкладку Aura Team. */
 class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
-	constructor(private readonly extensionUri: vscode.Uri, private readonly open: () => Promise<void>) { }
+	constructor(private readonly open: () => Promise<void>) { }
 	resolveWebviewView(webviewView: vscode.WebviewView): void {
 		webviewView.webview.options = { enableScripts: true };
 		const title = vscode.l10n.t('Open Aura Team');
