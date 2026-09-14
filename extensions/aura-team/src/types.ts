@@ -17,3 +17,37 @@ export interface TeamApiKey { id: string; label: string; keyHint: string; provid
 
 export interface Tokens { accessToken: string; refreshToken: string; expiresIn: number; }
 export interface DeviceAuthorization { deviceCode: string; userCode: string; verificationUri: string; expiresIn: number; interval: number; }
+
+/** Локальный профиль пользователя (хранится в globalState, без сервера). */
+export interface Profile {
+	id: string;
+	nickname: string;
+	email: string;
+	description: string;
+	avatarColor: string;
+	createdAt: number;
+}
+
+export interface GitChangeInfo { path: string; kind: 'index' | 'working' | 'untracked'; }
+export interface GitCommitInfo { hash: string; message: string; author?: string; date?: string; }
+export interface GitSnapshot {
+	path?: string;
+	branch: string;
+	remotes: string[];
+	changes: GitChangeInfo[];
+	commits: GitCommitInfo[];
+}
+
+/** Полный снимок состояния, который расширение отдаёт webview. */
+export interface AuraState {
+	profile: Profile;
+	session?: Session;
+	teamId?: string;
+	board?: BoardSnapshot;
+	keys?: TeamApiKey[];
+	git?: GitSnapshot;
+	demoMode: boolean;
+	simpleMode: boolean;
+	serverUrl: string;
+	signedIn: boolean;
+}

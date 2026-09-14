@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { API, GitExtension, Repository } from './git';
+import { GitSnapshot } from '../types';
 
 const execFileAsync = promisify(execFile);
 
@@ -41,6 +42,80 @@ export class GitService {
 		}
 	}
 
+	/** Снимок состояния репозитория для git-панели вкладки. */
+	async getSnapshot(): Promise<GitSnapshot | undefined> {
+		const repository = this.repository;
+		if (!repository) { return undefined; }
+		const changes = [
+			...repository.state.indexChanges.map(change => ({ path: vscode.workspace.asRelativePath(change.uri, false), kind: 'index' as const })),
+			...repository.state.workingTreeChanges.map(change => ({ path: vscode.workspace.asRelativePath(change.uri, false), kind: 'working' as const })),
+			...repository.state.untrackedChanges.map(change => ({ path: vscode.workspace.asRelativePath(change.uri, false), kind: 'untracked' as const }))
+		];
+		let commits: GitSnapshot['commits'] = [];
+		try {
+			commits = (await repository.log({ maxEntries: 15 })).map(commit => ({
+				hash: commit.hash,
+				message: commit.message.split('\n')[0],
+				author: commit.authorName,
+				date: commit.authorDate?.toISOString()
+			}));
+		} catch { /* лог недоступен */ }
+		return {
+			path: repository.rootUri.fsPath,
+			branch: repository.state.HEAD?.name ?? '',
+			remotes: repository.state.remotes.map(remote => remote.name),
+			changes,
+			commits
+		};
+	}
+
+	async listBranches(): Promise<string[]> {
+		const repository = this.requireRepository();
+		const result = await execFileAsync(this.api.git?.path ?? 'git', ['branch', '--format', '%(refname:short)'], { cwd: repository.rootUri.fsPath });
+		return result.stdout.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+	}
+
+	async checkout(branch: string): Promise<void> {
+		const repository = this.requireRepository();
+		this.log(`git checkout ${branch}`);
+		await this.runGit(repository, ['checkout', branch]);
+	}
+
+	/** Закоммитить всё (включая новые файлы) и запушить с pull-rebase при отклонении. */
+	async commitAll(message: string): Promise<{ hash: string; message: string; remoteUrl?: string }> {
+		const repository = this.requireRepository();
+		const paths = [...repository.state.workingTreeChanges, ...repository.state.untrackedChanges].map(change => change.uri.fsPath);
+		if (paths.length === 0 && repository.state.indexChanges.length === 0) { throw new Error(vscode.l10n.t('There are no changes to save.')); }
+		if (paths.length > 0) {
+			this.log(`git add -- ${paths.join(' ')}`);
+			await repository.add(paths);
+		}
+		this.log(`git commit -m ${JSON.stringify(message)}`);
+		await repository.commit(message);
+		await this.pushWithRetry(repository);
+		const commit = await repository.getCommit('HEAD');
+		return { hash: commit.hash, message, remoteUrl: repository.state.remotes.find(remote => remote.name === 'origin')?.fetchUrl };
+	}
+
+	async push(): Promise<void> {
+		const repository = this.requireRepository();
+		await this.pushWithRetry(repository);
+	}
+
+	private async pushWithRetry(repository: Repository): Promise<void> {
+		this.log('git push');
+		try {
+			await repository.push();
+		} catch (error) {
+			if (!isPushRejected(error)) { throw error; }
+			this.log('git pull --rebase');
+			await this.runGit(repository, ['pull', '--rebase']);
+			await this.handleConflicts(repository);
+			this.log('git push');
+			await repository.push();
+		}
+	}
+
 	async saveWork(message: string): Promise<{ hash: string; message: string; remoteUrl?: string }> {
 		const repository = this.requireRepository();
 		const changesByPath = new Map<string, { change: { uri: vscode.Uri }; source: string; picked: boolean }>();
@@ -72,17 +147,7 @@ export class GitService {
 		await repository.add(paths);
 		this.log(`git commit -m ${JSON.stringify(message)}`);
 		await repository.commit(message);
-		try {
-			this.log('git push');
-			await repository.push();
-		} catch (error) {
-			if (!isPushRejected(error)) { throw error; }
-			this.log('git pull --rebase');
-			await this.runGit(repository, ['pull', '--rebase']);
-			await this.handleConflicts(repository);
-			this.log('git push');
-			await repository.push();
-		}
+		await this.pushWithRetry(repository);
 		const commit = await repository.getCommit('HEAD');
 		return { hash: commit.hash, message, remoteUrl: repository.state.remotes.find(remote => remote.name === 'origin')?.fetchUrl };
 	}

@@ -1,41 +1,1229 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <style>
-        :root { --bg-card: var(--vscode-sideBar-background); --text-main: var(--vscode-foreground); --accent: #007acc; }
-        body { font-family: var(--vscode-font-family); color: var(--text-main); padding: 10px; }
-        #tasks-container { display: flex; flex-direction: column; gap: 10px; }
-        
-        .task-card {
-            background: var(--bg-card);
-            border-left: 4px solid var(--accent);
-            border-radius: 4px;
-            padding: 12px;
-            animation: fadeIn 0.4s ease-out;
-        }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
-        .status-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; background: #444; }
-        .status-done { background: #28a745; }
-    </style>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-__NONCE__'; img-src data:; font-src data:;">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aura Team</title>
+<style>
+/* ============================================================
+   Aura Team — design system
+   Всё на токенах темы VS Code: светлая и тёмная тема из коробки.
+   ============================================================ */
+:root {
+	--bg: var(--vscode-editor-background);
+	--surface: var(--vscode-editorWidget-background);
+	--card: color-mix(in srgb, var(--vscode-editorWidget-background) 55%, transparent);
+	--card-hover: color-mix(in srgb, var(--vscode-editorWidget-background) 85%, var(--vscode-foreground) 4%);
+	--border: var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 18%, transparent));
+	--border-soft: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	--text: var(--vscode-foreground);
+	--muted: var(--vscode-descriptionForeground);
+	--accent: var(--vscode-button-background);
+	--accent-hover: var(--vscode-button-hoverBackground);
+	--accent-fg: var(--vscode-button-foreground);
+	--input-bg: var(--vscode-input-background);
+	--input-border: var(--vscode-input-border, transparent);
+	--focus: var(--vscode-focusBorder);
+	--danger: var(--vscode-errorForeground);
+	--ok: var(--vscode-testing-iconPassedForeground, #2ea043);
+	--off: var(--vscode-testing-iconFailedForeground, #f85149);
+	--warn: var(--vscode-editorWarning-foreground, #d29922);
+	--link: var(--vscode-textLink-foreground);
+	--shadow: 0 8px 28px color-mix(in srgb, var(--vscode-widget-shadow, #000) 45%, transparent);
+	--radius: 12px;
+	--radius-sm: 8px;
+	--ease: cubic-bezier(.22, .8, .28, 1);
+	--font: var(--vscode-font-family);
+	--mono: var(--vscode-editor-font-family, ui-monospace, monospace);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+	font-family: var(--font);
+	font-size: 13px;
+	color: var(--text);
+	background: var(--bg);
+	overflow: hidden;
+	-webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; font-size: 13px; color: inherit; background: none; border: none; cursor: pointer; }
+input, textarea, select {
+	font-family: inherit; font-size: 13px; color: var(--text);
+	background: var(--input-bg);
+	border: 1px solid var(--input-border);
+	border-radius: var(--radius-sm);
+	padding: 8px 10px;
+	outline: none;
+	transition: border-color .18s var(--ease), box-shadow .18s var(--ease), background .18s var(--ease);
+}
+input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 35%, transparent); }
+::placeholder { color: var(--muted); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--vscode-scrollbarSlider-background, #5a5d5e) 80%, transparent); border-radius: 6px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--vscode-scrollbarSlider-hoverBackground); }
+
+/* ---------- Анимации ---------- */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(10px) scale(.995); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes popIn { from { opacity: 0; transform: scale(.96) translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes slideRight { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 45%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes toastIn { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes modalIn { from { opacity: 0; transform: scale(.94) translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes barGrow { from { width: 0; } to { width: 100%; } }
+@keyframes dotPing { 0% { transform: scale(1); opacity: .9; } 80%, 100% { transform: scale(2.4); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+	* { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+/* ---------- Каркас ---------- */
+#app { display: grid; grid-template-rows: 52px 1fr; grid-template-columns: 64px 1fr; height: 100%; }
+
+/* ---------- Верхняя панель ---------- */
+.topbar {
+	grid-column: 1 / -1;
+	display: flex; align-items: center; justify-content: space-between;
+	padding: 0 12px 0 4px;
+	border-bottom: 1px solid var(--border-soft);
+	background: var(--surface);
+	position: relative; z-index: 30;
+	animation: slideDown .3s var(--ease);
+}
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-logo {
+	width: 30px; height: 30px; border-radius: 9px; flex: none;
+	display: grid; place-items: center;
+	background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 35%, var(--bg)));
+	box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.brand-logo svg { width: 17px; height: 17px; }
+.brand-name { font-weight: 600; font-size: 13px; letter-spacing: .2px; display: flex; align-items: center; gap: 8px; }
+.badge {
+	font-size: 10px; font-weight: 600; letter-spacing: .4px;
+	padding: 2px 8px; border-radius: 999px; text-transform: uppercase;
+	transition: background .2s var(--ease), color .2s var(--ease);
+}
+.badge.demo { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.badge.live { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.badge.off { background: color-mix(in srgb, var(--off) 14%, transparent); color: var(--off); }
+.top-right { display: flex; align-items: center; gap: 6px; position: relative; }
+
+/* Аватар профиля — правый верхний угол */
+.avatar {
+	width: 32px; height: 32px; border-radius: 50%;
+	display: grid; place-items: center;
+	font-weight: 700; font-size: 12px; color: #fff;
+	transition: transform .2s var(--ease), box-shadow .2s var(--ease);
+	animation: fadeIn .4s ease;
+}
+.avatar:hover { transform: scale(1.08); }
+.avatar::after {
+	content: ''; position: absolute; right: -1px; bottom: -1px;
+	width: 9px; height: 9px; border-radius: 50%;
+	background: var(--ok); border: 2px solid var(--surface);
+}
+.avatar.github::after { background: var(--ok); }
+.popover {
+	position: absolute; top: 42px; right: 0; min-width: 190px; z-index: 60;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	box-shadow: var(--shadow);
+	padding: 6px;
+	animation: popIn .18s var(--ease);
+}
+.popover::before {
+	content: ''; position: absolute; top: -6px; right: 14px;
+	width: 10px; height: 10px; background: var(--surface);
+	border-left: 1px solid var(--border); border-top: 1px solid var(--border);
+	transform: rotate(45deg);
+}
+.popover-item {
+	display: flex; align-items: center; gap: 9px; width: 100%;
+	padding: 8px 10px; border-radius: var(--radius-sm);
+	transition: background .15s var(--ease);
+}
+.popover-item:hover { background: var(--card-hover); }
+.popover-item .ico { width: 15px; height: 15px; flex: none; }
+.popover-item.danger { color: var(--danger); }
+.popover-head { padding: 6px 10px 8px; border-bottom: 1px solid var(--border-soft); margin-bottom: 6px; }
+.popover-head .name { font-weight: 600; font-size: 12.5px; }
+.popover-head .id { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+
+/* ---------- Левый рейл ---------- */
+.rail {
+	grid-row: 2; grid-column: 1;
+	display: flex; flex-direction: column; align-items: center; gap: 6px;
+	padding: 10px 8px;
+	border-right: 1px solid var(--border-soft);
+	background: var(--surface);
+}
+.rail-btn {
+	width: 48px; height: 44px; border-radius: 10px;
+	display: grid; place-items: center;
+	position: relative;
+	color: var(--muted);
+	transition: background .18s var(--ease), color .18s var(--ease), transform .18s var(--ease);
+}
+.rail-btn svg { width: 19px; height: 19px; }
+.rail-btn:hover { background: var(--card-hover); color: var(--text); transform: translateY(-1px); }
+.rail-btn.active { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); }
+.rail-btn.active::after {
+	content: ''; position: absolute; left: -8px; top: 50%; transform: translateY(-50%);
+	width: 3px; height: 22px; border-radius: 3px; background: var(--accent);
+	animation: fadeIn .2s ease;
+}
+.rail-btn[data-badge]::before {
+	content: attr(data-badge); position: absolute; top: 4px; right: 4px;
+	min-width: 14px; height: 14px; padding: 0 3px;
+	display: grid; place-items: center;
+	font-size: 9px; font-weight: 700; color: var(--accent-fg);
+	background: var(--accent); border-radius: 999px;
+	animation: popIn .25s var(--ease);
+}
+
+/* ---------- Контент ---------- */
+.view-wrap {
+	grid-row: 2; grid-column: 2;
+	overflow-y: auto; overflow-x: hidden;
+	padding: 18px 22px 30px;
+	animation: fadeUp .28s var(--ease);
+}
+.view-head { margin-bottom: 16px; animation: fadeUp .3s var(--ease); }
+.view-title { font-size: 18px; font-weight: 700; letter-spacing: -.2px; display: flex; align-items: center; gap: 10px; }
+.view-sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+/* ---------- Карточки ---------- */
+.card {
+	background: var(--card);
+	border: 1px solid var(--border-soft);
+	border-radius: var(--radius);
+	padding: 16px;
+	transition: transform .22s var(--ease), border-color .22s var(--ease), box-shadow .22s var(--ease), background .22s var(--ease);
+	animation: fadeUp .35s var(--ease) both;
+	animation-delay: calc(var(--i, 0) * 45ms);
+}
+.card.clickable { cursor: pointer; }
+.card.clickable:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); box-shadow: var(--shadow); }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.card h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.card .sub { color: var(--muted); font-size: 11.5px; }
+.card .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+/* ---------- Чипы / бейджи ---------- */
+.chip {
+	display: inline-flex; align-items: center; gap: 5px;
+	font-size: 10.5px; font-weight: 600; letter-spacing: .3px;
+	padding: 3px 9px; border-radius: 999px;
+	background: color-mix(in srgb, var(--muted) 14%, transparent);
+	color: var(--muted);
+}
+.chip.accent { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.chip.ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.chip.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.chip.off { background: color-mix(in srgb, var(--off) 14%, transparent); color: var(--off); }
+
+/* ---------- Кнопки ---------- */
+.btn {
+	display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+	padding: 8px 14px; border-radius: var(--radius-sm);
+	font-weight: 600; font-size: 12.5px;
+	transition: transform .18s var(--ease), background .18s var(--ease), box-shadow .18s var(--ease), opacity .18s;
+	position: relative; overflow: hidden;
+}
+.btn svg { width: 14px; height: 14px; }
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .5; cursor: default; transform: none; }
+.btn.primary { background: var(--accent); color: var(--accent-fg); box-shadow: 0 3px 12px color-mix(in srgb, var(--accent) 35%, transparent); }
+.btn.primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn.ghost { background: var(--card-hover); }
+.btn.ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--card-hover) 80%, var(--accent) 10%); }
+.btn.danger { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
+.btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 26%, transparent); }
+.btn.sm { padding: 5px 10px; font-size: 11.5px; border-radius: 7px; }
+.btn.lg { padding: 11px 18px; font-size: 13.5px; border-radius: 10px; }
+.btn .spin { width: 14px; height: 14px; border: 2px solid color-mix(in srgb, currentColor 35%, transparent); border-top-color: currentColor; border-radius: 50%; animation: spin .7s linear infinite; }
+
+/* Рябь на кнопках */
+.ripple { position: absolute; border-radius: 50%; background: color-mix(in srgb, currentColor 14%, transparent); transform: scale(0); animation: rippleAnim .5s var(--ease); pointer-events: none; }
+@keyframes rippleAnim { to { transform: scale(4); opacity: 0; } }
+
+/* ---------- Формы ---------- */
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 11px; font-weight: 600; letter-spacing: .3px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; }
+.field input, .field textarea, .field select { width: 100%; }
+.field .err { color: var(--danger); font-size: 11px; margin-top: 5px; display: flex; align-items: center; gap: 5px; animation: fadeUp .2s var(--ease); }
+.field .hint { color: var(--muted); font-size: 11px; margin-top: 5px; }
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ---------- Пустая / подсказочная панель ---------- */
+.empty {
+	display: grid; place-items: center; text-align: center;
+	padding: 40px 20px; color: var(--muted);
+	border: 1.5px dashed var(--border); border-radius: var(--radius);
+	animation: fadeUp .3s var(--ease);
+}
+.empty svg { width: 34px; height: 34px; margin-bottom: 12px; opacity: .7; }
+.empty .big { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+
+/* ---------- Участники ---------- */
+.member { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-sm); transition: background .18s var(--ease); animation: fadeUp .3s var(--ease) both; animation-delay: calc(var(--i, 0) * 40ms); }
+.member:hover { background: var(--card-hover); }
+.avatar-mini {
+	width: 30px; height: 30px; border-radius: 50%; flex: none;
+	display: grid; place-items: center;
+	font-weight: 700; font-size: 11px; color: #fff;
+	position: relative;
+}
+.presence { position: absolute; right: -1px; bottom: -1px; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); border: 1.5px solid var(--surface); }
+.presence.off { background: var(--muted); }
+.presence.live { animation: dotPing 1.6s ease-out infinite; }
+.member .meta { flex: 1; min-width: 0; }
+.member .mname { font-weight: 600; font-size: 12.5px; }
+.member .memail { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member select { padding: 4px 6px; font-size: 11px; border-radius: 6px; }
+
+/* ---------- Вкладки внутри команды ---------- */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border-soft); margin-bottom: 16px; }
+.tab {
+	padding: 8px 14px; font-weight: 600; font-size: 12.5px; color: var(--muted);
+	border-bottom: 2px solid transparent; margin-bottom: -1px;
+	transition: color .18s var(--ease), border-color .18s var(--ease);
+	position: relative;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-color: var(--accent); }
+.tab.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px; background: var(--accent); border-radius: 2px; animation: barGrow .3s var(--ease); }
+
+/* ---------- Git ---------- */
+.git-card { margin-bottom: 14px; }
+.git-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.repo-path { font-family: var(--mono); font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 340px; }
+.branch-select { padding: 5px 9px; font-size: 12px; border-radius: 7px; width: auto; min-width: 150px; }
+.commit-line { display: flex; gap: 8px; margin-top: 14px; }
+.commit-line input { flex: 1; }
+.changes-list { margin-top: 12px; border-top: 1px solid var(--border-soft); padding-top: 10px; }
+.change-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; font-family: var(--mono); font-size: 11px; animation: slideRight .25s var(--ease) both; animation-delay: calc(var(--i, 0) * 25ms); }
+.change-item:hover { background: var(--card-hover); }
+.change-item .kind { flex: none; font-size: 9.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; letter-spacing: .5px; }
+.change-item .kind.index { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.change-item .kind.working { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.change-item .kind.untracked { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+.history-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 8px; transition: background .18s var(--ease); animation: fadeUp .3s var(--ease) both; animation-delay: calc(var(--i, 0) * 30ms); }
+.history-item:hover { background: var(--card-hover); }
+.hist-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-top: 5px; flex: none; box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent); }
+.hist-msg { font-size: 12.5px; font-weight: 500; }
+.hist-meta { font-size: 10.5px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+
+/* ---------- Доска задач ---------- */
+.board-cols { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+.col { background: color-mix(in srgb, var(--surface) 45%, transparent); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 10px; min-height: 160px; animation: fadeUp .35s var(--ease) both; animation-delay: calc(var(--i, 0) * 50ms); }
+.col-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.col-title { font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); }
+.col-count { font-size: 10.5px; font-weight: 700; background: var(--card-hover); padding: 1px 7px; border-radius: 999px; }
+.task-card {
+	background: var(--card); border: 1px solid var(--border-soft);
+	border-radius: 9px; padding: 10px; margin-bottom: 8px;
+	transition: transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s;
+	animation: fadeUp .3s var(--ease) both;
+	animation-delay: calc(var(--i, 0) * 35ms);
+}
+.task-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.task-title { font-size: 12.5px; font-weight: 600; line-height: 1.35; }
+.task-desc { color: var(--muted); font-size: 11px; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.task-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.task-assignee { font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+.add-task { width: 100%; margin-top: 2px; padding: 7px 10px; font-size: 11.5px; border-style: dashed; opacity: .85; transition: opacity .18s, background .18s; }
+.add-task:hover { opacity: 1; background: var(--card-hover); }
+
+/* ---------- Ключи ---------- */
+.key-card { animation: fadeUp .35s var(--ease) both; animation-delay: calc(var(--i, 0) * 45ms); }
+.key-row { display: flex; align-items: center; gap: 12px; }
+.provider-ico {
+	width: 36px; height: 36px; border-radius: 10px; flex: none;
+	display: grid; place-items: center; color: #fff;
+	box-shadow: 0 4px 12px color-mix(in srgb, currentColor 30%, transparent);
+}
+.provider-ico svg { width: 18px; height: 18px; }
+.key-hint { font-family: var(--mono); font-size: 12px; background: var(--card-hover); padding: 3px 9px; border-radius: 6px; }
+.key-label { font-weight: 600; font-size: 13px; }
+.key-sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.switch { position: relative; width: 34px; height: 20px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 30%, transparent); transition: background .22s var(--ease); flex: none; }
+.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--text); transition: transform .22s var(--ease), background .22s; }
+.switch.on { background: var(--accent); }
+.switch.on::after { transform: translateX(14px); background: var(--accent-fg); }
+
+/* ---------- Модалки ---------- */
+.overlay {
+	position: fixed; inset: 0; z-index: 100;
+	background: color-mix(in srgb, var(--bg) 45%, var(--vscode-widget-shadow, #000000) 30%);
+	backdrop-filter: blur(3px);
+	display: grid; place-items: center;
+	animation: overlayIn .2s ease;
+}
+.modal {
+	width: min(520px, calc(100vw - 60px));
+	max-height: min(620px, calc(100vh - 80px));
+	overflow-y: auto;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 16px;
+	box-shadow: var(--shadow);
+	padding: 20px;
+	animation: modalIn .26s var(--ease);
+}
+.modal h2 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.modal .sub { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.modal-close { position: absolute; top: 14px; right: 14px; width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; color: var(--muted); transition: background .18s, color .18s; }
+.modal-close:hover { background: var(--card-hover); color: var(--text); }
+.modal { position: relative; }
+.invite-code { font-family: var(--mono); font-size: 20px; font-weight: 700; letter-spacing: 2px; text-align: center; padding: 16px; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent); border-radius: var(--radius); margin: 8px 0 4px; animation: popIn .3s var(--ease); }
+
+/* ---------- Тосты ---------- */
+#toastRoot { position: fixed; bottom: 20px; right: 20px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
+.toast {
+	display: flex; align-items: center; gap: 9px;
+	min-width: 240px; max-width: 360px;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-left: 3px solid var(--accent);
+	border-radius: 10px;
+	box-shadow: var(--shadow);
+	padding: 10px 14px;
+	font-size: 12.5px;
+	animation: toastIn .25s var(--ease);
+}
+.toast.ok { border-left-color: var(--ok); }
+.toast.err { border-left-color: var(--danger); }
+.toast .toast-ico { width: 15px; height: 15px; flex: none; }
+.toast.out { animation: toastIn .25s var(--ease) reverse; }
+
+/* ---------- Профиль ---------- */
+.profile-hero { display: flex; align-items: center; gap: 18px; margin-bottom: 20px; animation: fadeUp .35s var(--ease); }
+.avatar-big {
+	width: 74px; height: 74px; border-radius: 50%;
+	display: grid; place-items: center;
+	font-size: 26px; font-weight: 800; color: #fff;
+	box-shadow: 0 10px 26px color-mix(in srgb, currentColor 45%, transparent);
+	animation: popIn .4s var(--ease);
+}
+.profile-hero .pname { font-size: 17px; font-weight: 700; }
+.id-strip { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.copy-btn { padding: 3px 10px; font-size: 11px; border-radius: 7px; }
+.savebar { position: sticky; bottom: 0; margin-top: 8px; padding-top: 12px; background: linear-gradient(to top, var(--bg) 60%, transparent); display: flex; justify-content: flex-end; gap: 8px; }
+.profile-actions { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border-soft); }
+.logout-btn { width: 100%; display: flex; justify-content: center; gap: 8px; }
+
+/* ---------- Экран регистрации ---------- */
+.auth-wrap { max-width: 440px; margin: 6vh auto 0; animation: fadeUp .4s var(--ease); }
+.auth-card { padding: 26px; }
+.auth-logo { width: 52px; height: 52px; border-radius: 15px; display: grid; place-items: center; background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 30%, var(--bg))); margin: 0 auto 14px; box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 45%, transparent); animation: popIn .4s var(--ease); }
+.auth-logo svg { width: 26px; height: 26px; }
+.auth-card h1 { text-align: center; font-size: 19px; font-weight: 800; letter-spacing: -.3px; }
+.auth-card .sub { text-align: center; color: var(--muted); font-size: 12.5px; margin: 6px 0 22px; }
+.pw-toggle { position: relative; }
+.pw-toggle .eye { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--muted); padding: 4px; border-radius: 6px; }
+.pw-toggle .eye:hover { color: var(--text); background: var(--card-hover); }
+.pw-toggle input { padding-right: 34px; }
+.pin-row { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
+.pin-line { flex: 1; height: 1px; background: var(--border-soft); }
+.pin-or { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.demo-note { display: flex; gap: 9px; align-items: flex-start; margin-top: 16px; padding: 11px 13px; background: color-mix(in srgb, var(--warn) 10%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 25%, transparent); border-radius: var(--radius); font-size: 11.5px; color: color-mix(in srgb, var(--warn) 85%, var(--text)); animation: fadeUp .4s .15s var(--ease) both; }
+.demo-note svg { width: 15px; height: 15px; flex: none; margin-top: 1px; }
+.progress-bar { height: 4px; border-radius: 4px; background: var(--card-hover); overflow: hidden; margin-top: 14px; }
+.progress-bar .fill { height: 100%; background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 40%, var(--ok))); background-size: 200% 0; animation: shimmer 1.2s linear infinite, barGrow 1.4s var(--ease); border-radius: 4px; }
+
+/* ---------- Скелетоны ---------- */
+.skeleton { position: relative; overflow: hidden; background: var(--card-hover); border-radius: 8px; }
+.skeleton::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--text) 7%, transparent) 50%, transparent 70%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; }
+
+/* ---------- Утилиты ---------- */
+.hidden { display: none !important; }
+.mt8 { margin-top: 8px; } .mt12 { margin-top: 12px; } .mt16 { margin-top: 16px; }
+.mb8 { margin-bottom: 8px; } .mb12 { margin-bottom: 12px; }
+.flex { display: flex; align-items: center; gap: 8px; }
+.grow { flex: 1; min-width: 0; }
+.right { margin-left: auto; }
+.center { text-align: center; }
+.section-title { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); margin: 18px 0 10px; }
+</style>
 </head>
 <body>
-    <div id="tasks-container">Loading...</div>
-    <script>
-        const vscode = acquireVsCodeApi();
-        window.addEventListener('message', event => {
-            const message = event.data;
-            if (message.command === 'updateTasks') {
-                const container = document.getElementById('tasks-container');
-                container.innerHTML = message.tasks.map(t => `
-                    <div class="task-card">
-                        <span class="status-pill ${t.status === 'done' ? 'status-done' : ''}">${t.status}</span>
-                        <h3>${t.title}</h3>
-                    </div>
-                `).join('');
-            }
-        });
-    </script>
+<div id="app">
+	<header class="topbar">
+		<div class="brand">
+			<div class="brand-logo">
+				<svg viewBox="0 0 24 24" fill="none"><path d="M12 2l7.5 4.5v9L12 20l-7.5-4.5v-9L12 2z" stroke="white" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 8.5v7M8.7 10.6l6.6 3M15.3 10.6l-6.6 3" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+			</div>
+			<div class="brand-name">Aura Team <span id="connBadge" class="badge">&nbsp;</span></div>
+		</div>
+		<div class="top-right">
+			<button id="avatarBtn" class="avatar" title="Профиль"></button>
+			<div id="avatarMenu" class="popover hidden">
+				<div class="popover-head">
+					<div class="name" id="popName">—</div>
+					<div class="id" id="popId">—</div>
+				</div>
+				<button class="popover-item" data-act="profile">
+					<svg class="ico" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.6" stroke="currentColor" stroke-width="1.7"/><path d="M5 20c1.4-3.4 3.9-5 7-5s5.6 1.6 7 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+					Профиль
+				</button>
+				<button class="popover-item danger" data-act="logout">
+					<svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 8l-4 4 4 4M6 12h9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+					Выйти
+				</button>
+			</div>
+		</div>
+	</header>
+
+	<nav class="rail">
+		<button class="rail-btn" data-view="teams" id="navTeams" title="Команды">
+			<svg viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8.5" r="3.4" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 19c1.2-2.9 3-4.3 5.5-4.3s4.3 1.4 5.5 4.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="16.5" cy="9.3" r="2.4" stroke="currentColor" stroke-width="1.7"/><path d="M18.7 14.6c1.5.8 2.5 2.2 2.9 4.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+		</button>
+		<button class="rail-btn" data-view="keys" id="navKeys" title="Банк ключей">
+			<svg viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="15" r="4" stroke="currentColor" stroke-width="1.7"/><path d="M11.3 12.2L19 4.5M16.5 7l2.5 2.5M13.5 10l2-2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+		</button>
+		<button class="rail-btn" data-view="profile" id="navProfile" title="Профиль">
+			<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.6" stroke="currentColor" stroke-width="1.7"/><path d="M5 20c1.4-3.4 3.9-5 7-5s5.6 1.6 7 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+		</button>
+	</nav>
+
+	<main id="view" class="view-wrap"><div id="viewBody"></div></main>
+</div>
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+<script nonce="__NONCE__">
+/* ============================================================
+   Aura Team — webview app
+   ============================================================ */
+'use strict';
+const vscode = acquireVsCodeApi();
+
+/* ---------- i18n ---------- */
+const DICT = {
+	ru: {
+		connDemo: 'Демо', connLive: 'Онлайн', connOff: 'Офлайн',
+		profile: 'Профиль', logout: 'Выйти', teams: 'Команды', keys: 'Банк ключей',
+		myTeams: 'Мои команды', createTeam: 'Создать команду', joinTeam: 'Вступить по коду',
+		invite: 'Код приглашения', copied: 'Скопировано', copy: 'Копировать',
+		teamName: 'Название команды', newTeamSub: 'Назовите команду — остальные смогут вступить по коду.',
+		inviteCode: 'Код приглашения', inviteSub: 'Вставьте код, который вам дал владелец команды.',
+		create: 'Создать', join: 'Вступить', cancel: 'Отмена', save: 'Сохранить',
+		members: 'Участники', board: 'Доска', git: 'Git',
+		addTask: '+ Задача', addTaskPh: 'Новая задача…',
+		noRepo: 'Репозиторий не открыт — откройте папку с Git-проектом.',
+		branch: 'Ветка', commitMsg: 'Сообщение коммита', commitPush: 'Коммит и push',
+		push: 'Push', pull: 'Pull', undo: 'Отменить изменения', revert: 'Откатить коммит',
+		changes: 'Изменения', history: 'История', noChanges: 'Нет изменений',
+		keysTitle: 'Командный банк API-ключей', addKey: '+ Добавить ключ',
+		keyName: 'Название', keyProvider: 'Провайдер', keyRole: 'Минимальная роль',
+		keyPriority: 'Приоритет (0 — высший)', keyValue: 'Ключ', disabled: 'Отключён',
+		profileTitle: 'Профиль', nickname: 'Никнейм', id: 'ID', description: 'Описание',
+		descrPh: 'Пара слов о вас…', saveProfile: 'Сохранить профиль',
+		serverStatus: 'Сервер', demoNote: 'Демо-режим: сервер отключён, данные локальные — для наглядности. Подключите aura-team-server, чтобы включить настоящую работу.',
+		regTitle: 'Создайте профиль', regSub: 'Никнейм, описание и ID — всё хранится локально. Сервер подключим позже.',
+		regNick: 'Никнейм', regEmail: 'Email (необязательно)', regDesc: 'Описание (необязательно)',
+		regBtn: 'Начать', regDone: 'Профиль создан!', welcome: 'Добро пожаловать в Aura Team',
+		justNow: 'только что', activeTeam: 'Активная команда',
+		emptyTeams: 'Пока нет команд — создайте первую или вступите по коду приглашения.',
+		emptyKeys: 'Ключей ещё нет — добавьте первый командный ключ.',
+		needTeam: 'Сначала вступите в команду',
+		confirm: 'Подтверждение', yesKeep: 'Продолжить', sure: 'Точно?',
+		roleOwner: 'Владелец', roleMaintainer: 'Основной', roleDev: 'Разработчик', roleViewer: 'Зритель',
+		statusBacklog: 'Бэклог', statusTodo: 'К выполнению', statusDoing: 'В работе', statusReview: 'Ревью', statusDone: 'Готово',
+		gitHub: 'Подключить GitHub', server: 'Сервер', demo: 'демо',
+	}
+};
+const lang = (navigator.language || 'en').toLowerCase().startsWith('ru') ? 'ru' : 'en';
+const T = (key) => DICT[lang][key] ?? key;
+
+/* ---------- Утилиты ---------- */
+let state = null;
+let route = ['teams','keys','profile'].includes('__INITIAL_VIEW__') ? '__INITIAL_VIEW__' : 'teams';
+let teamTab = 'members';
+const pending = new Map();
+let reqId = 1;
+
+function svc(command, args = []) {
+	return new Promise((resolve, reject) => {
+		const id = reqId++;
+		pending.set(id, { resolve, reject });
+		vscode.postMessage({ type: 'invoke', command, args, id });
+		setTimeout(() => { if (pending.has(id)) { pending.delete(id); reject(new Error('timeout')); } }, 20000);
+	});
+}
+
+window.addEventListener('message', (event) => {
+	const message = event.data;
+	if (!message) { return; }
+	if (message.type === 'response') {
+		const p = pending.get(message.id);
+		if (!p) { return; }
+		pending.delete(message.id);
+		message.ok ? p.resolve(message.result) : p.reject(new Error(message.error || 'error'));
+	} else if (message.type === 'state') {
+		state = message.state;
+		if (!route || route === 'teams' || route === 'keys' || route === 'profile') { render(); }
+	}
+});
+
+function esc(value) {
+	return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function initials(name, fallback = '?') {
+	const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+	const first = parts[0]?.[0] ?? '';
+	const second = parts.length > 1 ? parts[1][0] : (parts[0]?.[1] ?? '');
+	return (first + second).toUpperCase() || fallback;
+}
+function flattenColor(color) { return color || '#6366f1'; }
+function timeAgo(iso) {
+	if (!iso) { return ''; }
+	const diff = Date.now() - new Date(iso).getTime();
+	if (diff < 60000) { return T('justNow'); }
+	if (diff < 3600000) { return Math.round(diff/60000) + 'm'; }
+	if (diff < 86400000) { return Math.round(diff/3600000) + 'h'; }
+	return new Date(iso).toLocaleDateString();
+}
+function copyText(text) {
+	void navigator.clipboard.writeText(text).then(() => toast(T('copied'), 'ok')).catch(() => toast(text, 'ok'));
+}
+function ripple(event) {
+	const btn = event.currentTarget;
+	const rect = btn.getBoundingClientRect();
+	const size = Math.max(rect.width, rect.height);
+	const span = document.createElement('span');
+	span.className = 'ripple';
+	span.style.width = span.style.height = size + 'px';
+	span.style.left = (event.clientX - rect.left - size / 2) + 'px';
+	span.style.top = (event.clientY - rect.top - size / 2) + 'px';
+	btn.appendChild(span);
+	setTimeout(() => span.remove(), 500);
+}
+
+/* ---------- Тосты ---------- */
+function toast(text, type = '') {
+	const root = document.getElementById('toastRoot');
+	const el = document.createElement('div');
+	el.className = 'toast ' + type;
+	el.innerHTML = `<svg class="toast-ico" viewBox="0 0 24 24" fill="none">${type === 'ok' ? '<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M8.5 12.2l2.4 2.4 4.6-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' : type === 'err' ? '<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M9 9l6 6M15 9l-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' : '<path d="M12 2l7.5 4.5v9L12 20l-7.5-4.5v-9L12 2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>'}</svg><span>${esc(text)}</span>`;
+	root.appendChild(el);
+	setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 260); }, 2600);
+}
+
+/* ---------- Модалки ---------- */
+function openModal({ title, sub, body, actionText = T('create'), onAction, danger = false }) {
+	const root = document.getElementById('modalRoot');
+	const overlay = document.createElement('div');
+	overlay.className = 'overlay';
+	overlay.innerHTML = `<div class="modal">
+		<button class="modal-close" data-close="1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+		<h2>${esc(title)}</h2>
+		${sub ? `<div class="sub">${esc(sub)}</div>` : ''}
+		<div class="modal-body">${body}</div>
+		<div class="modal-actions">
+			<button class="btn ghost" data-cancel="1">${esc(T('cancel'))}</button>
+			<button class="btn ${danger ? 'danger' : 'primary'}" data-ok="1">${esc(actionText)}</button>
+		</div>
+	</div>`;
+	root.appendChild(overlay);
+	const close = () => { overlay.remove(); };
+	overlay.addEventListener('click', (e) => { if (e.target === overlay || e.target.closest('[data-close]') || e.target.closest('[data-cancel]')) { close(); } });
+	overlay.querySelector('[data-ok]').addEventListener('click', (e) => { ripple(e); onAction(overlay).then?.((keepOpen) => { if (!keepOpen) { close(); } }); });
+	overlay.querySelector('[data-ok]').addEventListener('pointerdown', ripple);
+	overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') { close(); } });
+	overlay.querySelector('.modal').focus?.();
+	return overlay;
+}
+
+/* ---------- Mock для демо-режима ---------- */
+async function demo(command, args, talk = true) {
+	if (!state?.demoMode) { return svc(command, args); }
+	const ok = (msg) => { if (talk) { toast(msg, 'ok'); } };
+	if (command === 'auraTeam.createTeam') {
+		state.session.teams.push({ id: 't' + Date.now(), name: args[0] || 'Команда', role: 'owner' });
+		ok('Команда создана');
+	} else if (command === 'auraTeam.joinTeam') {
+		state.session.teams.push({ id: 't' + Date.now(), name: 'Команда · ' + (args[0] || ''), role: 'dev' });
+		ok('Вы вступили в команду');
+	} else if (command === 'auraTeam.createInvite') {
+		ok('Код сгенерирован');
+		return { code: 'DEMO-' + Math.random().toString(36).slice(2, 8).toUpperCase() };
+	} else if (command === 'auraTeam.createTask') {
+		state.board.tasks.push({
+			id: 'dt' + Date.now(), teamId: state.teamId, title: args[0] || 'Задача',
+			description: '', status: args[1] || 'todo', position: 0,
+			assigneeId: 'demo-me', assigneeName: state.profile.nickname || 'Вы'
+		});
+		ok('Задача добавлена');
+	} else if (command === 'auraTeam.changeRole') {
+		const [memberId, role] = args;
+		const member = state.board?.members.find(m => m.id === memberId);
+		if (member) { member.role = role; ok('Роль обновлена'); }
+	} else if (command === 'auraTeam.selectTeam') {
+		state.teamId = args[0] ?? state.teamId;
+		ok('Команда выбрана');
+	} else {
+		return svc(command, args);
+	}
+	render();
+}
+
+/* ============================================================
+   Рендер
+   ============================================================ */
+const viewBody = () => document.getElementById('viewBody');
+const badgeEl = () => document.getElementById('connBadge');
+const avatarBtn = () => document.getElementById('avatarBtn');
+
+function mount(html) {
+	const body = viewBody();
+	body.innerHTML = html;
+	// перезапуск анимации входа
+	const wrap = document.getElementById('view');
+	wrap.style.animation = 'none';
+	wrap.offsetHeight;
+	wrap.style.animation = '';
+	body.querySelectorAll('.btn:not([data-no-ripple])').forEach((b) => {
+		if (b.dataset.ok) { return; }
+		b.addEventListener('pointerdown', ripple);
+	});
+	try { wire(); } catch (error) { console.error('[aura-team] wire:', error); }
+}
+
+function render() {
+	if (!state) { return; }
+	if (!['teams','keys','profile'].includes(route)) { route = 'teams'; }
+	updateChrome();
+	const needsAuth = !state.profile?.nickname;
+	if (needsAuth) { return mount(renderAuth()); }
+	if (route === 'keys') { return mount(renderKeys()); }
+	if (route === 'profile') { return mount(renderProfile()); }
+	return mount(renderTeams());
+}
+
+function updateChrome() {
+	const badge = badgeEl();
+	if (!badge) { return; }
+	badge.textContent = state.demoMode ? T('connDemo') : state.signedIn ? T('connLive') : T('connOff');
+	badge.className = 'badge ' + (state.demoMode ? 'demo' : state.signedIn ? 'live' : 'off');
+	const btn = avatarBtn();
+	if (btn) {
+		const color = flattenColor(state.profile?.avatarColor);
+		btn.style.background = `linear-gradient(135deg, ${color}, ${color}99)`;
+		btn.textContent = initials(state.profile?.nickname, 'A');
+		btn.style.animation = 'popIn .3s var(--ease)';
+	}
+	const popName = document.getElementById('popName');
+	const popId = document.getElementById('popId');
+	if (popName) { popName.textContent = state.profile?.nickname || '—'; }
+	if (popId) { popId.textContent = state.profile?.id || '—'; }
+	document.querySelectorAll('.rail-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === route));
+	const navKeys = document.getElementById('navKeys');
+	const keysCount = state.keys?.filter(k => !k.disabledAt).length ?? 0;
+	if (navKeys && keysCount > 0) { navKeys.setAttribute('data-badge', String(keysCount)); } else if (navKeys) { navKeys.removeAttribute('data-badge'); }
+}
+
+/* ---------- Экран регистрации / авторизации ---------- */
+function renderAuth() {
+	return `<div class="auth-wrap">
+		<div class="card auth-card">
+			<div class="auth-logo"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2l7.5 4.5v9L12 20l-7.5-4.5v-9L12 2z" stroke="white" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 8.5v7M8.7 10.6l6.6 3M15.3 10.6l-6.6 3" stroke="white" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+			<h1>${esc(T('regTitle'))}</h1>
+			<div class="sub">${esc(T('regSub'))}</div>
+			<div class="field">
+				<label>${esc(T('regNick'))} *</label>
+				<input id="regNick" maxlength="40" placeholder="Alex" autofocus>
+				<div class="err hidden" id="regNickErr">${esc('—')}</div>
+			</div>
+			<div class="field">
+				<label>${esc(T('regEmail'))}</label>
+				<input id="regEmail" type="email" maxlength="120" placeholder="you@team.dev">
+			</div>
+			<div class="field">
+				<label>${esc(T('regDesc'))}</label>
+				<textarea id="regDesc" rows="2" maxlength="240" placeholder="${esc(T('descrPh'))}"></textarea>
+			</div>
+			<button class="btn primary lg" id="regSubmit" style="width:100%;justify-content:center">${esc(T('regBtn'))}</button>
+			<div class="progress-bar hidden" id="regProgress"><div class="fill"></div></div>
+			<div class="demo-note">
+				<svg viewBox="0 0 24 24" fill="none"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z" stroke="currentColor" stroke-width="1.7"/><path d="M12 8v5M12 16.5v.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+				<div>${esc(T('demoNote'))}</div>
+			</div>
+		</div>
+	</div>`;
+}
+function wireAuth() {
+	const nick = document.getElementById('regNick');
+	const email = document.getElementById('regEmail');
+	const desc = document.getElementById('regDesc');
+	const submit = document.getElementById('regSubmit');
+	const progress = document.getElementById('regProgress');
+	const err = document.getElementById('regNickErr');
+	const validate = () => {
+		const value = nick.value.trim();
+		const valid = value.length >= 2;
+		err.classList.toggle('hidden', valid);
+		if (!valid) { err.textContent = 'Минимум 2 символа'; }
+		return valid;
+	};
+	nick.addEventListener('input', validate);
+	submit.addEventListener('click', async (e) => {
+		ripple(e);
+		if (!validate()) { return; }
+		submit.disabled = true;
+		progress.classList.remove('hidden');
+		if (navigator.vibrate) { navigator.vibrate(10); }
+		try {
+			await svc('auraTeam.registerProfile', [{ nickname: nick.value.trim(), email: email.value.trim(), description: desc.value.trim() }]);
+		} catch { /* демо/офлайн — всё равно продолжаем с локальным профилем */ }
+		setTimeout(() => {
+			progress.classList.add('hidden');
+			submit.disabled = false;
+			toast(T('regDone'), 'ok');
+			state.profile.nickname = nick.value.trim();
+			state.profile.email = email.value.trim();
+			state.profile.description = desc.value.trim();
+			render();
+		}, state.demoMode ? 1100 : 450);
+	});
+}
+
+/* ---------- Команды ---------- */
+function renderTeams() {
+	const session = state.session;
+	const isDemo = state.demoMode;
+	const teams = session?.teams ?? [];
+	const selectedId = state.teamId;
+	const hasTeam = !!selectedId;
+	const teamCards = teams.length
+		? teams.map((team, i) => `
+			<div class="card clickable ${team.id === selectedId ? '' : ''}" style="--i:${i}" data-team="${esc(team.id)}">
+				<div class="row" style="margin-top:0;justify-content:space-between">
+					<h3 style="margin-bottom:0">${esc(team.name)}</h3>
+					<span class="chip ${team.role === 'owner' ? 'accent' : ''}">${esc(T('role' + cap(team.role)))}</span>
+				</div>
+				<div class="sub" style="margin-top:6px">${team.id === selectedId ? '✓ ' + T('activeTeam') : team.id}</div>
+				${team.id === selectedId ? `<div class="flex mt12"><span class="chip ok">${esc(isDemo ? T('connDemo') : '')}</span></div>` : ''}
+			</div>`).join('')
+		: `<div class="empty" style="--i:0"><div><div class="big">${esc(T('emptyTeams'))}</div></div></div>`;
+
+	return `<div class="view-head">
+			<div class="view-title">${esc(T('myTeams'))} <span class="chip accent">${teams.length}</span></div>
+			<div class="view-sub">${isDemo ? esc(T('connDemo')) : session?.user?.displayName ? `${esc(T('gitHub'))} · ${esc(session.user.displayName)}` : ''}</div>
+		</div>
+		<div class="card-grid">${teamCards}</div>
+		<div class="flex mt16">
+			<button class="btn primary" id="btnCreateTeam">${esc(T('createTeam'))}</button>
+			<button class="btn ghost" id="btnJoinTeam">${esc(T('joinTeam'))}</button>
+			${hasTeam && !isDemo ? `<button class="btn ghost right" id="btnInvite">${esc(T('invite'))}</button>` : ''}
+		</div>
+		${hasTeam ? renderTeamDetail(teamTab) : ''}`;
+}
+function cap(text) { return text ? text.charAt(0).toUpperCase() + text.slice(1) : ''; }
+
+function renderTeamDetail(tab) {
+	const board = state.board;
+	if (!board) { return ''; }
+	teamTab = tab;
+	const tabs = [
+		['members', T('members')],
+		['board', T('board')],
+		['git', T('git')],
+	];
+	return `<div class="section-title mt16">Команда</div>
+		<div class="tabs">${tabs.map(([id, label]) => `<button class="tab ${tab === id ? 'active' : ''}" data-tab="${id}">${esc(label)}</button>`).join('')}</div>
+		<div data-tab-body>${tab === 'members' ? renderMembers(board) : tab === 'board' ? renderBoard(board) : renderGit()}</div>`;
+}
+function wireTabs() {
+	document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => { teamTab = t.dataset.tab; render(); }));
+}
+
+function renderMembers(board) {
+	return `<div class="card" style="--i:0">
+			${board.members.map((m, i) => `<div class="member" style="--i:${i}">
+				<div class="avatar-mini" style="background:${flattenColor(m.id === 'demo-me' ? state.profile?.avatarColor : m.id)}00;background:linear-gradient(135deg, ${flattenColor(m.id)}cc, ${flattenColor(m.id)}88)">${esc(initials(m.displayName))}
+					<span class="presence ${m.online ? 'live' : 'off'}"></span>
+				</div>
+				<div class="meta">
+					<div class="mname">${esc(m.displayName)}${m.id === 'demo-me' ? ' · ' + esc(T('welcome')) : ''}</div>
+					<div class="memail">${esc(m.email)}</div>
+				</div>
+				<span class="chip ${m.role === 'owner' ? 'accent' : ''}">${esc(T('role' + cap(m.role)))}</span>
+				${state.session?.teams.find(t => t.id === state.teamId)?.role === 'owner' && m.role !== 'owner' ? `<select class="role-select" data-member="${esc(m.id)}">${['owner', 'maintainer', 'dev', 'viewer'].map((r) => `<option value="${r}" ${r === m.role ? 'selected' : ''}>${esc(T('role' + cap(r)))}</option>`).join('')}</select>` : ''}
+			</div>`).join('')}
+		</div>`;
+}
+function wireMembers() {
+	document.querySelectorAll('.role-select').forEach((s) => s.addEventListener('change', async () => {
+		await demo('auraTeam.changeRole', [s.dataset.member, s.value]);
+	}));
+}
+
+function renderBoard(board) {
+	const statuses = [
+		['backlog', T('statusBacklog')], ['todo', T('statusTodo')], ['doing', T('statusDoing')], ['review', T('statusReview')], ['done', T('statusDone')]
+	];
+	return `<div class="board-cols">
+		${statuses.map(([id, label], ci) => {
+			const tasks = board.tasks.filter((t) => t.status === id);
+			return `<div class="col" style="--i:${ci}">
+				<div class="col-head"><span class="col-title">${esc(label)}</span><span class="col-count">${tasks.length}</span></div>
+				${tasks.map((task, i) => `<div class="task-card" style="--i:${i}">
+					<div class="task-title">${esc(task.title)}</div>
+					${task.description ? `<div class="task-desc">${esc(task.description)}</div>` : ''}
+					<div class="task-meta">
+						<span class="task-assignee">${task.assigneeName ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.6" stroke="currentColor" stroke-width="1.7"/><path d="M5 20c1.4-3.4 3.9-5 7-5s5.6 1.6 7 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg> ${esc(task.assigneeName)}` : ''}</span>
+						<select class="task-status" data-task="${esc(task.id)}">${statuses.map(([sid]) => `<option value="${sid}" ${sid === task.status ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select>
+					</div>
+				</div>`).join('')}
+				<button class="btn ghost add-task" data-status="${id}">${esc(T('addTask'))}</button>
+			</div>`;
+		}).join('')}
+	</div>`;
+}
+function wireBoard() {
+	document.querySelectorAll('.task-status').forEach((s) => s.addEventListener('change', async () => {
+		const task = state.board.tasks.find((t) => t.id === s.dataset.task);
+		if (task) { task.status = s.value; await demo('auraTeam.updateTask', []).catch(() => {}); render(); }
+	}));
+	document.querySelectorAll('.add-task').forEach((btn) => btn.addEventListener('click', () => {
+		const status = btn.dataset.status;
+		openModal({
+			title: T('addTask'), actionText: T('create'),
+			body: `<div class="field"><label>${esc(T('addTaskPh'))}</label><input data-task-title maxlength="80" placeholder="${esc(T('addTaskPh'))}" autofocus></div>`,
+			onAction: async (overlay) => {
+				const input = overlay.querySelector('[data-task-title]');
+				if (!input?.value.trim()) { return true; }
+				await demo('auraTeam.createTask', [input.value.trim(), status]);
+				return false;
+			}
+		});
+		setTimeout(() => document.querySelector('[data-task-title]')?.focus(), 30);
+	}));
+}
+
+function renderGit() {
+	const git = state.git;
+	if (!git) {
+		return `<div class="empty" style="--i:0"><div><div class="big">${esc(T('noRepo'))}</div></div></div>`;
+	}
+	const changes = git.changes;
+	return `<div class="card git-card" style="--i:0">
+			<div class="git-head">
+				<span class="chip accent">${esc(git.branch || '—')}</span>
+				<span class="repo-path" title="${esc(git.path)}">${esc(git.path || '')}</span>
+				<div class="right flex">
+					<button class="btn ghost sm" id="btnPull" style="white-space:nowrap">${esc(T('pull'))}</button>
+					<button class="btn ghost sm" id="btnPush" style="white-space:nowrap">${esc(T('push'))}</button>
+					<button class="btn ghost sm" id="btnBranch" style="white-space:nowrap">${esc(T('branch'))}</button>
+				</div>
+			</div>
+			<div class="commit-line">
+				<input id="commitMsg" placeholder="${esc(T('commitMsg'))}…" maxlength="120">
+				<button class="btn primary" id="btnCommit" style="white-space:nowrap">${esc(T('commitPush'))}</button>
+			</div>
+			${changes.length ? `<div class="changes-list">${changes.slice(0, 24).map((c, i) => `<div class="change-item" style="--i:${i}"><span class="kind ${c.kind}">${c.kind}</span><span>${esc(c.path)}</span></div>`).join('')}</div>` : `<div class="sub mt12">${esc(T('noChanges'))} ✔</div>`}
+			<div class="flex mt12">
+				${!state.demoMode ? `<button class="btn ghost sm" id="btnUndo">${esc(T('undo'))}</button>` : ''}
+				${!state.demoMode ? `<button class="btn ghost sm" id="btnRevert">${esc(T('revert'))}</button>` : ''}
+				<button class="btn ghost sm" id="btnGitHub">${esc(T('gitHub'))}</button>
+			</div>
+		</div>
+		${git.commits?.length ? `<div class="section-title">${esc(T('history'))}</div><div class="card" style="--i:0">${git.commits.slice(0, 10).map((c, i) => `<div class="history-item" style="--i:${i}"><span class="hist-dot"></span><div><div class="hist-msg">${esc(c.message)}</div><div class="hist-meta">${esc(c.hash?.slice(0, 8))} · ${esc(c.author || '')} · ${esc(timeAgo(c.date))}</div></div></div>`).join('')}</div>` : ''}`;
+}
+function wireGit() {
+	const commitBtn = document.getElementById('btnCommit');
+	const msg = document.getElementById('commitMsg');
+	commitBtn?.addEventListener('click', async (e) => {
+		ripple(e);
+		if (!msg?.value.trim()) { toast(T('commitMsg'), 'err'); return; }
+		commitBtn.disabled = true;
+		commitBtn.innerHTML = '<span class="spin"></span>';
+		try {
+			await demo('auraTeam.commitAll', [msg.value.trim()]);
+			toast('Committed ✓', 'ok');
+			msg.value = '';
+		} catch (err) { toast(err.message, 'err'); }
+		commitBtn.disabled = false;
+		if (!state.demoMode) { await svc('auraTeam.getState').then(s => { state = s; render(); }).catch(() => {}); }
+		else { render(); }
+	});
+	const pushBtn = document.getElementById('btnPush');
+	pushBtn?.addEventListener('click', async () => { try { await demo('auraTeam.push', []); toast('Pushed ✓', 'ok'); } catch (err) { toast(err.message, 'err'); } });
+	const pullBtn = document.getElementById('btnPull');
+	pullBtn?.addEventListener('click', async () => { try { await demo('auraTeam.pull', []); toast('Pulled ✓', 'ok'); } catch (err) { toast(err.message, 'err'); } });
+	const branchBtn = document.getElementById('btnBranch');
+	branchBtn?.addEventListener('click', async () => {
+		let branches = [];
+		if (!state.demoMode) { branches = await svc('auraTeam.listBranches').catch(() => []); }
+		else { branches = ['main', 'develop', 'feature/aura-team']; }
+		if (!branches.length) { return; }
+		openModal({
+			title: T('branch'), actionText: T('join'),
+			body: `<div class="field"><label>${esc(T('branch'))}</label>` + branches.map((b) => `<div class="member" style="--i:${branches.indexOf(b)}"><span class="chip ${b === state.git?.branch ? 'accent' : ''}">${esc(b)}</span><button class="btn sm ghost right" data-pick-branch="${esc(b)}">switch</button></div>`).join('') + `</div>`,
+			onAction: () => false
+		});
+		setTimeout(() => {
+			document.querySelectorAll('[data-pick-branch]').forEach((b) => b.addEventListener('click', async () => {
+				await demo('auraTeam.checkout', [b.dataset.pickBranch]);
+				document.querySelector('.overlay')?.remove();
+				render();
+			}));
+		}, 40);
+	});
+	const undoBtn = document.getElementById('btnUndo');
+	undoBtn?.addEventListener('click', () => confirmAction(T('undo'), async () => { await demo('auraTeam.undoChanges', [true]); }));
+	const revertBtn = document.getElementById('btnRevert');
+	revertBtn?.addEventListener('click', () => confirmAction(T('revert'), async () => { await demo('auraTeam.revertLastCommit', [true]); }));
+	const gitHubBtn = document.getElementById('btnGitHub');
+	gitHubBtn?.addEventListener('click', async () => {
+		if (state.demoMode) { toast(T('demo')); return; }
+		try { await svc('auraTeam.connectGitHub', []); toast('GitHub ✓', 'ok'); } catch (err) { toast(err.message, 'err'); }
+	});
+}
+function confirmAction(label, job) {
+	openModal({
+		title: T('sure'), sub: label, actionText: T('yesKeep'), danger: true,
+		body: `<div class="sub">${esc(label)}</div>`,
+		onAction: async (overlay) => { await job(); return false; }
+	});
+}
+
+/* ---------- Банк ключей ---------- */
+function providerColor(provider) {
+	const p = String(provider || '').toLowerCase();
+	if (p.includes('anthropic')) { return '#d97757'; }
+	if (p.includes('google') || p.includes('gemini')) { return '#4285F4'; }
+	if (p.includes('deepseek')) { return '#4d6bfe'; }
+	if (p.includes('openrouter')) { return '#8b5cf6'; }
+	return '#10b981';
+}
+function providerGlyph(provider) {
+	return `<svg viewBox="0 0 24 24" fill="none"><path d="M12 12a3.2 3.2 0 1 0 0-6.4A3.2 3.2 0 0 0 12 12zm0 0v6.4M12 9.6h6.4" stroke="white" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+}
+function renderKeys() {
+	const keys = state.keys ?? [];
+	return `<div class="view-head">
+			<div class="view-title">${esc(T('keysTitle'))} <span class="chip accent">${keys.length}</span></div>
+			<div class="view-sub">${esc(T('keyRole'))} · ${esc(T('keyPriority'))}</div>
+		</div>
+		${keys.length ? `<div class="card-grid">${keys.map((key, i) => `<div class="card key-card" style="--i:${i}">
+			<div class="key-row">
+				<div class="provider-ico" style="background:linear-gradient(135deg, ${providerColor(key.provider)}, ${providerColor(key.provider)}88);color:#fff">${providerGlyph(key.provider)}</div>
+				<div class="grow">
+					<div class="key-label">${esc(key.label)}</div>
+					<div class="key-hint" style="display:inline-block;margin-top:4px">${esc(key.keyHint)}</div>
+				</div>
+				<button class="switch ${key.disabledAt ? '' : 'on'}" data-key="${esc(key.id)}" title="${esc(T('disabled'))}"></button>
+			</div>
+			<div class="row">
+				<span class="chip">${esc(key.provider)}</span>
+				<span class="chip ${key.accessRole === 'owner' ? 'accent' : ''}">${esc(T('role' + cap(key.accessRole)))}</span>
+				<span class="chip">P${key.priority}</span>
+				${key.disabledAt ? `<span class="chip off">${esc(T('disabled'))}</span>` : ''}
+			</div>
+		</div>`).join('')}</div>` : `<div class="empty" style="--i:0"><div><div class="big">${esc(T('emptyKeys'))}</div></div></div>`}
+		<div class="flex mt16"><button class="btn primary" id="btnAddKey">${esc(T('addKey'))}</button></div>`;
+}
+function wireKeys() {
+	document.querySelectorAll('.switch').forEach((s) => s.addEventListener('click', async () => {
+		const key = state.keys.find((k) => k.id === s.dataset.key);
+		if (!key) { return; }
+		if (state.demoMode) { toast(T('demo')); return; }
+		if (!key.disabledAt) {
+			confirmAction(T('disabled') + ' · ' + key.label, async () => {
+				await svc('auraTeam.disableApiKey', [key]);
+			});
+		}
+	}));
+	const addBtn = document.getElementById('btnAddKey');
+	addBtn?.addEventListener('click', () => {
+		openModal({
+			title: T('addKey'), actionText: T('create'),
+			body: `
+				<div class="field-grid">
+					<div class="field"><label>${esc(T('keyProvider'))}</label><select data-key-provider><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="other">Other</option></select></div>
+					<div class="field"><label>${esc(T('keyRole'))}</label><select data-key-role><option value="dev">${esc(T('roleDev'))}</option><option value="maintainer">${esc(T('roleMaintainer'))}</option><option value="viewer">${esc(T('roleViewer'))}</option></select></div>
+				</div>
+				<div class="field"><label>${esc(T('keyName'))}</label><input data-key-label placeholder="OpenAI team key" maxlength="60"></div>
+				<div class="field"><label>${esc(T('keyPriority'))}</label><input data-key-priority type="number" min="0" max="1000" value="100"></div>
+				<div class="field"><label>${esc(T('keyValue'))}</label><div class="pw-toggle"><input data-key-value type="password" placeholder="sk-…" spellcheck="false"><button class="eye" data-eye="1"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.8" stroke="currentColor" stroke-width="1.7"/></svg></button></div></div>`,
+			onAction: async (overlay) => {
+				const label = overlay.querySelector('[data-key-label]')?.value?.trim();
+				const value = overlay.querySelector('[data-key-value]')?.value?.trim();
+				if (!label || !value) { toast(T('keyValue'), 'err'); return true; }
+				if (state.demoMode) { toast(T('demo')); return false; }
+				await svc('auraTeam.storeApiKey', [{
+					provider: overlay.querySelector('[data-key-provider]')?.value,
+					accessRole: overlay.querySelector('[data-key-role]')?.value,
+					label,
+					priority: overlay.querySelector('[data-key-priority]')?.value || '100',
+					value
+				}]);
+				return false;
+			}
+		});
+		overlayEyes();
+	});
+}
+function overlayEyes() {
+	document.querySelectorAll('[data-eye]').forEach((eye) => {
+		eye.addEventListener('click', () => {
+			const input = eye.parentElement.querySelector('input');
+			input.type = input.type === 'password' ? 'text' : 'password';
+		});
+	});
+}
+
+/* ---------- Профиль ---------- */
+function renderProfile() {
+	const p = state.profile;
+	const color = flattenColor(p.avatarColor);
+	return `<div class="view-head"><div class="view-title">${esc(T('profileTitle'))}</div></div>
+		<div class="card" style="--i:0">
+			<div class="profile-hero">
+				<div class="avatar-big" style="background:linear-gradient(135deg, ${color}, ${color}88);color:#fff">${esc(initials(p.nickname, 'A'))}</div>
+				<div>
+					<div class="pname">${esc(p.nickname || '—')}</div>
+					<div class="id-strip"><span>${esc(p.id)}</span><button class="btn ghost sm copy-btn" data-copy="${esc(p.id)}">${esc(T('copy'))}</button></div>
+					<div class="flex mt8"><span class="chip ${state.signedIn ? 'ok' : state.demoMode ? 'warn' : 'off'}">${esc(T('server'))}: ${state.demoMode ? T('connDemo') : state.signedIn ? T('connLive') : T('connOff')}</span></div>
+				</div>
+			</div>
+			<div class="field-grid">
+				<div class="field"><label>${esc(T('nickname'))}</label><input id="pNick" maxlength="40" value="${esc(p.nickname || '')}"></div>
+				<div class="field"><label>${esc(T('regEmail'))}</label><input id="pEmail" type="email" maxlength="120" value="${esc(p.email || '')}"></div>
+			</div>
+			<div class="field"><label>${esc(T('description'))}</label><textarea id="pDesc" rows="3" maxlength="240" placeholder="${esc(T('descrPh'))}">${esc(p.description || '')}</textarea></div>
+			<div class="savebar"><button class="btn primary" id="btnSaveProfile">${esc(T('saveProfile'))}</button></div>
+			<div class="profile-actions"><button class="btn danger logout-btn" id="btnLogout">${esc(T('logout'))}</button></div>
+		</div>`;
+}
+function wireProfile() {
+	const saveBtn = document.getElementById('btnSaveProfile');
+	saveBtn?.addEventListener('click', async (e) => {
+		ripple(e);
+		const data = {
+			nickname: document.getElementById('pNick')?.value?.trim() || state.profile.nickname,
+			email: document.getElementById('pEmail')?.value?.trim() || state.profile.email,
+			description: document.getElementById('pDesc')?.value?.trim()
+		};
+		try { const res = await svc('auraTeam.registerProfile', [data]); if (res) { state.profile = res; } toast(T('regDone'), 'ok'); render(); }
+		catch (err) { toast(err.message, 'err'); }
+	});
+	const logoutBtn = document.getElementById('btnLogout');
+	logoutBtn?.addEventListener('click', async () => {
+		try { await svc('auraTeam.signOut'); } catch { /* офлайн */ }
+		state.profile.nickname = '';
+		state.signedIn = false;
+		render();
+	});
+	document.querySelectorAll('[data-copy]').forEach((el) => el.addEventListener('click', () => copyText(el.dataset.copy)));
+}
+
+/* ---------- Иконки рейла уже в HTML; здесь обработчики ---------- */
+let chromeWired = false;
+function wireChrome() {
+	document.querySelectorAll('.rail-btn').forEach((b) => b.addEventListener('click', () => { route = b.dataset.view; render(); }));
+	if (chromeWired) { return; }
+	chromeWired = true;
+	const avatarMenu = document.getElementById('avatarMenu');
+	const avatar = document.getElementById('avatarBtn');
+	if (avatar) {
+		avatar.addEventListener('click', (e) => { e.stopPropagation(); avatarMenu.classList.toggle('hidden'); });
+		document.addEventListener('click', (e) => { if (!e.target.closest('#avatarMenu') && !e.target.closest('#avatarBtn')) { avatarMenu.classList.add('hidden'); } });
+		avatarMenu.querySelectorAll('[data-act]').forEach((item) => item.addEventListener('click', () => {
+			avatarMenu.classList.add('hidden');
+			if (item.dataset.act === 'profile') { route = 'profile'; render(); }
+			else if (item.dataset.act === 'logout') {
+				void (async () => {
+					try { await svc('auraTeam.signOut'); } catch { /* офлайн */ }
+					state.profile.nickname = '';
+					state.signedIn = false;
+					render();
+				})();
+			}
+		}));
+	}
+}
+
+/* ---------- Скелетон при старте ---------- */
+function skeleton() {
+	mount('<div class="card-grid">' + Array.from({ length: 3 }).map(() => '<div class="card"><div class="skeleton" style="height:14px;width:45%"></div><div class="skeleton" style="height:10px;width:70%;margin-top:10px"></div><div class="skeleton" style="height:10px;width:55%;margin-top:8px"></div></div>').join('') + '</div>');
+}
+
+/* ---------- Маунт: диспетчер по событиям ---------- */
+function wire() {
+	if (!state) { return; }
+	wireChrome();
+	const needsAuth = !state?.profile?.nickname;
+	if (needsAuth) { wireAuth(); return; }
+	if (route === 'keys') { wireKeys(); return; }
+	if (route === 'profile') { wireProfile(); return; }
+	wireTabs();
+	wireMembers();
+	wireBoard();
+	wireGit();
+	const createBtn = document.getElementById('btnCreateTeam');
+	createBtn?.addEventListener('click', () => {
+		openModal({
+			title: T('createTeam'), sub: T('newTeamSub'), actionText: T('create'),
+			body: `<div class="field"><label>${esc(T('teamName'))}</label><input data-team-name maxlength="40" placeholder="Aura Studio" autofocus></div>`,
+			onAction: async (overlay) => {
+				const name = overlay.querySelector('[data-team-name]')?.value?.trim();
+				if (!name) { toast(T('teamName'), 'err'); return true; }
+				await demo('auraTeam.createTeam', [name]);
+				return false;
+			}
+		});
+		setTimeout(() => document.querySelector('[data-team-name]')?.focus(), 30);
+	});
+	const joinBtn = document.getElementById('btnJoinTeam');
+	joinBtn?.addEventListener('click', () => {
+		openModal({
+			title: T('joinTeam'), sub: T('inviteSub'), actionText: T('join'),
+			body: `<div class="field"><label>${esc(T('inviteCode'))}</label><input data-join-code maxlength="24" placeholder="AURA-XXXX" spellcheck="false" autofocus></div>`,
+			onAction: async (overlay) => {
+				const code = overlay.querySelector('[data-join-code]')?.value?.trim();
+				if (!code) { toast(T('inviteCode'), 'err'); return true; }
+				await demo('auraTeam.joinTeam', [code]);
+				return false;
+			}
+		});
+		setTimeout(() => document.querySelector('[data-join-code]')?.focus(), 30);
+	});
+	const inviteBtn = document.getElementById('btnInvite');
+	inviteBtn?.addEventListener('click', async () => {
+		const res = await demo('auraTeam.createInvite', []);
+		if (res?.code) {
+			openModal({
+				title: T('invite'), sub: T('inviteSub'),
+				body: `<div class="invite-code">${esc(res.code)}</div><div class="center"><button class="btn ghost sm" data-copy-invite="${esc(res.code)}">${esc(T('copy'))}</button></div>`,
+				onAction: () => false
+			});
+			setTimeout(() => document.querySelector('[data-copy-invite]')?.addEventListener('click', (e) => copyText(e.target.dataset.copyInvite)), 40);
+		}
+	});
+	document.querySelectorAll('.card[data-team]').forEach((card) => card.addEventListener('click', () => {
+		const id = card.dataset.team;
+		if (id !== state.teamId) {
+			state.teamId = id;
+			void demo('auraTeam.selectTeam', [id]);
+		}
+	}));
+}
+
+/* ---------- Старт ---------- */
+skeleton();
+vscode.postMessage({ type: 'ready' });
+// первая отрисовка по приходу state; wire() вызывается после каждого mount
+
+</script>
 </body>
 </html>

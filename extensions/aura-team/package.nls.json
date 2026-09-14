@@ -5,11 +5,11 @@
 	"configuration.serverUrl": "URL of the Aura Team server",
 	"configuration.githubClientId": "Client ID of the Aura GitHub OAuth App used for device authorization",
 	"configuration.simpleMode": "Show the safe simplified Git workflow for people who do not use Git commands directly",
+	"configuration.demoMode": "Demo mode: show sample team data when the server is unavailable",
 	"container.title": "Aura Team",
-	"view.members": "Team",
-	"view.project": "Project / Git",
-	"view.tasks": "My Tasks",
-	"view.keys": "Team API Keys",
+	"view.home": "Aura Team",
+	"command.open": "Open Aura Team",
+	"command.openProfile": "Open Profile",
 	"command.signIn": "Sign In",
 	"command.signOut": "Sign Out",
 	"command.selectTeam": "Switch Team",
@@ -35,5 +35,10 @@
 	"command.revertLastCommit": "Revert Last Commit",
 	"command.restoreFile": "Restore File From Version",
 	"command.relink": "Relink Remote",
-	"command.history": "Show History"
+	"command.history": "Show History",
+	"command.commitAll": "Commit All & Push",
+	"command.push": "Push",
+	"command.pull": "Pull & Rebase",
+	"command.checkout": "Switch Branch",
+	"command.getState": "Get State (internal)"
 }
