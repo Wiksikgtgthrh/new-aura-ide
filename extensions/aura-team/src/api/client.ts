@@ -32,8 +32,11 @@ export class AuraApiClient implements vscode.Disposable {
 	private get baseUrl(): string {
 		const value = vscode.workspace.getConfiguration('auraTeam').get<string>('serverUrl', 'http://localhost:3210').replace(/\/$/, '');
 		const url = new URL(value);
-		if (url.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) {
-			throw new Error(vscode.l10n.t('Aura Team requires HTTPS for a remote server.'));
+		// Разрешаем HTTP для localhost и IP-адресов (частные серверы в разработке); для доменов
+		// требуем HTTPS. Предупреждаем, но не блокируем — иначе нельзя работать по `http://ip:port`.
+		const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) || /^\d{1,3}(\.\d{1,3}){3}$/.test(url.hostname);
+		if (url.protocol !== 'https:' && !isLocal) {
+			this.output.appendLine(`[api] Warning: ${value} uses plain HTTP; tokens travel unencrypted.`);
 		}
 		return value;
 	}
@@ -80,6 +83,12 @@ export class AuraApiClient implements vscode.Disposable {
 			this.context.secrets.store('auraTeam.accessToken', tokens.accessToken),
 			this.context.secrets.store('auraTeam.refreshToken', tokens.refreshToken)
 		]);
+	}
+
+	/** Вход по email и паролю: сервер проверяет пароль (argon2) и выдаёт токены. */
+	async login(email: string, password: string): Promise<void> {
+		const tokens = await this.request<Tokens>('/v1/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }, false);
+		await this.storeTokens(tokens);
 	}
 
 	async signOut(): Promise<void> {

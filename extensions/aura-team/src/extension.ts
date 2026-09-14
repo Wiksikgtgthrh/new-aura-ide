@@ -172,19 +172,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// ------------------------------------------------------------------
 	// Команды (хэндлеры)
 	// ------------------------------------------------------------------
-	register('auraTeam.signIn', async () => {
-		const device = await api.startDeviceAuthorization();
-		await vscode.env.clipboard.writeText(device.userCode);
-		await vscode.env.openExternal(vscode.Uri.parse(device.verificationUri));
-		vscode.window.showInformationMessage(vscode.l10n.t('Sign-in code {0} was copied. Complete sign-in in the browser.', device.userCode));
-		const deadline = Date.now() + device.expiresIn * 1000;
-		while (Date.now() < deadline) {
-			await delay(device.interval * 1000);
-			const result = await api.pollDeviceAuthorization(device.deviceCode);
-			if ('accessToken' in result) { await api.storeTokens(result); await refresh(); return; }
+	register('auraTeam.signIn', () => openTab('team'));
+	register('auraTeam.login', async (data?: { email?: string; password?: string }) => {
+		const email = data?.email ?? await requiredInput(vscode.l10n.t('Email'));
+		const password = data?.password ?? await vscode.window.showInputBox({ prompt: vscode.l10n.t('Password'), password: true, ignoreFocusOut: true });
+		if (!password) { throw new Error(vscode.l10n.t('The password is required.')); }
+		await api.login(email, password);
+		await refresh();
+		const session = state.session;
+		if (session && !profiles.get().nickname) {
+			await profiles.save({ nickname: session.user.displayName, email: session.user.email });
+			updateAvatar();
+			await broadcast();
 		}
-		throw new Error(vscode.l10n.t('Sign-in expired. Try again.'));
-	});
+	}, false);
+	register('auraTeam.openRegister', async () => { await vscode.env.openExternal(vscode.Uri.parse(`${serverUrl().replace(/\/$/, '')}/register`)); });
 	register('auraTeam.signOut', async () => { await api.signOut(); await refresh(); });
 	register('auraTeam.selectTeam', async (teamId?: string) => {
 		if (teamId) {
@@ -349,6 +351,5 @@ async function pickFile(): Promise<vscode.Uri | undefined> {
 }
 
 function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }
-function delay(milliseconds: number): Promise<void> { return new Promise(resolve => setTimeout(resolve, milliseconds)); }
 
 export function deactivate(): void { }

@@ -538,6 +538,10 @@ const DICT = {
 		roleOwner: 'Владелец', roleMaintainer: 'Основной', roleDev: 'Разработчик', roleViewer: 'Зритель',
 		statusBacklog: 'Бэклог', statusTodo: 'К выполнению', statusDoing: 'В работе', statusReview: 'Ревью', statusDone: 'Готово',
 		gitHub: 'Подключить GitHub', server: 'Сервер', demo: 'демо',
+		loginTitle: 'Вход в Aura Team', loginSub: 'Войдите по email и паролю, чтобы работать со своим сервером.',
+		loginEmail: 'Email', loginPassword: 'Пароль', loginBtn: 'Войти',
+		noAccount: 'Нет аккаунта?', registerLink: 'Создать на сервере',
+		loginFail: 'Вход не удался', orLocalProfile: 'или продолжите с локальным профилем (демо):',
 	}
 };
 const lang = (navigator.language || 'en').toLowerCase().startsWith('ru') ? 'ru' : 'en';
@@ -731,15 +735,31 @@ function updateChrome() {
 }
 
 /* ---------- Экран регистрации / авторизации ---------- */
+function loginFormHtml() {
+	return `<div class="field">
+			<label>${esc(T('loginEmail'))}</label>
+			<input id="loginEmail" type="email" maxlength="120" placeholder="you@team.dev" autofocus>
+		</div>
+		<div class="field">
+			<label>${esc(T('loginPassword'))}</label>
+			<input id="loginPassword" type="password" maxlength="200" placeholder="••••••••">
+		</div>
+		<button class="btn primary lg" id="loginSubmit" style="width:100%;justify-content:center">${esc(T('loginBtn'))}</button>
+		<div class="progress-bar hidden" id="loginProgress"><div class="fill"></div></div>
+		<div class="center" style="margin-top:12px"><button class="btn ghost sm" id="openRegister">${esc(T('noAccount'))} ${esc(T('registerLink'))}</button></div>`;
+}
+
 function renderAuth() {
 	return `<div class="auth-wrap">
 		<div class="card auth-card">
 			<div class="auth-logo"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2l7.5 4.5v9L12 20l-7.5-4.5v-9L12 2z" stroke="white" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 8.5v7M8.7 10.6l6.6 3M15.3 10.6l-6.6 3" stroke="white" stroke-width="1.6" stroke-linecap="round"/></svg></div>
-			<h1>${esc(T('regTitle'))}</h1>
-			<div class="sub">${esc(T('regSub'))}</div>
+			<h1>${esc(T('loginTitle'))}</h1>
+			<div class="sub">${esc(T('loginSub'))}</div>
+			${loginFormHtml()}
+			<div class="sub" style="margin:16px 0 2px">${esc(T('orLocalProfile'))}</div>
 			<div class="field">
 				<label>${esc(T('regNick'))} *</label>
-				<input id="regNick" maxlength="40" placeholder="Alex" autofocus>
+				<input id="regNick" maxlength="40" placeholder="Alex">
 				<div class="err hidden" id="regNickErr">${esc('—')}</div>
 			</div>
 			<div class="field">
@@ -759,7 +779,32 @@ function renderAuth() {
 		</div>
 	</div>`;
 }
+function wireLoginForm() {
+	const email = document.getElementById('loginEmail');
+	const password = document.getElementById('loginPassword');
+	const submit = document.getElementById('loginSubmit');
+	const progress = document.getElementById('loginProgress');
+	document.getElementById('openRegister')?.addEventListener('click', () => { void svc('auraTeam.openRegister'); });
+	const go = async (event) => {
+		if (!submit || !email || !password) { return; }
+		ripple(event);
+		const value = { email: email.value.trim(), password: password.value };
+		if (!value.email || !value.password) { toast(T('loginFail'), 'err'); return; }
+		submit.disabled = true;
+		progress?.classList.remove('hidden');
+		try {
+			await svc('auraTeam.login', [value]);
+			toast(T('regDone'), 'ok');
+			render();
+		} catch (err) { toast(err?.message || T('loginFail'), 'err'); }
+		submit.disabled = false;
+		progress?.classList.add('hidden');
+	};
+	submit?.addEventListener('click', go);
+	password?.addEventListener('keydown', (event) => { if (event.key === 'Enter') { void go(event); } });
+}
 function wireAuth() {
+	wireLoginForm();
 	const nick = document.getElementById('regNick');
 	const email = document.getElementById('regEmail');
 	const desc = document.getElementById('regDesc');
@@ -1086,6 +1131,12 @@ function overlayEyes() {
 function renderProfile() {
 	const p = state.profile;
 	const color = flattenColor(p.avatarColor);
+	const loginBlock = (!state.signedIn && !state.demoMode)
+		? `<div class="card" style="--i:1">
+			<div class="section-title">${esc(T('loginTitle'))}</div>
+			${loginFormHtml()}
+		</div>`
+		: '';
 	return `<div class="view-head"><div class="view-title">${esc(T('profileTitle'))}</div></div>
 		<div class="card" style="--i:0">
 			<div class="profile-hero">
@@ -1103,9 +1154,11 @@ function renderProfile() {
 			<div class="field"><label>${esc(T('description'))}</label><textarea id="pDesc" rows="3" maxlength="240" placeholder="${esc(T('descrPh'))}">${esc(p.description || '')}</textarea></div>
 			<div class="savebar"><button class="btn primary" id="btnSaveProfile">${esc(T('saveProfile'))}</button></div>
 			<div class="profile-actions"><button class="btn danger logout-btn" id="btnLogout">${esc(T('logout'))}</button></div>
-		</div>`;
+		</div>
+		${loginBlock}`;
 }
 function wireProfile() {
+	wireLoginForm();
 	const saveBtn = document.getElementById('btnSaveProfile');
 	saveBtn?.addEventListener('click', async (e) => {
 		ripple(e);
