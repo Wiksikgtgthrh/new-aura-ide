@@ -273,14 +273,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		vscode.window.showInformationMessage(vscode.l10n.t('The team API key was disabled.'));
 		await refresh();
 	});
-	register('auraTeam.uploadArchive', async () => {
+	register('auraTeam.uploadArchive', async (projectName?: string) => {
 		const uri = (await vscode.window.showOpenDialog({ canSelectMany: false, filters: { 'tar.zst': ['zst', 'tzst'] } }))?.[0];
 		if (!uri) { return; }
 		const bytes = await vscode.workspace.fs.readFile(uri);
 		if (bytes.byteLength > 50 * 1024 * 1024) { throw new Error(vscode.l10n.t('The archive exceeds 50 MiB.')); }
-		const result = await api.uploadArchive(requireTeam(state), uri.path.split('/').pop() ?? 'project.tar.zst', await requiredInput(vscode.l10n.t('Project name')), bytes);
+		const name = projectName?.trim() || await requiredInput(vscode.l10n.t('Project name'));
+		const fileName = uri.fsPath.split(/[\\/]/).pop() ?? 'project.tar.zst';
+		const result = await api.uploadArchive(requireTeam(state), fileName, name, bytes);
 		vscode.window.showInformationMessage(vscode.l10n.t('Archive uploaded. It expires at {0}.', new Date(result.expiresAt).toLocaleString()));
 		await refresh();
+		return result;
 	});
 	register('auraTeam.downloadArchive', async (project?: Project) => {
 		if (!project?.archiveId) { throw new Error(vscode.l10n.t('This project has no archive.')); }

@@ -727,6 +727,16 @@ async function demo(command, args, talk = true) {
 	} else if (command === 'auraTeam.selectTeam') {
 		state.teamId = args[0] ?? state.teamId;
 		ok(T('demoTeamSelected'));
+	} else if (command === 'auraTeam.uploadArchive') {
+		const name = args[0] || 'project';
+		const projects = state.board?.projects ?? [];
+		const project = projects.find((p) => String(p.name).toLowerCase() === String(name).toLowerCase())
+			?? { id: 'dt' + Date.now(), teamId: state.teamId, name, gitUrl: '', defaultBranch: 'main' };
+		project.archiveId = 'demo-archive-' + Date.now();
+		if (!projects.includes(project)) { projects.push(project); }
+		ok(T('archiveDone'));
+	} else if (command === 'auraTeam.downloadArchive') {
+		ok(T('archiveSaved'));
 	} else {
 		return svc(command, args);
 	}
@@ -991,10 +1001,11 @@ function renderTeamDetail(tab) {
 		['members', T('members')],
 		['board', T('board')],
 		['git', T('git')],
+		['files', T('files')],
 	];
 	return `<div class="section-title mt16">${esc(T('team'))}</div>
 		<div class="tabs">${tabs.map(([id, label]) => `<button class="tab ${tab === id ? 'active' : ''}" data-tab="${id}">${esc(label)}</button>`).join('')}</div>
-		<div data-tab-body>${tab === 'members' ? renderMembers(board) : tab === 'board' ? renderBoard(board) : renderGit()}</div>`;
+		<div data-tab-body>${tab === 'members' ? renderMembers(board) : tab === 'board' ? renderBoard(board) : tab === 'files' ? renderFiles(board) : renderGit()}</div>`;
 }
 function wireTabs() {
 	document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => { teamTab = t.dataset.tab; render(); }));
@@ -1062,6 +1073,45 @@ function wireBoard() {
 		});
 		setTimeout(() => document.querySelector('[data-task-title]')?.focus(), 30);
 	}));
+}
+
+/* ---------- Файлы (витрина архивов) ---------- */
+function renderFiles(board) {
+	const projects = board.projects ?? [];
+	const grids = projects.length ? projects.map((p, i) => `<div class="card clickable" style="--i:${i}" data-project="${esc(p.id)}">
+			<div class="row" style="margin-top:0;justify-content:space-between">
+				<h3 style="margin-bottom:0">${esc(p.name)}</h3>
+				<span class="chip ${p.archiveId ? 'ok' : 'off'}">${esc(p.archiveId ? T('hasArchive') : T('noArchive'))}</span>
+			</div>
+			${p.gitUrl ? `<div class="sub" style="margin-top:6px">${esc(p.gitUrl)}</div>` : ''}
+			<div class="row" style="margin-top:10px;justify-content:space-between">
+				<span class="chip accent">${esc(p.defaultBranch || 'main')}</span>
+				${p.archiveId ? `<button class="btn ghost sm" data-download="${esc(p.id)}" style="white-space:nowrap">${esc(T('download'))}</button>` : ''}
+			</div>
+		</div>`).join('') : `<div class="empty" style="--i:0"><div><div class="big">${esc(T('noFiles'))}</div></div></div>`;
+	return `<div class="section-title">${esc(T('filesTitle'))}</div>
+		<div class="card-grid">${grids}</div>
+		<div class="flex mt12"><button class="btn primary" id="btnUploadArchive" style="white-space:nowrap">${esc(T('uploadArchive'))}</button></div>`;
+}
+function wireFiles() {
+	document.querySelectorAll('[data-download]').forEach((b) => b.addEventListener('click', async () => {
+		const project = state.board?.projects.find((p) => p.id === b.dataset.download);
+		if (project?.archiveId) { await demo('auraTeam.downloadArchive', [project]); }
+	}));
+	const uploadBtn = document.getElementById('btnUploadArchive');
+	uploadBtn?.addEventListener('click', () => {
+		openModal({
+			title: T('uploadArchive'), sub: T('filesTitle'), actionText: T('uploadArchive'),
+			body: `<div class="field"><label>${esc(T('archiveProject'))}</label><input data-archive-name maxlength="60" placeholder="${esc(T('archiveProjectPh'))}" autofocus></div>`,
+			onAction: async (overlay) => {
+				const name = overlay.querySelector('[data-archive-name]')?.value?.trim();
+				if (!name) { toast(T('archiveProject'), 'err'); return true; }
+				await demo('auraTeam.uploadArchive', [name]);
+				return false;
+			}
+		});
+		setTimeout(() => document.querySelector('[data-archive-name]')?.focus(), 30);
+	});
 }
 
 function renderGit() {
@@ -1332,6 +1382,7 @@ function wire() {
 	wireTabs();
 	wireMembers();
 	wireBoard();
+	wireFiles();
 	wireGit();
 	const createBtn = document.getElementById('btnCreateTeam');
 	createBtn?.addEventListener('click', () => {
