@@ -767,7 +767,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				// не трогая само расширение — его можно включить в будущем.
 				const trailingGroups = this.globalToolbarMenu.getActions()
 					.filter(([group]) => group !== TitleBarLeadingActionsGroup)
-					.map<[string, IAction[]]>(([group, groupActions]) => [group, groupActions.filter((action) => !action.id.startsWith('github.copilot'))])
+					.map<[string, IAction[]]>(([group, groupActions]) => [group, groupActions.filter((action) => !/copilot|sign.?in|accounts/i.test(action.id) && !/sign\s?in/i.test(action.label))])
 					.filter(([, groupActions]) => groupActions.length > 0);
 				fillInActionBarActions(
 					trailingGroups,
