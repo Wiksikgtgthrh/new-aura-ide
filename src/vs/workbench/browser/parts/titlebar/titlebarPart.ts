@@ -763,7 +763,12 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			// --- Global Actions (after layout so e.g. notification bell appears to the right of layout controls).
 			// Filter out the leading group up front so it isn't duplicated into the overflow `secondary` bucket.
 			if (this.globalToolbarMenu) {
-				const trailingGroups = this.globalToolbarMenu.getActions().filter(([group]) => group !== TitleBarLeadingActionsGroup);
+				// Aura IDE: скрываем кнопки GitHub Copilot в титулбаре (Sign In и пр.),
+				// не трогая само расширение — его можно включить в будущем.
+				const trailingGroups = this.globalToolbarMenu.getActions()
+					.filter(([group]) => group !== TitleBarLeadingActionsGroup)
+					.map<[string, IAction[]]>(([group, groupActions]) => [group, groupActions.filter((action) => !action.id.startsWith('github.copilot'))])
+					.filter(([, groupActions]) => groupActions.length > 0);
 				fillInActionBarActions(
 					trailingGroups,
 					actions
