@@ -32,7 +32,7 @@ export async function archiveRoutes(app: FastifyInstance): Promise<void> {
 			const bytes = part.file.bytesRead;
 			const expiresAt = new Date(Date.now() + config.archiveTtlDays * 24 * 60 * 60_000).toISOString();
 			database.transaction(() => {
-				database.prepare('INSERT INTO projects(id,team_id,name,archive_id,default_branch,created_at) VALUES(?,?,?,?,?,?)').run(projectId, request.params.teamId, projectName, archiveId, 'main', new Date().toISOString());
+				database.prepare('INSERT INTO projects(id,team_id,name,archive_id,owner_id,default_branch,created_at) VALUES(?,?,?,?,?,?,?)').run(projectId, request.params.teamId, projectName, archiveId, user, 'main', new Date().toISOString());
 				database.prepare('INSERT INTO archives(id,team_id,project_id,path,bytes,expires_at,created_by,created_at) VALUES(?,?,?,?,?,?,?,?)').run(archiveId, request.params.teamId, projectId, path, bytes, expiresAt, user, new Date().toISOString());
 				audit(user, 'archive.upload', request.params.teamId, 'archive', archiveId, { bytes, projectId });
 			})();

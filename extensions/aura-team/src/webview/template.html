@@ -563,6 +563,8 @@ const DICT = {
 		demoTaskAdded: 'Задача добавлена', demoRoleUpdated: 'Роль обновлена', demoTeamSelected: 'Команда выбрана',
 	assignee: 'Исполнитель', noAssignee: 'Не назначен',
 	taskMoved: 'Задача перенесена',
+	transfer: 'Передать', projectOwner: 'Владелец', transferProject: 'Передать проект',
+	transferred: 'Проект передан ✓', chooseOwner: 'Новый владелец проекта',
 	},
 	en: {
 		connDemo: 'Demo', connLive: 'Online', connOff: 'Offline',
@@ -614,6 +616,8 @@ noFiles: 'No archives yet — upload the first one.',
 archiveDone: 'Archive uploaded ✓', archiveSaved: 'Archive saved ✓',
 	assignee: 'Assignee', noAssignee: 'Unassigned',
 	taskMoved: 'Task moved',
+	transfer: 'Transfer', projectOwner: 'Owner', transferProject: 'Transfer project',
+	transferred: 'Project transferred ✓', chooseOwner: 'New project owner',
 	}
 };
 const lang = (navigator.language || 'en').toLowerCase().startsWith('ru') ? 'ru' : 'en';
@@ -754,6 +758,11 @@ async function demo(command, args, talk = true) {
 		project.archiveId = 'demo-archive-' + Date.now();
 		if (!projects.includes(project)) { projects.push(project); }
 		ok(T('archiveDone'));
+	} else if (command === 'auraTeam.transferProject') {
+		const [projectId, ownerId] = args;
+		const project = state.board?.projects.find((proj) => proj.id === projectId);
+		if (project) { project.ownerId = ownerId; }
+		ok(T('transferred'));
 	} else if (command === 'auraTeam.updateTask') {
 		const [taskId, changes] = args;
 		const task = state.board?.tasks.find((t) => t.id === taskId);
@@ -1151,6 +1160,10 @@ function wireBoard() {
 	}));
 }
 /* ---------- Файлы (витрина архивов) ---------- */
+function ownerName(project, members) {
+	const m = members.find((x) => x.id === project.ownerId);
+	return m ? m.displayName : T('noAssignee');
+}
 function renderFiles(board) {
 	const projects = board.projects ?? [];
 	const grids = projects.length ? projects.map((p, i) => `<div class="card clickable" style="--i:${i}" data-project="${esc(p.id)}">
@@ -1161,7 +1174,9 @@ function renderFiles(board) {
 			${p.gitUrl ? `<div class="sub" style="margin-top:6px">${esc(p.gitUrl)}</div>` : ''}
 			<div class="row" style="margin-top:10px;justify-content:space-between">
 				<span class="chip accent">${esc(p.defaultBranch || 'main')}</span>
+				<span class="chip">${esc(T('projectOwner'))}: ${esc(ownerName(p, board.members))}</span>
 				${p.archiveId ? `<button class="btn ghost sm" data-download="${esc(p.id)}" style="white-space:nowrap">${esc(T('download'))}</button>` : ''}
+				${state.session?.teams.find((t) => t.id === state.teamId)?.role === 'owner' ? `<button class="btn ghost sm" data-transfer="${esc(p.id)}" style="white-space:nowrap">${esc(T('transfer'))}</button>` : ''}
 			</div>
 		</div>`).join('') : `<div class="empty" style="--i:0"><div><div class="big">${esc(T('noFiles'))}</div></div></div>`;
 	return `<div class="section-title">${esc(T('filesTitle'))}</div>
@@ -1172,6 +1187,20 @@ function wireFiles() {
 	document.querySelectorAll('[data-download]').forEach((b) => b.addEventListener('click', async () => {
 		const project = state.board?.projects.find((p) => p.id === b.dataset.download);
 		if (project?.archiveId) { await demo('auraTeam.downloadArchive', [project]); }
+	}));
+	document.querySelectorAll('[data-transfer]').forEach((b) => b.addEventListener('click', () => {
+		const project = state.board?.projects.find((p) => p.id === b.dataset.transfer);
+		if (!project) { return; }
+		const members = state.board?.members ?? [];
+		const options = members.map((m, i) => `<div class="member" style="--i:${i}"><span class="chip">${esc(m.displayName)}</span><button class="btn sm ghost right" data-pick-owner="${esc(m.id)}" data-pick-project="${esc(project.id)}">${esc(T('transfer'))}</button></div>`).join('');
+		openModal({ title: T('transferProject'), sub: T('chooseOwner'), actionText: T('cancel'), body: `<div class="sub">${esc(project.name)}</div>` + options, onAction: () => false });
+		setTimeout(() => {
+			document.querySelectorAll('[data-pick-owner]').forEach((btn) => btn.addEventListener('click', async () => {
+				try { await demo('auraTeam.transferProject', [btn.dataset.pickProject, btn.dataset.pickOwner]); } catch (err) { toast(err.message, 'err'); }
+				document.querySelector('.overlay')?.remove();
+				render();
+			}));
+		}, 40);
 	}));
 	const uploadBtn = document.getElementById('btnUploadArchive');
 	uploadBtn?.addEventListener('click', () => {

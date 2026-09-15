@@ -46,6 +46,8 @@ for (const [name, definition] of [
 	if (!apiKeyColumns.has(name)) { database.exec(`ALTER TABLE api_keys ADD COLUMN ${name} ${definition}`); }
 }
 database.exec('CREATE INDEX IF NOT EXISTS api_keys_team_provider_priority ON api_keys(team_id, provider, priority, created_at)');
+const projectColumns = new Set((database.prepare('PRAGMA table_info(projects)').all() as { name: string }[]).map(column => column.name));
+if (!projectColumns.has('owner_id')) { database.exec('ALTER TABLE projects ADD COLUMN owner_id TEXT'); }
 
 export function audit(userId: string, action: string, teamId?: string, targetType?: string, targetId?: string, details: object = {}): void {
 	database.prepare('INSERT INTO audit_log(team_id,user_id,action,target_type,target_id,details,created_at) VALUES(?,?,?,?,?,?,?)')

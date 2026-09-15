@@ -9,7 +9,7 @@ export type TaskStatus = 'backlog' | 'todo' | 'doing' | 'review' | 'done';
 export interface User { id: string; email: string; displayName: string; }
 export interface Team { id: string; name: string; role: TeamRole; }
 export interface Member { id: string; displayName: string; email: string; role: TeamRole; online: boolean; }
-export interface Project { id: string; teamId: string; name: string; gitUrl?: string; archiveId?: string; defaultBranch: string; }
+export interface Project { id: string; teamId: string; name: string; gitUrl?: string; archiveId?: string; ownerId?: string; defaultBranch: string; }
 export interface TeamTask { id: string; teamId: string; title: string; description: string; status: TaskStatus; assigneeId?: string; assigneeName?: string; position: number; dueAt?: string; }
 export interface Session { user: User; teams: Team[]; }
 export interface BoardSnapshot { members: Member[]; projects: Project[]; tasks: TeamTask[]; }

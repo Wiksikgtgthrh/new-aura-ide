@@ -63,7 +63,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
 		const online = onlineUserIds(request.params.teamId);
 		const members = (database.prepare('SELECT u.id,u.display_name AS displayName,u.email,m.role FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.team_id=? ORDER BY u.display_name').all(request.params.teamId) as { id: string; displayName: string; email: string; role: string }[]).map(member => ({ ...member, online: online.has(member.id) }));
-		const projects = database.prepare('SELECT id,team_id AS teamId,name,git_url AS gitUrl,archive_id AS archiveId,default_branch AS defaultBranch FROM projects WHERE team_id=?').all(request.params.teamId);
+		const projects = database.prepare('SELECT id,team_id AS teamId,name,git_url AS gitUrl,archive_id AS archiveId,owner_id AS ownerId,default_branch AS defaultBranch FROM projects WHERE team_id=?').all(request.params.teamId);
 		const tasks = database.prepare('SELECT t.id,t.team_id AS teamId,t.title,t.description,t.status,t.assignee_id AS assigneeId,u.display_name AS assigneeName,t.position,t.due_at AS dueAt FROM tasks t LEFT JOIN users u ON u.id=t.assignee_id WHERE t.team_id=? ORDER BY t.status,t.position').all(request.params.teamId);
 		return { members, projects, tasks };
 	});
@@ -84,10 +84,21 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
 		if (!request.body.name?.trim() || !request.body.gitUrl?.trim()) { return reply.badRequest('Project name and Git URL are required'); }
 		const project = { id: id(), name: request.body.name.trim(), gitUrl: request.body.gitUrl.trim(), defaultBranch: request.body.defaultBranch?.trim() || 'main' };
-		database.prepare('INSERT INTO projects(id,team_id,name,git_url,default_branch,created_at) VALUES(?,?,?,?,?,?)').run(project.id, request.params.teamId, project.name, project.gitUrl, project.defaultBranch, new Date().toISOString());
+		database.prepare('INSERT INTO projects(id,team_id,name,git_url,owner_id,default_branch,created_at) VALUES(?,?,?,?,?,?,?)').run(project.id, request.params.teamId, project.name, project.gitUrl, user, project.defaultBranch, new Date().toISOString());
 		audit(user, 'project.create', request.params.teamId, 'project', project.id);
 		broadcast(request.params.teamId, 'project.changed');
 		return reply.code(201).send(project);
+	});
+
+	app.patch<{ Params: { teamId: string; projectId: string }; Body: { ownerMemberId?: string } }>('/v1/teams/:teamId/projects/:projectId', async (request, reply) => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'owner'); } catch (error) { mapAccessError(error); }
+		if (!request.body.ownerMemberId || !isMember(request.body.ownerMemberId, request.params.teamId)) { return reply.badRequest('Owner must belong to this team'); }
+		const result = database.prepare('UPDATE projects SET owner_id=? WHERE id=? AND team_id=?').run(request.body.ownerMemberId, request.params.projectId, request.params.teamId);
+		if (result.changes !== 1) { return reply.notFound(); }
+		audit(user, 'project.transfer', request.params.teamId, 'project', request.params.projectId, { ownerMemberId: request.body.ownerMemberId });
+		broadcast(request.params.teamId, 'project.changed');
+		return { ok: true };
 	});
 
 	app.post<{ Params: { teamId: string }; Body: { title?: string; description?: string; assigneeId?: string; dueAt?: string; status?: string } }>('/v1/teams/:teamId/tasks', async (request, reply) => {

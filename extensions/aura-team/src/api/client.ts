@@ -134,6 +134,7 @@ export class AuraApiClient implements vscode.Disposable {
 	revokeProxyToken(teamId: string, tokenId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/proxy-tokens/${tokenId}`, { method: 'DELETE' }); }
 	reportCommit(teamId: string, commitHash: string, repositoryUrl: string, message: string): Promise<void> { return this.request(`/v1/teams/${teamId}/commits`, { method: 'POST', body: JSON.stringify({ commitHash, repositoryUrl, message }) }); }
 	getServerUrl(): string { return this.baseUrl; }
+	transferProject(teamId: string, projectId: string, ownerMemberId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/projects/${projectId}`, { method: 'PATCH', body: JSON.stringify({ ownerMemberId }) }); }
 	updateTask(teamId: string, taskId: string, changes: { status?: TaskStatus; position?: number; assigneeId?: string | null }): Promise<TeamTask> {
 		return this.request(`/v1/teams/${teamId}/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(changes) });
 	}

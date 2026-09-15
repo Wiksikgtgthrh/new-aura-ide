@@ -298,6 +298,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		await vscode.workspace.fs.writeFile(destination, await api.downloadArchive(requireTeam(state), project.archiveId));
 		vscode.window.showInformationMessage(vscode.l10n.t('Archive saved to {0}.', destination.fsPath));
 	});
+	register('auraTeam.transferProject', async (projectId?: string, ownerMemberId?: string) => {
+		const project = projectId ? state.board?.projects.find(p => p.id === projectId) : undefined;
+		const target = ownerMemberId ? { id: ownerMemberId, label: ownerMemberId } : undefined;
+		const selected = target ?? await vscode.window.showQuickPick(state.board?.members.map(m => ({ label: m.displayName, description: m.email, id: m.id })) ?? [], { placeHolder: vscode.l10n.t('New project owner') });
+		if (!project?.id || !selected) { return; }
+		await api.transferProject(requireTeam(state), project.id, selected.id);
+		vscode.window.showInformationMessage(vscode.l10n.t('Project transferred to {0}.', selected.label));
+		await refresh();
+	});
 	register('auraTeam.openBoard', async () => { if (!state.board) { await refresh(); } if (state.board) { await boardPanel.show(state.board); } });
 	register('auraTeam.getProject', async (project?: Project) => git.getProject(project?.gitUrl ?? await requiredInput(vscode.l10n.t('Git repository URL'))));
 	register('auraTeam.saveWork', async (message?: string) => {
