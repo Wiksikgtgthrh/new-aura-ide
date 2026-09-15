@@ -113,7 +113,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	};
 
 	const openTab = async (view = 'team'): Promise<void> => {
-		const uri = vscode.Uri.from({ scheme: PANEL_SCHEME, authority: 'panel', path: '/main', query: `view=${view}` });
+		const uri = vscode.Uri.from({ scheme: PANEL_SCHEME, authority: 'panel', path: '/Aura Team', query: `view=${view}` });
 		try {
 			await vscode.commands.executeCommand('vscode.openWith', uri, PANEL_VIEW_TYPE);
 		} catch (error) {
@@ -337,12 +337,10 @@ class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
 	resolveWebviewView(webviewView: vscode.WebviewView): void {
 		webviewView.webview.options = { enableScripts: true };
 		webviewView.webview.html = `<!doctype html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';"></head><body style="display:flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:100vh;margin:0;padding:12px;font-family:var(--vscode-font-family);background:transparent"><div style="color:var(--vscode-descriptionForeground);font-size:12px;text-align:center">Aura Team…</div></body></html>`;
-		void (async () => {
-			try {
-				await this.open();
-				await vscode.commands.executeCommand('workbench.action.closeSidebar');
-			} catch (error) { /* вкладка не открылась — видна заглушка */ }
-		})();
+		// Иконка = лаунчер: сначала мгновенно закрыть сайдбар (пустая панель не живёт),
+		// затем открыть вкладку Aura Team.
+		void vscode.commands.executeCommand('workbench.action.closeSidebar');
+		void this.open().catch(() => undefined);
 	}
 }
 
