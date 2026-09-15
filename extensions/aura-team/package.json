@@ -2,8 +2,9 @@
 	"name": "aura-team",
 	"displayName": "%displayName%",
 	"description": "%description%",
-	"version": "0.5.0",
+	"version": "0.6.0",
 	"publisher": "aura",
+	"icon": "media/aura-team.svg",
 	"license": "MIT",
 	"engines": {
 		"vscode": "^1.100.0"
@@ -18,7 +19,8 @@
 		"onCommand:auraTeam.commitAll",
 		"onCommand:auraTeam.push",
 		"onCommand:auraTeam.pull",
-		"onCommand:auraTeam.checkout"
+		"onCommand:auraTeam.checkout",
+		"onView:auraTeam.home"
 	],
 	"main": "./out/extension",
 	"scripts": {
@@ -50,6 +52,20 @@
 					"description": "%configuration.demoMode%"
 				}
 			}
+		},
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "auraTeam",
+					"title": "%container.title%",
+					"icon": "media/aura-team.svg"
+				}
+			]
+		},
+		"views": {
+			"auraTeam": [
+				{ "id": "auraTeam.home", "name": "%view.home%", "type": "webview" }
+			]
 		},
 		"commands": [
 			{ "command": "auraTeam.open", "title": "%command.open%", "category": "Aura Team", "icon": "$(project)" },

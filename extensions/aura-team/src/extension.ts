@@ -133,6 +133,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			supportsMultipleEditorsPerDocument: false
 		}),
 		vscode.workspace.registerTextDocumentContentProvider(PANEL_SCHEME, { provideTextDocumentContent: () => '' }),
+		vscode.window.registerWebviewViewProvider('auraTeam.home', new AuraTeamLauncherViewProvider(() => openTab('team')), { webviewOptions: { retainContextWhenHidden: true } }),
 		vscode.commands.registerCommand('auraTeam.invoke', async (id: string, args: unknown[]) => handlerFor(id, args)),
 		vscode.commands.registerCommand('auraTeam.broadcast', () => broadcast()),
 		vscode.commands.registerCommand('auraTeam.open', () => openTab('team')),
@@ -325,6 +326,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	state.teamId = context.workspaceState.get<string>('auraTeam.teamId');
 	await updateSimpleModeContext();
 	await refresh();
+}
+
+/**
+ * Лаунчер в activity bar: клик по иконке Aura Team мгновенно открывает
+ * вкладку и закрывает сайдбар — таб-поверхность без боковой панели-плагина.
+ */
+class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
+	constructor(private readonly open: () => Promise<void>) { }
+	resolveWebviewView(webviewView: vscode.WebviewView): void {
+		webviewView.webview.options = { enableScripts: true };
+		webviewView.webview.html = `<!doctype html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';"></head><body style="display:flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:100vh;margin:0;padding:12px;font-family:var(--vscode-font-family);background:transparent"><div style="color:var(--vscode-descriptionForeground);font-size:12px;text-align:center">Aura Team…</div></body></html>`;
+		void (async () => {
+			try {
+				await this.open();
+				await vscode.commands.executeCommand('workbench.action.closeSidebar');
+			} catch (error) { /* вкладка не открылась — видна заглушка */ }
+		})();
+	}
 }
 
 function requireTeam(state: { teamId?: string }): string {
