@@ -8,7 +8,7 @@ import { AuraApiClient } from './api/client';
 import { connectGitHub } from './auth/github';
 import { GitService } from './git/service';
 import { ProfileManager } from './profile';
-import { AuraState, BoardSnapshot, Profile, Project, Session, TeamApiKey } from './types';
+import { AuraState, BoardSnapshot, Profile, Project, Session, TaskStatus, TeamApiKey } from './types';
 import { BoardPanel } from './views/board';
 import { AuraTeamPanelProvider } from './webview/panelProvider';
 
@@ -252,7 +252,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		await refresh();
 	});
 	register('auraTeam.createTask', async (title?: string, status?: string) => { await api.createTask(requireTeam(state), title ?? await requiredInput(vscode.l10n.t('Task title')), (status as never) ?? undefined); await refresh(); });
-	register('auraTeam.updateTask', async (taskId?: string, changes?: { status?: string; position?: number; assigneeId?: string | null }) => {
+	register('auraTeam.updateTask', async (taskId?: string, changes?: { status?: TaskStatus; position?: number; assigneeId?: string | null }) => {
 		if (!taskId) { throw new Error(vscode.l10n.t('Task ID is required.')); }
 		const updated = await api.updateTask(requireTeam(state), taskId, { status: changes?.status, position: changes?.position, assigneeId: changes?.assigneeId });
 		await refresh();
