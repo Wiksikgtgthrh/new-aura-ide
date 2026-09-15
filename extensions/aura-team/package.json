@@ -2,7 +2,7 @@
 	"name": "aura-team",
 	"displayName": "%displayName%",
 	"description": "%description%",
-	"version": "0.6.2",
+	"version": "0.7.0",
 	"publisher": "aura",
 	"icon": "media/aura-team.svg",
 	"license": "MIT",

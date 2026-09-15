@@ -412,6 +412,12 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 	font-size: 26px; font-weight: 800; color: #fff;
 	box-shadow: 0 10px 26px color-mix(in srgb, currentColor 45%, transparent);
 	animation: popIn .4s var(--ease);
+files: 'Файлы', filesTitle: 'Архивы команды',
+uploadArchive: 'Загрузить архив', archiveProject: 'Название проекта',
+archiveProjectPh: 'my-project (создаст запись проекта)',
+download: 'Скачать', hasArchive: 'Архив', noArchive: 'Нет архива',
+noFiles: 'Архивов пока нет — загрузите первый.',
+archiveDone: 'Архив загружен ✓', archiveSaved: 'Архив сохранён ✓',
 }
 .profile-hero .pname { font-size: 17px; font-weight: 700; }
 .id-strip { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
@@ -595,6 +601,12 @@ const DICT = {
 		team: 'Team', commitDone: 'Committed ✓', pushDone: 'Pushed ✓', pullDone: 'Pulled ✓', gitHubDone: 'GitHub connected ✓',
 		demoTeamCreated: 'Team created', demoTeamJoined: 'You joined the team', demoInvite: 'Code generated',
 		demoTaskAdded: 'Task added', demoRoleUpdated: 'Role updated', demoTeamSelected: 'Team selected',
+files: 'Files', filesTitle: 'Team archives',
+uploadArchive: 'Upload archive', archiveProject: 'Project name',
+archiveProjectPh: 'my-project (creates a project record)',
+download: 'Download', hasArchive: 'Archive', noArchive: 'No archive',
+noFiles: 'No archives yet — upload the first one.',
+archiveDone: 'Archive uploaded ✓', archiveSaved: 'Archive saved ✓',
 	}
 };
 const lang = (navigator.language || 'en').toLowerCase().startsWith('ru') ? 'ru' : 'en';
