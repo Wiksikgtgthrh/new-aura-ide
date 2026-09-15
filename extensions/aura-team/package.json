@@ -2,7 +2,7 @@
 	"name": "aura-team",
 	"displayName": "%displayName%",
 	"description": "%description%",
-	"version": "0.2.0",
+	"version": "0.5.0",
 	"publisher": "aura",
 	"license": "MIT",
 	"engines": {
@@ -18,8 +18,7 @@
 		"onCommand:auraTeam.commitAll",
 		"onCommand:auraTeam.push",
 		"onCommand:auraTeam.pull",
-		"onCommand:auraTeam.checkout",
-		"onView:auraTeam.home"
+		"onCommand:auraTeam.checkout"
 	],
 	"main": "./out/extension",
 	"scripts": {
@@ -51,20 +50,6 @@
 					"description": "%configuration.demoMode%"
 				}
 			}
-		},
-		"viewsContainers": {
-			"activitybar": [
-				{
-					"id": "auraTeam",
-					"title": "%container.title%",
-					"icon": "media/aura-team.svg"
-				}
-			]
-		},
-		"views": {
-			"auraTeam": [
-				{ "id": "auraTeam.home", "name": "%view.home%" }
-			]
 		},
 		"commands": [
 			{ "command": "auraTeam.open", "title": "%command.open%", "category": "Aura Team", "icon": "$(project)" },
@@ -102,10 +87,6 @@
 			{ "command": "auraTeam.getState", "title": "%command.getState%", "category": "Aura Team" }
 		],
 		"menus": {
-			"view/title": [
-				{ "command": "auraTeam.open", "when": "view == auraTeam.home", "group": "navigation" },
-				{ "command": "auraTeam.openProfile", "when": "view == auraTeam.home", "group": "navigation@1" }
-			],
 			"commandPalette": [
 				{ "command": "auraTeam.getState", "when": "false" }
 			]

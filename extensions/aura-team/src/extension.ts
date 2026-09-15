@@ -133,7 +133,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			supportsMultipleEditorsPerDocument: false
 		}),
 		vscode.workspace.registerTextDocumentContentProvider(PANEL_SCHEME, { provideTextDocumentContent: () => '' }),
-		vscode.window.registerWebviewViewProvider('auraTeam.home', new AuraTeamLauncherViewProvider(() => openTab('team'))),
 		vscode.commands.registerCommand('auraTeam.invoke', async (id: string, args: unknown[]) => handlerFor(id, args)),
 		vscode.commands.registerCommand('auraTeam.broadcast', () => broadcast()),
 		vscode.commands.registerCommand('auraTeam.open', () => openTab('team')),
@@ -326,17 +325,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	state.teamId = context.workspaceState.get<string>('auraTeam.teamId');
 	await updateSimpleModeContext();
 	await refresh();
-}
-
-/** Минимальный лаунчер в activity bar: клик по иконке открывает вкладку Aura Team. */
-class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
-	constructor(private readonly open: () => Promise<void>) { }
-	resolveWebviewView(webviewView: vscode.WebviewView): void {
-		webviewView.webview.options = { enableScripts: true };
-		const title = vscode.l10n.t('Open Aura Team');
-		webviewView.webview.html = `<!doctype html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';"></head><body style="display:flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:100vh;margin:0;padding:12px;font-family:var(--vscode-font-family);background:transparent"><button id="open" style="width:100%;padding:10px 12px;border:none;border-radius:8px;background:var(--vscode-button-background);color:var(--vscode-button-foreground);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer">${title}</button><script>document.getElementById('open').addEventListener('click', () => acquireVsCodeApi().postMessage({ type: 'open' }));</script></body></html>`;
-		webviewView.webview.onDidReceiveMessage(message => { if (message?.type === 'open') { void this.open(); } });
-	}
 }
 
 function requireTeam(state: { teamId?: string }): string {

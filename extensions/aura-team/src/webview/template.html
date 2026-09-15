@@ -467,7 +467,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 			<div class="brand-name">Aura Team <span id="connBadge" class="badge">&nbsp;</span></div>
 		</div>
 		<div class="top-right">
-			<button id="avatarBtn" class="avatar" title="Профиль"></button>
+			<button id="avatarBtn" class="avatar" data-tt="profile"></button>
 			<div id="avatarMenu" class="popover hidden">
 				<div class="popover-head">
 					<div class="name" id="popName">—</div>
@@ -475,24 +475,24 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 				</div>
 				<button class="popover-item" data-act="profile">
 					<svg class="ico" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.6" stroke="currentColor" stroke-width="1.7"/><path d="M5 20c1.4-3.4 3.9-5 7-5s5.6 1.6 7 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-					Профиль
+					<span data-t="profile"></span>
 				</button>
 				<button class="popover-item danger" data-act="logout">
 					<svg class="ico" viewBox="0 0 24 24" fill="none"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 8l-4 4 4 4M6 12h9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-					Выйти
+					<span data-t="logout"></span>
 				</button>
 			</div>
 		</div>
 	</header>
 
 	<nav class="rail">
-		<button class="rail-btn" data-view="teams" id="navTeams" title="Команды">
+		<button class="rail-btn" data-view="teams" id="navTeams" data-tt="teams">
 			<svg viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8.5" r="3.4" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 19c1.2-2.9 3-4.3 5.5-4.3s4.3 1.4 5.5 4.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="16.5" cy="9.3" r="2.4" stroke="currentColor" stroke-width="1.7"/><path d="M18.7 14.6c1.5.8 2.5 2.2 2.9 4.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
 		</button>
-		<button class="rail-btn" data-view="keys" id="navKeys" title="Банк ключей">
+		<button class="rail-btn" data-view="keys" id="navKeys" data-tt="keys">
 			<svg viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="15" r="4" stroke="currentColor" stroke-width="1.7"/><path d="M11.3 12.2L19 4.5M16.5 7l2.5 2.5M13.5 10l2-2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
 		</button>
-		<button class="rail-btn" data-view="profile" id="navProfile" title="Профиль">
+		<button class="rail-btn" data-view="profile" id="navProfile" data-tt="profile">
 			<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.6" stroke="currentColor" stroke-width="1.7"/><path d="M5 20c1.4-3.4 3.9-5 7-5s5.6 1.6 7 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
 		</button>
 	</nav>
@@ -549,6 +549,52 @@ const DICT = {
 		regServerBtn: 'Зарегистрироваться', regServerDone: 'Аккаунт создан — проверьте почту/лог сервера и верифицируйте email',
 		verifNote: 'После регистрации приходит ссылка верификации (в письме или в логе сервера).',
 		regNameShort: 'Имя — минимум 2 символа', regBadEmail: 'Некорректный email', regPassShort: 'Пароль — минимум 10 символов',
+		team: 'Команда', commitDone: 'Закоммичено ✓', pushDone: 'Отправлено ✓', pullDone: 'Обновлено ✓', gitHubDone: 'GitHub подключён ✓',
+		demoTeamCreated: 'Команда создана', demoTeamJoined: 'Вы вступили в команду', demoInvite: 'Код сгенерирован',
+		demoTaskAdded: 'Задача добавлена', demoRoleUpdated: 'Роль обновлена', demoTeamSelected: 'Команда выбрана',
+	},
+	en: {
+		connDemo: 'Demo', connLive: 'Online', connOff: 'Offline',
+		profile: 'Profile', logout: 'Sign out', teams: 'Teams', keys: 'Key vault',
+		myTeams: 'My teams', createTeam: 'Create team', joinTeam: 'Join with code',
+		invite: 'Invite code', copied: 'Copied', copy: 'Copy',
+		teamName: 'Team name', newTeamSub: 'Name the team — others can join with its code.',
+		inviteCode: 'Invite code', inviteSub: 'Paste the code given to you by the team owner.',
+		create: 'Create', join: 'Join', cancel: 'Cancel', save: 'Save',
+		members: 'Members', board: 'Board', git: 'Git',
+		addTask: '+ Task', addTaskPh: 'New task…',
+		noRepo: 'No repository open — open a folder with a Git project.',
+		branch: 'Branch', commitMsg: 'Commit message', commitPush: 'Commit & push',
+		push: 'Push', pull: 'Pull', undo: 'Undo changes', revert: 'Revert commit',
+		changes: 'Changes', history: 'History', noChanges: 'No changes',
+		keysTitle: 'Team API key vault', addKey: '+ Add key',
+		keyName: 'Name', keyProvider: 'Provider', keyRole: 'Minimum role',
+		keyPriority: 'Priority (0 is highest)', keyValue: 'Key', disabled: 'Disabled',
+		profileTitle: 'Profile', nickname: 'Nickname', id: 'ID', description: 'Description',
+		descrPh: 'A few words about you…', saveProfile: 'Save profile',
+		serverStatus: 'Server', demoNote: 'Demo mode: server is off, data is local — for preview. Connect aura-team-server to enable real work.',
+		regTitle: 'Create your profile', regSub: 'Nickname, description and ID are stored locally. We will connect the server later.',
+		regNick: 'Nickname', regEmail: 'Email (optional)', regDesc: 'Description (optional)',
+		regBtn: 'Get started', regDone: 'Profile created!', welcome: 'Welcome to Aura Team',
+		justNow: 'just now', activeTeam: 'Active team',
+		emptyTeams: 'No teams yet — create the first one or join with an invite code.',
+		emptyKeys: 'No keys yet — add the first team key.',
+		needTeam: 'Join a team first',
+		confirm: 'Confirm', yesKeep: 'Continue', sure: 'Are you sure?',
+		roleOwner: 'Owner', roleMaintainer: 'Maintainer', roleDev: 'Developer', roleViewer: 'Viewer',
+		statusBacklog: 'Backlog', statusTodo: 'To do', statusDoing: 'In progress', statusReview: 'Review', statusDone: 'Done',
+		gitHub: 'Connect GitHub', server: 'Server', demo: 'demo',
+		loginTitle: 'Sign in to Aura Team', loginSub: 'Sign in with email and password to work with your server.',
+		loginEmail: 'Email', loginPassword: 'Password', loginBtn: 'Sign in',
+		noAccount: 'No account?', registerLink: 'Create on server',
+		loginFail: 'Sign in failed', orLocalProfile: 'or continue with a local profile (demo):',
+		tabLogin: 'Sign in', tabRegister: 'Create account', regName: 'Name', regServerPass: 'Password (10+ characters)',
+		regServerBtn: 'Create account', regServerDone: 'Account created — check your inbox/server log and verify the email',
+		verifNote: 'After registration you receive a verification link (in the email or the server log).',
+		regNameShort: 'Name — at least 2 characters', regBadEmail: 'Invalid email', regPassShort: 'Password — at least 10 characters',
+		team: 'Team', commitDone: 'Committed ✓', pushDone: 'Pushed ✓', pullDone: 'Pulled ✓', gitHubDone: 'GitHub connected ✓',
+		demoTeamCreated: 'Team created', demoTeamJoined: 'You joined the team', demoInvite: 'Code generated',
+		demoTaskAdded: 'Task added', demoRoleUpdated: 'Role updated', demoTeamSelected: 'Team selected',
 	}
 };
 const lang = (navigator.language || 'en').toLowerCase().startsWith('ru') ? 'ru' : 'en';
@@ -660,12 +706,12 @@ async function demo(command, args, talk = true) {
 	const ok = (msg) => { if (talk) { toast(msg, 'ok'); } };
 	if (command === 'auraTeam.createTeam') {
 		state.session.teams.push({ id: 't' + Date.now(), name: args[0] || 'Команда', role: 'owner' });
-		ok('Команда создана');
+		ok(T('demoTeamCreated'));
 	} else if (command === 'auraTeam.joinTeam') {
 		state.session.teams.push({ id: 't' + Date.now(), name: 'Команда · ' + (args[0] || ''), role: 'dev' });
-		ok('Вы вступили в команду');
+		ok(T('demoTeamJoined'));
 	} else if (command === 'auraTeam.createInvite') {
-		ok('Код сгенерирован');
+		ok(T('demoInvite'));
 		return { code: 'DEMO-' + Math.random().toString(36).slice(2, 8).toUpperCase() };
 	} else if (command === 'auraTeam.createTask') {
 		state.board.tasks.push({
@@ -673,14 +719,14 @@ async function demo(command, args, talk = true) {
 			description: '', status: args[1] || 'todo', position: 0,
 			assigneeId: 'demo-me', assigneeName: state.profile.nickname || 'Вы'
 		});
-		ok('Задача добавлена');
+		ok(T('demoTaskAdded'));
 	} else if (command === 'auraTeam.changeRole') {
 		const [memberId, role] = args;
 		const member = state.board?.members.find(m => m.id === memberId);
-		if (member) { member.role = role; ok('Роль обновлена'); }
+		if (member) { member.role = role; 		ok(T('demoRoleUpdated')); }
 	} else if (command === 'auraTeam.selectTeam') {
 		state.teamId = args[0] ?? state.teamId;
-		ok('Команда выбрана');
+		ok(T('demoTeamSelected'));
 	} else {
 		return svc(command, args);
 	}
@@ -725,6 +771,8 @@ function updateChrome() {
 	if (!badge) { return; }
 	badge.textContent = state.demoMode ? T('connDemo') : state.signedIn ? T('connLive') : T('connOff');
 	badge.className = 'badge ' + (state.demoMode ? 'demo' : state.signedIn ? 'live' : 'off');
+	document.querySelectorAll('[data-t]').forEach((el) => { el.textContent = T(el.dataset.t); });
+	document.querySelectorAll('[data-tt]').forEach((el) => { el.title = T(el.dataset.tt); });
 	const btn = avatarBtn();
 	if (btn) {
 		const color = flattenColor(state.profile?.avatarColor);
@@ -877,7 +925,7 @@ function wireAuth() {
 		const value = nick.value.trim();
 		const valid = value.length >= 2;
 		err.classList.toggle('hidden', valid);
-		if (!valid) { err.textContent = 'Минимум 2 символа'; }
+		if (!valid) { 		err.textContent = T('regNameShort'); }
 		return valid;
 	};
 	nick.addEventListener('input', validate);
@@ -944,7 +992,7 @@ function renderTeamDetail(tab) {
 		['board', T('board')],
 		['git', T('git')],
 	];
-	return `<div class="section-title mt16">Команда</div>
+	return `<div class="section-title mt16">${esc(T('team'))}</div>
 		<div class="tabs">${tabs.map(([id, label]) => `<button class="tab ${tab === id ? 'active' : ''}" data-tab="${id}">${esc(label)}</button>`).join('')}</div>
 		<div data-tab-body>${tab === 'members' ? renderMembers(board) : tab === 'board' ? renderBoard(board) : renderGit()}</div>`;
 }
@@ -1055,7 +1103,7 @@ function wireGit() {
 		commitBtn.innerHTML = '<span class="spin"></span>';
 		try {
 			await demo('auraTeam.commitAll', [msg.value.trim()]);
-			toast('Committed ✓', 'ok');
+			toast(T('commitDone'), 'ok');
 			msg.value = '';
 		} catch (err) { toast(err.message, 'err'); }
 		commitBtn.disabled = false;
@@ -1063,9 +1111,9 @@ function wireGit() {
 		else { render(); }
 	});
 	const pushBtn = document.getElementById('btnPush');
-	pushBtn?.addEventListener('click', async () => { try { await demo('auraTeam.push', []); toast('Pushed ✓', 'ok'); } catch (err) { toast(err.message, 'err'); } });
+		pushBtn?.addEventListener('click', async () => { try { await demo('auraTeam.push', []); toast(T('pushDone'), 'ok'); } catch (err) { toast(err.message, 'err'); } });
 	const pullBtn = document.getElementById('btnPull');
-	pullBtn?.addEventListener('click', async () => { try { await demo('auraTeam.pull', []); toast('Pulled ✓', 'ok'); } catch (err) { toast(err.message, 'err'); } });
+		pullBtn?.addEventListener('click', async () => { try { await demo('auraTeam.pull', []); toast(T('pullDone'), 'ok'); } catch (err) { toast(err.message, 'err'); } });
 	const branchBtn = document.getElementById('btnBranch');
 	branchBtn?.addEventListener('click', async () => {
 		let branches = [];
@@ -1092,7 +1140,7 @@ function wireGit() {
 	const gitHubBtn = document.getElementById('btnGitHub');
 	gitHubBtn?.addEventListener('click', async () => {
 		if (state.demoMode) { toast(T('demo')); return; }
-		try { await svc('auraTeam.connectGitHub', []); toast('GitHub ✓', 'ok'); } catch (err) { toast(err.message, 'err'); }
+		try { await svc('auraTeam.connectGitHub', []); toast(T('gitHubDone'), 'ok'); } catch (err) { toast(err.message, 'err'); }
 	});
 }
 function confirmAction(label, job) {
