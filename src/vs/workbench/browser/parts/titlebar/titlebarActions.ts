@@ -12,6 +12,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activity.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IsMainWindowFullscreenContext, IsCompactTitleBarContext, TitleBarStyleContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
 import { NotificationsPosition, NotificationsSettings } from '../../../common/notifications.js';
@@ -291,3 +292,20 @@ export const GLOBAL_ACTIVITY_TITLE_ACTION: IAction = {
 	enabled: true,
 	run: function (): void { }
 };
+
+// --- Aura IDE: собственная кнопка Aura Team в титулбаре.
+// Нативный accounts (Sign In) убран в titlebarPart.ts — вместо него эта кнопка
+// (меню TitleBar, самый правый глобальный экшен, не прячется в overflow). ---
+registerAction2(class AuraTeamOpenAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.auraTeamOpen',
+			title: localize('auraTeam.openTitle', 'Aura Team'),
+			menu: { id: MenuId.TitleBar, order: 100 }
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		void accessor.get(ICommandService).executeCommand('auraTeam.open').then(undefined, () => undefined);
+	}
+});
