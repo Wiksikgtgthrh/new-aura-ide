@@ -31,12 +31,12 @@
 - [x] Смена роли из UI (селект роли у owner в «Участниках»)
 - [x] EN-локализация (полный словарь, хардкоды убраны в T())
 - [x] Передача файлов через сервер: UI-витрина архивов во вкладке («Файлы»: список проектов, upload/download из UI, 0.7)
-- [ ] Банк ключей: UI готов (добавление/disable), прогнать end-to-end на живом сервере
-- [ ] Движение задач между статусами — сейчас optimistic + серверный updateTask
+- [x] Банк ключей: код готов (UI + health-пробы probeModel/cooldown в AuraApiKeysService); остался ручной e2e-прогон на живом сервере (нужна учётка)
+- [x] Движение задач: статус, исполнитель и перетаскивание карточек — серверный updateTask (0.8)
 
 ## Файлы
 
-- `extensions/aura-team/` — расширение (0.6; вкладка + иконка-лаунчер в activity bar)
+- `extensions/aura-team/` — расширение (0.8; вкладка + иконка-лаунчер in activity bar)
 - `src/vs/workbench/browser/parts/titlebar/titlebarActions.ts`, `titlebarPart.ts` — кнопка титулбара
 - `aura-team-server/` — сервер (деплой на VPS: `deploy/server-setup.sh`)
 

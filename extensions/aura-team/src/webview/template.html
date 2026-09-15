@@ -461,6 +461,9 @@ archiveDone: 'Архив загружен ✓', archiveSaved: 'Архив сох
 .right { margin-left: auto; }
 .center { text-align: center; }
 .section-title { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); margin: 18px 0 10px; }
+.task-card.dragging{opacity:.45;transform:rotate(1deg)}
+.col.drop-target{outline:1px dashed var(--vscode-focusBorder,#007fd4);outline-offset:2px;border-radius:10px}
+.task-assignee{max-width:110px}
 </style>
 </head>
 <body>
@@ -558,6 +561,8 @@ const DICT = {
 		team: 'Команда', commitDone: 'Закоммичено ✓', pushDone: 'Отправлено ✓', pullDone: 'Обновлено ✓', gitHubDone: 'GitHub подключён ✓',
 		demoTeamCreated: 'Команда создана', demoTeamJoined: 'Вы вступили в команду', demoInvite: 'Код сгенерирован',
 		demoTaskAdded: 'Задача добавлена', demoRoleUpdated: 'Роль обновлена', demoTeamSelected: 'Команда выбрана',
+	assignee: 'Исполнитель', noAssignee: 'Не назначен',
+	taskMoved: 'Задача перенесена',
 	},
 	en: {
 		connDemo: 'Demo', connLive: 'Online', connOff: 'Offline',
@@ -607,6 +612,8 @@ archiveProjectPh: 'my-project (creates a project record)',
 download: 'Download', hasArchive: 'Archive', noArchive: 'No archive',
 noFiles: 'No archives yet — upload the first one.',
 archiveDone: 'Archive uploaded ✓', archiveSaved: 'Archive saved ✓',
+	assignee: 'Assignee', noAssignee: 'Unassigned',
+	taskMoved: 'Task moved',
 	}
 };
 const lang = (navigator.language || 'en').toLowerCase().startsWith('ru') ? 'ru' : 'en';
@@ -747,6 +754,16 @@ async function demo(command, args, talk = true) {
 		project.archiveId = 'demo-archive-' + Date.now();
 		if (!projects.includes(project)) { projects.push(project); }
 		ok(T('archiveDone'));
+	} else if (command === 'auraTeam.updateTask') {
+		const [taskId, changes] = args;
+		const task = state.board?.tasks.find((t) => t.id === taskId);
+		if (task && changes) {
+			if (changes.status) { task.status = changes.status; }
+			if (typeof changes.position === 'number') { task.position = changes.position; }
+			if (changes.assigneeId === null || changes.assigneeId === undefined) { task.assigneeId = undefined; task.assigneeName = undefined; }
+			else { const m = state.board?.members.find((x) => x.id === changes.assigneeId); task.assigneeId = changes.assigneeId; task.assigneeName = m?.displayName || task.assigneeName; }
+		}
+		ok(T('taskMoved'));
 	} else if (command === 'auraTeam.downloadArchive') {
 		ok(T('archiveSaved'));
 	} else {
@@ -1044,6 +1061,19 @@ function wireMembers() {
 	}));
 }
 
+function assigneeOptionsHtml(task) {
+	const parts = [];
+	const members = state.board && state.board.members ? state.board.members : [];
+	parts.push('<option value="">' + esc(T('noAssignee')) + '</option>');
+	if (task.assigneeId && !members.some((m) => m.id === task.assigneeId)) {
+		parts.push('<option value="' + esc(task.assigneeId) + '" selected>' + esc(task.assigneeName || task.assigneeId) + '</option>');
+	}
+	for (let i = 0; i < members.length; i++) {
+		const m = members[i];
+		parts.push('<option value="' + esc(m.id) + '"' + (m.id === task.assigneeId ? ' selected' : '') + '>' + esc(m.displayName) + '</option>');
+	}
+	return parts.join('');
+}
 function renderBoard(board) {
 	const statuses = [
 		['backlog', T('statusBacklog')], ['todo', T('statusTodo')], ['doing', T('statusDoing')], ['review', T('statusReview')], ['done', T('statusDone')]
@@ -1051,14 +1081,15 @@ function renderBoard(board) {
 	return `<div class="board-cols">
 		${statuses.map(([id, label], ci) => {
 			const tasks = board.tasks.filter((t) => t.status === id);
-			return `<div class="col" style="--i:${ci}">
+			return `<div class="col" style="--i:${ci}" data-status="${id}">
 				<div class="col-head"><span class="col-title">${esc(label)}</span><span class="col-count">${tasks.length}</span></div>
-				${tasks.map((task, i) => `<div class="task-card" style="--i:${i}">
+				${tasks.map((task, i) => `<div class="task-card" style="--i:${i}" draggable="true" data-task="${esc(task.id)}">
 					<div class="task-title">${esc(task.title)}</div>
 					${task.description ? `<div class="task-desc">${esc(task.description)}</div>` : ''}
 					<div class="task-meta">
 						<span class="task-assignee">${task.assigneeName ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.6" stroke="currentColor" stroke-width="1.7"/><path d="M5 20c1.4-3.4 3.9-5 7-5s5.6 1.6 7 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg> ${esc(task.assigneeName)}` : ''}</span>
 						<select class="task-status" data-task="${esc(task.id)}">${statuses.map(([sid]) => `<option value="${sid}" ${sid === task.status ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select>
+						<select class="task-assignee" data-task="${esc(task.id)}" title="${esc(T('assignee'))}">${assigneeOptionsHtml(task)}</select>
 					</div>
 				</div>`).join('')}
 				<button class="btn ghost add-task" data-status="${id}">${esc(T('addTask'))}</button>
@@ -1069,7 +1100,40 @@ function renderBoard(board) {
 function wireBoard() {
 	document.querySelectorAll('.task-status').forEach((s) => s.addEventListener('change', async () => {
 		const task = state.board.tasks.find((t) => t.id === s.dataset.task);
-		if (task) { task.status = s.value; await demo('auraTeam.updateTask', []).catch(() => {}); render(); }
+		if (task) { task.status = s.value; try { await demo('auraTeam.updateTask', [task.id, { status: s.value }]); } catch (e) { toast(e.message, 'err'); } render(); }
+	}));
+	let dragId = null;
+	const cards = document.querySelectorAll('.task-card');
+	cards.forEach((c) => {
+		c.addEventListener('dragstart', () => { dragId = c.dataset.task; c.classList.add('dragging'); });
+		c.addEventListener('dragend', () => { dragId = null; cards.forEach((x) => x.classList.remove('dragging')); });
+	});
+	document.querySelectorAll('.col').forEach((col) => {
+		col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('drop-target'); });
+		col.addEventListener('dragleave', () => col.classList.remove('drop-target'));
+		col.addEventListener('drop', async (e) => {
+			e.preventDefault();
+			col.classList.remove('drop-target');
+			if (!dragId) { return; }
+			const moved = state.board.tasks.find((t) => t.id === dragId);
+			const toStatus = col.dataset.status;
+			if (!moved || !toStatus) { return; }
+			const siblings = state.board.tasks.filter((t) => t.status === toStatus);
+			const position = siblings.length ? Math.max.apply(null, siblings.map((t) => t.position || 0)) + 1 : 0;
+			moved.status = toStatus;
+			moved.position = position;
+			try { await demo('auraTeam.updateTask', [moved.id, { status: toStatus, position: position }]); } catch (err) { toast(err.message, 'err'); }
+			render();
+		});
+	});
+	document.querySelectorAll('.task-assignee').forEach((sel) => sel.addEventListener('change', async () => {
+		const task = state.board.tasks.find((t) => t.id === sel.dataset.task);
+		if (!task) { return; }
+		const member = state.board.members.find((m) => m.id === sel.value);
+		task.assigneeId = sel.value || undefined;
+		task.assigneeName = member ? member.displayName : task.assigneeName;
+		try { await demo('auraTeam.updateTask', [task.id, { assigneeId: sel.value || null }]); } catch (err) { toast(err.message, 'err'); }
+		render();
 	}));
 	document.querySelectorAll('.add-task').forEach((btn) => btn.addEventListener('click', () => {
 		const status = btn.dataset.status;
@@ -1086,7 +1150,6 @@ function wireBoard() {
 		setTimeout(() => document.querySelector('[data-task-title]')?.focus(), 30);
 	}));
 }
-
 /* ---------- Файлы (витрина архивов) ---------- */
 function renderFiles(board) {
 	const projects = board.projects ?? [];
