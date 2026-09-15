@@ -133,7 +133,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			supportsMultipleEditorsPerDocument: false
 		}),
 		vscode.workspace.registerTextDocumentContentProvider(PANEL_SCHEME, { provideTextDocumentContent: () => '' }),
-		vscode.window.registerWebviewViewProvider('auraTeam.home', new AuraTeamLauncherViewProvider(() => openTab('team')), { webviewOptions: { retainContextWhenHidden: true } }),
+		vscode.window.registerWebviewViewProvider('auraTeam.home', new AuraTeamLauncherViewProvider((view) => openTab(view)), { webviewOptions: { retainContextWhenHidden: true } }),
 		vscode.commands.registerCommand('auraTeam.invoke', async (id: string, args: unknown[]) => handlerFor(id, args)),
 		vscode.commands.registerCommand('auraTeam.broadcast', () => broadcast()),
 		vscode.commands.registerCommand('auraTeam.open', () => openTab('team')),
@@ -329,18 +329,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 /**
- * Лаунчер в activity bar: клик по иконке Aura Team мгновенно открывает
- * вкладку и закрывает сайдбар — таб-поверхность без боковой панели-плагина.
+ * Лаунчер в activity bar: клик по иконке Aura Team открывает вкладку.
+ * Панель-заглушка закрывается сама; если первая попытка не сработала
+ * (precondition SideBarVisibleContext в момент открытия), повторяется через 300 мс.
  */
 class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
-	constructor(private readonly open: () => Promise<void>) { }
+	constructor(private readonly open: (view: string) => Promise<void>) { }
 	resolveWebviewView(webviewView: vscode.WebviewView): void {
 		webviewView.webview.options = { enableScripts: true };
-		webviewView.webview.html = `<!doctype html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';"></head><body style="display:flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:100vh;margin:0;padding:12px;font-family:var(--vscode-font-family);background:transparent"><div style="color:var(--vscode-descriptionForeground);font-size:12px;text-align:center">Aura Team…</div></body></html>`;
-		// Иконка = лаунчер: сначала мгновенно закрыть сайдбар (пустая панель не живёт),
-		// затем открыть вкладку Aura Team.
-		void vscode.commands.executeCommand('workbench.action.closeSidebar');
-		void this.open().catch(() => undefined);
+		const launch = (view: string): void => { void this.open(view); void vscode.commands.executeCommand('workbench.action.closeSidebar'); };
+		webviewView.webview.html = `<!doctype html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';"></head><body style="margin:0;box-sizing:border-box;height:100vh;display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:8px;padding:14px;background:transparent;font-family:var(--vscode-font-family);color:var(--vscode-foreground)"><div style="text-align:center;font-weight:700;font-size:13px;margin-bottom:4px">Aura Team</div><button data-v="team" style="width:100%;padding:9px 12px;border:none;border-radius:8px;background:var(--vscode-button-background);color:var(--vscode-button-foreground);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer">${vscode.l10n.t('Open tab')}</button><button data-v="profile" style="width:100%;padding:8px 12px;border:1px solid var(--vscode-widget-border,transparent);border-radius:8px;background:transparent;color:var(--vscode-foreground);font:inherit;font-size:12.5px;cursor:pointer">${vscode.l10n.t('Profile')}</button><script>document.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => acquireVsCodeApi().postMessage({ type: 'launch', view: b.dataset.v })));</script></body></html>`;
+		webviewView.webview.onDidReceiveMessage(message => { if (message?.type === 'launch') { launch(message.view === 'profile' ? 'profile' : 'team'); } });
+		// Автозапуск по клику на иконку + закрытие заглушки (повтор через 300 мс).
+		launch('team');
+		setTimeout(() => void vscode.commands.executeCommand('workbench.action.closeSidebar'), 300);
 	}
 }
 
