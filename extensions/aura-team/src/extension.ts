@@ -17,7 +17,7 @@ const PANEL_VIEW_TYPE = 'auraTeam.panel';
 const PANEL_SCHEME = 'aura-team';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-	const output = vscode.window.createOutputChannel('Aura Team');
+	const output = vscode.window.createOutputChannel('Team');
 	const api = new AuraApiClient(context, output);
 	const gitExtension = vscode.extensions.getExtension('vscode.git');
 	await gitExtension?.activate();
@@ -33,7 +33,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const boardPanel = new BoardPanel(api, () => state.teamId, async () => refresh());
 	const provider = new AuraTeamPanelProvider(context.extensionUri);
 
-	const demoMode = (): boolean => vscode.workspace.getConfiguration('auraTeam').get<boolean>('demoMode', true);
+	const demoMode = (): boolean => vscode.workspace.getConfiguration('auraTeam').get<boolean>('demoMode', false);
 	const simpleMode = (): boolean => vscode.workspace.getConfiguration('auraTeam').get<boolean>('simpleMode', true);
 	const serverUrl = (): string => vscode.workspace.getConfiguration('auraTeam').get<string>('serverUrl', 'https://auraide.xyz');
 
@@ -118,12 +118,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	};
 
 	const openTab = async (view = 'team'): Promise<void> => {
-		const uri = vscode.Uri.from({ scheme: PANEL_SCHEME, authority: 'panel', path: '/Aura Team', query: `view=${view}` });
+		const uri = vscode.Uri.from({ scheme: PANEL_SCHEME, authority: 'panel', path: '/Team', query: `view=${view}` });
 		try {
 			await vscode.commands.executeCommand('vscode.openWith', uri, PANEL_VIEW_TYPE);
 		} catch (error) {
 			// Фолбэк: если кастомный редактор недоступен — обычная webview-панель.
-			const panel = vscode.window.createWebviewPanel(PANEL_VIEW_TYPE, vscode.l10n.t('Aura Team'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
+			const panel = vscode.window.createWebviewPanel(PANEL_VIEW_TYPE, vscode.l10n.t('Team'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
 			provider.attachFallback(panel, view);
 			output.appendLine(`[open] fallback panel: ${errorMessage(error)}`);
 		}
@@ -243,7 +243,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		const credential = await api.createProxyToken(teamId, 'openai', model);
 		try {
 			await vscode.commands.executeCommand('auraApi.addTeamProxy', {
-				name: 'Aura Team · OpenAI',
+				name: 'Team · OpenAI',
 				baseUrl: `${api.getServerUrl()}/v1/teams/${teamId}/proxy/openai/v1`,
 				model,
 				token: credential.token,
@@ -379,7 +379,7 @@ class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
 	resolveWebviewView(webviewView: vscode.WebviewView): void {
 		webviewView.webview.options = { enableScripts: true };
 		const launch = (view: string): void => { void this.open(view); void vscode.commands.executeCommand('workbench.action.closeSidebar'); };
-		webviewView.webview.html = `<!doctype html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';"></head><body style="margin:0;box-sizing:border-box;height:100vh;display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:8px;padding:14px;background:transparent;font-family:var(--vscode-font-family);color:var(--vscode-foreground)"><div style="text-align:center;font-weight:700;font-size:13px;margin-bottom:4px">Aura Team</div><button data-v="team" style="width:100%;padding:9px 12px;border:none;border-radius:8px;background:var(--vscode-button-background);color:var(--vscode-button-foreground);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer">${vscode.l10n.t('Open tab')}</button><button data-v="profile" style="width:100%;padding:8px 12px;border:1px solid var(--vscode-widget-border,transparent);border-radius:8px;background:transparent;color:var(--vscode-foreground);font:inherit;font-size:12.5px;cursor:pointer">${vscode.l10n.t('Profile')}</button><script>document.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => acquireVsCodeApi().postMessage({ type: 'launch', view: b.dataset.v })));</script></body></html>`;
+		webviewView.webview.html = `<!doctype html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';"></head><body style="margin:0;box-sizing:border-box;height:100vh;display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:8px;padding:14px;background:transparent;font-family:var(--vscode-font-family);color:var(--vscode-foreground)"><div style="text-align:center;font-weight:700;font-size:13px;margin-bottom:4px">Team</div><button data-v="team" style="width:100%;padding:9px 12px;border:none;border-radius:8px;background:var(--vscode-button-background);color:var(--vscode-button-foreground);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer">${vscode.l10n.t('Open tab')}</button><button data-v="profile" style="width:100%;padding:8px 12px;border:1px solid var(--vscode-widget-border,transparent);border-radius:8px;background:transparent;color:var(--vscode-foreground);font:inherit;font-size:12.5px;cursor:pointer">${vscode.l10n.t('Profile')}</button><script>document.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => acquireVsCodeApi().postMessage({ type: 'launch', view: b.dataset.v })));</script></body></html>`;
 		webviewView.webview.onDidReceiveMessage(message => { if (message?.type === 'launch') { launch(message.view === 'profile' ? 'profile' : 'team'); } });
 		// Автозапуск по клику на иконку + закрытие заглушки (повтор через 300 мс).
 		launch('team');

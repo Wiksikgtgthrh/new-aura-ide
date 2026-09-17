@@ -1504,14 +1504,16 @@ export class ChatEntitlementContext extends Disposable {
 	private _forceHidden = false;
 
 	private withConfiguration(state: IChatEntitlementContextState): IChatEntitlementContextState {
-		// Aura IDE: Copilot-вход и setup скрыты полностью — вместо них собственный вход по email.
-		// Всегда hidden=true: исходная настройка больше не влияет на видимость.
-		void this._forceHidden;
-		void this.configurationService;
-		return {
-			...state,
-			hidden: true
-		};
+		// Aura IDE: чат остаётся включённым (агенты регистрируются), но Copilot-вход
+		// скрыт из статус-бара отдельно. Здесь скрытие НЕ форсируется.
+		if (this._forceHidden || this.configurationService.getValue(ChatAIDisabledSettingId) === true) {
+			return {
+				...state,
+				hidden: true
+			};
+		}
+
+		return state;
 	}
 
 	setForceHidden(hidden: boolean): void {

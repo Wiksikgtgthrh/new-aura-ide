@@ -25,9 +25,10 @@
 			}
 		},
 		"commands": [
-			{ "command": "auraKotlin.checkToolchain", "title": "%command.checkToolchain%", "category": "Aura Kotlin" },
-			{ "command": "auraKotlin.compileFile", "title": "%command.compileFile%", "category": "Aura Kotlin" },
-			{ "command": "auraKotlin.androidDoctor", "title": "%command.androidDoctor%", "category": "Aura Kotlin" }
+			{ "command": "auraKotlin.checkToolchain", "title": "%command.checkToolchain%", "category": "Kotlin" },
+			{ "command": "auraKotlin.compileFile", "title": "%command.compileFile%", "category": "Kotlin" },
+			{ "command": "auraKotlin.androidDoctor", "title": "%command.androidDoctor%", "category": "Kotlin" },
+			{ "command": "auraKotlin.newProject", "title": "%command.newProject%", "category": "Kotlin" }
 		]
 	},
 	"scripts": { "compile": "gulp compile-extension:aura-kotlin", "watch": "gulp watch-extension:aura-kotlin" },

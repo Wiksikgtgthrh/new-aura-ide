@@ -28,10 +28,10 @@ export const AURA_MARKET_ITEMS: IAuraMarketItem[] = [
 	{
 		id: 'aura-kotlin',
 		builtinId: 'aura-kotlin',
-		name: 'Aura Kotlin & Android',
+		name: 'Kotlin & Android',
 		kind: 'plugin',
 		version: '0.1.0',
-		author: 'Aura',
+		author: 'IDE',
 		description: 'Поддержка Kotlin compiler, Java и Android SDK: проверка toolchain, компиляция активного .kt-файла и диагностика adb/sdkmanager.',
 		docs: [
 			'Aura Kotlin & Android — базовый toolchain-плагин для Kotlin и Android SDK.',
@@ -47,10 +47,10 @@ export const AURA_MARKET_ITEMS: IAuraMarketItem[] = [
 	{
 		id: 'aura-api',
 		builtinId: 'aura-api',
-		name: 'Aura API',
+		name: 'API Keys',
 		kind: 'plugin',
 		version: '1.0.0',
-		author: 'Aura',
+		author: 'IDE',
 		description: 'Менеджер API-ключей: хранение, группировка, приоритеты, автопроверка пинга и ошибок, проверка подлинности модели и безопасности ответов, выбор активного ключа для чата.',
 		docs: [
 			'Aura API — встроенный менеджер API-ключей.',

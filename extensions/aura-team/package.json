@@ -64,7 +64,7 @@
 				},
 				"auraTeam.demoMode": {
 					"type": "boolean",
-					"default": true,
+					"default": false,
 					"description": "%configuration.demoMode%"
 				}
 			}
@@ -83,6 +83,16 @@
 				{ "id": "auraTeam.home", "name": "%view.home%", "type": "webview" }
 			]
 		},
+		"customEditors": [
+			{
+				"viewType": "auraTeam.panel",
+				"displayName": "Team",
+				"selector": [
+					{ "filenamePattern": "*.aura-team" }
+				],
+				"priority": "option"
+			}
+		],
 		"commands": [
 			{ "command": "auraTeam.open", "title": "%command.open%", "category": "Team", "icon": "$(project)" },
 			{ "command": "auraTeam.openProfile", "title": "%command.openProfile%", "category": "Team", "icon": "$(account)" },

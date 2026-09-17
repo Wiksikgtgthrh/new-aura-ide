@@ -14,7 +14,136 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('auraKotlin.checkToolchain', () => checkToolchain()),
 		vscode.commands.registerCommand('auraKotlin.compileFile', () => compileFile()),
 		vscode.commands.registerCommand('auraKotlin.androidDoctor', () => androidDoctor()),
+		vscode.commands.registerCommand('auraKotlin.newProject', (folder?: vscode.Uri) => newProject(folder)),
 	);
+
+	// Шаблонный код при создании нового .kt-файла (как в IntelliJ: пакет + fun main / класс).
+	context.subscriptions.push(vscode.workspace.onDidCreateFiles(async event => {
+		for (const file of event.files) {
+			if (file.fsPath.endsWith('.kt') && (await vscode.workspace.fs.stat(file)).size === 0) {
+				await writeKotlinTemplate(file);
+			}
+		}
+	}));
+}
+
+/** Шаблон нового .kt: package по папке + fun main для standalone, класс для остальных. */
+async function writeKotlinTemplate(file: vscode.Uri): Promise<void> {
+	const workspace = vscode.workspace.getWorkspaceFolder(file);
+	const rel = workspace ? vscode.workspace.asRelativePath(file, false).replace(/\\/g, '/') : file.fsPath.split('/').pop() ?? 'Main.kt';
+	const dirParts = rel.split('/').slice(0, -1).filter(p => p && !/^(src|main|kotlin)$/.test(p));
+	const pkg = dirParts.length > 0 ? `package ${dirParts.map(p => p.replace(/[^A-Za-z0-9_]/g, '_').replace(/^_(.*)$/, '$1')).join('.')}
+
+` : '';
+	const isMain = /main\.kt$/i.test(file.fsPath);
+	const body = isMain
+		? `${pkg}fun main() {
+	println("Hello, Kotlin!")
+}
+`
+		: `${pkg}class ${file.fsPath.split(/[\\/]/).pop()?.replace(/\.kt$/, '')?.replace(/_(\w)/g, (_, c: string) => c.toUpperCase())?.replace(/^./, c => c.toUpperCase()) ?? 'MyClass'} {
+	// TODO: add members
+}
+`;
+	try {
+		await vscode.workspace.fs.writeFile(file, Buffer.from(body, 'utf8'));
+		const doc = await vscode.workspace.openTextDocument(file);
+		await vscode.window.showTextDocument(doc);
+	} catch { /* не критично */ }
+}
+
+/** Создание готового проекта: Gradle-подобная структура (или простой CLI-проект). */
+async function newProject(folder?: vscode.Uri): Promise<void> {
+	const target = folder ?? (await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectMany: false, openLabel: vscode.l10n.t('Create project here') }))?.[0];
+	if (!target) { return; }
+	const namePick = await vscode.window.showInputBox({ prompt: vscode.l10n.t('Project name'), value: 'MyApp' });
+	if (!namePick) { return; }
+	const kind = await vscode.window.showQuickPick([
+		{ label: '$(rocket) CLI (kotlinc + JVM)', id: 'cli' },
+		{ label: '$(device-mobile) Android (Gradle structure)', id: 'android' }
+	], { placeHolder: vscode.l10n.t('Project type') });
+	if (!kind) { return; }
+	const root = vscode.Uri.joinPath(target, namePick);
+	const pkg = namePick.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+	if (kind.id === 'cli') {
+		// Простой CLI-проект: src/Main.kt, компилируется kotlinc без Gradle.
+		const src = vscode.Uri.joinPath(root, 'src');
+		await vscode.workspace.fs.createDirectory(src);
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(src, 'Main.kt'), Buffer.from(`fun main() {
+	println("Hello, ${namePick}!")
+}
+`, 'utf8'));
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'README.md'), Buffer.from(`# ${namePick}
+
+Build: kotlinc src/Main.kt -include-runtime -d app.jar && java -jar app.jar
+`, 'utf8'));
+	} else {
+		// Android-структура как в IntelliJ (минимум для Gradle-сборки).
+		const mainDir = vscode.Uri.joinPath(root, 'app', 'src', 'main', 'kotlin', ...pkg.split('').length ? [pkg] : ['app']);
+		const resDir = vscode.Uri.joinPath(root, 'app', 'src', 'main', 'res', 'values');
+		await vscode.workspace.fs.createDirectory(mainDir);
+		await vscode.workspace.fs.createDirectory(resDir);
+		const activity = namePick.replace(/[^A-Za-z0-9]/g, '').replace(/^./, c => c.toUpperCase());
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'settings.gradle.kts'), Buffer.from(`rootProject.name = "${namePick}"
+include(":app")
+`, 'utf8'));
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'build.gradle.kts'), Buffer.from(`plugins {
+	id("org.jetbrains.kotlin.android") version "2.1.0" apply false
+}
+`, 'utf8'));
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'app', 'build.gradle.kts'), Buffer.from(`plugins {
+	id("com.android.application")
+	id("org.jetbrains.kotlin.android")
+}
+
+android {
+	namespace = "com.example.${pkg}"
+	compileSdk = 35
+	defaultConfig {
+		applicationId = "com.example.${pkg}"
+		minSdk = 24
+		targetSdk = 35
+	}
+}
+
+dependencies {
+	implementation("androidx.core:core-ktx:1.15.0")
+	implementation("androidx.appcompat:appcompat:1.7.0")
+}
+`, 'utf8'));
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'app', 'src', 'main', 'AndroidManifest.xml'), Buffer.from(`<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+	<application android:label="${namePick}" android:theme="@style/Theme.AppCompat">
+		<activity android:name=".${activity}" android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity>
+	</application>
+</manifest>
+`, 'utf8'));
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(mainDir, `${activity}.kt`), Buffer.from(`package com.example.${pkg}
+
+import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
+
+class ${activity} : AppCompatActivity() {
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
+	}
+}
+`, 'utf8'));
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(resDir, 'strings.xml'), Buffer.from(`<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="app_name">${namePick}</string>
+</resources>
+`, 'utf8'));
+	}
+
+	const open = await vscode.window.showInformationMessage(vscode.l10n.t('Project \'{0}\' created.', namePick), vscode.l10n.t('Open folder'));
+	if (open) { await vscode.commands.executeCommand('vscode.openFolder', root); }
 }
 
 async function checkToolchain(): Promise<void> {

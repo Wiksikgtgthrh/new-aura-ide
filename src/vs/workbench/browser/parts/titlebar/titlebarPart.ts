@@ -776,10 +776,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			}
 
 			// --- Activity Actions (always at the end)
-			// Aura IDE: нативный accounts (Sign In) убран; вместо него кнопка Aura Team
-			// в той же позиции (справа, перед «Manage») — гарантированно видна.
+			// Aura IDE: справа кнопка профиля Team (Sign In / аккаунт) перед «Manage».
 			if (this.activityActionsEnabled) {
-				actions.primary.push(new Action('workbench.action.auraTeamOpen', localize('auraTeam.openTitle', 'Team'), undefined, true, () => {
+				actions.primary.push(new Action('workbench.action.auraTeamOpen', localize('auraTeam.openTitle', 'Team'), 'codicon-account', true, () => {
 					void this.commandService.executeCommand('auraTeam.open').then(undefined, () => undefined);
 				}));
 				actions.primary.push(GLOBAL_ACTIVITY_TITLE_ACTION);

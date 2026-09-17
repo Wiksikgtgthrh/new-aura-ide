@@ -343,11 +343,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				ariaLabel = localize('copilotDisabledStatus', "Copilot disabled");
 			}
 
-			// Signed out — keep showing Sign-in affordance even when BYOK models are present
-			// so air-gapped users can still authenticate to unlock the full Copilot experience.
-			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
-				return this.getSetupEntryProps();
-			}
+			// Aura IDE: "signed out" больше не показывает Copilot Sign-in —
+			// BYOK-модели (API Keys) работают без входа. Проваливаемся к дефолтной записи.
 
 			// Quota Exceeded (all tracked plans share the premium chat quota)
 			else if (isTrackedEntitlement(this.chatEntitlementService.entitlement) && isQuotaBlocked(quotas)) {
