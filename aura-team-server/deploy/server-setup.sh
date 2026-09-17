@@ -52,8 +52,9 @@ chown -R aura-team:aura-team "$DATA_DIR"
 chown -R aura-team:aura-team "$APP_DIR"
 
 log "4/7 npm install && build"
-npm install --no-audit --no-fund --omit=dev >/dev/null 2>&1
+npm install --no-audit --no-fund >/dev/null 2>&1
 npm run build
+npm prune --omit=dev >/dev/null 2>&1
 
 log "5/7 systemd-сервис aura-team"
 cat > /etc/systemd/system/aura-team.service <<UNIT
