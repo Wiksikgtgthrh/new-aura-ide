@@ -31,8 +31,22 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 			}
 			database.prepare('INSERT INTO email_verifications(token_hash,user_id,expires_at) VALUES(?,?,?)').run(digest(verificationToken), userId, new Date(Date.now() + 24 * 60 * 60_000).toISOString());
 		})();
-		await sendVerificationEmail(email, `${config.publicUrl}/v1/auth/verify?token=${verificationToken}`);
-		return reply.code(201).send({ ok: true, message: 'Check your email. In development, use the verification URL from the server log.' });
+		// Aura: без SMTP верификация работает по ссылке-фолбэку (самоподтверждение),
+		// с SMTP — письмо приходит как обычно.
+		let devVerificationUrl: string | undefined;
+		try {
+			await sendVerificationEmail(email, `${config.publicUrl}/v1/auth/verify?token=${verificationToken}`);
+		} catch (error) {
+			devVerificationUrl = `${config.publicUrl}/v1/auth/verify?token=${verificationToken}`;
+			request.log.warn({ err: error }, 'SMTP unavailable, returning fallback verification URL');
+		}
+		return reply.code(201).send({
+			ok: true,
+			message: devVerificationUrl
+				? 'SMTP is not configured yet: confirm your email via the returned verificationUrl.'
+				: 'Check your email to confirm the address.',
+			...(devVerificationUrl ? { verificationUrl: devVerificationUrl } : {})
+		});
 	});
 
 	app.get<{ Querystring: { token?: string } }>('/v1/auth/verify', async (request, reply) => {
