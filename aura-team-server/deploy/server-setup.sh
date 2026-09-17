@@ -3,7 +3,7 @@
 # Выполнить: sudo bash server-setup.sh
 set -euo pipefail
 
-SERVER_IP="${AURA_IP:-2.26.98.160}"
+SERVER_IP="${AURA_IP:-94.141.160.70}"
 AURA_PORT="${AURA_PORT:-3210}"
 REPO="https://github.com/Wiksikgtgthrh/new-aura-ide.git"
 APP_DIR="/opt/aura-team-server"
@@ -35,16 +35,21 @@ mkdir -p "$DATA_DIR" /etc/aura-team
 JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(40).toString('base64url'))")
 MASTER_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")
 cat > /etc/aura-team.env <<ENV
-AURA_HOST=0.0.0.0
+AURA_HOST=127.0.0.1
 AURA_PORT=$AURA_PORT
 AURA_PUBLIC_URL=http://$SERVER_IP:$AURA_PORT
 AURA_DATA_DIR=$DATA_DIR
 AURA_JWT_SECRET=$JWT_SECRET
 AURA_MASTER_KEY=$MASTER_KEY
-NODE_ENV=development
+NODE_ENV=production
 ENV
 chmod 600 /etc/aura-team.env
 log "Секреты записаны в /etc/aura-team.env (chmod 600)"
+
+log "4/7 Отдельный сервисный пользователь и права"
+id -u aura-team >/dev/null 2>&1 || useradd --system --home-dir "$APP_DIR" --shell /usr/sbin/nologin aura-team
+chown -R aura-team:aura-team "$DATA_DIR"
+chown -R aura-team:aura-team "$APP_DIR"
 
 log "4/7 npm install && build"
 npm install --no-audit --no-fund --omit=dev >/dev/null 2>&1
@@ -58,12 +63,16 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
+User=aura-team
 WorkingDirectory=$APP_DIR/aura-team-server
 EnvironmentFile=/etc/aura-team.env
 ExecStart=/usr/bin/node $APP_DIR/aura-team-server/dist/server.js
 Restart=on-failure
 RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=$DATA_DIR
 
 [Install]
 WantedBy=multi-user.target

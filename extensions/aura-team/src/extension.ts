@@ -197,6 +197,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}, false);
 	register('auraTeam.openRegister', async () => { await vscode.env.openExternal(vscode.Uri.parse(`${serverUrl().replace(/\/$/, '')}/register`)); });
 	register('auraTeam.signOut', async () => { await api.signOut(); await refresh(); });
+	register('auraTeam.changePassword', async (data?: { currentPassword?: string; newPassword?: string }) => {
+		const currentPassword = data?.currentPassword ?? await vscode.window.showInputBox({ prompt: vscode.l10n.t('Current password'), password: true, ignoreFocusOut: true });
+		const newPassword = data?.newPassword ?? await vscode.window.showInputBox({ prompt: vscode.l10n.t('New password (10+ characters)'), password: true, ignoreFocusOut: true });
+		if (!currentPassword || !newPassword) { throw new Error(vscode.l10n.t('Both password fields are required.')); }
+		if (newPassword.length < 10) { throw new Error(vscode.l10n.t('Password must be at least 10 characters.')); }
+		await api.changePassword(currentPassword, newPassword);
+		await refresh();
+	}, false);
 	register('auraTeam.selectTeam', async (teamId?: string) => {
 		if (teamId) {
 			state.teamId = teamId;

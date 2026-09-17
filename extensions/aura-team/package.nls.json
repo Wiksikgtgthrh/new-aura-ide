@@ -12,6 +12,7 @@
 	"command.openProfile": "Open Profile",
 	"command.signIn": "Sign In",
 	"command.signOut": "Sign Out",
+	"command.changePassword": "Change Password",
 	"command.selectTeam": "Switch Team",
 	"command.connectGitHub": "Connect GitHub",
 	"command.connectAuraApi": "Connect Team AI Proxy",

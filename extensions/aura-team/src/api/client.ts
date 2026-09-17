@@ -96,6 +96,11 @@ export class AuraApiClient implements vscode.Disposable {
 		return this.request('/v1/auth/register', { method: 'POST', body: JSON.stringify({ email, password, displayName }) }, false);
 	}
 
+	async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+		await this.request('/v1/auth/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) });
+		await this.signOut();
+	}
+
 	async signOut(): Promise<void> {
 		await Promise.all([
 			this.context.secrets.delete('auraTeam.accessToken'),

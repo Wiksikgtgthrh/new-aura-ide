@@ -7,6 +7,7 @@ import { hash, verify } from '@node-rs/argon2';
 import type { FastifyInstance } from 'fastify';
 import { database } from '../database.js';
 import { config } from '../config.js';
+import { userId } from '../access.js';
 import { accessToken, digest, id, token } from '../security.js';
 import { sendVerificationEmail } from '../mail.js';
 
@@ -51,6 +52,19 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 		if (!row || !await verify(row.password_hash, request.body.password ?? '')) { return reply.unauthorized('Invalid email or password'); }
 		if (!row.verified_at) { return reply.forbidden('Verify your email first'); }
 		return issueTokens(row.id);
+	});
+
+	app.post<{ Body: { currentPassword?: string; newPassword?: string } }>('/v1/auth/password', { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } }, async (request, reply) => {
+		const user = await userId(request);
+		if (!request.body.currentPassword || !request.body.newPassword || request.body.newPassword.length < 10) {
+			return reply.badRequest('The new password must contain at least 10 characters');
+		}
+		const row = database.prepare('SELECT password_hash FROM users WHERE id=?').get(user) as { password_hash: string } | undefined;
+		if (!row || !await verify(row.password_hash, request.body.currentPassword)) { return reply.unauthorized('Current password is incorrect'); }
+		const passwordHash = await hash(request.body.newPassword);
+		database.prepare('UPDATE users SET password_hash=? WHERE id=?').run(passwordHash, user);
+		database.prepare('UPDATE refresh_tokens SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL').run(new Date().toISOString(), user);
+		return { ok: true };
 	});
 
 	app.post('/v1/auth/device', { config: { rateLimit: { max: 20, timeWindow: '15 minutes' } } }, async () => {

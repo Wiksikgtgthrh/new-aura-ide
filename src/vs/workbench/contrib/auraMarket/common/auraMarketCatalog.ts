@@ -26,6 +26,25 @@ export function auraMarketInstalledKey(itemId: string): string {
  */
 export const AURA_MARKET_ITEMS: IAuraMarketItem[] = [
 	{
+		id: 'aura-kotlin',
+		builtinId: 'aura-kotlin',
+		name: 'Aura Kotlin & Android',
+		kind: 'plugin',
+		version: '0.1.0',
+		author: 'Aura',
+		description: 'Поддержка Kotlin compiler, Java и Android SDK: проверка toolchain, компиляция активного .kt-файла и диагностика adb/sdkmanager.',
+		docs: [
+			'Aura Kotlin & Android — базовый toolchain-плагин для Kotlin и Android SDK.',
+			'',
+			'БЫСТРЫЙ СТАРТ',
+			'1. Установите Kotlin compiler и JDK, добавьте их в PATH или настройте auraKotlin.compilerPath и auraKotlin.javaPath.',
+			'2. Для Android задайте auraKotlin.androidSdkPath либо ANDROID_HOME / ANDROID_SDK_ROOT.',
+			'3. Используйте команды Aura Kotlin: Check Kotlin Toolchain, Compile Kotlin File и Check Android SDK.',
+			'',
+			'Плагин не скачивает SDK автоматически и не выполняет произвольные команды: он запускает только выбранные системные инструменты с фиксированными аргументами.',
+		].join('\\n'),
+	},
+	{
 		id: 'aura-api',
 		builtinId: 'aura-api',
 		name: 'Aura API',

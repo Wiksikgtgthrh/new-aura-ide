@@ -131,16 +131,20 @@
 }
 
 /* --- Aura Market как центральная вкладка --- */
-.aura-market-tab { display: flex; flex-direction: column; height: 100%; padding: 16px; box-sizing: border-box; gap: 10px; overflow-y: auto; }
-.aura-market-tab-title { margin: 0; }
-.aura-market-tab-subtitle { margin: 0; color: var(--vscode-descriptionForeground); }
-.aura-market-tab-list { display: flex; flex-direction: column; gap: 10px; max-width: 860px; }
-.aura-market-card { border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; background: var(--vscode-editor-background); }
+.aura-market-tab { display: flex; flex-direction: column; height: 100%; padding: 24px clamp(18px, 5vw, 64px) 36px; box-sizing: border-box; gap: 14px; overflow-y: auto; background: radial-gradient(circle at 85% 0%, color-mix(in srgb, var(--vscode-button-background) 13%, transparent), transparent 34%), var(--vscode-editor-background); animation: auraMarketIn .35s ease both; }
+@keyframes auraMarketIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.aura-market-tab-title { margin: 0; font-size: 24px; letter-spacing: -.4px; }
+.aura-market-tab-subtitle { margin: 0; color: var(--vscode-descriptionForeground); font-size: 13px; }
+.aura-market-tab-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; max-width: 1180px; }
+.aura-market-card { border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; background: color-mix(in srgb, var(--vscode-editorWidget-background) 58%, transparent); box-shadow: 0 8px 24px color-mix(in srgb, var(--vscode-widget-shadow, #000) 15%, transparent); transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; animation: auraMarketCard .32s ease both; }
+.aura-market-card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--vscode-focusBorder) 55%, var(--vscode-widget-border)); box-shadow: 0 14px 32px color-mix(in srgb, var(--vscode-widget-shadow, #000) 24%, transparent); }
+@keyframes auraMarketCard { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .aura-market-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .aura-market-card-name { font-weight: 600; font-size: 14px; }
 .aura-market-card-desc { color: var(--vscode-foreground); }
 .aura-market-card-meta { font-size: 11px; color: var(--vscode-descriptionForeground); }
 .aura-market-card-actions { display: flex; gap: 8px; margin-top: 4px; }
 .aura-market-install.installed { opacity: 0.7; cursor: default; }
-.aura-market-docs { margin: 6px 0 0; padding: 10px; border-radius: 6px; background: var(--vscode-textCodeBlock-background, var(--vscode-input-background)); font-size: 12px; line-height: 1.5; white-space: pre-wrap; max-height: 420px; overflow-y: auto; }
+.aura-market-docs { margin: 6px 0 0; padding: 14px; border-radius: 10px; background: var(--vscode-textCodeBlock-background, var(--vscode-input-background)); font-size: 12px; line-height: 1.65; white-space: pre-wrap; max-height: 420px; overflow-y: auto; border-left: 3px solid var(--vscode-button-background); animation: auraMarketDocs .22s ease both; }
+@keyframes auraMarketDocs { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 420px; } }
 .aura-market-launcher { display: flex; flex-direction: column; gap: 8px; padding: 12px; }

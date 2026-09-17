@@ -15,6 +15,7 @@ export const dirs = [
 	'build/vite',
 	'extensions',
 	'extensions/aura-team',
+	'extensions/aura-kotlin',
 	'extensions/configuration-editing',
 	'extensions/css-language-features',
 	'extensions/css-language-features/server',

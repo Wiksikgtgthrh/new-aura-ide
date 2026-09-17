@@ -552,6 +552,7 @@ const DICT = {
 		gitHub: 'Подключить GitHub', server: 'Сервер', demo: 'демо',
 		loginTitle: 'Вход в Aura Team', loginSub: 'Войдите по email и паролю, чтобы работать со своим сервером.',
 		loginEmail: 'Email', loginPassword: 'Пароль', loginBtn: 'Войти',
+		changePassword: 'Сменить пароль', currentPassword: 'Текущий пароль', newPassword: 'Новый пароль (10+ символов)', passwordChanged: 'Пароль изменён. Войдите снова.',
 		noAccount: 'Нет аккаунта?', registerLink: 'Создать на сервере',
 		loginFail: 'Вход не удался', orLocalProfile: 'или продолжите с локальным профилем (демо):',
 		tabLogin: 'Вход', tabRegister: 'Создать аккаунт', regName: 'Имя', regServerPass: 'Пароль (10+ символов)',
@@ -599,6 +600,7 @@ const DICT = {
 		gitHub: 'Connect GitHub', server: 'Server', demo: 'demo',
 		loginTitle: 'Sign in to Aura Team', loginSub: 'Sign in with email and password to work with your server.',
 		loginEmail: 'Email', loginPassword: 'Password', loginBtn: 'Sign in',
+		changePassword: 'Change password', currentPassword: 'Current password', newPassword: 'New password (10+ characters)', passwordChanged: 'Password changed. Sign in again.',
 		noAccount: 'No account?', registerLink: 'Create on server',
 		loginFail: 'Sign in failed', orLocalProfile: 'or continue with a local profile (demo):',
 		tabLogin: 'Sign in', tabRegister: 'Create account', regName: 'Name', regServerPass: 'Password (10+ characters)',
@@ -1417,7 +1419,10 @@ function renderProfile() {
 			</div>
 			<div class="field"><label>${esc(T('description'))}</label><textarea id="pDesc" rows="3" maxlength="240" placeholder="${esc(T('descrPh'))}">${esc(p.description || '')}</textarea></div>
 			<div class="savebar"><button class="btn primary" id="btnSaveProfile">${esc(T('saveProfile'))}</button></div>
-			<div class="profile-actions"><button class="btn danger logout-btn" id="btnLogout">${esc(T('logout'))}</button></div>
+			<div class="profile-actions">
+				<button class="btn ghost logout-btn" id="btnChangePassword">${esc(T('changePassword'))}</button>
+				<button class="btn danger logout-btn" id="btnLogout">${esc(T('logout'))}</button>
+			</div>
 		</div>
 		${loginBlock}`;
 }
@@ -1433,6 +1438,22 @@ function wireProfile() {
 		};
 		try { const res = await svc('auraTeam.registerProfile', [data]); if (res) { state.profile = res; } toast(T('regDone'), 'ok'); render(); }
 		catch (err) { toast(err.message, 'err'); }
+	});
+	const changePasswordBtn = document.getElementById('btnChangePassword');
+	changePasswordBtn?.addEventListener('click', () => {
+		if (!state.signedIn || state.demoMode) { toast(T('loginTitle'), 'err'); return; }
+		openModal({
+			title: T('changePassword'),
+			sub: T('newPassword'),
+			body: `<div class="field"><label>${esc(T('currentPassword'))}</label><input data-current-password type="password" autocomplete="current-password"></div><div class="field"><label>${esc(T('newPassword'))}</label><input data-new-password type="password" minlength="10" autocomplete="new-password"></div>`,
+			actionText: T('save'),
+			onAction: async overlay => {
+				const currentPassword = overlay.querySelector('[data-current-password]').value;
+				const newPassword = overlay.querySelector('[data-new-password]').value;
+				if (!currentPassword || newPassword.length < 10) { toast(T('regPassShort'), 'err'); return true; }
+				try { await svc('auraTeam.changePassword', [{ currentPassword, newPassword }]); toast(T('passwordChanged'), 'ok'); state.signedIn = false; state.session = undefined; render(); } catch (err) { toast(err?.message || T('loginFail'), 'err'); return true; }
+			}
+		});
 	});
 	const logoutBtn = document.getElementById('btnLogout');
 	logoutBtn?.addEventListener('click', async () => {

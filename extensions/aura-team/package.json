@@ -72,6 +72,7 @@
 			{ "command": "auraTeam.openProfile", "title": "%command.openProfile%", "category": "Aura Team", "icon": "$(account)" },
 			{ "command": "auraTeam.signIn", "title": "%command.signIn%", "category": "Aura Team" },
 			{ "command": "auraTeam.signOut", "title": "%command.signOut%", "category": "Aura Team" },
+			{ "command": "auraTeam.changePassword", "title": "%command.changePassword%", "category": "Aura Team" },
 			{ "command": "auraTeam.selectTeam", "title": "%command.selectTeam%", "category": "Aura Team" },
 			{ "command": "auraTeam.connectGitHub", "title": "%command.connectGitHub%", "category": "Aura Team" },
 			{ "command": "auraTeam.connectAuraApi", "title": "%command.connectAuraApi%", "category": "Aura Team" },

@@ -25,7 +25,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings, EditorActionsLocation, EditorTabsMode } from '../../../services/layout/browser/layoutService.js';
 import { createActionViewItem, fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenu, IMenuService, MenuItemAction, SubmenuItemAction, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { WindowTitle } from './windowTitle.js';
@@ -767,7 +767,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				// не трогая само расширение — его можно включить в будущем.
 				const trailingGroups = this.globalToolbarMenu.getActions()
 					.filter(([group]) => group !== TitleBarLeadingActionsGroup)
-					.map(([group, groupActions]) => [group, groupActions.filter((action) => !/copilot|sign.?in|accounts/i.test(action.id) && !/sign\s?in/i.test(action.label))])
+					.map<[string, Array<MenuItemAction | SubmenuItemAction>]>(([group, groupActions]) => [group, groupActions.filter((action) => !/copilot|sign.?in|accounts/i.test(action.id) && !/sign\s?in/i.test(action.label))])
 					.filter(([, groupActions]) => groupActions.length > 0);
 				fillInActionBarActions(
 					trailingGroups,

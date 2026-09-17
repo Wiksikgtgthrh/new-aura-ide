@@ -65,8 +65,9 @@ export class AuraApiChatProvider implements ILanguageModelChatProvider {
 
 	async sendChatRequest(modelId: string, messages: IChatMessage[], _from: ExtensionIdentifier | undefined, options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<ILanguageModelChatResponse> {
 		// Выбор ключа через роутер (группы → веса → cooldown), fallback — старый список
-		const routed = this.keysService.resolveKeyForModel ? this.keysService.resolveKeyForModel() : undefined;
-		const preferred = this.keysService.getKeys().find(k => k.id === modelId) ?? routed;
+		const selectedKeyId = modelId.startsWith(`${AURA_API_VENDOR}/`) ? modelId.slice(AURA_API_VENDOR.length + 1) : modelId;
+		const routed = this.keysService.resolveKeyForModel(selectedKeyId);
+		const preferred = this.keysService.getKeys().find(k => k.id === selectedKeyId) ?? routed;
 		if (!preferred) { throw new Error(`Aura API: нет живых ключей (modelId=${modelId})`); }
 		const candidates: IAuraApiKey[] = [preferred, ...this.usableKeys().filter(k => k.id !== preferred.id)];
 

@@ -1,0 +1,11 @@
+{
+	"displayName": "Aura Kotlin & Android",
+	"description": "Kotlin compiler and Android SDK toolchain helpers for Aura IDE",
+	"configuration.title": "Aura Kotlin & Android",
+	"configuration.compilerPath": "Path or command for the Kotlin compiler",
+	"configuration.androidSdkPath": "Android SDK path; leave empty to use ANDROID_HOME or ANDROID_SDK_ROOT",
+	"configuration.javaPath": "Path or command for Java",
+	"command.checkToolchain": "Check Kotlin Toolchain",
+	"command.compileFile": "Compile Kotlin File",
+	"command.androidDoctor": "Check Android SDK"
+}

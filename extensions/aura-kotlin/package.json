@@ -1,0 +1,35 @@
+{
+	"name": "aura-kotlin",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.1.0",
+	"publisher": "aura",
+	"license": "MIT",
+	"engines": { "vscode": "*" },
+	"main": "./out/extension.js",
+	"activationEvents": ["onLanguage:kotlin", "onCommand:auraKotlin.checkToolchain", "onCommand:auraKotlin.compileFile", "onCommand:auraKotlin.androidDoctor"],
+	"categories": ["Programming Languages", "Other"],
+	"contributes": {
+		"languages": [{
+			"id": "kotlin",
+			"aliases": ["Kotlin", "kotlin"],
+			"extensions": [".kt", ".kts"],
+			"configuration": "./language-configuration.json"
+		}],
+		"configuration": {
+			"title": "%configuration.title%",
+			"properties": {
+				"auraKotlin.compilerPath": { "type": "string", "default": "kotlinc", "description": "%configuration.compilerPath%" },
+				"auraKotlin.androidSdkPath": { "type": "string", "default": "", "description": "%configuration.androidSdkPath%" },
+				"auraKotlin.javaPath": { "type": "string", "default": "java", "description": "%configuration.javaPath%" }
+			}
+		},
+		"commands": [
+			{ "command": "auraKotlin.checkToolchain", "title": "%command.checkToolchain%", "category": "Aura Kotlin" },
+			{ "command": "auraKotlin.compileFile", "title": "%command.compileFile%", "category": "Aura Kotlin" },
+			{ "command": "auraKotlin.androidDoctor", "title": "%command.androidDoctor%", "category": "Aura Kotlin" }
+		]
+	},
+	"scripts": { "compile": "gulp compile-extension:aura-kotlin", "watch": "gulp watch-extension:aura-kotlin" },
+	"devDependencies": { "@types/node": "24.x" }
+}
