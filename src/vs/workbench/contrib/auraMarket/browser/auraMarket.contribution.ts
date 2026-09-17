@@ -39,7 +39,7 @@ export const auraMarketViewIcon = registerIcon('aura-market-view-icon', Codicon.
 
 // --- Центральная вкладка ---
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(AuraMarketEditorPane, AuraMarketEditorPane.ID, localize('auraMarketEditor', "Aura Market")),
+	EditorPaneDescriptor.create(AuraMarketEditorPane, AuraMarketEditorPane.ID, localize('auraMarketEditor', "Market")),
 	[new SyncDescriptor(AuraMarketEditorInput)]
 );
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(AuraMarketEditorInput.ID, AuraMarketEditorInputSerializer);
@@ -48,8 +48,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: AURA_MARKET_OPEN_COMMAND_ID,
-			title: localize2('auraMarket.open', "Aura Market: Открыть маркет"),
-			category: localize2('auraMarket.category', "Aura Market"),
+			title: localize2('auraMarket.open', "Market: Открыть маркет"),
+			category: localize2('auraMarket.category', "Market"),
 			f1: true,
 		});
 	}
@@ -89,7 +89,7 @@ class AuraMarketLauncherViewPane extends ViewPane {
 
 const auraMarketContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: AURA_MARKET_VIEW_CONTAINER_ID,
-	title: localize2('auraMarket', "Aura Market"),
+	title: localize2('auraMarket', "Market"),
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [AURA_MARKET_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	icon: auraMarketViewIcon,
 	hideIfEmpty: false,
@@ -98,7 +98,7 @@ const auraMarketContainer = Registry.as<IViewContainersRegistry>(ViewContainerEx
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: AURA_MARKET_LAUNCHER_VIEW_ID,
-	name: localize2('auraMarket.launcher', "Aura Market"),
+	name: localize2('auraMarket.launcher', "Market"),
 	containerIcon: auraMarketViewIcon,
 	ctorDescriptor: new SyncDescriptor(AuraMarketLauncherViewPane),
 	canToggleVisibility: true,

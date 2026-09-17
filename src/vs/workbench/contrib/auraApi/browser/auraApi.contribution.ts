@@ -11,7 +11,7 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { $, append } from '../../../../base/browser/dom.js';
+import { $, append, addDisposableListener } from '../../../../base/browser/dom.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { IEditorFactoryRegistry, EditorExtensions } from '../../../common/editor.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -93,6 +93,7 @@ class AuraApiChatKeysViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IAuraApiKeysService private readonly keysService: IAuraApiKeysService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this._register(this.keysService.onDidChange(() => this.renderKeys()));
@@ -109,16 +110,24 @@ class AuraApiChatKeysViewPane extends ViewPane {
 		this.keysBody.textContent = '';
 		const keys = this.keysService.getKeys();
 		if (keys.length === 0) {
-			append(this.keysBody, $('.aura-api-chat-empty')).textContent = localize('auraApi.chatKeys.empty', "No API keys configured");
+			const empty = append(this.keysBody, $('.aura-api-chat-empty'));
+			empty.textContent = localize('auraApi.chatKeys.empty', "No API keys configured");
+			const open = append(empty, $('button.aura-api-chat-empty-open'));
+			open.textContent = localize('auraApi.chatKeys.openManager', "Add key");
+			this._register(addDisposableListener(open, 'click', () => { void this.commandService.executeCommand(AURA_API_OPEN_COMMAND_ID); }));
 			return;
 		}
+		const selectedId = this.keysService.getSelectedKeyId();
 		for (const key of keys) {
 			const status = this.keysService.getStatus(key.id);
 			const row = append(this.keysBody, $('.aura-api-chat-key'));
+			if (key.id === selectedId) { row.classList.add('active'); }
 			append(row, $('span.aura-api-chat-key-name')).textContent = key.name;
 			append(row, $('code')).textContent = this.keysService.maskedSecretLabel(key.id);
 			const detail = append(row, $('small'));
 			detail.textContent = `${key.model} · ${key.priority} · ${status.ok === true ? localize('auraApi.chatKeys.ready', "ready") : localize('auraApi.chatKeys.unavailable', "not ready")}`;
+			row.style.cursor = 'pointer';
+			this._register(addDisposableListener(row, 'click', () => { void this.keysService.selectForChat(key.id); }));
 		}
 	}
 }
@@ -132,7 +141,7 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 
 	// Центральная вкладка менеджера ключей
 	Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-		EditorPaneDescriptor.create(AuraApiEditorPane, AuraApiEditorPane.ID, localize('auraApiEditor', "Aura API")),
+		EditorPaneDescriptor.create(AuraApiEditorPane, AuraApiEditorPane.ID, localize('auraApiEditor', "API Keys")),
 		[new SyncDescriptor(AuraApiEditorInput)]
 	);
 	Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(AuraApiEditorInput.ID, AuraApiEditorInputSerializer);
@@ -140,7 +149,7 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 	// Иконка слева: клик по ней сразу открывает вкладку
 	const auraApiContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 		id: AURA_API_VIEW_CONTAINER_ID,
-		title: localize2('auraApi', "Aura API"),
+		title: localize2('auraApi', "API Keys"),
 		ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [AURA_API_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 		icon: auraApiViewIcon,
 		hideIfEmpty: false,
@@ -149,7 +158,7 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 
 	Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 		id: AURA_API_LAUNCHER_VIEW_ID,
-		name: localize2('auraApi.launcher', "Aura API"),
+		name: localize2('auraApi.launcher', "API Keys"),
 		containerIcon: auraApiViewIcon,
 		ctorDescriptor: new SyncDescriptor(AuraApiLauncherViewPane),
 		canToggleVisibility: true,
@@ -160,9 +169,11 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 	if (chatContainer) {
 		Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 			id: AURA_API_CHAT_KEYS_VIEW_ID,
-			name: localize2('auraApi.chatKeys', "Current API Keys"),
+			name: localize2('auraApi.chatKeys', "API Keys"),
 			containerIcon: auraApiViewIcon,
 			ctorDescriptor: new SyncDescriptor(AuraApiChatKeysViewPane),
+			order: 1,
+			collapsed: false,
 			canToggleVisibility: true,
 			canMoveView: true,
 		}], chatContainer);
@@ -173,8 +184,8 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 		constructor() {
 			super({
 				id: AURA_API_OPEN_COMMAND_ID,
-				title: localize2('auraApi.openManager', "Aura API: Открыть менеджер ключей"),
-				category: localize2('auraApi.category', "Aura API"),
+				title: localize2('auraApi.openManager', "API Keys: Открыть менеджер ключей"),
+				category: localize2('auraApi.category', "API Keys"),
 				f1: true,
 			});
 		}
@@ -187,7 +198,7 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 
 	registerAction2(class extends Action2 {
 		constructor() {
-			super({ id: AURA_API_ADD_TEAM_PROXY_COMMAND_ID, title: localize2('auraApi.addTeamProxy', "Aura API: Add Team Proxy"), f1: false });
+			super({ id: AURA_API_ADD_TEAM_PROXY_COMMAND_ID, title: localize2('auraApi.addTeamProxy', "API Keys: Add Team Proxy"), f1: false });
 		}
 		override async run(accessor: ServicesAccessor, input?: { name?: string; baseUrl?: string; model?: string; token?: string; provider?: 'openai-compatible' | 'anthropic' }): Promise<void> {
 			if (!input?.name || !input.baseUrl || !input.model || !input.token) { throw new Error(localize('auraApi.addTeamProxy.invalid', "Team proxy configuration is incomplete.")); }

@@ -161,6 +161,16 @@ export class GitService {
 		await this.handleConflicts(repository);
 	}
 
+	/** Пути изменённых/новых файлов — для авто-коммита по шаблону. */
+	async changedFiles(): Promise<string[]> {
+		const repository = this.requireRepository();
+		return [
+			...repository.state.indexChanges,
+			...repository.state.workingTreeChanges,
+			...repository.state.untrackedChanges
+		].map(change => vscode.workspace.asRelativePath(change.uri, false));
+	}
+
 	async undoUncommitted(): Promise<void> {
 		const repository = this.requireRepository();
 		const paths = [...repository.state.indexChanges, ...repository.state.workingTreeChanges].map(change => change.uri.fsPath);
@@ -213,7 +223,8 @@ export class GitService {
 		}
 	}
 
-	private requireRepository(): Repository {
+	/** Кинет ошибку, если репозитория нет; доступен подклассам и сервисам синка. */
+	requireRepository(): Repository {
 		if (!this.repository) { throw new Error(vscode.l10n.t('Open a Git project first.')); }
 		return this.repository;
 	}

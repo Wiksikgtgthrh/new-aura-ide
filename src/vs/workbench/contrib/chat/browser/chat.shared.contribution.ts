@@ -209,7 +209,8 @@ import { ChatQuotaNotificationContribution } from './chatQuotaNotification.js';
 import { ChatRepoInfoContribution } from './chatRepoInfo.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
 import { ChatSessionOptionSlashCommandsContribution, ChatSlashCommandsContribution } from './chatSlashCommands.js';
-import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
+// Aura IDE: импорт ChatStatusBarEntry убран вместе с регистрацией (Copilot-вход скрыт).
+// import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
 import { ChatTipService, IChatTipService } from './chatTipService.js';
 import { ChatWindowNotifier } from './chatWindowNotifier.js';
 import { AgentPluginRecommendations } from './claudePluginRecommendations.js';
@@ -3169,7 +3170,8 @@ registerWorkbenchContribution2(ChatPromoNotificationContribution.ID, ChatPromoNo
 registerWorkbenchContribution2(ChatExpNotificationContribution.ID, ChatExpNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(HasByokModelsContribution.ID, HasByokModelsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatTeardownContribution.ID, ChatTeardownContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);
+// Aura IDE: Copilot-вход убран из статус-бара — вместо него собственный вход по email (кнопка профиля в титулбаре).
+// registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ClientToolSetsContribution.ID, ClientToolSetsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(UsagesToolContribution.ID, UsagesToolContribution, WorkbenchPhase.BlockRestore);

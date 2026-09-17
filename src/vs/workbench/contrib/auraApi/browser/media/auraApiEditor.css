@@ -28,7 +28,14 @@
 .aura-api-form-buttons { display: flex; gap: 8px; }
 .aura-api-launcher { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
 .aura-api-chat-keys { display: flex; flex-direction: column; gap: 6px; padding: 8px; overflow: auto; }
-.aura-api-chat-key { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; padding: 7px 8px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: 4px; }
+.aura-api-chat-key { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; padding: 7px 8px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: 4px; transition: border-color .15s ease, background .15s ease, transform .1s ease; }
+.aura-api-chat-key:hover { background: var(--vscode-list-hoverBackground); border-color: var(--vscode-focusBorder); }
+.aura-api-chat-key:active { transform: scale(.985); }
+.aura-api-chat-key.active { border-color: var(--vscode-focusBorder); background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+.aura-api-chat-key.active::after { content: '✓'; justify-self: end; color: var(--vscode-focusBorder); font-weight: 600; }
+.aura-api-chat-empty { display: flex; flex-direction: column; gap: 8px; align-items: center; padding: 16px 8px; color: var(--vscode-descriptionForeground); }
+.aura-api-chat-empty-open { padding: 4px 14px; border-radius: 4px; border: 1px solid var(--vscode-focusBorder); background: transparent; color: var(--vscode-focusBorder); cursor: pointer; transition: background .15s ease, color .15s ease; }
+.aura-api-chat-empty-open:hover { background: var(--vscode-focusBorder); color: var(--vscode-editor-background); }
 .aura-api-chat-key-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .aura-api-chat-key code { color: var(--vscode-descriptionForeground); }
 .aura-api-chat-key small { grid-column: 1 / -1; color: var(--vscode-descriptionForeground); }

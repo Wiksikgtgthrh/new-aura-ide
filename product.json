@@ -1,7 +1,7 @@
 {
-	"nameShort": "Aura IDE",
-	"nameLong": "Aura IDE",
-	"applicationName": "aura-ide",
+	"nameShort": "IDE",
+	"nameLong": "IDE",
+	"applicationName": "ide",
 	"dataFolderName": ".vscode-oss",
 	"sharedDataFolderName": ".vscode-oss-shared",
 	"win32MutexName": "vscodeoss",

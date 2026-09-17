@@ -74,6 +74,8 @@ export interface IAuraApiKeysService {
 	checkAll(): Promise<void>;
 	bestKey(): IAuraApiKey | undefined;
 	selectForChat(id: string): Promise<void>;
+	/** Ключ, выбранный для чата (highlight в панели ключей чата). */
+	getSelectedKeyId(): string | undefined;
 	/** Умная загрузка: один baseUrl + список ключей (по одному на строку), общие модель/группа/приоритет. */
 	smartImport(baseUrl: string, model: string, keysText: string, group?: string, priority?: AuraApiKeyPriority): Promise<{ added: number; skipped: number }>;
 	/** Дискавери моделей по провайдеру (уровень 1 — «врёт», доступ реально проверяет probeModel). */
@@ -591,6 +593,10 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 		await this.configurationService.updateValue('auraApi.chat.model', key.model);
 		this.storageService.store(STORAGE_SELECTED, id, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		this._onDidChange.fire();
+	}
+
+	getSelectedKeyId(): string | undefined {
+		return this.storageService.get(STORAGE_SELECTED, StorageScope.APPLICATION) || undefined;
 	}
 }
 

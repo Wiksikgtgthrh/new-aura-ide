@@ -30,7 +30,7 @@ export class AuraApiClient implements vscode.Disposable {
 	}
 
 	private get baseUrl(): string {
-		const value = vscode.workspace.getConfiguration('auraTeam').get<string>('serverUrl', 'http://localhost:3210').replace(/\/$/, '');
+		const value = vscode.workspace.getConfiguration('auraTeam').get<string>('serverUrl', 'https://auraide.xyz').replace(/\/$/, '');
 		const url = new URL(value);
 		// Разрешаем HTTP для localhost и IP-адресов (частные серверы в разработке); для доменов
 		// требуем HTTPS. Предупреждаем, но не блокируем — иначе нельзя работать по `http://ip:port`.

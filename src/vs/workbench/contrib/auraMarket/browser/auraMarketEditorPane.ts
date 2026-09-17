@@ -39,14 +39,14 @@ export class AuraMarketEditorPane extends EditorPane {
 		const root = append(parent, $('.aura-market-tab'));
 
 		const header = append(root, $('.aura-market-tab-header'));
-		append(header, $('h2.aura-market-tab-title')).textContent = 'Aura Market';
-		append(header, $('p.aura-market-tab-subtitle')).textContent = 'Плагины, инструменты и наборы скилов Aura IDE';
+		append(header, $('h2.aura-market-tab-title')).textContent = 'Market';
+		append(header, $('p.aura-market-tab-subtitle')).textContent = 'Плагины, инструменты и наборы скилов';
 
 		const searchWrap = append(root, $('.aura-market-search'));
 		const search = append(searchWrap, $('input.aura-market-search-input')) as HTMLInputElement;
-		search.setAttribute('aria-label', 'Search Aura Market');
+		search.setAttribute('aria-label', 'Search Market');
 		search.type = 'text';
-		search.placeholder = 'Поиск в Aura Market...';
+		search.placeholder = 'Поиск...';
 		this._register(addDisposableListener(search, EventType.INPUT, () => {
 			this.searchText = search.value.trim().toLowerCase();
 			this.renderList();

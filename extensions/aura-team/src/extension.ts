@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { AuraApiClient } from './api/client';
 import { connectGitHub } from './auth/github';
 import { GitService } from './git/service';
+import { TeamSyncService } from './git/teamSync';
 import { ProfileManager } from './profile';
 import { AuraState, BoardSnapshot, Profile, Project, Session, TaskStatus, TeamApiKey } from './types';
 import { BoardPanel } from './views/board';
@@ -24,13 +25,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const profiles = new ProfileManager(context);
 	const updateSimpleModeContext = async (): Promise<void> => vscode.commands.executeCommand('setContext', 'auraTeam.simpleMode', vscode.workspace.getConfiguration('auraTeam').get<boolean>('simpleMode', true));
 
+	// Фоновый полуавтоматический синк GitHub (автопулл + автопуш по сохранению).
+	let teamSync: TeamSyncService | undefined;
+	try { teamSync = new TeamSyncService(git, output); context.subscriptions.push(teamSync); } catch { /* git недоступен */ }
+
 	const state: { session?: Session; board?: BoardSnapshot; teamId?: string; keys?: TeamApiKey[]; demo?: boolean } = {};
 	const boardPanel = new BoardPanel(api, () => state.teamId, async () => refresh());
 	const provider = new AuraTeamPanelProvider(context.extensionUri);
 
 	const demoMode = (): boolean => vscode.workspace.getConfiguration('auraTeam').get<boolean>('demoMode', true);
 	const simpleMode = (): boolean => vscode.workspace.getConfiguration('auraTeam').get<boolean>('simpleMode', true);
-	const serverUrl = (): string => vscode.workspace.getConfiguration('auraTeam').get<string>('serverUrl', 'http://localhost:3210');
+	const serverUrl = (): string => vscode.workspace.getConfiguration('auraTeam').get<string>('serverUrl', 'https://auraide.xyz');
 
 	// ------------------------------------------------------------------
 	// Хэндлер-слой: каждая команда реализована один раз и доступна и
@@ -154,18 +159,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const updateAvatar = (): void => {
 		const profile = profiles.get();
 		avatar.text = `$(account) ${profiles.initials()}`;
-		avatar.tooltip = profile.nickname ? vscode.l10n.t('Aura Team — {0}', profile.nickname) : vscode.l10n.t('Aura Team — set up your profile');
+		avatar.tooltip = profile.nickname ? vscode.l10n.t('Team — {0}', profile.nickname) : vscode.l10n.t('Team — sign in to continue');
 		avatar.command = 'auraTeam.statusMenu';
 	};
 	context.subscriptions.push(avatar, vscode.commands.registerCommand('auraTeam.statusMenu', async () => {
-		const pick = await vscode.window.showQuickPick([
-			{ label: vscode.l10n.t('$(project) Open Aura Team'), id: 'open' },
+		const signedIn = Boolean(state.session);
+		const items = signedIn ? [
+			{ label: vscode.l10n.t('$(project) Open Team'), id: 'open' },
 			{ label: vscode.l10n.t('$(account) Profile'), id: 'profile' },
+			{ label: vscode.l10n.t('$(key) Change Password'), id: 'pass' },
 			{ label: vscode.l10n.t('$(sign-out) Sign Out'), id: 'out' }
-		], { placeHolder: vscode.l10n.t('Aura Team') });
-		if (pick?.id === 'open') { await openTab('team'); }
-		else if (pick?.id === 'profile') { await openTab('profile'); }
-		else if (pick?.id === 'out') { await api.signOut().catch(() => undefined); await refresh(); }
+		] : [
+			{ label: vscode.l10n.t('$(sign-in) Sign In'), id: 'in' },
+			{ label: vscode.l10n.t('$(add) Register'), id: 'reg' }
+		];
+		const pick = await vscode.window.showQuickPick(items, { placeHolder: vscode.l10n.t('Team') });
+		if (!pick) { return; }
+		if (pick.id === 'open') { await openTab('team'); }
+		else if (pick.id === 'profile') { await openTab('profile'); }
+		else if (pick.id === 'pass') { await vscode.commands.executeCommand('auraTeam.changePassword'); }
+		else if (pick.id === 'out') { await api.signOut().catch(() => undefined); await refresh(); }
+		else if (pick.id === 'in') { await openTab('team'); }
+		else if (pick.id === 'reg') { await openTab('team'); }
 	}));
 	updateAvatar();
 
