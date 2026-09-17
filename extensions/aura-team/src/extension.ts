@@ -86,7 +86,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		demoMode: demoMode() && !state.session,
 		simpleMode: simpleMode(),
 		serverUrl: serverUrl(),
-		signedIn: !!state.session
+		signedIn: !!state.session,
+		ideLanguage: vscode.env.language
 	});
 
 	const broadcast = async (): Promise<void> => { provider.broadcast(await buildState()); };
@@ -114,6 +115,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				state.keys = demoKeys();
 			}
 		}
+		// Контекст для титулбара/меню: вошёл ли пользователь на сервере.
+		await vscode.commands.executeCommand('setContext', 'auraTeam.signedIn', !!state.session && !state.demo);
 		await broadcast();
 	};
 
@@ -211,6 +214,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		return await api.register(email, password, displayName);
 	}, false);
 	register('auraTeam.openRegister', async () => { await vscode.env.openExternal(vscode.Uri.parse(`${serverUrl().replace(/\/$/, '')}/register`)); });
+	register('auraTeam.openExternal', async (url?: string) => { if (url && /^https?:\/\//.test(url)) { await vscode.env.openExternal(vscode.Uri.parse(url)); } });
 	register('auraTeam.signOut', async () => { await api.signOut(); await refresh(); });
 	register('auraTeam.changePassword', async (data?: { currentPassword?: string; newPassword?: string }) => {
 		const currentPassword = data?.currentPassword ?? await vscode.window.showInputBox({ prompt: vscode.l10n.t('Current password'), password: true, ignoreFocusOut: true });
@@ -376,14 +380,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
  */
 class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
 	constructor(private readonly open: (view: string) => Promise<void>) { }
-	resolveWebviewView(webviewView: vscode.WebviewView): void {
-		webviewView.webview.options = { enableScripts: true };
-		const launch = (view: string): void => { void this.open(view); void vscode.commands.executeCommand('workbench.action.closeSidebar'); };
-		webviewView.webview.html = `<!doctype html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';"></head><body style="margin:0;box-sizing:border-box;height:100vh;display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:8px;padding:14px;background:transparent;font-family:var(--vscode-font-family);color:var(--vscode-foreground)"><div style="text-align:center;font-weight:700;font-size:13px;margin-bottom:4px">Team</div><button data-v="team" style="width:100%;padding:9px 12px;border:none;border-radius:8px;background:var(--vscode-button-background);color:var(--vscode-button-foreground);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer">${vscode.l10n.t('Open tab')}</button><button data-v="profile" style="width:100%;padding:8px 12px;border:1px solid var(--vscode-widget-border,transparent);border-radius:8px;background:transparent;color:var(--vscode-foreground);font:inherit;font-size:12.5px;cursor:pointer">${vscode.l10n.t('Profile')}</button><script>document.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => acquireVsCodeApi().postMessage({ type: 'launch', view: b.dataset.v })));</script></body></html>`;
-		webviewView.webview.onDidReceiveMessage(message => { if (message?.type === 'launch') { launch(message.view === 'profile' ? 'profile' : 'team'); } });
-		// Автозапуск по клику на иконку + закрытие заглушки (повтор через 300 мс).
-		launch('team');
-		setTimeout(() => void vscode.commands.executeCommand('workbench.action.closeSidebar'), 300);
+	resolveWebviewView(_webviewView: vscode.WebviewView): void {
+		// Aura: лаунчер — только триггер. Сразу открываем вкладку и сворачиваем
+		// сайдбар, чтобы заглушка не была видна. Повтор на случай гонки с sidebar.
+		void this.open('team');
+		void vscode.commands.executeCommand('workbench.action.closeSidebar');
+		setTimeout(() => { void vscode.commands.executeCommand('workbench.action.closeSidebar'); }, 300);
 	}
 }
 

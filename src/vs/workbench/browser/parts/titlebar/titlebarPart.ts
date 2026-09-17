@@ -349,6 +349,12 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this._register(this.hostService.onDidChangeActiveWindow(windowId => windowId === targetWindowId ? this.onFocus() : this.onBlur()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this._register(this.editorGroupsContainer.onDidChangeEditorPartOptions(e => this.onEditorPartConfigurationChange(e)));
+		// Aura: обновлять кнопку Team/Sign In при смене состояния входа (context key от расширения Team).
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set(['auraTeam.signedIn']))) {
+				this.createActionToolBarMenus({ activityActions: true });
+			}
+		}));
 	}
 
 	private onBlur(): void {
@@ -776,9 +782,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			}
 
 			// --- Activity Actions (always at the end)
-			// Aura IDE: справа кнопка профиля Team (Sign In / аккаунт) перед «Manage».
+			// Aura IDE: справа кнопка Team-профиля перед «Manage» — как Copilot Sign In,
+			// но наш: без сессии показывает «Sign In», после входа — «Team».
 			if (this.activityActionsEnabled) {
-				actions.primary.push(new Action('workbench.action.auraTeamOpen', localize('auraTeam.openTitle', 'Team'), 'codicon-account', true, () => {
+				const teamSignedIn = this.contextKeyService.getContextKeyValue<boolean>('auraTeam.signedIn') === true;
+				actions.primary.push(new Action('workbench.action.auraTeamOpen', teamSignedIn ? localize('auraTeam.openTitle', 'Team') : localize('auraTeam.signInTitle', 'Sign In'), 'codicon-account', true, () => {
 					void this.commandService.executeCommand('auraTeam.open').then(undefined, () => undefined);
 				}));
 				actions.primary.push(GLOBAL_ACTIVITY_TITLE_ACTION);

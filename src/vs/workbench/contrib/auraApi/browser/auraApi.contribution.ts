@@ -31,7 +31,6 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
@@ -39,7 +38,6 @@ import { AuraApiEditorPane } from './auraApiEditorPane.js';
 import { AuraApiEditorInput, AuraApiEditorInputSerializer } from './auraApiEditorInput.js';
 import { AuraApiChatProvider, AURA_API_VENDOR, AURA_API_SYSTEM_PROMPT_SETTING } from './auraApiChatProvider.js';
 import { IAuraApiKeysService } from '../common/auraApiKeys.js';
-import { auraMarketInstalledKey } from '../../auraMarket/common/auraMarketCatalog.js';
 import { ChatViewContainerId } from '../../chat/browser/chat.js';
 
 export const AURA_API_OPEN_COMMAND_ID = 'auraApi.openManager';
@@ -228,13 +226,12 @@ class AuraApiPluginContribution extends Disposable {
 	static readonly ID = 'workbench.contrib.auraApiPlugin';
 
 	constructor(
-		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		if (storageService.get(auraMarketInstalledKey('aura-api'), StorageScope.APPLICATION, 'false') === 'true') {
-			registerAuraApiPlugin(instantiationService);
-		}
+		// Aura: API Keys — встроенный плагин, регистрируется всегда (не только после
+		// установки через Market). Так BYOK-модели появляются без Copilot-входа.
+		registerAuraApiPlugin(instantiationService);
 	}
 }
 

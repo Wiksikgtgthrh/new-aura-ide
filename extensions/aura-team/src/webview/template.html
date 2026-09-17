@@ -557,6 +557,7 @@ const DICT = {
 		loginFail: 'Вход не удался', orLocalProfile: 'или продолжите с локальным профилем (демо):',
 		tabLogin: 'Вход', tabRegister: 'Создать аккаунт', regName: 'Имя', regServerPass: 'Пароль (10+ символов)',
 		regServerBtn: 'Зарегистрироваться', regServerDone: 'Аккаунт создан — проверьте почту/лог сервера и верифицируйте email',
+		verifyNow: 'Подтвердить email', verifyHint: 'SMTP ещё не настроен: подтвердите адрес одной кнопкой (ссылка от сервера).', verifyOpened: 'Ссылка подтверждения открыта',
 		verifNote: 'После регистрации приходит ссылка верификации (в письме или в логе сервера).',
 		regNameShort: 'Имя — минимум 2 символа', regBadEmail: 'Некорректный email', regPassShort: 'Пароль — минимум 10 символов',
 		team: 'Команда', commitDone: 'Закоммичено ✓', pushDone: 'Отправлено ✓', pullDone: 'Обновлено ✓', gitHubDone: 'GitHub подключён ✓',
@@ -605,6 +606,7 @@ const DICT = {
 		loginFail: 'Sign in failed', orLocalProfile: 'or continue with a local profile (demo):',
 		tabLogin: 'Sign in', tabRegister: 'Create account', regName: 'Name', regServerPass: 'Password (10+ characters)',
 		regServerBtn: 'Create account', regServerDone: 'Account created — check your inbox/server log and verify the email',
+		verifyNow: 'Verify email', verifyHint: 'SMTP is not configured yet: confirm your address with one click (server-provided link).', verifyOpened: 'Verification link opened',
 		verifNote: 'After registration you receive a verification link (in the email or the server log).',
 		regNameShort: 'Name — at least 2 characters', regBadEmail: 'Invalid email', regPassShort: 'Password — at least 10 characters',
 		team: 'Team', commitDone: 'Committed ✓', pushDone: 'Pushed ✓', pullDone: 'Pulled ✓', gitHubDone: 'GitHub connected ✓',
@@ -622,8 +624,9 @@ archiveDone: 'Archive uploaded ✓', archiveSaved: 'Archive saved ✓',
 	transferred: 'Project transferred ✓', chooseOwner: 'New project owner',
 	}
 };
-const lang = (navigator.language || 'en').toLowerCase().startsWith('ru') ? 'ru' : 'en';
-const T = (key) => DICT[lang][key] ?? key;
+// Язык — из IDE (vscode.env.language приходит в state.ideLanguage), fallback — navigator.
+let lang = 'en';
+const T = (key) => DICT[lang]?.[key] ?? DICT.en?.[key] ?? key;
 
 /* ---------- Утилиты ---------- */
 let state = null;
@@ -652,6 +655,12 @@ window.addEventListener('message', (event) => {
 		message.ok ? p.resolve(message.result) : p.reject(new Error(message.error || 'error'));
 	} else if (message.type === 'state') {
 		state = message.state;
+		if (typeof message.state?.ideLanguage === 'string' && message.state.ideLanguage) {
+			const next = message.state.ideLanguage.toLowerCase().startsWith('ru') ? 'ru' : 'en';
+			const langChanged = next !== lang;
+			lang = next;
+			if (langChanged) { render(); return; }
+		}
 		if (!route || route === 'teams' || route === 'keys' || route === 'profile') { render(); }
 	}
 });
@@ -809,7 +818,8 @@ function render() {
 	if (!state) { return; }
 	if (!['teams','keys','profile'].includes(route)) { route = 'teams'; }
 	updateChrome();
-	const needsAuth = !state.profile?.nickname;
+	// Вход = серверная сессия (не локальный профиль).
+	const needsAuth = !state.signedIn;
 	if (needsAuth) { return mount(renderAuth()); }
 	if (route === 'keys') { return mount(renderKeys()); }
 	if (route === 'profile') { return mount(renderProfile()); }
@@ -881,32 +891,13 @@ function loginFormHtml() {
 }
 
 function renderAuth() {
+	// Только серверная регистрация/вход: локальный демо-блок убран.
 	return `<div class="auth-wrap">
 		<div class="card auth-card">
 			<div class="auth-logo"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2l7.5 4.5v9L12 20l-7.5-4.5v-9L12 2z" stroke="white" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 8.5v7M8.7 10.6l6.6 3M15.3 10.6l-6.6 3" stroke="white" stroke-width="1.6" stroke-linecap="round"/></svg></div>
 			<h1>${esc(T('loginTitle'))}</h1>
 			<div class="sub">${esc(T('loginSub'))}</div>
 			${loginFormHtml()}
-			<div class="sub" style="margin:16px 0 2px">${esc(T('orLocalProfile'))}</div>
-			<div class="field">
-				<label>${esc(T('regNick'))} *</label>
-				<input id="regNick" maxlength="40" placeholder="Alex">
-				<div class="err hidden" id="regNickErr">${esc('—')}</div>
-			</div>
-			<div class="field">
-				<label>${esc(T('regEmail'))}</label>
-				<input id="regEmail" type="email" maxlength="120" placeholder="you@team.dev">
-			</div>
-			<div class="field">
-				<label>${esc(T('regDesc'))}</label>
-				<textarea id="regDesc" rows="2" maxlength="240" placeholder="${esc(T('descrPh'))}"></textarea>
-			</div>
-			<button class="btn primary lg" id="regSubmit" style="width:100%;justify-content:center">${esc(T('regBtn'))}</button>
-			<div class="progress-bar hidden" id="regProgress"><div class="fill"></div></div>
-			<div class="demo-note">
-				<svg viewBox="0 0 24 24" fill="none"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z" stroke="currentColor" stroke-width="1.7"/><path d="M12 8v5M12 16.5v.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
-				<div>${esc(T('demoNote'))}</div>
-			</div>
 		</div>
 	</div>`;
 }
@@ -954,6 +945,17 @@ function wireLoginForm() {
 		try {
 			const res = await svc('auraTeam.register', [{ displayName: name, email: mail, password: pass }]);
 			toast(res?.message || T('regServerDone'), 'ok');
+			// Без SMTP сервер возвращает verificationUrl — показываем кнопку «Подтвердить сейчас».
+			if (res?.verificationUrl) {
+				openModal({
+					title: T('verifyNow'), sub: String(res.message || ''), actionText: T('verifyNow'),
+					body: `<div class="sub">${esc(T('verifyHint'))}</div>`,
+					onAction: async () => {
+						try { await svc('auraTeam.openExternal', [String(res.verificationUrl)]); toast(T('verifyOpened'), 'ok'); } catch { /* ignore */ }
+						return false;
+					}
+				});
+			}
 			authTab = 'login';
 			render();
 		} catch (err) { toast(err?.message || T('loginFail'), 'err'); }
@@ -965,39 +967,7 @@ function wireLoginForm() {
 }
 function wireAuth() {
 	wireLoginForm();
-	const nick = document.getElementById('regNick');
-	const email = document.getElementById('regEmail');
-	const desc = document.getElementById('regDesc');
-	const submit = document.getElementById('regSubmit');
-	const progress = document.getElementById('regProgress');
-	const err = document.getElementById('regNickErr');
-	const validate = () => {
-		const value = nick.value.trim();
-		const valid = value.length >= 2;
-		err.classList.toggle('hidden', valid);
-		if (!valid) { 		err.textContent = T('regNameShort'); }
-		return valid;
-	};
-	nick.addEventListener('input', validate);
-	submit.addEventListener('click', async (e) => {
-		ripple(e);
-		if (!validate()) { return; }
-		submit.disabled = true;
-		progress.classList.remove('hidden');
-		if (navigator.vibrate) { navigator.vibrate(10); }
-		try {
-			await svc('auraTeam.registerProfile', [{ nickname: nick.value.trim(), email: email.value.trim(), description: desc.value.trim() }]);
-		} catch { /* демо/офлайн — всё равно продолжаем с локальным профилем */ }
-		setTimeout(() => {
-			progress.classList.add('hidden');
-			submit.disabled = false;
-			toast(T('regDone'), 'ok');
-			state.profile.nickname = nick.value.trim();
-			state.profile.email = email.value.trim();
-			state.profile.description = desc.value.trim();
-			render();
-		}, state.demoMode ? 1100 : 450);
-	});
+	// Локальный демо-профиль убран: wireAuth = только серверные формы (login/register).
 }
 
 /* ---------- Команды ---------- */
@@ -1500,7 +1470,8 @@ function skeleton() {
 function wire() {
 	if (!state) { return; }
 	wireChrome();
-	const needsAuth = !state?.profile?.nickname;
+	// Вход = серверная сессия.
+	const needsAuth = !state.signedIn;
 	if (needsAuth) { wireAuth(); return; }
 	if (route === 'keys') { wireKeys(); return; }
 	if (route === 'profile') { wireProfile(); return; }

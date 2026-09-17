@@ -50,4 +50,6 @@ export interface AuraState {
 	simpleMode: boolean;
 	serverUrl: string;
 	signedIn: boolean;
+	/** Язык интерфейса IDE (vscode.env.language) для локализации webview. */
+	ideLanguage?: string;
 }

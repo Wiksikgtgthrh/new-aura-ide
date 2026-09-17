@@ -677,6 +677,12 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doInvokeWithSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService, defaultAccountService: IDefaultAccountService): Promise<IChatAgentResult> {
+		// Aura IDE: если есть BYOK-модели (API Keys) — Copilot-setup не нужен.
+		// Чат работает напрямую на выбранной BYOK-модели, без диалога входа.
+		if (this.chatEntitlementService.hasByokModels) {
+			this.logService.info('[chat setup] skipped: BYOK models available');
+			return {}; // не редиспетчим на Copilot — запрос обслужит BYOK-модель
+		}
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'chat' });
 
 		const widget = chatWidgetService.getWidgetBySessionResource(request.sessionResource);
