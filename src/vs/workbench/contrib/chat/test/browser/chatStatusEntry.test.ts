@@ -189,7 +189,9 @@ suite('ChatStatusBarEntry', () => {
 		assert.strictEqual(persistedState(storageService), 'blocked');
 	});
 
-	test('keeps Sign In visible in the status bar only while Update owns the title bar', () => {
+	test('does not surface Copilot Sign In in the status bar even while Update owns the title bar', () => {
+		// Aura IDE: signed-out state no longer falls into the Copilot setup entry (BYOK keys work
+		// without sign-in), so every variant renders the default status text.
 		const withoutUpdate = createEntry({ entitlement: ChatEntitlement.Unknown });
 		const withUpdate = createEntry({ entitlement: ChatEntitlement.Unknown, updateTitleBar: true });
 		const whileDebugging = createEntry({ entitlement: ChatEntitlement.Unknown, updateTitleBar: true, inDebugMode: true });
@@ -215,10 +217,10 @@ suite('ChatStatusBarEntry', () => {
 		}, {
 			text: {
 				withoutUpdate: defaultStatusText,
-				withUpdate: '$(copilot) Sign In',
+				withUpdate: defaultStatusText,
 				whileDebugging: defaultStatusText,
 				whileChatInProgress: defaultStatusText,
-				inZenMode: '$(copilot) Sign In',
+				inZenMode: defaultStatusText,
 			},
 			visibility: {
 				withoutUpdate: false,
