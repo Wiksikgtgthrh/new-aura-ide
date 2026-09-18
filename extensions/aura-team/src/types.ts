@@ -13,6 +13,25 @@ export interface Project { id: string; teamId: string; name: string; gitUrl?: st
 export interface TeamTask { id: string; teamId: string; title: string; description: string; status: TaskStatus; assigneeId?: string; assigneeName?: string; position: number; dueAt?: string; }
 export interface Session { user: User; teams: Team[]; }
 export interface BoardSnapshot { members: Member[]; projects: Project[]; tasks: TeamTask[]; }
+
+/** Событие живой ленты команды (из audit_log сервера). */
+export interface TeamActivityEvent {
+	action: string;
+	targetType?: string;
+	targetId?: string;
+	details: Record<string, unknown>;
+	createdAt: string;
+	userId: string;
+	userName: string;
+	taskTitle?: string;
+}
+
+/** Компактный снимок команды для сайдбара. */
+export interface TeamSummary {
+	members: Member[];
+	myTasks: Array<{ id: string; title: string; status: TaskStatus; dueAt?: string }>;
+	projects: Array<{ id: string; name: string; defaultBranch: string; gitUrl?: string }>;
+}
 export interface TeamApiKey { id: string; label: string; keyHint: string; provider: string; accessRole: TeamRole; priority: number; disabledAt?: string; createdAt: string; }
 
 export interface Tokens { accessToken: string; refreshToken: string; expiresIn: number; }
@@ -54,4 +73,8 @@ export interface AuraState {
 	ideLanguage?: string;
 	/** Язык UI Team ('ru' | 'en' | 'auto' — из настройки team.ui.language). */
 	uiLanguage?: string;
+	/** Живая лента последних событий команды. */
+	activity?: TeamActivityEvent[];
+	/** Снимок команды: участники+online, мои задачи, проекты. */
+	summary?: TeamSummary;
 }

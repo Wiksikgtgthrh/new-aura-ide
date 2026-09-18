@@ -130,6 +130,37 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		return database.prepare('SELECT * FROM tasks WHERE id=?').get(request.params.taskId);
 	});
 
+	app.get<{ Params: { teamId: string }; Querystring: { limit?: string } }>('/v1/teams/:teamId/activity', async request => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
+		const limit = Math.min(Math.max(Number(request.query.limit ?? 20) || 20, 1), 100);
+		const events = database.prepare(`
+			SELECT a.action, a.target_type AS targetType, a.target_id AS targetId, a.details, a.created_at AS createdAt,
+				u.id AS userId, u.display_name AS userName,
+				t.title AS taskTitle
+			FROM audit_log a
+			JOIN users u ON u.id = a.user_id
+			LEFT JOIN tasks t ON a.target_type = 'task' AND t.id = a.target_id
+			WHERE a.team_id = ?
+			ORDER BY a.id DESC LIMIT ?
+		`).all(request.params.teamId, limit) as Array<{ action: string; targetType?: string; targetId?: string; details: string; createdAt: string; userId: string; userName: string; taskTitle?: string }>;
+		let details: Record<string, unknown> = {};
+		return events.map(event => {
+			try { details = JSON.parse(event.details ?? '{}'); } catch { details = {}; }
+			return { action: event.action, targetType: event.targetType, targetId: event.targetId, details, createdAt: event.createdAt, userId: event.userId, userName: event.userName, taskTitle: event.taskTitle };
+		});
+	});
+
+	app.get<{ Params: { teamId: string } }>('/v1/teams/:teamId/summary', async request => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
+		const online = onlineUserIds(request.params.teamId);
+		const members = (database.prepare('SELECT u.id,u.display_name AS displayName,u.email,m.role FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.team_id=? ORDER BY u.display_name').all(request.params.teamId) as { id: string; displayName: string; email: string; role: string }[]).map(member => ({ ...member, online: online.has(member.id) }));
+		const myTasks = database.prepare("SELECT id,title,status,due_at AS dueAt FROM tasks WHERE team_id=? AND assignee_id=? AND status!='done' ORDER BY due_at IS NULL, due_at LIMIT 10").all(request.params.teamId, user);
+		const projects = database.prepare('SELECT id,name,default_branch AS defaultBranch,git_url AS gitUrl FROM projects WHERE team_id=? ORDER BY name').all(request.params.teamId);
+		return { members, myTasks, projects };
+	});
+
 	app.post<{ Params: { teamId: string }; Body: { commitHash?: string; repositoryUrl?: string; message?: string } }>('/v1/teams/:teamId/commits', async (request, reply) => {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'dev'); } catch (error) { mapAccessError(error); }

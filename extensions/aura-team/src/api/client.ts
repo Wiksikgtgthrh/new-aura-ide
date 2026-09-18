@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { BoardSnapshot, DeviceAuthorization, Session, TaskStatus, TeamApiKey, TeamTask, Tokens } from '../types';
+import { BoardSnapshot, DeviceAuthorization, Session, TaskStatus, TeamActivityEvent, TeamApiKey, TeamSummary, TeamTask, Tokens } from '../types';
 
 interface ApiErrorBody { error?: string; message?: string; }
 
@@ -121,6 +121,8 @@ export class AuraApiClient implements vscode.Disposable {
 
 	getSession(): Promise<Session> { return this.request('/v1/me'); }
 	getBoard(teamId: string): Promise<BoardSnapshot> { return this.request(`/v1/teams/${teamId}/board`); }
+	getActivity(teamId: string, limit = 12): Promise<TeamActivityEvent[]> { return this.request(`/v1/teams/${teamId}/activity?limit=${limit}`); }
+	getSummary(teamId: string): Promise<TeamSummary> { return this.request(`/v1/teams/${teamId}/summary`); }
 	createTeam(name: string): Promise<void> { return this.request('/v1/teams', { method: 'POST', body: JSON.stringify({ name }) }); }
 	joinTeam(code: string): Promise<void> { return this.request('/v1/invites/accept', { method: 'POST', body: JSON.stringify({ code }) }); }
 	createInvite(teamId: string): Promise<{ code: string }> { return this.request(`/v1/teams/${teamId}/invites`, { method: 'POST', body: '{}' }); }

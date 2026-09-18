@@ -52,4 +52,8 @@ if (!projectColumns.has('owner_id')) { database.exec('ALTER TABLE projects ADD C
 export function audit(userId: string, action: string, teamId?: string, targetType?: string, targetId?: string, details: object = {}): void {
 	database.prepare('INSERT INTO audit_log(team_id,user_id,action,target_type,target_id,details,created_at) VALUES(?,?,?,?,?,?,?)')
 		.run(teamId ?? null, userId, action, targetType ?? null, targetId ?? null, JSON.stringify(details), new Date().toISOString());
+	// Живая лента в сайдбаре: уведомляем подписчиков команды о новом событии.
+	if (teamId) {
+		import('./realtime.js').then(({ broadcast }) => broadcast(teamId, 'activity.changed')).catch(() => undefined);
+	}
 }

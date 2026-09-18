@@ -9,7 +9,7 @@ import { connectGitHub } from './auth/github';
 import { GitService } from './git/service';
 import { TeamSyncService } from './git/teamSync';
 import { ProfileManager } from './profile';
-import { AuraState, BoardSnapshot, Profile, Project, Session, TaskStatus, TeamApiKey } from './types';
+import { AuraState, BoardSnapshot, Profile, Project, Session, TaskStatus, TeamActivityEvent, TeamApiKey, TeamSummary } from './types';
 import { BoardPanel } from './views/board';
 import { AuraTeamPanelProvider } from './webview/panelProvider';
 
@@ -29,7 +29,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	let teamSync: TeamSyncService | undefined;
 	try { teamSync = new TeamSyncService(git, output); context.subscriptions.push(teamSync); } catch { /* git недоступен */ }
 
-	const state: { session?: Session; board?: BoardSnapshot; teamId?: string; keys?: TeamApiKey[]; demo?: boolean } = {};
+	const state: { session?: Session; board?: BoardSnapshot; teamId?: string; keys?: TeamApiKey[]; demo?: boolean; activity?: TeamActivityEvent[]; summary?: TeamSummary } = {};
 	const boardPanel = new BoardPanel(api, () => state.teamId, async () => refresh());
 	const provider = new AuraTeamPanelProvider(context.extensionUri);
 
@@ -88,6 +88,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		board: state.board,
 		keys: state.keys,
 		git: await git.getSnapshot().catch(() => undefined),
+		activity: state.activity,
+		summary: state.summary,
 		demoMode: demoMode() && !state.session,
 		simpleMode: simpleMode(),
 		serverUrl: serverUrl(),
@@ -105,11 +107,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			state.teamId = state.teamId && state.session.teams.some(team => team.id === state.teamId) ? state.teamId : state.session.teams[0]?.id;
 			state.board = state.teamId ? await api.getBoard(state.teamId) : undefined;
 			state.keys = state.teamId ? await api.listApiKeys(state.teamId) : undefined;
+			state.activity = state.teamId ? await api.getActivity(state.teamId).catch(() => undefined) : undefined;
+			state.summary = state.teamId ? await api.getSummary(state.teamId).catch(() => undefined) : undefined;
 			if (state.teamId) { api.connect(state.teamId); }
 		} catch (error) {
 			state.session = undefined;
 			state.board = undefined;
 			state.keys = undefined;
+			state.activity = undefined;
+			state.summary = undefined;
 			state.demo = false;
 			output.appendLine(`[api] ${errorMessage(error)}`);
 			// Демо-режим: сервер недоступен, но профиль есть — показываем образец.
@@ -442,12 +448,68 @@ const LAUNCHER_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta ht
 	.id { font-size: 11px; opacity: .6; }
 	hr { border: none; border-top: 1px solid var(--vscode-panel-border); margin: 8px 0; }
 	.danger { color: var(--vscode-errorForeground) !important; }
+	.section { margin: 10px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; opacity: .6; display: flex; justify-content: space-between; align-items: center; }
+	.section .count { background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); border-radius: 8px; padding: 1px 7px; font-size: 10px; text-transform: none; }
+	.section .count.hot { background: #d29922; color: #1f1300; animation: pulse 1.6s ease infinite; }
+	@keyframes pulse { 50% { opacity: .55; } }
+	.member { display: flex; gap: 8px; align-items: center; padding: 4px 8px; border-radius: 7px; animation: in .25s ease both; }
+	.member:hover { background: var(--vscode-list-hoverBackground); cursor: pointer; }
+	.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; margin-left: auto; }
+	.dot.on { background: #3fb950; box-shadow: 0 0 6px #3fb95088; }
+	.dot.off { background: var(--vscode-descriptionForeground); opacity: .4; }
+	.m-ava { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 700; flex: none; }
+	.m-role { font-size: 10px; opacity: .55; margin-left: 6px; }
+	.feed { display: flex; flex-direction: column; gap: 2px; }
+	.feed-item { display: flex; gap: 7px; padding: 4px 8px; border-radius: 7px; font-size: 12px; line-height: 1.35; animation: in .25s ease both; align-items: baseline; }
+	.feed-item:hover { background: var(--vscode-list-hoverBackground); }
+	.feed-item .ico { flex: none; opacity: .8; font-size: 12px; }
+	.feed-item .who { font-weight: 600; }
+	.feed-item .what { opacity: .85; }
+	.feed-item .when { margin-left: auto; flex: none; font-size: 10px; opacity: .45; }
+	.taskline { display: flex; gap: 7px; align-items: center; padding: 4px 8px; border-radius: 7px; font-size: 12px; cursor: pointer; animation: in .25s ease both; }
+	.taskline:hover { background: var(--vscode-list-hoverBackground); }
+	.taskline .st { flex: none; font-size: 10px; padding: 1px 6px; border-radius: 6px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
+	.taskline .due { margin-left: auto; font-size: 10px; opacity: .55; }
+	.taskline .due.hot { color: #d29922; opacity: 1; font-weight: 600; }
+	.projline { display: flex; gap: 7px; align-items: center; padding: 4px 8px; border-radius: 7px; font-size: 12px; cursor: pointer; animation: in .25s ease both; }
+	.projline:hover { background: var(--vscode-list-hoverBackground); }
+	.projline .br { margin-left: auto; font-size: 10px; opacity: .55; font-family: var(--vscode-editor-font-family); }
 </style></head><body><div id="root"></div>
 <script nonce="__NONCE__">
 	const vscode = acquireVsCodeApi();
 	let state;
 	function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 	function initials(n) { const p = (n || '').trim().split(/\s+/).filter(Boolean); return ((p[0]?.[0] ?? '?') + (p.length > 1 ? p[1][0] : (p[0]?.[1] ?? ''))).toUpperCase(); }
+	function timeAgo(iso) {
+		if (!iso) { return ''; }
+		const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+		if (s < 60) { return 'только что'; }
+		if (s < 3600) { return Math.floor(s / 60) + ' мин'; }
+		if (s < 86400) { return Math.floor(s / 3600) + ' ч'; }
+		return Math.floor(s / 86400) + ' д';
+	}
+	function colorFor(id) {
+		const colors = ['#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#f59e0b', '#10b981', '#14b8a6', '#0ea5e9', '#3b82f6'];
+		let h = 0; for (const c of String(id ?? '')) { h = (h * 31 + c.charCodeAt(0)) >>> 0; }
+		return colors[h % colors.length];
+	}
+	function describe(ev, ru) {
+		const map = {
+			'team.create': ru ? 'создал команду' : 'created team',
+			'invite.create': ru ? 'создал код приглашения' : 'created an invite',
+			'invite.accept': ru ? 'вступил в команду' : 'joined the team',
+			'task.create': ru ? 'добавил задачу' : 'added task',
+			'task.update': ru ? 'обновил задачу' : 'updated task',
+			'task.commit_link': ru ? 'закоммитил в задачу' : 'committed to task',
+			'member.role': ru ? 'сменил роль' : 'changed role',
+			'key.create': ru ? 'добавил API-ключ' : 'added an API key',
+			'key.disable': ru ? 'отключил API-ключ' : 'disabled an API key',
+			'project.create': ru ? 'создал проект' : 'created project',
+			'project.transfer': ru ? 'передал проект' : 'transferred project',
+			'archive.upload': ru ? 'загрузил архив проекта' : 'uploaded a project archive'
+		};
+		return map[ev.action] ?? ev.action;
+	}
 	function render() {
 		const root = document.getElementById('root');
 		const ru = (state?.uiLanguage ?? 'ru') !== 'en';
@@ -458,23 +520,54 @@ const LAUNCHER_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta ht
 				'<div class="sub">' + esc(state?.serverUrl ?? '') + '</div>';
 		} else {
 			const u = state.session?.user ?? {};
-			const color = '#6366f1';
+			const summary = state.summary;
+			const onlineCount = (summary?.members ?? []).filter(m => m.online).length;
+			const soon = Date.now() + 48 * 3600 * 1000;
+			const hotTasks = (summary?.myTasks ?? []).filter(t => t.dueAt && new Date(t.dueAt).getTime() < soon).length;
+			const teamName = (state.session?.teams ?? []).find(t => t.id === state.teamId)?.name ?? '';
 			const nav = [
-				['team', '$(symbol-class)', ru ? 'Мои команды' : 'My teams'],
 				['board', '$(checklist)', ru ? 'Канбан и задачи' : 'Kanban & tasks'],
 				['git', '$(git-branch)', ru ? 'Проекты и Git' : 'Projects & Git'],
 				['files', '$(archive)', ru ? 'Файлы' : 'Files'],
 				['keys', '$(key)', ru ? 'Ключи команды' : 'Team keys'],
 				['profile', '$(account)', ru ? 'Профиль' : 'Profile']
 			];
-			root.innerHTML = '<div class="me"><div class="ava" style="background:' + color + '">' + esc(initials(u.displayName)) + '</div><div><div>' + esc(u.displayName ?? '') + '</div><div class="id">' + esc(u.email ?? '') + '</div></div></div>' +
-				'<div class="nav">' + nav.map(n => '<button data-view="' + n[0] + '"><span>' + n[1] + '</span>' + n[2] + '</button>').join('') +
-				'<button id="invite"><span>$(add)</span>' + (ru ? 'Пригласить в команду' : 'Invite to team') + '</button></div><hr>' +
+			let html = '<div class="me"><div class="ava" style="background:' + colorFor(u.id) + '">' + esc(initials(u.displayName)) + '</div><div><div>' + esc(u.displayName ?? '') + '</div><div class="id">' + esc(teamName || u.email || '') + '</div></div></div>';
+			// Мои задачи
+			const myTasks = summary?.myTasks ?? [];
+			html += '<div class="section"><span>' + (ru ? 'Мои задачи' : 'My tasks') + '</span>' + (myTasks.length ? '<span class="count' + (hotTasks ? ' hot' : '') + '">' + myTasks.length + '</span>' : '') + '</div>';
+			html += myTasks.length
+				? myTasks.slice(0, 4).map(t => {
+					const hot = t.dueAt && new Date(t.dueAt).getTime() < soon;
+					return '<div class="taskline" data-view="board" data-task="' + esc(t.id) + '"><span class="st">' + esc(t.status) + '</span><span>' + esc(t.title) + '</span>' + (t.dueAt ? '<span class="due' + (hot ? ' hot' : '') + '">' + (hot ? '⏰ ' : '') + timeAgo(t.dueAt) + '</span>' : '') + '</div>';
+				}).join('')
+				: '<div class="feed-item"><span class="ico">✓</span><span class="what">' + (ru ? 'Незакрытых задач нет' : 'No open tasks') + '</span></div>';
+			// Участники
+			const members = summary?.members ?? [];
+			html += '<div class="section"><span>' + (ru ? 'Команда' : 'Team') + '</span><span class="count">' + onlineCount + '/' + members.length + '</span></div>';
+			html += members.slice(0, 8).map(m => '<div class="member" data-view="board" data-member="' + esc(m.id) + '"><div class="m-ava" style="background:' + colorFor(m.id) + '">' + esc(initials(m.displayName)) + '</div><span>' + esc(m.displayName) + '</span><span class="m-role">' + esc(m.role) + '</span><div class="dot ' + (m.online ? 'on' : 'off') + '"></div></div>').join('');
+			// Лента событий
+			const feed = state.activity ?? [];
+			html += '<div class="section"><span>' + (ru ? 'События' : 'Activity') + '</span></div><div class="feed">';
+			html += feed.length
+				? feed.slice(0, 6).map(ev => '<div class="feed-item"><span class="ico">' + (ev.action.includes('commit') ? '⎇' : ev.action.includes('task') ? '☑' : ev.action.includes('invite') ? '✉' : '•') + '</span><span><span class="who">' + esc(ev.userName) + '</span> <span class="what">' + esc(describe(ev, ru)) + (ev.taskTitle ? ' «' + esc(ev.taskTitle) + '»' : '') + '</span></span><span class="when">' + timeAgo(ev.createdAt) + '</span></div>').join('')
+				: '<div class="feed-item"><span class="what">' + (ru ? 'Пока тихо' : 'Nothing yet') + '</span></div>';
+			html += '</div>';
+			// Проекты
+			const projects = summary?.projects ?? [];
+			if (projects.length) {
+				html += '<div class="section"><span>' + (ru ? 'Проекты' : 'Projects') + '</span><span class="count">' + projects.length + '</span></div>';
+				html += projects.slice(0, 5).map(p => '<div class="projline" data-view="git"><span>⎇</span><span>' + esc(p.name) + '</span><span class="br">' + esc(p.defaultBranch) + '</span></div>').join('');
+			}
+			html += '<hr><div class="nav">' + nav.map(n => '<button data-view="' + n[0] + '"><span>' + n[1] + '</span>' + n[2] + '</button>').join('') +
+				'<button id="invite"><span>$(add)</span>' + (ru ? 'Пригласить в команду' : 'Invite to team') + '</button></div>' +
 				'<div class="nav"><button id="logout" class="danger"><span>$(sign-out)</span>' + (ru ? 'Выйти' : 'Sign out') + '</button></div>';
+			root.innerHTML = html;
 			document.getElementById('invite').onclick = () => vscode.postMessage({ type: 'invoke', command: 'auraTeam.createInvite', args: [] });
 			document.getElementById('logout').onclick = () => vscode.postMessage({ type: 'invoke', command: 'auraTeam.signOut', args: [] });
 		}
 		for (const b of root.querySelectorAll('button[data-view]')) { b.onclick = () => vscode.postMessage({ type: 'open', view: b.dataset.view }); }
+		for (const el of root.querySelectorAll('[data-view].member, [data-view].taskline, [data-view].projline')) { el.onclick = () => vscode.postMessage({ type: 'open', view: el.dataset.view, filter: el.dataset.member ? { member: el.dataset.member } : el.dataset.task ? { task: el.dataset.task } : undefined }); }
 	}
 	window.addEventListener('message', e => { if (e.data?.type === 'state') { state = e.data.state; render(); } });
 	vscode.postMessage({ type: 'ready' });
