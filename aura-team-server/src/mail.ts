@@ -16,7 +16,9 @@ export async function sendVerificationEmail(email: string, verificationUrl: stri
 		host: config.smtp.host,
 		port: config.smtp.port,
 		secure: config.smtp.secure,
-		auth: config.smtp.user && config.smtp.password ? { user: config.smtp.user, pass: config.smtp.password } : undefined
+		auth: config.smtp.user && config.smtp.password ? { user: config.smtp.user, pass: config.smtp.password } : undefined,
+		// Локальный relay (127.0.0.1) использует самоподписанный сертификат postfix — не проверяем его.
+		tls: config.smtp.host === '127.0.0.1' || config.smtp.host === 'localhost' ? { rejectUnauthorized: false } : undefined
 	});
 	await transport.sendMail({
 		from: config.smtp.from,
