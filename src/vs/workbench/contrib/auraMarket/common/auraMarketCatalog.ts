@@ -15,6 +15,8 @@ export interface IAuraMarketItem {
 	readonly docs?: string;
 	/** Id встроенного плагина сборки — установка активирует его после перезагрузки окна. */
 	readonly builtinId?: string;
+	/** Человекочитаемый размер (что потребуется докачать при установке). */
+	readonly size?: string;
 }
 
 export function auraMarketInstalledKey(itemId: string): string {
@@ -33,6 +35,7 @@ export const AURA_MARKET_ITEMS: IAuraMarketItem[] = [
 		version: '0.1.0',
 		author: 'IDE',
 		description: 'Поддержка Kotlin compiler, Java и Android SDK: проверка toolchain, компиляция активного .kt-файла и диагностика adb/sdkmanager.',
+		size: 'сам плагин ~2 МБ, но toolchain (Kotlin compiler + JDK + Android SDK) — до 6 ГБ',
 		docs: [
 			'Aura Kotlin & Android — базовый toolchain-плагин для Kotlin и Android SDK.',
 			'',
@@ -52,6 +55,7 @@ export const AURA_MARKET_ITEMS: IAuraMarketItem[] = [
 		version: '1.0.0',
 		author: 'IDE',
 		description: 'Менеджер API-ключей: хранение, группировка, приоритеты, автопроверка пинга и ошибок, проверка подлинности модели и безопасности ответов, выбор активного ключа для чата.',
+		size: '~2 МБ',
 		docs: [
 			'Aura API — встроенный менеджер API-ключей.',
 			'',
@@ -91,6 +95,7 @@ export const AURA_MARKET_ITEMS: IAuraMarketItem[] = [
 		version: '2.0.0',
 		author: 'AGGG',
 		description: 'Обвязка-бустер моделей: встраивает ядро правил AGGG2.0 в системный промпт чата на каждый ход. Включается глобально (aggg.enabled) или отдельно на проект (aggg.projectBoost в настройках workspace). Индикатор и переключатель — в статус-баре.',
+		size: '~1 МБ',
 		docs: [
 			'AGGG Boost — обвязка, усиливающая модели чата ядром правил AGGG2.0.',
 			'',

@@ -10,6 +10,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { AuraMarketEditorInput } from './auraMarketEditorInput.js';
 import { AURA_MARKET_ITEMS, AuraMarketFilter, IAuraMarketItem, auraMarketInstalledKey } from '../common/auraMarketCatalog.js';
@@ -31,6 +32,7 @@ export class AuraMarketEditorPane extends EditorPane {
 		@IStorageService private readonly marketStorage: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super(AuraMarketEditorPane.ID, group, telemetryService, themeService, marketStorage);
 	}
@@ -80,7 +82,18 @@ export class AuraMarketEditorPane extends EditorPane {
 		return this.marketStorage.get(auraMarketInstalledKey(item.id), StorageScope.APPLICATION, 'false') === 'true';
 	}
 
-	private install(item: IAuraMarketItem, btn: HTMLButtonElement): void {
+	private async install(item: IAuraMarketItem, btn: HTMLButtonElement): Promise<void> {
+		// Тяжёлые плагины: предупреждаем, что установится вместе с toolchain.
+		if (!this.isInstalled(item) && item.size && /ГБ|GB/i.test(item.size)) {
+			const choice = await this.dialogService.confirm({
+				type: 'warning',
+				title: item.name,
+				message: `«${item.name}» требует загрузки инструментов: ${item.size}. Продолжить установку?`,
+				primaryButton: 'Установить',
+				cancelButton: 'Отмена'
+			});
+			if (!choice.confirmed) { return; }
+		}
 		if (!item.builtinId) {
 			this.notificationService.info(`«${item.name}»: загрузка этого плагина будет подключена следующим шагом.`);
 			return;
@@ -128,7 +141,7 @@ export class AuraMarketEditorPane extends EditorPane {
 
 			append(card, $('.aura-market-card-desc')).textContent = item.description;
 			append(card, $('.aura-market-card-meta')).textContent =
-				[item.author, item.version ? `v${item.version}` : undefined].filter(Boolean).join(' · ');
+				[item.author, item.version ? `v${item.version}` : undefined, item.size].filter(Boolean).join(' · ');
 
 			const actions = append(card, $('.aura-market-card-actions'));
 			const installBtn = append(actions, $('button.aura-market-install')) as HTMLButtonElement;
@@ -136,7 +149,7 @@ export class AuraMarketEditorPane extends EditorPane {
 			installBtn.textContent = installed ? 'Установлено ✓' : 'Установить';
 			installBtn.disabled = installed;
 			if (installed) { installBtn.classList.add('installed'); }
-			this._register(addDisposableListener(installBtn, EventType.CLICK, () => this.install(item, installBtn)));
+			this._register(addDisposableListener(installBtn, EventType.CLICK, () => { void this.install(item, installBtn); }));
 
 			if (item.docs) {
 				const docsBtn = append(actions, $('button.aura-api-btn-small')) as HTMLButtonElement;

@@ -34,6 +34,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const provider = new AuraTeamPanelProvider(context.extensionUri);
 
 	const demoMode = (): boolean => vscode.workspace.getConfiguration('auraTeam').get<boolean>('demoMode', false);
+	// Язык UI Team: 'ru' по умолчанию; 'auto' — язык IDE.
+	const uiLanguage = (): string => {
+		const setting = vscode.workspace.getConfiguration('auraTeam').get<string>('uiLanguage', 'ru');
+		return setting === 'auto' ? vscode.env.language : setting;
+	};
 	const simpleMode = (): boolean => vscode.workspace.getConfiguration('auraTeam').get<boolean>('simpleMode', true);
 	const serverUrl = (): string => vscode.workspace.getConfiguration('auraTeam').get<string>('serverUrl', 'https://auraide.xyz');
 
@@ -87,7 +92,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		simpleMode: simpleMode(),
 		serverUrl: serverUrl(),
 		signedIn: !!state.session,
-		ideLanguage: vscode.env.language
+		ideLanguage: vscode.env.language,
+		uiLanguage: uiLanguage()
 	});
 
 	const broadcast = async (): Promise<void> => { provider.broadcast(await buildState()); };
@@ -117,6 +123,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}
 		// Контекст для титулбара/меню: вошёл ли пользователь на сервере.
 		await vscode.commands.executeCommand('setContext', 'auraTeam.signedIn', !!state.session && !state.demo);
+		updateAvatar();
 		await broadcast();
 	};
 
@@ -141,7 +148,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			supportsMultipleEditorsPerDocument: false
 		}),
 		vscode.workspace.registerTextDocumentContentProvider(PANEL_SCHEME, { provideTextDocumentContent: () => '' }),
-		vscode.window.registerWebviewViewProvider('auraTeam.home', new AuraTeamLauncherViewProvider((view) => openTab(view)), { webviewOptions: { retainContextWhenHidden: true } }),
+		vscode.window.registerWebviewViewProvider('auraTeam.home', new AuraTeamLauncherViewProvider((view) => openTab(view), () => buildState(), (id, args) => handlerFor(id, args)), { webviewOptions: { retainContextWhenHidden: true } }),
 		vscode.commands.registerCommand('auraTeam.invoke', async (id: string, args: unknown[]) => handlerFor(id, args)),
 		vscode.commands.registerCommand('auraTeam.broadcast', () => broadcast()),
 		vscode.commands.registerCommand('auraTeam.open', () => openTab('team')),
@@ -159,11 +166,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// Статус-бар: аватар профиля + быстрые действия
 	// ------------------------------------------------------------------
 	const avatar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
+	// Аватар в статус-баре виден ТОЛЬКО при живой серверной сессии.
 	const updateAvatar = (): void => {
-		const profile = profiles.get();
-		avatar.text = `$(account) ${profiles.initials()}`;
-		avatar.tooltip = profile.nickname ? vscode.l10n.t('Team — {0}', profile.nickname) : vscode.l10n.t('Team — sign in to continue');
+		const session = state.session && !state.demo ? state.session : undefined;
+		if (!session) { avatar.hide(); return; }
+		const name = session.user.displayName || profiles.get().nickname;
+		const parts = name.trim().split(/\s+/);
+		const initials = ((parts[0]?.[0] ?? '?') + (parts.length > 1 ? parts[1][0] : (parts[0]?.[1] ?? ''))).toUpperCase();
+		avatar.text = `$(account) ${initials}`;
+		avatar.tooltip = vscode.l10n.t('Team — {0}', name);
 		avatar.command = 'auraTeam.statusMenu';
+		avatar.show();
 	};
 	context.subscriptions.push(avatar, vscode.commands.registerCommand('auraTeam.statusMenu', async () => {
 		const signedIn = Boolean(state.session);
@@ -210,7 +223,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		const password = data?.password ?? '';
 		if (!email?.includes('@')) { throw new Error(vscode.l10n.t('Enter a valid email.')); }
 		if (!displayName || displayName.length < 2) { throw new Error(vscode.l10n.t('Display name must be at least 2 characters.')); }
-		if (password.length < 10) { throw new Error(vscode.l10n.t('Password must be at least 10 characters.')); }
+		if (password.length < 8) { throw new Error(vscode.l10n.t('Password must be at least 8 characters.')); }
 		return await api.register(email, password, displayName);
 	}, false);
 	register('auraTeam.openRegister', async () => { await vscode.env.openExternal(vscode.Uri.parse(`${serverUrl().replace(/\/$/, '')}/register`)); });
@@ -218,9 +231,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	register('auraTeam.signOut', async () => { await api.signOut(); await refresh(); });
 	register('auraTeam.changePassword', async (data?: { currentPassword?: string; newPassword?: string }) => {
 		const currentPassword = data?.currentPassword ?? await vscode.window.showInputBox({ prompt: vscode.l10n.t('Current password'), password: true, ignoreFocusOut: true });
-		const newPassword = data?.newPassword ?? await vscode.window.showInputBox({ prompt: vscode.l10n.t('New password (10+ characters)'), password: true, ignoreFocusOut: true });
+		const newPassword = data?.newPassword ?? await vscode.window.showInputBox({ prompt: vscode.l10n.t('New password (8+ characters)'), password: true, ignoreFocusOut: true });
 		if (!currentPassword || !newPassword) { throw new Error(vscode.l10n.t('Both password fields are required.')); }
-		if (newPassword.length < 10) { throw new Error(vscode.l10n.t('Password must be at least 10 characters.')); }
+		if (newPassword.length < 8) { throw new Error(vscode.l10n.t('Password must be at least 8 characters.')); }
 		await api.changePassword(currentPassword, newPassword);
 		await refresh();
 	}, false);
@@ -374,20 +387,98 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 /**
- * Лаунчер в activity bar: клик по иконке Aura Team открывает вкладку.
- * Панель-заглушка закрывается сама; если первая попытка не сработала
- * (precondition SideBarVisibleContext в момент открытия), повторяется через 300 мс.
+ * Сайдбар Team (activity bar) — живая навигация:
+ *  • не вошёл → карточка «Войдите или создайте аккаунт» с кнопками;
+ *  • вошёл → меню: профиль, команды, канбан, проекты, файлы, ключи, приглашение, выход.
  */
 class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
-	constructor(private readonly open: (view: string) => Promise<void>) { }
-	resolveWebviewView(_webviewView: vscode.WebviewView): void {
-		// Aura: лаунчер — только триггер. Сразу открываем вкладку и сворачиваем
-		// сайдбар, чтобы заглушка не была видна. Повтор на случай гонки с sidebar.
-		void this.open('team');
-		void vscode.commands.executeCommand('workbench.action.closeSidebar');
-		setTimeout(() => { void vscode.commands.executeCommand('workbench.action.closeSidebar'); }, 300);
+	private view?: vscode.WebviewView;
+	private lastState?: unknown;
+
+	constructor(
+		private readonly open: (view: string) => Promise<void>,
+		private readonly getState: () => Promise<unknown>,
+		private readonly invoke: (id: string, args: unknown[]) => Promise<unknown>
+	) { }
+
+	resolveWebviewView(webviewView: vscode.WebviewView): void {
+		this.view = webviewView;
+		webviewView.webview.options = { enableScripts: true };
+		const nonce = String(Date.now()) + '-' + Math.floor(Math.random() * 1e9);
+		webviewView.webview.html = LAUNCHER_HTML.replace('__NONCE__', nonce);
+		webviewView.webview.onDidReceiveMessage(async message => {
+			if (message?.type === 'open' && typeof message.view === 'string') { await this.open(message.view); }
+			else if (message?.type === 'invoke' && typeof message.command === 'string') {
+				try { await this.invoke(message.command, Array.isArray(message.args) ? message.args : []); } catch { /* ошибка уже показана хэндлером */ }
+				await this.push();
+			} else if (message?.type === 'ready') { await this.push(); }
+		});
+		void this.push();
+	}
+
+	/** Протолкнуть свежее состояние в сайдбар (вызывается из broadcast). */
+	async push(): Promise<void> {
+		this.lastState = await this.getState();
+		if (this.view) { void this.view.webview.postMessage({ type: 'state', state: this.lastState }); }
 	}
 }
+
+const LAUNCHER_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-__NONCE__';">
+<style>
+	body { padding: 10px; font-family: var(--vscode-font-family); color: var(--vscode-foreground); }
+	.card { border: 1px solid var(--vscode-panel-border); border-radius: 10px; padding: 14px 12px; text-align: center; margin-bottom: 10px; animation: in .25s ease; }
+	@keyframes in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+	.title { font-weight: 600; margin-bottom: 4px; }
+	.sub { font-size: 12px; opacity: .75; margin-bottom: 12px; line-height: 1.4; }
+	button { display: block; width: 100%; box-sizing: border-box; margin: 6px 0 0; padding: 7px 10px; border: none; border-radius: 6px; cursor: pointer;
+		background: var(--vscode-button-background); color: var(--vscode-button-foreground); font-size: 13px; transition: filter .15s ease, transform .1s ease; }
+	button:hover { filter: brightness(1.12); } button:active { transform: scale(.98); }
+	button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+	.nav button { text-align: left; background: transparent; color: var(--vscode-foreground); display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 8px; }
+	.nav button:hover { background: var(--vscode-list-hoverBackground); }
+	.me { display: flex; gap: 10px; align-items: center; text-align: left; margin-bottom: 10px; }
+	.ava { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; flex: none; position: relative; }
+	.ava::after { content: ''; position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%; background: #3fb950; border: 2px solid var(--vscode-sideBar-background); }
+	.id { font-size: 11px; opacity: .6; }
+	hr { border: none; border-top: 1px solid var(--vscode-panel-border); margin: 8px 0; }
+	.danger { color: var(--vscode-errorForeground) !important; }
+</style></head><body><div id="root"></div>
+<script nonce="__NONCE__">
+	const vscode = acquireVsCodeApi();
+	let state;
+	function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+	function initials(n) { const p = (n || '').trim().split(/\s+/).filter(Boolean); return ((p[0]?.[0] ?? '?') + (p.length > 1 ? p[1][0] : (p[0]?.[1] ?? ''))).toUpperCase(); }
+	function render() {
+		const root = document.getElementById('root');
+		const ru = (state?.uiLanguage ?? 'ru') !== 'en';
+		if (!state?.signedIn) {
+			root.innerHTML = '<div class="card"><div class="title">' + (ru ? 'Командная работа' : 'Team work') + '</div><div class="sub">' +
+				(ru ? 'Войдите или создайте аккаунт, чтобы работать с командой: проекты, канбан, задачи и общие ключи.' : 'Sign in or create an account to work with your team: projects, kanban, tasks and shared keys.') + '</div>' +
+				'<button data-view="login">' + (ru ? 'Войти' : 'Sign in') + '</button><button class="secondary" data-view="register">' + (ru ? 'Создать аккаунт' : 'Create account') + '</button></div>' +
+				'<div class="sub">' + esc(state?.serverUrl ?? '') + '</div>';
+		} else {
+			const u = state.session?.user ?? {};
+			const color = '#6366f1';
+			const nav = [
+				['team', '$(symbol-class)', ru ? 'Мои команды' : 'My teams'],
+				['board', '$(checklist)', ru ? 'Канбан и задачи' : 'Kanban & tasks'],
+				['git', '$(git-branch)', ru ? 'Проекты и Git' : 'Projects & Git'],
+				['files', '$(archive)', ru ? 'Файлы' : 'Files'],
+				['keys', '$(key)', ru ? 'Ключи команды' : 'Team keys'],
+				['profile', '$(account)', ru ? 'Профиль' : 'Profile']
+			];
+			root.innerHTML = '<div class="me"><div class="ava" style="background:' + color + '">' + esc(initials(u.displayName)) + '</div><div><div>' + esc(u.displayName ?? '') + '</div><div class="id">' + esc(u.email ?? '') + '</div></div></div>' +
+				'<div class="nav">' + nav.map(n => '<button data-view="' + n[0] + '"><span>' + n[1] + '</span>' + n[2] + '</button>').join('') +
+				'<button id="invite"><span>$(add)</span>' + (ru ? 'Пригласить в команду' : 'Invite to team') + '</button></div><hr>' +
+				'<div class="nav"><button id="logout" class="danger"><span>$(sign-out)</span>' + (ru ? 'Выйти' : 'Sign out') + '</button></div>';
+			document.getElementById('invite').onclick = () => vscode.postMessage({ type: 'invoke', command: 'auraTeam.createInvite', args: [] });
+			document.getElementById('logout').onclick = () => vscode.postMessage({ type: 'invoke', command: 'auraTeam.signOut', args: [] });
+		}
+		for (const b of root.querySelectorAll('button[data-view]')) { b.onclick = () => vscode.postMessage({ type: 'open', view: b.dataset.view }); }
+	}
+	window.addEventListener('message', e => { if (e.data?.type === 'state') { state = e.data.state; render(); } });
+	vscode.postMessage({ type: 'ready' });
+</script></body></html>`;
 
 function requireTeam(state: { teamId?: string }): string {
 	if (!state.teamId) { throw new Error(vscode.l10n.t('Create or join a team first.')); }

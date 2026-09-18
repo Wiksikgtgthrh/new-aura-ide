@@ -552,14 +552,14 @@ const DICT = {
 		gitHub: 'Подключить GitHub', server: 'Сервер', demo: 'демо',
 		loginTitle: 'Вход', loginSub: 'Войдите по email и паролю, чтобы работать со своим сервером.',
 		loginEmail: 'Email', loginPassword: 'Пароль', loginBtn: 'Войти',
-		changePassword: 'Сменить пароль', currentPassword: 'Текущий пароль', newPassword: 'Новый пароль (10+ символов)', passwordChanged: 'Пароль изменён. Войдите снова.',
+		changePassword: 'Сменить пароль', currentPassword: 'Текущий пароль', newPassword: 'Новый пароль (от 8 символов)', passwordChanged: 'Пароль изменён. Войдите снова.',
 		noAccount: 'Нет аккаунта?', registerLink: 'Создать на сервере',
 		loginFail: 'Вход не удался', orLocalProfile: 'или продолжите с локальным профилем (демо):',
-		tabLogin: 'Вход', tabRegister: 'Создать аккаунт', regName: 'Имя', regServerPass: 'Пароль (10+ символов)',
+		tabLogin: 'Вход', tabRegister: 'Создать аккаунт', regName: 'Имя', regServerPass: 'Пароль (от 8 символов)',
 		regServerBtn: 'Зарегистрироваться', regServerDone: 'Аккаунт создан — проверьте почту/лог сервера и верифицируйте email',
 		verifyNow: 'Подтвердить email', verifyHint: 'SMTP ещё не настроен: подтвердите адрес одной кнопкой (ссылка от сервера).', verifyOpened: 'Ссылка подтверждения открыта',
 		verifNote: 'После регистрации приходит ссылка верификации (в письме или в логе сервера).',
-		regNameShort: 'Имя — минимум 2 символа', regBadEmail: 'Некорректный email', regPassShort: 'Пароль — минимум 10 символов',
+		regNameShort: 'Имя — минимум 2 символа', regBadEmail: 'Некорректный email', regPassShort: 'Пароль — минимум 8 символов',
 		team: 'Команда', commitDone: 'Закоммичено ✓', pushDone: 'Отправлено ✓', pullDone: 'Обновлено ✓', gitHubDone: 'GitHub подключён ✓',
 		demoTeamCreated: 'Команда создана', demoTeamJoined: 'Вы вступили в команду', demoInvite: 'Код сгенерирован',
 		demoTaskAdded: 'Задача добавлена', demoRoleUpdated: 'Роль обновлена', demoTeamSelected: 'Команда выбрана',
@@ -601,14 +601,14 @@ const DICT = {
 		gitHub: 'Connect GitHub', server: 'Server', demo: 'demo',
 		loginTitle: 'Sign in', loginSub: 'Sign in with email and password to work with your server.',
 		loginEmail: 'Email', loginPassword: 'Password', loginBtn: 'Sign in',
-		changePassword: 'Change password', currentPassword: 'Current password', newPassword: 'New password (10+ characters)', passwordChanged: 'Password changed. Sign in again.',
+		changePassword: 'Change password', currentPassword: 'Current password', newPassword: 'New password (8+ characters)', passwordChanged: 'Password changed. Sign in again.',
 		noAccount: 'No account?', registerLink: 'Create on server',
-		loginFail: 'Sign in failed', orLocalProfile: 'or continue with a local profile (demo):',
-		tabLogin: 'Sign in', tabRegister: 'Create account', regName: 'Name', regServerPass: 'Password (10+ characters)',
+		loginFail: 'Sign in failed', orLocalProfile: 'or continue with a local profile (demo):', regPassMin: 8,
+		tabLogin: 'Sign in', tabRegister: 'Create account', regName: 'Name', regServerPass: 'Password (8+ characters)',
 		regServerBtn: 'Create account', regServerDone: 'Account created — check your inbox/server log and verify the email',
 		verifyNow: 'Verify email', verifyHint: 'SMTP is not configured yet: confirm your address with one click (server-provided link).', verifyOpened: 'Verification link opened',
 		verifNote: 'After registration you receive a verification link (in the email or the server log).',
-		regNameShort: 'Name — at least 2 characters', regBadEmail: 'Invalid email', regPassShort: 'Password — at least 10 characters',
+		regNameShort: 'Name — at least 2 characters', regBadEmail: 'Invalid email', regPassShort: 'Password — at least 8 characters',
 		team: 'Team', commitDone: 'Committed ✓', pushDone: 'Pushed ✓', pullDone: 'Pulled ✓', gitHubDone: 'GitHub connected ✓',
 		demoTeamCreated: 'Team created', demoTeamJoined: 'You joined the team', demoInvite: 'Code generated',
 		demoTaskAdded: 'Task added', demoRoleUpdated: 'Role updated', demoTeamSelected: 'Team selected',
@@ -624,13 +624,13 @@ archiveDone: 'Archive uploaded ✓', archiveSaved: 'Archive saved ✓',
 	transferred: 'Project transferred ✓', chooseOwner: 'New project owner',
 	}
 };
-// Язык — из IDE (vscode.env.language приходит в state.ideLanguage), fallback — navigator.
-let lang = 'en';
+// Язык — из state.uiLanguage (настройка team.ui.language, по умолчанию русский).
+let lang = 'ru';
 const T = (key) => DICT[lang]?.[key] ?? DICT.en?.[key] ?? key;
 
 /* ---------- Утилиты ---------- */
 let state = null;
-let route = ['teams','keys','profile'].includes('__INITIAL_VIEW__') ? '__INITIAL_VIEW__' : 'teams';
+let route = ['teams','keys','profile','board','git','files'].includes('__INITIAL_VIEW__') ? '__INITIAL_VIEW__' : 'teams';
 let teamTab = 'members';
 let authTab = 'login';
 const pending = new Map();
@@ -655,13 +655,16 @@ window.addEventListener('message', (event) => {
 		message.ok ? p.resolve(message.result) : p.reject(new Error(message.error || 'error'));
 	} else if (message.type === 'state') {
 		state = message.state;
-		if (typeof message.state?.ideLanguage === 'string' && message.state.ideLanguage) {
-			const next = message.state.ideLanguage.toLowerCase().startsWith('ru') ? 'ru' : 'en';
+		// Язык: настройка team.ui.language ('ru' | 'en' | 'auto'); auto — язык IDE.
+		if (typeof message.state?.uiLanguage === 'string') {
+			const raw = message.state.uiLanguage;
+			const ideRu = typeof message.state.ideLanguage === 'string' && message.state.ideLanguage.toLowerCase().startsWith('ru');
+			const next = raw === 'auto' ? (ideRu ? 'ru' : 'en') : (raw === 'en' ? 'en' : 'ru');
 			const langChanged = next !== lang;
 			lang = next;
 			if (langChanged) { render(); return; }
 		}
-		if (!route || route === 'teams' || route === 'keys' || route === 'profile') { render(); }
+		if (!route || ['teams','keys','profile','board','git','files'].includes(route)) { render(); }
 	}
 });
 
@@ -816,6 +819,8 @@ function mount(html) {
 
 function render() {
 	if (!state) { return; }
+	// Прямые переходы из сайдбара: board/git/files → вкладка внутри раздела команд.
+	if (route === 'board' || route === 'git' || route === 'files') { teamTab = route === 'board' ? 'board' : route; route = 'teams'; }
 	if (!['teams','keys','profile'].includes(route)) { route = 'teams'; }
 	updateChrome();
 	// Вход = серверная сессия (не локальный профиль).
@@ -939,7 +944,7 @@ function wireLoginForm() {
 		const pass = regPass.value;
 		if (name.length < 2) { toast(T('regNameShort'), 'err'); return; }
 		if (!/^\S+@\S+\.\S+$/.test(mail)) { toast(T('regBadEmail'), 'err'); return; }
-		if (pass.length < 10) { toast(T('regPassShort'), 'err'); return; }
+		if (pass.length < 8) { toast(T('regPassShort'), 'err'); return; }
 		regSubmit.disabled = true;
 		regProgress?.classList.remove('hidden');
 		try {
@@ -1415,12 +1420,12 @@ function wireProfile() {
 		openModal({
 			title: T('changePassword'),
 			sub: T('newPassword'),
-			body: `<div class="field"><label>${esc(T('currentPassword'))}</label><input data-current-password type="password" autocomplete="current-password"></div><div class="field"><label>${esc(T('newPassword'))}</label><input data-new-password type="password" minlength="10" autocomplete="new-password"></div>`,
+			body: `<div class="field"><label>${esc(T('currentPassword'))}</label><input data-current-password type="password" autocomplete="current-password"></div><div class="field"><label>${esc(T('newPassword'))}</label><input data-new-password type="password" minlength="8" autocomplete="new-password"></div>`,
 			actionText: T('save'),
 			onAction: async overlay => {
 				const currentPassword = overlay.querySelector('[data-current-password]').value;
 				const newPassword = overlay.querySelector('[data-new-password]').value;
-				if (!currentPassword || newPassword.length < 10) { toast(T('regPassShort'), 'err'); return true; }
+				if (!currentPassword || newPassword.length < 8) { toast(T('regPassShort'), 'err'); return true; }
 				try { await svc('auraTeam.changePassword', [{ currentPassword, newPassword }]); toast(T('passwordChanged'), 'ok'); state.signedIn = false; state.session = undefined; render(); } catch (err) { toast(err?.message || T('loginFail'), 'err'); return true; }
 			}
 		});

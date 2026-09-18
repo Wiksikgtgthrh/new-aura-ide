@@ -52,4 +52,6 @@ export interface AuraState {
 	signedIn: boolean;
 	/** Язык интерфейса IDE (vscode.env.language) для локализации webview. */
 	ideLanguage?: string;
+	/** Язык UI Team ('ru' | 'en' | 'auto' — из настройки team.ui.language). */
+	uiLanguage?: string;
 }

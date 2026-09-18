@@ -16,7 +16,7 @@ export class AuraMarketEditorInput extends EditorInput {
 	override get editorId(): string { return this.typeId; }
 	override get resource(): URI { return AuraMarketEditorInput.RESOURCE; }
 
-	override getName(): string { return 'Aura Market'; }
+	override getName(): string { return 'Market'; }
 
 	override matches(other: unknown): boolean {
 		return other instanceof AuraMarketEditorInput;

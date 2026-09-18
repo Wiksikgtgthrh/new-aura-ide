@@ -66,6 +66,13 @@
 					"type": "boolean",
 					"default": false,
 					"description": "%configuration.demoMode%"
+				},
+				"auraTeam.uiLanguage": {
+					"type": "string",
+					"enum": ["ru", "en", "auto"],
+					"enumDescriptions": ["Русский", "English", "Язык интерфейса IDE"],
+					"default": "ru",
+					"description": "%configuration.uiLanguage%"
 				}
 			}
 		},

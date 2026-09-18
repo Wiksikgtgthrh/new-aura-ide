@@ -16,7 +16,7 @@ interface Credentials { email: string; password: string; displayName?: string; }
 export async function authRoutes(app: FastifyInstance): Promise<void> {
 	app.post<{ Body: Credentials }>('/v1/auth/register', { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } }, async (request, reply) => {
 		const email = request.body.email?.trim().toLowerCase();
-		if (!email?.includes('@') || request.body.password?.length < 10) { return reply.badRequest('Use a valid email and a password of at least 10 characters'); }
+		if (!email?.includes('@') || request.body.password?.length < 8) { return reply.badRequest('Use a valid email and a password of at least 8 characters'); }
 		const existing = database.prepare('SELECT id,verified_at FROM users WHERE email=?').get(email) as { id: string; verified_at?: string } | undefined;
 		if (existing?.verified_at) { return reply.conflict('An account with this email already exists'); }
 		const userId = existing?.id ?? id();
@@ -71,7 +71,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 	app.post<{ Body: { currentPassword?: string; newPassword?: string } }>('/v1/auth/password', { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } }, async (request, reply) => {
 		const user = await userId(request);
 		if (!request.body.currentPassword || !request.body.newPassword || request.body.newPassword.length < 10) {
-			return reply.badRequest('The new password must contain at least 10 characters');
+			return reply.badRequest('The new password must contain at least 8 characters');
 		}
 		const row = database.prepare('SELECT password_hash FROM users WHERE id=?').get(user) as { password_hash: string } | undefined;
 		if (!row || !await verify(row.password_hash, request.body.currentPassword)) { return reply.unauthorized('Current password is incorrect'); }
@@ -127,7 +127,7 @@ function devicePage(): string {
 }
 
 function registerPage(): string {
-	return `${pageHead('Create Aura Team account')}<h1>Create Account</h1><form><input name="displayName" placeholder="Display name" required><input name="email" type="email" placeholder="Email" required><input name="password" type="password" minlength="10" placeholder="Password (10+ characters)" required><button>Create Account</button></form><p id="result"></p><script>document.querySelector("form").onsubmit=async event=>{event.preventDefault();const body=Object.fromEntries(new FormData(event.target));const response=await fetch("/v1/auth/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});document.querySelector("#result").textContent=response.ok?"Check your email, then return to sign in.":await response.text()}</script>`;
+	return `${pageHead('Create Aura Team account')}<h1>Create Account</h1><form><input name="displayName" placeholder="Display name" required><input name="email" type="email" placeholder="Email" required><input name="password" type="password" minlength="8" placeholder="Password (8+ characters)" required><button>Create Account</button></form><p id="result"></p><script>document.querySelector("form").onsubmit=async event=>{event.preventDefault();const body=Object.fromEntries(new FormData(event.target));const response=await fetch("/v1/auth/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});document.querySelector("#result").textContent=response.ok?"Check your email, then return to sign in.":await response.text()}</script>`;
 }
 
 function pageHead(title: string): string {

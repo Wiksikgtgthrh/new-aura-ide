@@ -6,6 +6,7 @@
 	"configuration.githubClientId": "Client ID of the Aura GitHub OAuth App used for device authorization",
 	"configuration.simpleMode": "Show the safe simplified Git workflow for people who do not use Git commands directly",
 	"configuration.demoMode": "Demo mode: show sample team data when the server is unavailable",
+	"configuration.uiLanguage": "Team panel interface language",
 	"container.title": "Team",
 	"view.home": "Team",
 	"command.open": "Open Aura Team",
