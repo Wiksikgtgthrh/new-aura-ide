@@ -100,7 +100,37 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	const broadcast = async (): Promise<void> => { provider.broadcast(await buildState()); };
 
+	// Уведомления IDE: новые задачи, назначенные на тебя, и свежие события команды.
+	let lastNotifiedActivityId: string | undefined;
+	const notifyOnChanges = (previousBoard: BoardSnapshot | undefined, previousActivity: TeamActivityEvent[] | undefined): void => {
+		const me = state.session?.user.id;
+		if (previousBoard && me && state.board) {
+			for (const task of state.board.tasks) {
+				if (task.assigneeId === me && !previousBoard.tasks.some(prev => prev.id === task.id && prev.assigneeId === me)) {
+					const onOther = previousBoard.tasks.some(prev => prev.id === task.id);
+					if (onOther || !previousBoard.tasks.some(prev => prev.id === task.id)) {
+						// Назначена тебе (ранее была без тебя) или создана сразу на тебя.
+						if (previousBoard.tasks.some(prev => prev.id === task.id && prev.assigneeId !== me) || !previousBoard.tasks.some(prev => prev.id === task.id)) {
+							void vscode.window.showInformationMessage(vscode.l10n.t('📋 Task assigned to you: {0}', task.title));
+						}
+					}
+				}
+			}
+		}
+		// Новые события в ленте (кроме собственных) — один тост на партию.
+		if (previousActivity && state.activity?.length) {
+			const fresh = state.activity.filter(ev => !previousActivity.some(prev => prev.createdAt === ev.createdAt && prev.action === ev.action) && ev.userId !== me);
+			if (fresh.length) {
+				const first = fresh[0];
+				void vscode.window.showInformationMessage(vscode.l10n.t('🔔 {0}: {1}', first.userName, first.action));
+			}
+		}
+		lastNotifiedActivityId = state.activity?.[0]?.targetId ?? lastNotifiedActivityId;
+	};
+
 	const refresh = async (): Promise<void> => {
+		const prevBoard = state.board;
+		const prevActivity = state.activity;
 		try {
 			state.session = await api.getSession();
 			state.demo = false;
@@ -110,6 +140,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			state.activity = state.teamId ? await api.getActivity(state.teamId).catch(() => undefined) : undefined;
 			state.summary = state.teamId ? await api.getSummary(state.teamId).catch(() => undefined) : undefined;
 			if (state.teamId) { api.connect(state.teamId); }
+			notifyOnChanges(prevBoard, prevActivity);
 		} catch (error) {
 			state.session = undefined;
 			state.board = undefined;
@@ -133,16 +164,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		await broadcast();
 	};
 
-	const openTab = async (view = 'team'): Promise<void> => {
-		const uri = vscode.Uri.from({ scheme: PANEL_SCHEME, authority: 'panel', path: '/Team', query: `view=${view}` });
+	const openTab = async (view = 'team', filter?: unknown): Promise<void> => {
+		const uri = vscode.Uri.from({ scheme: PANEL_SCHEME, authority: 'panel', path: '/Team', query: `view=${view}${filter ? `&filter=${encodeURIComponent(JSON.stringify(filter))}` : ''}` });
 		try {
 			await vscode.commands.executeCommand('vscode.openWith', uri, PANEL_VIEW_TYPE);
 		} catch (error) {
 			// Фолбэк: если кастомный редактор недоступен — обычная webview-панель.
 			const panel = vscode.window.createWebviewPanel(PANEL_VIEW_TYPE, vscode.l10n.t('Team'), vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
-			provider.attachFallback(panel, view);
+			provider.attachFallback(panel, view, filter as Record<string, string> | undefined);
 			output.appendLine(`[open] fallback panel: ${errorMessage(error)}`);
 		}
+		// Если вкладка уже была открыта, HTML не перезагружается — применяем фильтр сообщением.
+		if (filter) { provider.applyFilter(filter as Record<string, string>); }
 	};
 
 	// ------------------------------------------------------------------
@@ -154,7 +187,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			supportsMultipleEditorsPerDocument: false
 		}),
 		vscode.workspace.registerTextDocumentContentProvider(PANEL_SCHEME, { provideTextDocumentContent: () => '' }),
-		vscode.window.registerWebviewViewProvider('auraTeam.home', new AuraTeamLauncherViewProvider((view) => openTab(view), () => buildState(), (id, args) => handlerFor(id, args)), { webviewOptions: { retainContextWhenHidden: true } }),
+		vscode.window.registerWebviewViewProvider('auraTeam.home', new AuraTeamLauncherViewProvider((view, filter) => openTab(view, filter), () => buildState(), (id, args) => handlerFor(id, args)), { webviewOptions: { retainContextWhenHidden: true } }),
 		vscode.commands.registerCommand('auraTeam.invoke', async (id: string, args: unknown[]) => handlerFor(id, args)),
 		vscode.commands.registerCommand('auraTeam.broadcast', () => broadcast()),
 		vscode.commands.registerCommand('auraTeam.open', () => openTab('team')),
@@ -298,9 +331,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		await refresh();
 	});
 	register('auraTeam.createTask', async (title?: string, status?: string) => { await api.createTask(requireTeam(state), title ?? await requiredInput(vscode.l10n.t('Task title')), (status as never) ?? undefined); await refresh(); });
-	register('auraTeam.updateTask', async (taskId?: string, changes?: { status?: TaskStatus; position?: number; assigneeId?: string | null }) => {
+	register('auraTeam.updateTask', async (taskId?: string, changes?: { status?: TaskStatus; position?: number; assigneeId?: string | null; title?: string; description?: string; dueAt?: string }) => {
 		if (!taskId) { throw new Error(vscode.l10n.t('Task ID is required.')); }
-		const updated = await api.updateTask(requireTeam(state), taskId, { status: changes?.status, position: changes?.position, assigneeId: changes?.assigneeId });
+		const updated = await api.updateTask(requireTeam(state), taskId, { status: changes?.status, position: changes?.position, assigneeId: changes?.assigneeId, title: changes?.title, description: changes?.description, dueAt: changes?.dueAt });
 		await refresh();
 		return updated;
 	});
@@ -402,7 +435,7 @@ class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
 	private lastState?: unknown;
 
 	constructor(
-		private readonly open: (view: string) => Promise<void>,
+		private readonly open: (view: string, filter?: unknown) => Promise<void>,
 		private readonly getState: () => Promise<unknown>,
 		private readonly invoke: (id: string, args: unknown[]) => Promise<unknown>
 	) { }
@@ -413,7 +446,7 @@ class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
 		const nonce = String(Date.now()) + '-' + Math.floor(Math.random() * 1e9);
 		webviewView.webview.html = LAUNCHER_HTML.replace('__NONCE__', nonce);
 		webviewView.webview.onDidReceiveMessage(async message => {
-			if (message?.type === 'open' && typeof message.view === 'string') { await this.open(message.view); }
+			if (message?.type === 'open' && typeof message.view === 'string') { await this.open(message.view, message.filter); }
 			else if (message?.type === 'invoke' && typeof message.command === 'string') {
 				try { await this.invoke(message.command, Array.isArray(message.args) ? message.args : []); } catch { /* ошибка уже показана хэндлером */ }
 				await this.push();

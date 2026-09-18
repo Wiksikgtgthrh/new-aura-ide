@@ -116,14 +116,14 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		return reply.code(201).send(database.prepare('SELECT * FROM tasks WHERE id=?').get(taskId));
 	});
 
-	app.patch<{ Params: { teamId: string; taskId: string }; Body: { status?: string; position?: number; assigneeId?: string | null } }>('/v1/teams/:teamId/tasks/:taskId', async (request, reply) => {
+	app.patch<{ Params: { teamId: string; taskId: string }; Body: { status?: string; position?: number; assigneeId?: string | null; title?: string; description?: string; dueAt?: string } }>('/v1/teams/:teamId/tasks/:taskId', async (request, reply) => {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'dev'); } catch (error) { mapAccessError(error); }
 		const allowed = ['backlog', 'todo', 'doing', 'review', 'done'];
 		if (request.body.status && !allowed.includes(request.body.status)) { return reply.badRequest('Invalid task status'); }
 		if (request.body.assigneeId && !isMember(request.body.assigneeId, request.params.teamId)) { return reply.badRequest('Assignee must belong to this team'); }
-		const result = database.prepare('UPDATE tasks SET status=COALESCE(@status,status),position=COALESCE(@position,position),assignee_id=CASE WHEN @hasAssignee=1 THEN @assignee ELSE assignee_id END,updated_at=@now WHERE id=@id AND team_id=@team')
-			.run({ status: request.body.status ?? null, position: request.body.position ?? null, hasAssignee: Object.hasOwn(request.body, 'assigneeId') ? 1 : 0, assignee: request.body.assigneeId ?? null, now: new Date().toISOString(), id: request.params.taskId, team: request.params.teamId });
+		const result = database.prepare("UPDATE tasks SET status=COALESCE(@status,status),position=COALESCE(@position,position),assignee_id=CASE WHEN @hasAssignee=1 THEN @assignee ELSE assignee_id END,title=COALESCE(@title,title),description=COALESCE(@description,description),due_at=COALESCE(@dueAt,due_at),updated_at=@now WHERE id=@id AND team_id=@team")
+			.run({ status: request.body.status ?? null, position: request.body.position ?? null, hasAssignee: Object.hasOwn(request.body, 'assigneeId') ? 1 : 0, assignee: request.body.assigneeId ?? null, title: request.body.title?.trim() || null, description: typeof request.body.description === 'string' ? request.body.description : null, dueAt: request.body.dueAt ?? null, now: new Date().toISOString(), id: request.params.taskId, team: request.params.teamId });
 		if (result.changes !== 1) { return reply.notFound(); }
 		audit(user, 'task.update', request.params.teamId, 'task', request.params.taskId, request.body);
 		broadcast(request.params.teamId, 'task.changed');

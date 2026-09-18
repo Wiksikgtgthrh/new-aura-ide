@@ -14,9 +14,13 @@ import { AuraState } from '../types';
  */
 export class AuraTeamDocument implements vscode.CustomDocument {
 	readonly view: string;
+	readonly filter?: Record<string, string>;
 	constructor(readonly uri: vscode.Uri) {
 		const query = new URLSearchParams(uri.query);
 		this.view = query.get('view') ?? 'team';
+		let parsed: Record<string, string> | undefined;
+		try { parsed = JSON.parse(query.get('filter') ?? '') as Record<string, string>; } catch { parsed = undefined; }
+		this.filter = parsed;
 	}
 	dispose(): void { }
 }
@@ -32,15 +36,15 @@ export class AuraTeamPanelProvider implements vscode.CustomReadonlyEditorProvide
 	}
 
 	async resolveCustomEditor(document: AuraTeamDocument, panel: vscode.WebviewPanel): Promise<void> {
-		this.attach(panel, document.view);
+		this.attach(panel, document.view, document.filter);
 	}
 
 	/** Фолбэк для случаев, когда кастомный редактор недоступен. */
-	attachFallback(panel: vscode.WebviewPanel, view: string): void {
-		this.attach(panel, view);
+	attachFallback(panel: vscode.WebviewPanel, view: string, filter?: Record<string, string>): void {
+		this.attach(panel, view, filter);
 	}
 
-	private attach(panel: vscode.WebviewPanel, initialView: string): void {
+	private attach(panel: vscode.WebviewPanel, initialView: string, filter?: Record<string, string>): void {
 		this.panels.add(panel);
 		panel.onDidDispose(() => this.panels.delete(panel));
 
@@ -49,6 +53,7 @@ export class AuraTeamPanelProvider implements vscode.CustomReadonlyEditorProvide
 		let html = fs.readFileSync(path.join(this.extensionUri.fsPath, 'src', 'webview', 'template.html'), 'utf8');
 		html = html.split('__NONCE__').join(nonce);
 		html = html.split('__INITIAL_VIEW__').join(initialView);
+		if (filter) { html = html.split('__INITIAL_FILTER__').join(JSON.stringify(filter).replace(/</g, '\\u003c')); } else { html = html.split('__INITIAL_FILTER__').join('null'); }
 		panel.webview.html = html;
 
 		panel.webview.onDidReceiveMessage(async message => {
@@ -68,6 +73,13 @@ export class AuraTeamPanelProvider implements vscode.CustomReadonlyEditorProvide
 	broadcast(state: AuraState): void {
 		for (const panel of this.panels) {
 			void panel.webview.postMessage({ type: 'state', state });
+		}
+	}
+
+	/** Применить фильтр канбана в открытых вкладках (переход из сайдбара). */
+	applyFilter(filter?: Record<string, string>): void {
+		for (const panel of this.panels) {
+			void panel.webview.postMessage({ type: 'board-filter', filter: filter ?? null });
 		}
 	}
 }

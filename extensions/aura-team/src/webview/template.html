@@ -334,6 +334,10 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 	animation-delay: calc(var(--i, 0) * 35ms);
 }
 .task-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.task-card.highlight { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), var(--shadow); animation: highlightPulse 1.2s ease 2; cursor: pointer; }
+@keyframes highlightPulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent); } }
+.board-filter { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 7px 12px; border-radius: 9px; background: color-mix(in srgb, var(--accent) 12%, var(--card)); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); font-size: 12px; animation: fadeUp .25s var(--ease) both; }
+.board-filter button { padding: 3px 10px; font-size: 11px; }
 .task-title { font-size: 12.5px; font-weight: 600; line-height: 1.35; }
 .task-desc { color: var(--muted); font-size: 11px; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .task-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
@@ -562,8 +566,8 @@ const DICT = {
 		regNameShort: 'Имя — минимум 2 символа', regBadEmail: 'Некорректный email', regPassShort: 'Пароль — минимум 8 символов',
 		team: 'Команда', commitDone: 'Закоммичено ✓', pushDone: 'Отправлено ✓', pullDone: 'Обновлено ✓', gitHubDone: 'GitHub подключён ✓',
 		demoTeamCreated: 'Команда создана', demoTeamJoined: 'Вы вступили в команду', demoInvite: 'Код сгенерирован',
-		demoTaskAdded: 'Задача добавлена', demoRoleUpdated: 'Роль обновлена', demoTeamSelected: 'Команда выбрана',
-	assignee: 'Исполнитель', noAssignee: 'Не назначен',
+		demoTaskAdded: 'Задача добавлена', demoRoleUpdated: 'Роль обновлена', demoTeamSelected: 'Команда выбрана',		assignee: 'Исполнитель', noAssignee: 'Не назначен',
+		taskCard: 'Задача', taskTitle: 'Название задачи',
 	taskMoved: 'Задача перенесена',
 	transfer: 'Передать', projectOwner: 'Владелец', transferProject: 'Передать проект',
 	transferred: 'Проект передан ✓', chooseOwner: 'Новый владелец проекта',
@@ -617,8 +621,8 @@ uploadArchive: 'Upload archive', archiveProject: 'Project name',
 archiveProjectPh: 'my-project (creates a project record)',
 download: 'Download', hasArchive: 'Archive', noArchive: 'No archive',
 noFiles: 'No archives yet — upload the first one.',
-archiveDone: 'Archive uploaded ✓', archiveSaved: 'Archive saved ✓',
-	assignee: 'Assignee', noAssignee: 'Unassigned',
+archiveDone: 'Archive uploaded ✓', archiveSaved: 'Archive saved ✓',		assignee: 'Assignee', noAssignee: 'Unassigned',
+		taskCard: 'Task', taskTitle: 'Task title',
 	taskMoved: 'Task moved',
 	transfer: 'Transfer', projectOwner: 'Owner', transferProject: 'Transfer project',
 	transferred: 'Project transferred ✓', chooseOwner: 'New project owner',
@@ -653,6 +657,11 @@ window.addEventListener('message', (event) => {
 		if (!p) { return; }
 		pending.delete(message.id);
 		message.ok ? p.resolve(message.result) : p.reject(new Error(message.error || 'error'));
+	} else if (message.type === 'board-filter') {
+		boardFilter = message.filter ?? null;
+		route = 'teams';
+		teamTab = 'board';
+		if (state) { render(); }
 	} else if (message.type === 'state') {
 		state = message.state;
 		// Язык: настройка team.ui.language ('ru' | 'en' | 'auto'); auto — язык IDE.
@@ -783,6 +792,9 @@ async function demo(command, args, talk = true) {
 		if (task && changes) {
 			if (changes.status) { task.status = changes.status; }
 			if (typeof changes.position === 'number') { task.position = changes.position; }
+			if (changes.title) { task.title = changes.title; }
+			if (typeof changes.description === 'string') { task.description = changes.description; }
+			if (changes.dueAt) { task.dueAt = changes.dueAt; }
 			if (changes.assigneeId === null || changes.assigneeId === undefined) { task.assigneeId = undefined; task.assigneeName = undefined; }
 			else { const m = state.board?.members.find((x) => x.id === changes.assigneeId); task.assigneeId = changes.assigneeId; task.assigneeName = m?.displayName || task.assigneeName; }
 		}
@@ -1060,16 +1072,29 @@ function assigneeOptionsHtml(task) {
 	}
 	return parts.join('');
 }
+/* Активные фильтры канбана (из сайдбара или сброс). */
+let boardFilter = null; // { member: id } | { task: id }
+try { boardFilter = JSON.parse('__INITIAL_FILTER__'); } catch { boardFilter = null; }
 function renderBoard(board) {
 	const statuses = [
 		['backlog', T('statusBacklog')], ['todo', T('statusTodo')], ['doing', T('statusDoing')], ['review', T('statusReview')], ['done', T('statusDone')]
 	];
-	return `<div class="board-cols">
+	let filterMember = null, highlightTask = null;
+	if (boardFilter?.member) {
+		filterMember = board.members.find((m) => m.id === boardFilter.member) ?? null;
+	} else if (boardFilter?.task) {
+		highlightTask = board.tasks.find((t) => t.id === boardFilter.task)?.id ?? null;
+	}
+	const visible = (t) => !filterMember || t.assigneeId === filterMember.id;
+	const filterBar = (filterMember || highlightTask)
+		? `<div class="board-filter"><span>⌕ ${filterMember ? esc(filterMember.displayName) : '⌗'} </span><button class="btn ghost" id="boardFilterClear">${esc(T('cancel'))}</button></div>`
+		: '';
+	return `${filterBar}<div class="board-cols">
 		${statuses.map(([id, label], ci) => {
-			const tasks = board.tasks.filter((t) => t.status === id);
+			const tasks = board.tasks.filter((t) => t.status === id && visible(t));
 			return `<div class="col" style="--i:${ci}" data-status="${id}">
 				<div class="col-head"><span class="col-title">${esc(label)}</span><span class="col-count">${tasks.length}</span></div>
-				${tasks.map((task, i) => `<div class="task-card" style="--i:${i}" draggable="true" data-task="${esc(task.id)}">
+				${tasks.map((task, i) => `<div class="task-card ${task.id === highlightTask ? 'highlight' : ''}" style="--i:${i}" draggable="true" data-task="${esc(task.id)}" data-open-task="${esc(task.id)}">
 					<div class="task-title">${esc(task.title)}</div>
 					${task.description ? `<div class="task-desc">${esc(task.description)}</div>` : ''}
 					<div class="task-meta">
@@ -1084,6 +1109,14 @@ function renderBoard(board) {
 	</div>`;
 }
 function wireBoard() {
+	const clearBtn = document.getElementById('boardFilterClear');
+	if (clearBtn) { clearBtn.addEventListener('click', () => { boardFilter = null; render(); }); }
+	// Клик по карточке — карточка задачи (детали/редактирование). Не мешает drag&drop и контролам.
+	document.querySelectorAll('[data-open-task]').forEach((card) => card.addEventListener('click', (e) => {
+		if (e.target.closest('select, button, .task-status, .task-assignee')) { return; }
+		if (card.classList.contains('dragging')) { return; }
+		openTaskModal(card.dataset.openTask);
+	}));
 	document.querySelectorAll('.task-status').forEach((s) => s.addEventListener('change', async () => {
 		const task = state.board.tasks.find((t) => t.id === s.dataset.task);
 		if (task) { task.status = s.value; try { await demo('auraTeam.updateTask', [task.id, { status: s.value }]); } catch (e) { toast(e.message, 'err'); } render(); }
@@ -1135,6 +1168,28 @@ function wireBoard() {
 		});
 		setTimeout(() => document.querySelector('[data-task-title]')?.focus(), 30);
 	}));
+}
+/* ---------- Карточка задачи: детали + редактирование ---------- */
+function openTaskModal(taskId) {
+	const task = (state.board?.tasks ?? []).find((t) => t.id === taskId);
+	if (!task) { return; }
+	const ru = lang === 'ru';
+	openModal({
+		title: T('taskCard'), actionText: T('save'),
+		body: `<div class="field"><label>${esc(T('taskTitle'))}</label><input data-task-edit-title maxlength="120" value="${esc(task.title)}"></div>
+			<div class="field"><label>${esc(T('description'))}</label><textarea data-task-edit-desc rows="3" placeholder="${esc(T('descrPh'))}">${esc(task.description || '')}</textarea></div>
+			<div class="field"><label>${esc(ru ? 'Дедлайн' : 'Due date')}</label><input data-task-edit-due type="datetime-local" value="${task.dueAt ? esc(new Date(task.dueAt).toISOString().slice(0, 16)) : ''}"></div>
+			<div class="flex mt8"><span class="chip">${esc(T('assignee'))}: ${esc(task.assigneeName || T('noAssignee'))}</span><span class="chip">${esc(cap(task.status))}</span></div>`,
+		onAction: async (overlay) => {
+			const title = overlay.querySelector('[data-task-edit-title]')?.value.trim();
+			if (!title) { toast(ru ? 'Введите название' : 'Title is required', 'err'); return true; }
+			const description = overlay.querySelector('[data-task-edit-desc]')?.value ?? '';
+			const dueRaw = overlay.querySelector('[data-task-edit-due]')?.value;
+			try { await demo('auraTeam.updateTask', [task.id, { title, description, dueAt: dueRaw ? new Date(dueRaw).toISOString() : undefined }]); } catch (err) { toast(err.message, 'err'); return true; }
+			toast(ru ? 'Задача сохранена ✓' : 'Task saved ✓', 'ok');
+			return false;
+		}
+	});
 }
 /* ---------- Файлы (витрина архивов) ---------- */
 function ownerName(project, members) {
