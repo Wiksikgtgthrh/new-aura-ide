@@ -6,8 +6,14 @@
 import * as vscode from 'vscode';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { registerKotlinLsp } from './lsp';
+import { registerAndroidPanel } from './android';
+import { ClasspathSync } from './classpath';
+import { registerKotlinDebugger } from './debugAdapter';
 
 const execFileAsync = promisify(execFile);
+
+function pathSep(): string { return process.platform === 'win32' ? ';' : ':'; }
 
 export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
@@ -16,6 +22,21 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('auraKotlin.androidDoctor', () => androidDoctor()),
 		vscode.commands.registerCommand('auraKotlin.newProject', (folder?: vscode.Uri) => newProject(folder)),
 	);
+
+	// Этап 3: фоновый разбор Gradle/Maven → classpath для компиляции и LSP.
+	classpathSync = new ClasspathSync();
+	classpathSync.start(context);
+	// Этап 1: Kotlin Language Server — автозапуск при открытии .kt/.kts, диагностика,
+	// hover, автодополнение и переход к определению. При смене classpath — рестарт.
+	const lsp = registerKotlinLsp(context, classpathSync);
+	context.subscriptions.push(classpathSync.onDidChange(() => {
+		if (lsp.available) { lsp.restart(); }
+	}));
+	// Этап 4: устройства ADB, установка .apk, живой logcat с фильтрами.
+	const androidPanel = registerAndroidPanel(context);
+	// Этап 2: отладка через JDWP (встроенный DAP-адаптер, launch/attach, брейкпоинты,
+	// Android: install + am start -D + adb forward + attach к jdwp:PID).
+	registerKotlinDebugger(context, classpathSync, androidPanel);
 
 	// Шаблонный код при создании нового .kt-файла (как в IntelliJ: пакет + fun main / класс).
 	context.subscriptions.push(vscode.workspace.onDidCreateFiles(async event => {
@@ -158,6 +179,8 @@ async function checkToolchain(): Promise<void> {
 	vscode.window.showInformationMessage(message, { modal: true });
 }
 
+let classpathSync: ClasspathSync;
+
 async function compileFile(): Promise<void> {
 	const editor = vscode.window.activeTextEditor;
 	if (!editor || editor.document.languageId !== 'kotlin') {
@@ -169,11 +192,17 @@ async function compileFile(): Promise<void> {
 	if (!workspace) {
 		vscode.window.showWarningMessage(vscode.l10n.t('Open a Kotlin workspace first.'));
 		return;
-	}
-	const output = vscode.Uri.joinPath(workspace, 'out');
+	}		const output = vscode.Uri.joinPath(workspace, 'out');
 	await vscode.workspace.fs.createDirectory(output);
 	try {
-		const result = await execFileAsync(compiler, [editor.document.uri.fsPath, '-include-runtime', '-d', vscode.Uri.joinPath(output, 'app.jar').fsPath], { cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath });
+		// Этап 3: зависимости из Gradle/Maven идут в classpath компиляции.
+		const args = [editor.document.uri.fsPath];
+		const classpath = classpathSync.classpath.jars;
+		if (classpath.length) {
+			args.push('-classpath', classpath.join(pathSep()));
+		}
+		args.push('-include-runtime', '-d', vscode.Uri.joinPath(output, 'app.jar').fsPath);
+		const result = await execFileAsync(compiler, args, { cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath });
 		vscode.window.showInformationMessage(result.stderr || 'Kotlin compilation completed.');
 	} catch (error) {
 		vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error));

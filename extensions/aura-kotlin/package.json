@@ -7,7 +7,7 @@
 	"license": "MIT",
 	"engines": { "vscode": "*" },
 	"main": "./out/extension.js",
-	"activationEvents": ["onLanguage:kotlin", "onCommand:auraKotlin.checkToolchain", "onCommand:auraKotlin.compileFile", "onCommand:auraKotlin.androidDoctor"],
+	"activationEvents": ["onLanguage:kotlin", "onCommand:auraKotlin.checkToolchain", "onCommand:auraKotlin.compileFile", "onCommand:auraKotlin.androidDoctor", "onCommand:auraKotlin.android.logcat", "onCommand:auraKotlin.restartLsp", "onCommand:auraKotlin.debugFile", "onDebug", "onDebugAdapterDynamicConfiguration:kotlin"],
 	"categories": ["Programming Languages", "Other"],
 	"contributes": {
 		"languages": [{
@@ -21,15 +21,59 @@
 			"properties": {
 				"auraKotlin.compilerPath": { "type": "string", "default": "kotlinc", "description": "%configuration.compilerPath%" },
 				"auraKotlin.androidSdkPath": { "type": "string", "default": "", "description": "%configuration.androidSdkPath%" },
-				"auraKotlin.javaPath": { "type": "string", "default": "java", "description": "%configuration.javaPath%" }
+				"auraKotlin.javaPath": { "type": "string", "default": "java", "description": "%configuration.javaPath%" },
+				"auraKotlin.kotlinLspPath": { "type": "string", "default": "kotlin-language-server", "description": "Path or command for the Kotlin Language Server (provides completion, diagnostics, hover and go-to-definition for .kt files). Install from github.com/fwcd/kotlin-language-server or point to your bundled copy." }
 			}
 		},
 		"commands": [
 			{ "command": "auraKotlin.checkToolchain", "title": "%command.checkToolchain%", "category": "Kotlin" },
 			{ "command": "auraKotlin.compileFile", "title": "%command.compileFile%", "category": "Kotlin" },
 			{ "command": "auraKotlin.androidDoctor", "title": "%command.androidDoctor%", "category": "Kotlin" },
-			{ "command": "auraKotlin.newProject", "title": "%command.newProject%", "category": "Kotlin" }
-		]
+			{ "command": "auraKotlin.newProject", "title": "%command.newProject%", "category": "Kotlin" },
+			{ "command": "auraKotlin.restartLsp", "title": "Restart Language Server", "category": "Kotlin" },
+			{ "command": "auraKotlin.android.devices", "title": "Show Connected Devices", "category": "Android" },
+			{ "command": "auraKotlin.android.pickDevice", "title": "Select Device", "category": "Android" },
+			{ "command": "auraKotlin.android.installApk", "title": "Install APK to Device", "category": "Android" },
+			{ "command": "auraKotlin.android.logcat", "title": "Start Logcat Stream", "category": "Android" },
+			{ "command": "auraKotlin.android.logcatFilter", "title": "Filter Logcat (level, tag)", "category": "Android" },
+			{ "command": "auraKotlin.android.logcatStop", "title": "Stop Logcat Stream", "category": "Android" },
+			{ "command": "auraKotlin.debugFile", "title": "Debug Kotlin File", "category": "Kotlin" }
+		],
+		"debuggers": [{
+			"type": "kotlin",
+			"label": "Kotlin (Aura)",
+			"languages": ["kotlin"],
+			"configurationAttributes": {
+				"launch": {
+					"required": [],
+					"properties": {
+						"program": { "type": "string", "description": "Path to the .kt file to compile and debug" },
+						"mainClass": { "type": "string", "description": "Fully qualified main class name (alternative to program)" },
+						"apk": { "type": "string", "description": "Android: path to the .apk to install and debug on a connected device" },
+						"applicationId": { "type": "string", "description": "Android: applicationId (if no apk given, the app must already be installed and debuggable)" },
+						"deviceId": { "type": "string", "description": "Android: target device id from adb devices (default: ask)" },
+						"activity": { "type": "string", "description": "Android: launch activity like com.example/.MainActivity (default: resolve-activity)" },
+						"args": { "type": "array", "items": { "type": "string" }, "description": "Program arguments" },
+						"vmArgs": { "type": "array", "items": { "type": "string" }, "description": "Extra JVM arguments" },
+						"port": { "type": "number", "description": "JDWP port (default: auto)" }
+					}
+				},
+				"attach": {
+					"required": ["port"],
+					"properties": {
+						"host": { "type": "string", "default": "127.0.0.1", "description": "JDWP host" },
+						"port": { "type": "number", "description": "JDWP port of the running JVM" }
+					}
+				}
+			},
+			"configurationSnippets": [{
+				"label": "Kotlin (Aura): Debug active file",
+				"body": { "type": "kotlin", "request": "launch", "name": "Debug active file", "program": "${file}" }
+			}, {
+				"label": "Kotlin (Aura): Debug Android app on device",
+				"body": { "type": "kotlin", "request": "launch", "name": "Debug Android app", "apk": "${workspaceFolder}/app/build/outputs/apk/debug/app-debug.apk" }
+			}]
+		}]
 	},
 	"scripts": { "compile": "gulp compile-extension:aura-kotlin", "watch": "gulp watch-extension:aura-kotlin" },
 	"devDependencies": { "@types/node": "24.x" }
