@@ -29,7 +29,12 @@ export class TeamSyncService implements vscode.Disposable {
 		this.disposables.push(vscode.commands.registerCommand('auraTeam.syncNow', () => this.syncNow()));
 		this.disposables.push(vscode.commands.registerCommand('auraTeam.toggleAutoPush', () => {
 			const cfg = vscode.workspace.getConfiguration('auraTeam');
-			void cfg.update('sync.autoPush', !cfg.get<boolean>('sync.autoPush'), vscode.ConfigurationTarget.Global);
+			const modes = ['off', 'ask', 'auto'];
+			const current = cfg.get<string>('sync.mode', 'off');
+			const next = modes[(modes.indexOf(current) + 1) % modes.length];
+			void cfg.update('sync.mode', next, vscode.ConfigurationTarget.Global);
+			void cfg.update('sync.autoPush', next === 'auto', vscode.ConfigurationTarget.Global);
+			void vscode.window.showInformationMessage(vscode.l10n.t('Team sync mode: {0}', next));
 		}));
 
 		this.disposables.push(vscode.window.onDidChangeWindowState(state => {
@@ -37,9 +42,10 @@ export class TeamSyncService implements vscode.Disposable {
 		}));
 
 		this.disposables.push(vscode.workspace.onDidSaveTextDocument(() => {
-			if (!vscode.workspace.getConfiguration('auraTeam').get<boolean>('sync.autoPush')) { return; }
+			const mode = vscode.workspace.getConfiguration('auraTeam').get<string>('sync.mode', 'off');
+			if (mode !== 'ask' && !vscode.workspace.getConfiguration('auraTeam').get<boolean>('sync.autoPush')) { return; }
 			if (this.pushTimer) { clearTimeout(this.pushTimer); }
-			this.pushTimer = setTimeout(() => void this.autoPush(), 5_000);
+			this.pushTimer = setTimeout(() => void (mode === 'ask' ? this.askPush() : this.autoPush()), 5_000);
 		}));
 
 		this.restartTimer();
@@ -105,6 +111,36 @@ export class TeamSyncService implements vscode.Disposable {
 			this.render('ok');
 		} catch (error) {
 			this.log.appendLine(`[teamSync] push failed: ${String(error)}`);
+			this.render('error');
+		} finally {
+			this.busy = false;
+		}
+	}
+
+	/** Режим «спросить»: по дебаунсу всплывает поле ввода сообщения (с шаблоном), Enter — коммит+пуш. */
+	private async askPush(): Promise<void> {
+		if (this.busy || !(await this.hasRepository())) { return; }
+		try {
+			const changed = await this.git.changedFiles();
+			if (changed.length === 0) { return; }
+			const template = vscode.workspace.getConfiguration('auraTeam').get<string>('sync.commitTemplate', 'wip: {files}');
+			const files = changed.slice(0, 3).join(', ') + (changed.length > 3 ? `, +${changed.length - 3}` : '');
+			const suggested = template.replace('{files}', files).replace('{date}', new Date().toISOString().slice(0, 16).replace('T', ' '));
+			const message = await vscode.window.showInputBox({
+				prompt: vscode.l10n.t('Commit and push {0} changed file(s)?', changed.length),
+				value: suggested,
+				ignoreFocusOut: false
+			});
+			if (message === undefined) { return; } // Esc — отложили
+			const trimmed = message.trim();
+			if (!trimmed) { return; }
+			this.busy = true;
+			this.render('busy');
+			await this.git.commitAll(trimmed);
+			this.log.appendLine(`[teamSync] ask-push: ${trimmed}`);
+			this.render('ok');
+		} catch (error) {
+			this.log.appendLine(`[teamSync] ask-push failed: ${String(error)}`);
 			this.render('error');
 		} finally {
 			this.busy = false;

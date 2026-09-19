@@ -28,6 +28,8 @@ export class AuraTeamDocument implements vscode.CustomDocument {
 export class AuraTeamPanelProvider implements vscode.CustomReadonlyEditorProvider<AuraTeamDocument> {
 
 	private readonly panels = new Set<vscode.WebviewPanel>();
+	/** Навигация, пришедшая до того, как вкладка прислала ready (или пока webview ещё грузится). */
+	private pendingNavigate: { view: string; filter?: Record<string, string> } | undefined;
 
 	constructor(private readonly extensionUri: vscode.Uri) { }
 
@@ -65,6 +67,12 @@ export class AuraTeamPanelProvider implements vscode.CustomReadonlyEditorProvide
 					await panel.webview.postMessage({ type: 'response', id: message.id, ok: false, error: error instanceof Error ? error.message : String(error) });
 				}
 			} else if (message?.type === 'ready') {
+				// Если кнопку нажали, пока вкладка открывалась — применяем навигацию сразу после загрузки.
+				if (this.pendingNavigate) {
+					const nav = this.pendingNavigate;
+					this.pendingNavigate = undefined;
+					void panel.webview.postMessage({ type: 'navigate', view: nav.view, filter: nav.filter });
+				}
 				void vscode.commands.executeCommand('auraTeam.broadcast');
 			}
 		});
@@ -81,5 +89,25 @@ export class AuraTeamPanelProvider implements vscode.CustomReadonlyEditorProvide
 		for (const panel of this.panels) {
 			void panel.webview.postMessage({ type: 'board-filter', filter: filter ?? null });
 		}
+	}
+
+	/** Открыта ли сейчас хотя бы одна вкладка Team. */
+	panelsOpen(): boolean { return this.panels.size > 0; }
+
+	/**
+	 * Переиспользование уже открытой вкладки: вместо открытия нового URI (новой копии
+	 * «Team») переключаем существующий webview на нужный раздел сообщением.
+	 */
+	navigate(view: string, filter?: Record<string, string>): boolean {
+		if (this.panels.size === 0) { return false; }
+		for (const panel of this.panels) {
+			void panel.webview.postMessage({ type: 'navigate', view, filter });
+		}
+		return true;
+	}
+
+	/** Навигация для вкладки, которая ещё не прислала ready. */
+	queueNavigate(view: string, filter?: Record<string, string>): void {
+		this.pendingNavigate = { view, filter };
 	}
 }

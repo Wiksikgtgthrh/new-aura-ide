@@ -16,10 +16,10 @@ const AVATAR_COLORS = [
 function generateId(): string {
 	const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 	let value = '';
-	for (let i = 0; i < 8; i++) {
+	for (let i = 0; i < 10; i++) {
 		value += alphabet[Math.floor(Math.random() * alphabet.length)];
 	}
-	return `AUR-${value}`;
+	return value;
 }
 
 function colorForId(id: string): string {
@@ -37,7 +37,7 @@ export class ProfileManager {
 			nickname: '',
 			email: '',
 			description: '',
-			avatarColor: colorForId('AUR-00000000'),
+			avatarColor: colorForId('00000000'),
 			createdAt: Date.now()
 		};
 		this.profile.avatarColor = this.profile.avatarColor || colorForId(this.profile.id);
@@ -45,10 +45,11 @@ export class ProfileManager {
 
 	get(): Profile { return this.profile; }
 
-	async save(patch: Partial<Pick<Profile, 'nickname' | 'email' | 'description'>>): Promise<Profile> {
+	async save(patch: Partial<Pick<Profile, 'nickname' | 'email' | 'description' | 'avatar'>>): Promise<Profile> {
 		if (patch.nickname) { this.profile.nickname = patch.nickname.trim().slice(0, 40); }
 		if (patch.email !== undefined) { this.profile.email = patch.email.trim().slice(0, 120); }
 		if (patch.description !== undefined) { this.profile.description = patch.description.trim().slice(0, 240); }
+		if (patch.avatar !== undefined) { this.profile.avatar = patch.avatar || undefined; }
 		if (!this.profile.avatarColor) { this.profile.avatarColor = colorForId(this.profile.id); }
 		await this.context.globalState.update(STORAGE_KEY, this.profile);
 		return this.profile;

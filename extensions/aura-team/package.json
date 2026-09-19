@@ -36,10 +36,26 @@
 					"default": "https://auraide.xyz",
 					"description": "%configuration.serverUrl%"
 				},
+				"auraTeam.autoStartServer": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically start the local team server if it is not running (only for localhost serverUrl)"
+				},
+				"auraTeam.sync.mode": {
+					"type": "string",
+					"enum": ["off", "ask", "auto"],
+					"enumDescriptions": [
+						"Выключено — коммиты только вручную",
+						"Спросить — после сохранения файлов предложить сообщение коммита (Enter — коммит и пуш, Esc — отложить)",
+						"Автоматически — коммитить и пушить без вопроса"
+					],
+					"default": "off",
+					"description": "Режим автосинка после сохранения файлов"
+				},
 				"auraTeam.sync.autoPush": {
 					"type": "boolean",
 					"default": false,
-					"description": "Automatically commit and push all changes after saving files"
+					"description": "Automatically commit and push all changes after saving files (legacy — use auraTeam.sync.mode)"
 				},
 				"auraTeam.sync.intervalSeconds": {
 					"type": "number",
@@ -51,11 +67,6 @@
 					"type": "string",
 					"default": "wip: {files}",
 					"description": "Commit message template for auto-push. Supports {files} and {date}"
-				},
-				"auraTeam.githubClientId": {
-					"type": "string",
-					"default": "",
-					"description": "%configuration.githubClientId%"
 				},
 				"auraTeam.simpleMode": {
 					"type": "boolean",

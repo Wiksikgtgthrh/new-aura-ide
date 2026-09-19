@@ -208,6 +208,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 	animation: fadeUp .35s var(--ease) both;
 	animation-delay: calc(var(--i, 0) * 45ms);
 }
+.card.profile-card { max-width: 620px; }
 .card.clickable { cursor: pointer; }
 .card.clickable:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); box-shadow: var(--shadow); }
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
@@ -245,6 +246,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 .btn.ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--card-hover) 80%, var(--accent) 10%); }
 .btn.danger { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
 .btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 26%, transparent); }
+/* Доступность: текст на danger-фоне должен читаться даже если errorForeground тёмный. */
+.btn.danger, .btn.logout-danger { color: color-mix(in srgb, var(--danger) 60%, var(--text)); }
 .btn.sm { padding: 5px 10px; font-size: 11.5px; border-radius: 7px; }
 .btn.lg { padding: 11px 18px; font-size: 13.5px; border-radius: 10px; }
 .btn .spin { width: 14px; height: 14px; border: 2px solid color-mix(in srgb, currentColor 35%, transparent); border-top-color: currentColor; border-radius: 50%; animation: spin .7s linear infinite; }
@@ -260,6 +263,13 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 .field .err { color: var(--danger); font-size: 11px; margin-top: 5px; display: flex; align-items: center; gap: 5px; animation: fadeUp .2s var(--ease); }
 .field .hint { color: var(--muted); font-size: 11px; margin-top: 5px; }
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* Поле пароля с кнопкой-глазом (показать/скрыть) */
+.pass-wrap { position: relative; }
+.pass-wrap input { padding-right: 40px; }
+.pass-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; display: grid; place-items: center; border-radius: 7px; color: var(--muted); opacity: .75; transition: opacity .15s ease, background .15s ease; }
+.pass-eye:hover { opacity: 1; background: var(--card-hover); }
+.pass-eye svg { width: 17px; height: 17px; }
+.pass-eye.on { color: var(--accent); opacity: 1; }
 
 /* ---------- Пустая / подсказочная панель ---------- */
 .empty {
@@ -300,6 +310,11 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 .tab.active { color: var(--text); border-color: var(--accent); }
 .tab.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px; background: var(--accent); border-radius: 2px; animation: barGrow .3s var(--ease); }
 
+/* ---------- Быстрые ярлыки разделов (как в сайдбаре) ---------- */
+.quick-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 4px; }
+.quick-nav .btn svg { width: 15px; height: 15px; flex: none; }
+.quick-nav .btn.active { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); }
+
 /* ---------- Git ---------- */
 .git-card { margin-bottom: 14px; }
 .git-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -313,6 +328,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 .change-item .kind { flex: none; font-size: 9.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; letter-spacing: .5px; }
 .change-item .kind.index { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
 .change-item .kind.working { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.change-item .change-path { cursor: pointer; text-decoration: underline dotted transparent; text-underline-offset: 3px; }
+.change-item .change-path:hover { color: var(--accent); text-decoration-color: var(--accent); }
+.change-item input[type=checkbox] { accent-color: var(--accent); }
 .change-item .kind.untracked { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
 .history-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 8px; transition: background .18s var(--ease); animation: fadeUp .3s var(--ease) both; animation-delay: calc(var(--i, 0) * 30ms); }
 .history-item:hover { background: var(--card-hover); }
@@ -388,6 +406,32 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 .modal-close:hover { background: var(--card-hover); color: var(--text); }
 .modal { position: relative; }
 .invite-code { font-family: var(--mono); font-size: 20px; font-weight: 700; letter-spacing: 2px; text-align: center; padding: 16px; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent); border-radius: var(--radius); margin: 8px 0 4px; animation: popIn .3s var(--ease); }
+.invite-code.sm { font-size: 15px; padding: 10px 12px; letter-spacing: 1.5px; }
+.invite-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; margin: 6px 0; }
+.invite-user { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius-sm); }
+.invite-user:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.invite-user-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.invite-code-row { display: flex; flex-direction: column; gap: 6px; }
+.pill { font-size: 10.5px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--ok, #34d399) 15%, transparent); color: var(--ok, #34d399); white-space: nowrap; }
+.danger-text { color: var(--danger, #f87171); }
+.presence-dot { position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%; background: var(--ok, #34d399); border: 2px solid var(--bg); }
+.presence-dot.off { background: var(--text-30, #666); }
+.task-card { touch-action: pan-y; }
+.task-card.armed { box-shadow: -3px 0 0 var(--danger, #f87171); opacity: .9; }
+.status-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.status-dot.st-todo { background: var(--vscode-charts-blue, #4d9fff); }
+.status-dot.st-doing { background: var(--warn, #f0b429); }
+.status-dot.st-review { background: var(--vscode-charts-purple, #b180ff); }
+.status-dot.st-done { background: var(--ok, #2ea043); }
+.task-due { margin-left: auto; font-size: 10px; opacity: .6; }
+.task-due.warm { opacity: 1; color: var(--warn, #f0b429); }
+.task-due.hot { opacity: 1; color: var(--danger, #f87171); font-weight: 600; }
+.task-card.overdue { border-color: color-mix(in srgb, var(--danger, #f87171) 55%, transparent); box-shadow: inset 3px 0 0 var(--danger, #f87171); }
+.task-card.overdue .task-title { color: var(--danger, #f87171); }
+.task-card.due-soon { border-color: color-mix(in srgb, var(--warn, #f0b429) 45%, transparent); }
+.task-meta .dim { opacity: .45; }
+.task-card.dragging { opacity: .4; }
+.task-drop-before { box-shadow: 0 -2px 0 0 var(--accent); }
 
 /* ---------- Тосты ---------- */
 #toastRoot { position: fixed; bottom: 20px; right: 20px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
@@ -410,25 +454,29 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 
 /* ---------- Профиль ---------- */
 .profile-hero { display: flex; align-items: center; gap: 18px; margin-bottom: 20px; animation: fadeUp .35s var(--ease); }
+.profile-hero.slim { gap: 16px; margin-bottom: 16px; }
+.profile-main { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .avatar-big {
 	width: 74px; height: 74px; border-radius: 50%;
 	display: grid; place-items: center;
-	font-size: 26px; font-weight: 800; color: #fff;
-	box-shadow: 0 10px 26px color-mix(in srgb, currentColor 45%, transparent);
+	font-size: 26px; font-weight: 700; color: #fff;
+	box-shadow: 0 2px 10px color-mix(in srgb, var(--vscode-widget-shadow, #000) 40%, transparent);
 	animation: popIn .4s var(--ease);
-files: 'Файлы', filesTitle: 'Архивы команды',
-uploadArchive: 'Загрузить архив', archiveProject: 'Название проекта',
-archiveProjectPh: 'my-project (создаст запись проекта)',
-download: 'Скачать', hasArchive: 'Архив', noArchive: 'Нет архива',
-noFiles: 'Архивов пока нет — загрузите первый.',
-archiveDone: 'Архив загружен ✓', archiveSaved: 'Архив сохранён ✓',
 }
+.avatar-big.photo { overflow: hidden; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+.avatar-big.photo img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.check-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border: 1px solid var(--border-soft); border-radius: 8px; margin-bottom: 6px; cursor: pointer; }
+.check-row:hover { background: var(--card-hover); }
+.check-row small { color: var(--muted); margin-left: auto; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.check-row input { flex: none; }
 .profile-hero .pname { font-size: 17px; font-weight: 700; }
 .id-strip { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .copy-btn { padding: 3px 10px; font-size: 11px; border-radius: 7px; }
-.savebar { position: sticky; bottom: 0; margin-top: 8px; padding-top: 12px; background: linear-gradient(to top, var(--bg) 60%, transparent); display: flex; justify-content: flex-end; gap: 8px; }
-.profile-actions { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border-soft); }
-.logout-btn { width: 100%; display: flex; justify-content: center; gap: 8px; }
+.savebar { position: sticky; bottom: 0; margin-top: 8px; padding-top: 12px; background: transparent; display: flex; justify-content: flex-end; gap: 8px; }
+.profile-actions { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--border-soft); display: grid; gap: 8px; }
+.logout-btn { width: 100%; display: flex; justify-content: center; gap: 8px; padding: 9px 14px; }
+.btn.logout-danger { background: color-mix(in srgb, var(--danger) 22%, var(--card)); color: var(--text); border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent); }
+.btn.logout-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 38%, var(--card)); }
 
 /* ---------- Экран регистрации ---------- */
 .auth-wrap { max-width: 440px; margin: 6vh auto 0; animation: fadeUp .4s var(--ease); }
@@ -502,6 +550,15 @@ archiveDone: 'Архив загружен ✓', archiveSaved: 'Архив сох
 		<button class="rail-btn" data-view="teams" id="navTeams" data-tt="teams">
 			<svg viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8.5" r="3.4" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 19c1.2-2.9 3-4.3 5.5-4.3s4.3 1.4 5.5 4.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="16.5" cy="9.3" r="2.4" stroke="currentColor" stroke-width="1.7"/><path d="M18.7 14.6c1.5.8 2.5 2.2 2.9 4.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
 		</button>
+		<button class="rail-btn" data-view="board" id="navBoard" data-tt="navBoard">
+			<svg viewBox="0 0 24 24" fill="none"><path d="M9 6h11M9 12h11M9 18h11" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M4 6l1.4 1.4L8 4.8M4 12l1.4 1.4L8 10.8M4 18l1.4 1.4L8 16.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+		</button>
+		<button class="rail-btn" data-view="git" id="navGit" data-tt="navGit">
+			<svg viewBox="0 0 24 24" fill="none"><circle cx="6" cy="6" r="2.6" stroke="currentColor" stroke-width="1.7"/><circle cx="6" cy="18" r="2.6" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="9" r="2.6" stroke="currentColor" stroke-width="1.7"/><path d="M6 8.6v6.8M18 11.6c0 3-2.5 4.4-6 4.9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+		</button>
+		<button class="rail-btn" data-view="files" id="navFiles" data-tt="navFiles">
+			<svg viewBox="0 0 24 24" fill="none"><path d="M4 8l8-4.5L20 8v8l-8 4.5L4 16V8z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M4.4 8.4L12 12.6l7.6-4.2M12 12.6V20" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+		</button>
 		<button class="rail-btn" data-view="keys" id="navKeys" data-tt="keys">
 			<svg viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="15" r="4" stroke="currentColor" stroke-width="1.7"/><path d="M11.3 12.2L19 4.5M16.5 7l2.5 2.5M13.5 10l2-2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
 		</button>
@@ -528,8 +585,21 @@ const DICT = {
 		profile: 'Профиль', logout: 'Выйти', teams: 'Команды', keys: 'Банк ключей',
 		myTeams: 'Мои команды', createTeam: 'Создать команду', joinTeam: 'Вступить по коду',
 		invite: 'Код приглашения', copied: 'Скопировано', copy: 'Копировать',
+		inviteTitle: 'Пригласить в команду', inviteMenuSub: 'Найдите пользователя или поделитесь инвайт-кодом.',
+		inviteSearchLabel: 'Поиск пользователей', inviteSearchPlaceholder: 'Имя или email…',
+		inviteGenNew: 'Создать новый код', inviteRegen: 'Пересоздать',
+		inviteRegenHint: 'После пересоздания старый код перестанет работать.',
+		inviteNoCode: 'Активного кода нет — создайте новый.',
+		inviteNobody: 'Никого не найдено.', inTeam: 'уже в команде', inviteSend: 'Пригласить',
+		inviteSentHint: 'код скопирован — отправьте ему', inviteCreateFirst: 'Сначала создайте инвайт-код',
+		loading: 'Загрузка…', deleted: 'Удалено', undo: 'Отменить', delete: 'Удалить', timeNow: 'только что',
+		editKey: 'Редактировать ключ', deleteKey: 'Удалить ключ', saved: 'Сохранено ✓',
+		overdueOnly: 'показаны только просроченные', overdueFilterHint: 'Показать только просроченные', noHistory: 'Истории пока нет',
+		branchCreate: 'Создать', branchCreatePh: 'имя новой ветки', taskCommits: 'Коммиты задачи', noCommits: 'Коммитов пока нет', diffHint: 'Нажмите, чтобы посмотреть изменения',
+		onlineNow: 'в сети', hiddenEvents: 'Скрытых событий нет', showHidden: 'Показать скрытые',
+		deleteTaskConfirm: 'Удалить задачу?',
 		teamName: 'Название команды', newTeamSub: 'Назовите команду — остальные смогут вступить по коду.',
-		inviteCode: 'Код приглашения', inviteSub: 'Вставьте код, который вам дал владелец команды.',
+		inviteCode: 'Код приглашения', inviteSub: 'Вставьте код, который вам дали участники команды.',
 		create: 'Создать', join: 'Вступить', cancel: 'Отмена', save: 'Сохранить',
 		members: 'Участники', board: 'Доска', git: 'Git',
 		addTask: '+ Задача', addTaskPh: 'Новая задача…',
@@ -549,10 +619,16 @@ const DICT = {
 		justNow: 'только что', activeTeam: 'Активная команда',
 		emptyTeams: 'Пока нет команд — создайте первую или вступите по коду приглашения.',
 		emptyKeys: 'Ключей ещё нет — добавьте первый командный ключ.',
-		needTeam: 'Сначала вступите в команду',
+		prioHigh: 'Высокий', prioMedium: 'Средний', prioLow: 'Низкий',
+		prioHint: 'Приоритет: высокий / средний / низкий', prioGroup: 'Приоритет',
+		ping: 'Пинг', pingCheck: 'Проверить ключ у провайдера', pingOk: 'Отвечает', pingFail: 'Не отвечает', pingUnknown: 'Пинг: —', pingMs: '{0} мс',
+		importFromApi: 'Импорт из API', importFromApiSub: 'Выберите ключи из плагина API для копирования в банк команды.',
+		import: 'Импортировать', imported: 'Импортировано', noApiKeys: 'В плагине API нет ключей — добавьте их там сначала.',
+		newGroup: 'Новая группа', groupName: 'Название группы', keyGroup: 'Группа',
+		addPhoto: 'Загрузить фото', changePhoto: 'Сменить фото', photoSaved: 'Фото обновлено',
 		confirm: 'Подтверждение', yesKeep: 'Продолжить', sure: 'Точно?',
-		roleOwner: 'Владелец', roleMaintainer: 'Основной', roleDev: 'Разработчик', roleViewer: 'Зритель',
-		statusBacklog: 'Бэклог', statusTodo: 'К выполнению', statusDoing: 'В работе', statusReview: 'Ревью', statusDone: 'Готово',
+		roleOwner: 'Владелец', roleMaintainer: 'Совладелец', roleDev: 'Разработчик', roleViewer: 'Зритель',
+		statusBacklog: 'Бэклог', statusTodo: 'К выполнению', statusDoing: 'В работе', statusReview: 'Ревью', statusDone: 'Готово', status: 'Статус',
 		gitHub: 'Подключить GitHub', server: 'Сервер', demo: 'демо',
 		loginTitle: 'Вход', loginSub: 'Войдите по email и паролю, чтобы работать со своим сервером.',
 		loginEmail: 'Email', loginPassword: 'Пароль', loginBtn: 'Войти',
@@ -560,25 +636,65 @@ const DICT = {
 		noAccount: 'Нет аккаунта?', registerLink: 'Создать на сервере',
 		loginFail: 'Вход не удался', orLocalProfile: 'или продолжите с локальным профилем (демо):',
 		tabLogin: 'Вход', tabRegister: 'Создать аккаунт', regName: 'Имя', regServerPass: 'Пароль (от 8 символов)',
-		regServerBtn: 'Зарегистрироваться', regServerDone: 'Аккаунт создан — проверьте почту/лог сервера и верифицируйте email',
-		verifyNow: 'Подтвердить email', verifyHint: 'SMTP ещё не настроен: подтвердите адрес одной кнопкой (ссылка от сервера).', verifyOpened: 'Ссылка подтверждения открыта',
-		verifNote: 'После регистрации приходит ссылка верификации (в письме или в логе сервера).',
-		regNameShort: 'Имя — минимум 2 символа', regBadEmail: 'Некорректный email', regPassShort: 'Пароль — минимум 8 символов',
-		team: 'Команда', commitDone: 'Закоммичено ✓', pushDone: 'Отправлено ✓', pullDone: 'Обновлено ✓', gitHubDone: 'GitHub подключён ✓',
+		navBoard: 'Канбан и задачи', navGit: 'Проекты и Git', navFiles: 'Файлы', navKeys: 'Ключи команды', navProfile: 'Профиль',
+		noTeamSection: 'Pick a team in “My teams” — its content will appear here.',
+		githubConnected: 'GitHub connected', githubConnect: 'Connect GitHub', githubToken: 'Access token (personal access token)',
+		githubTokenPh: 'ghp_… (repo scope)', githubRepos: 'My repositories', githubReposEmpty: 'No repositories found.',
+		githubClone: 'Clone', githubCloned: 'Repository cloned and opened ✓', githubLoading: 'Loading…',
+		githubNoToken: 'Connect GitHub first — paste a token with repo scope.',
+		githubNotConnected: 'GitHub not connected', githubDisconnect: 'Disconnect',
+		githubCreate: 'Create on GitHub', githubCreating: 'Creating repository…',
+		archiveAnyFile: 'Choose a file (any type)', archiveUploadDone: 'File uploaded ✓',
+		switchBranch: 'Switch',
+		noTeamSection: 'Выберите команду в разделе «Мои команды» — здесь появится её содержимое.',
+		regServerBtn: 'Создать аккаунт', regServerDone: 'Аккаунт создан — теперь можно войти',
+		verifyNow: 'Подтвердить почту', verifyHint: 'SMTP пока не настроен: подтвердите адрес в один клик (ссылка от сервера).', verifyOpened: 'Ссылка подтверждения открыта',
+		verifNote: 'Подтверждение почты не нужно: после создания аккаунта просто войдите.',
+		showPass: 'Показать пароль',
+		regNameShort: 'Имя — минимум 2 символа', regBadEmail: 'Некорректный email', regPassShort: 'Пароль — минимум 8 символов', regPassMin: 8,
+		githubConnected: 'GitHub подключён', githubConnect: 'Подключить GitHub', githubToken: 'Токен доступа (personal access token)',
+		githubTokenPh: 'ghp_… (scope repo)', githubRepos: 'Мои репозитории', githubReposEmpty: 'Репозитории не найдены.',
+		githubClone: 'Клонировать', githubCloned: 'Репозиторий склонирован и открыт ✓', githubLoading: 'Загрузка…',
+		githubNoToken: 'Сначала подключите GitHub — вставьте токен с правом repo.',
+		githubNotConnected: 'GitHub не подключён', githubDisconnect: 'Отключить',
+		githubCreate: 'Создать на GitHub', githubCreating: 'Создаём репозиторий…',
+		archiveAnyFile: 'Выберите файл (любой тип)', archiveUploadDone: 'Файл загружен ✓',
+		switchBranch: 'Переключить',
+		files: 'Файлы', filesTitle: 'Архивы команды',
+		uploadArchive: 'Загрузить архив', archiveProject: 'Название проекта',
+		archiveProjectPh: 'my-project (создаст запись проекта)',
+		download: 'Скачать', hasArchive: 'Архив', noArchive: 'Нет архива',
+		noFiles: 'Архивов пока нет — загрузите первый.',
+		archiveDone: 'Архив загружен ✓', archiveSaved: 'Архив сохранён ✓',
+		team: 'Команда', commitDone: 'Закоммичено ✓', commitPushed: 'Закоммичено и отправлено в GitHub ✓', commitLocal: 'Закоммичено локально ✓', pushFail: 'Не удалось отправить', pushDone: 'Отправлено ✓', pullDone: 'Обновлено ✓', gitHubDone: 'GitHub подключён ✓',
 		demoTeamCreated: 'Команда создана', demoTeamJoined: 'Вы вступили в команду', demoInvite: 'Код сгенерирован',
-		demoTaskAdded: 'Задача добавлена', demoRoleUpdated: 'Роль обновлена', demoTeamSelected: 'Команда выбрана',		assignee: 'Исполнитель', noAssignee: 'Не назначен',
+		demoTaskAdded: 'Задача добавлена', demoRoleUpdated: 'Роль обновлена', demoTeamSelected: 'Команда выбрана',
+		assignee: 'Исполнитель', noAssignee: 'Не назначен',
 		taskCard: 'Задача', taskTitle: 'Название задачи',
-	taskMoved: 'Задача перенесена',
-	transfer: 'Передать', projectOwner: 'Владелец', transferProject: 'Передать проект',
-	transferred: 'Проект передан ✓', chooseOwner: 'Новый владелец проекта',
+		taskMoved: 'Задача перенесена',
+		transfer: 'Передать', projectOwner: 'Владелец', transferProject: 'Передать проект',
+		transferred: 'Проект передан ✓', chooseOwner: 'Новый владелец проекта',
 	},
 	en: {
 		connDemo: 'Demo', connLive: 'Online', connOff: 'Offline',
 		profile: 'Profile', logout: 'Sign out', teams: 'Teams', keys: 'Key vault',
 		myTeams: 'My teams', createTeam: 'Create team', joinTeam: 'Join with code',
 		invite: 'Invite code', copied: 'Copied', copy: 'Copy',
+		inviteTitle: 'Invite to team', inviteMenuSub: 'Find a user or share the invite code.',
+		inviteSearchLabel: 'Search users', inviteSearchPlaceholder: 'Name or email…',
+		inviteGenNew: 'Create new code', inviteRegen: 'Regenerate',
+		inviteRegenHint: 'After regenerating, the old code stops working.',
+		inviteNoCode: 'No active code — create one.',
+		inviteNobody: 'Nobody found.', inTeam: 'already in team', inviteSend: 'Invite',
+		inviteSentHint: 'code copied — send it to them', inviteCreateFirst: 'Create an invite code first',
+		loading: 'Loading…', deleted: 'Deleted', undo: 'Undo', delete: 'Delete', timeNow: 'just now',
+		editKey: 'Edit key', deleteKey: 'Delete key', saved: 'Saved ✓',
+		overdueOnly: 'showing overdue only', overdueFilterHint: 'Show overdue only', noHistory: 'No history yet',
+		branchCreate: 'Create', branchCreatePh: 'new branch name', taskCommits: 'Task commits', noCommits: 'No commits yet', diffHint: 'Click to view the changes',
+		onlineNow: 'online', hiddenEvents: 'No hidden events', showHidden: 'Show hidden',
+		deleteTaskConfirm: 'Delete task?',
 		teamName: 'Team name', newTeamSub: 'Name the team — others can join with its code.',
-		inviteCode: 'Invite code', inviteSub: 'Paste the code given to you by the team owner.',
+		inviteCode: 'Invite code', inviteSub: 'Paste the code shared by your teammates.',
 		create: 'Create', join: 'Join', cancel: 'Cancel', save: 'Save',
 		members: 'Members', board: 'Board', git: 'Git',
 		addTask: '+ Task', addTaskPh: 'New task…',
@@ -598,7 +714,13 @@ const DICT = {
 		justNow: 'just now', activeTeam: 'Active team',
 		emptyTeams: 'No teams yet — create the first one or join with an invite code.',
 		emptyKeys: 'No keys yet — add the first team key.',
-		needTeam: 'Join a team first',
+		prioHigh: 'High', prioMedium: 'Medium', prioLow: 'Low',
+		prioHint: 'Priority: high / medium / low', prioGroup: 'Priority',
+		ping: 'Ping', pingCheck: 'Check the key against the provider', pingOk: 'Alive', pingFail: 'No response', pingUnknown: 'Ping: —', pingMs: '{0} ms',
+		importFromApi: 'Import from API', importFromApiSub: 'Pick keys from the API plugin to copy into the team bank.',
+		import: 'Import', imported: 'Imported', noApiKeys: 'No keys in the API plugin — add some there first.',
+		newGroup: 'New group', groupName: 'Group name', keyGroup: 'Group',
+		addPhoto: 'Add photo', changePhoto: 'Change photo', photoSaved: 'Photo updated',
 		confirm: 'Confirm', yesKeep: 'Continue', sure: 'Are you sure?',
 		roleOwner: 'Owner', roleMaintainer: 'Maintainer', roleDev: 'Developer', roleViewer: 'Viewer',
 		statusBacklog: 'Backlog', statusTodo: 'To do', statusDoing: 'In progress', statusReview: 'Review', statusDone: 'Done',
@@ -609,19 +731,20 @@ const DICT = {
 		noAccount: 'No account?', registerLink: 'Create on server',
 		loginFail: 'Sign in failed', orLocalProfile: 'or continue with a local profile (demo):', regPassMin: 8,
 		tabLogin: 'Sign in', tabRegister: 'Create account', regName: 'Name', regServerPass: 'Password (8+ characters)',
-		regServerBtn: 'Create account', regServerDone: 'Account created — check your inbox/server log and verify the email',
+		navBoard: 'Kanban & tasks', navGit: 'Projects & Git', navFiles: 'Files', navKeys: 'Team keys', navProfile: 'Profile',
+		regServerBtn: 'Create account', regServerDone: 'Account created — you can sign in now',
 		verifyNow: 'Verify email', verifyHint: 'SMTP is not configured yet: confirm your address with one click (server-provided link).', verifyOpened: 'Verification link opened',
-		verifNote: 'After registration you receive a verification link (in the email or the server log).',
+		verifNote: 'No email confirmation needed: after creating an account, just sign in.',
+		showPass: 'Show password',
 		regNameShort: 'Name — at least 2 characters', regBadEmail: 'Invalid email', regPassShort: 'Password — at least 8 characters',
-		team: 'Team', commitDone: 'Committed ✓', pushDone: 'Pushed ✓', pullDone: 'Pulled ✓', gitHubDone: 'GitHub connected ✓',
+		team: 'Team', commitDone: 'Committed ✓', commitPushed: 'Committed and pushed to GitHub ✓', commitLocal: 'Committed locally ✓', pushFail: 'Push failed', pushDone: 'Pushed ✓', pullDone: 'Pulled ✓', gitHubDone: 'GitHub connected ✓',
 		demoTeamCreated: 'Team created', demoTeamJoined: 'You joined the team', demoInvite: 'Code generated',
 		demoTaskAdded: 'Task added', demoRoleUpdated: 'Role updated', demoTeamSelected: 'Team selected',
 files: 'Files', filesTitle: 'Team archives',
 uploadArchive: 'Upload archive', archiveProject: 'Project name',
 archiveProjectPh: 'my-project (creates a project record)',
 download: 'Download', hasArchive: 'Archive', noArchive: 'No archive',
-noFiles: 'No archives yet — upload the first one.',
-archiveDone: 'Archive uploaded ✓', archiveSaved: 'Archive saved ✓',		assignee: 'Assignee', noAssignee: 'Unassigned',
+noFiles: 'No archives yet — upload the first one.',		archiveDone: 'Archive uploaded ✓', archiveSaved: 'Archive saved ✓',		assignee: 'Assignee', noAssignee: 'Unassigned', status: 'Status',
 		taskCard: 'Task', taskTitle: 'Task title',
 	taskMoved: 'Task moved',
 	transfer: 'Transfer', projectOwner: 'Owner', transferProject: 'Transfer project',
@@ -634,9 +757,10 @@ const T = (key) => DICT[lang]?.[key] ?? DICT.en?.[key] ?? key;
 
 /* ---------- Утилиты ---------- */
 let state = null;
-let route = ['teams','keys','profile','board','git','files'].includes('__INITIAL_VIEW__') ? '__INITIAL_VIEW__' : 'teams';
+let route = ['teams','keys','profile','board','git','files','login','register'].includes('__INITIAL_VIEW__') ? '__INITIAL_VIEW__' : 'teams';
 let teamTab = 'members';
-let authTab = 'login';
+// Экран входа: если открыли с кнопки «Создать аккаунт» — сразу форма регистрации.
+let authTab = '__INITIAL_VIEW__' === 'register' ? 'register' : 'login';
 const pending = new Map();
 let reqId = 1;
 
@@ -657,10 +781,19 @@ window.addEventListener('message', (event) => {
 		if (!p) { return; }
 		pending.delete(message.id);
 		message.ok ? p.resolve(message.result) : p.reject(new Error(message.error || 'error'));
-	} else if (message.type === 'board-filter') {
-		boardFilter = message.filter ?? null;
-		route = 'teams';
-		teamTab = 'board';
+	} else		if (message.type === 'board-filter') {
+			boardFilter = message.filter ?? null;
+			route = 'board';
+			if (state) { render(); }
+	} else if (message.type === 'navigate') {
+		// Переиспользование вкладки: переход к разделу без создания новой копии.
+		const view = ['teams','keys','profile','login','register','board','git','files'].includes(message.view) ? message.view : 'teams';
+		route = view;
+		if (view === 'register') { authTab = 'register'; } else if (view === 'login') { authTab = 'login'; }
+		if (message.filter) {
+			boardFilter = message.filter;
+			route = 'board';
+		}
 		if (state) { render(); }
 	} else if (message.type === 'state') {
 		state = message.state;
@@ -673,9 +806,16 @@ window.addEventListener('message', (event) => {
 			lang = next;
 			if (langChanged) { render(); return; }
 		}
-		if (!route || ['teams','keys','profile','board','git','files'].includes(route)) { render(); }
+		if (!route || ['teams','keys','profile','board','git','files','login','register'].includes(route)) { render(); }
+	// route валиден всегда — верхнеуровневые разделы board/git/files рендерятся напрямую.
 	}
 });
+
+// Список архивов для раздела «Файлы» подгружается при входе в раздел (не в общем state).
+async function ensureArchives() {
+	if (!state?.teamId || state.archivesLoaded) { return; }
+	try { state.archives = await demo('auraTeam.listArchives', []); state.archivesLoaded = true; } catch { state.archives = []; }
+}
 
 function esc(value) {
 	return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -687,6 +827,7 @@ function initials(name, fallback = '?') {
 	return (first + second).toUpperCase() || fallback;
 }
 function flattenColor(color) { return color || '#6366f1'; }
+function avatarColor(id) { return flattenColor(id); }
 function timeAgo(iso) {
 	if (!iso) { return ''; }
 	const diff = Date.now() - new Date(iso).getTime();
@@ -724,6 +865,8 @@ function toast(text, type = '') {
 /* ---------- Модалки ---------- */
 function openModal({ title, sub, body, actionText = T('create'), onAction, danger = false }) {
 	const root = document.getElementById('modalRoot');
+	// Закрываем предыдущие модалки: оставшиеся открытыми копии накапливали слушатели и DOM.
+	root.querySelectorAll('.overlay').forEach((old) => old.remove());
 	const overlay = document.createElement('div');
 	overlay.className = 'overlay';
 	overlay.innerHTML = `<div class="modal">
@@ -744,6 +887,77 @@ function openModal({ title, sub, body, actionText = T('create'), onAction, dange
 	overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') { close(); } });
 	overlay.querySelector('.modal').focus?.();
 	return overlay;
+}
+
+/* ---------- Меню «Пригласить»: пользователи + поиск, либо инвайт-код ---------- */
+let inviteCache = { code: null };
+async function openInviteMenu() {
+	if (!state.teamId) { return; }
+	// Текущий код берём один раз: клик по кнопке больше не создаёт новый код.
+	try { inviteCache = await demo('auraTeam.currentInvite', []) || inviteCache; } catch { /* нет прав */ }
+	openModal({
+		title: T('inviteTitle'), sub: T('inviteMenuSub'), actionText: T('inviteGenNew'),
+		body: `
+			<div class="field"><label>${esc(T('inviteSearchLabel'))}</label><input data-invite-search placeholder="${esc(T('inviteSearchPlaceholder'))}" spellcheck="false"></div>
+			<div class="invite-list" data-invite-list></div>
+			<div class="divider"></div>
+			<div class="invite-code-row">
+				${inviteCache.code
+					? `<div class="invite-code sm">${esc(inviteCache.code)}</div><div class="row gap8">
+						<button class="btn ghost sm" data-copy-invite="${esc(inviteCache.code)}">${esc(T('copy'))}</button>
+						<button class="btn ghost sm danger-text" data-revoke-invite>${esc(T('inviteRegen'))}</button></div>
+						<div class="hint">${esc(T('inviteRegenHint'))}</div>`
+					: `<div class="hint">${esc(T('inviteNoCode'))}</div><button class="btn ghost sm" data-gen-invite>${esc(T('inviteGenNew'))}</button>`}
+			</div>`,
+		onAction: async (overlay) => {
+			// Главная кнопка модалки = «Создать/пересоздать код».
+			const res = await demo('auraTeam.createInvite', []);
+			if (res?.code) { inviteCache = res; copyText(res.code); toast(T('copied'), 'ok'); }
+			renderInviteList(overlay, '');
+			return true;
+		}
+	});
+	const overlay = document.getElementById('modalRoot').querySelector('.overlay');
+	const search = overlay.querySelector('[data-invite-search]');
+	search?.addEventListener('input', () => renderInviteList(overlay, search.value.trim()));
+	renderInviteList(overlay, '');
+	const genBtn = overlay.querySelector('[data-gen-invite]');
+	genBtn?.addEventListener('click', async () => {
+		const res = await demo('auraTeam.createInvite', []);
+		if (res?.code) { inviteCache = res; copyText(res.code); toast(T('copied'), 'ok'); }
+		closeAndReopen();
+	});
+	wireInviteActions(overlay);
+}
+function wireInviteActions(overlay) {
+	overlay.querySelectorAll('[data-copy-invite]').forEach((btn) => btn.addEventListener('click', (e) => copyText(e.currentTarget.dataset.copyInvite)));
+	const revoke = overlay.querySelector('[data-revoke-invite]');
+	revoke?.addEventListener('click', async () => {
+		await demo('auraTeam.revokeInvite', []);
+		inviteCache = { code: null };
+		closeAndReopen();
+	});
+}
+async function closeAndReopen() { document.getElementById('modalRoot').querySelectorAll('.overlay').forEach((o) => o.remove()); await openInviteMenu(); }
+async function renderInviteList(overlay, q) {
+	const list = overlay.querySelector('[data-invite-list]');
+	if (!list) { return; }
+	list.innerHTML = `<div class="hint">${esc(T('loading'))}</div>`;
+	let users = [];
+	try { users = await demo('auraTeam.directory', [q]) || []; } catch { users = []; }
+	list.innerHTML = users.length === 0 ? `<div class="hint">${esc(T('inviteNobody'))}</div>` : users.map((u) => `
+		<div class="invite-user" data-uid="${esc(u.id)}" data-uname="${esc(u.displayName)}">
+			<span class="avatar sm" style="background:${avatarColor(u.id)}">${esc((u.displayName || '?').slice(0, 1).toUpperCase())}</span>
+			<span class="invite-user-name">${esc(u.displayName)}${u.email ? ` <span class="dim">· ${esc(u.email)}</span>` : ''}</span>
+			${u.inTeam ? `<span class="pill">${esc(T('inTeam'))}</span>` : `<button class="btn ghost sm" data-invite-user="${esc(u.id)}">${esc(T('inviteSend'))}</button>`}
+		</div>`).join('');
+	list.querySelectorAll('[data-invite-user]').forEach((btn) => btn.addEventListener('click', (e) => {
+		const row = e.currentTarget.closest('[data-uid]');
+		e.stopPropagation();
+		demo('auraTeam.selectTeam', [state.teamId], false);
+		copyText((inviteCache.code || ''));
+		toast(inviteCache.code ? `${esc(row.dataset.uname)}: ${T('inviteSentHint')}` : T('inviteCreateFirst'), inviteCache.code ? 'ok' : '');
+	}));
 }
 
 /* ---------- Mock для демо-режима ---------- */
@@ -822,24 +1036,39 @@ function mount(html) {
 	wrap.style.animation = 'none';
 	wrap.offsetHeight;
 	wrap.style.animation = '';
+	// Слушатели ripple вешаются только на свежие элементы (innerHTML каждый раз новые,
+	// но помечаем data-ripple-bound на случай повторного прохода — защита от дублей).
 	body.querySelectorAll('.btn:not([data-no-ripple])').forEach((b) => {
-		if (b.dataset.ok) { return; }
+		if (b.dataset.ok || b.dataset.rippleBound) { return; }
+		b.dataset.rippleBound = '1';
 		b.addEventListener('pointerdown', ripple);
 	});
 	try { wire(); } catch (error) { console.error('[aura-team] wire:', error); }
 }
 
 function render() {
+	try {
+		renderInner();
+	} catch (error) {
+		// Любая ошибка рендера не должна оставлять чёрный экран — показываем сообщение.
+		console.error('[aura-team] render:', error);
+		try { mount(`<div class="empty"><div><div class="big">Ошибка интерфейса</div><div class="sub">${esc(String(error?.message || error))}</div><button class="btn primary mt12" onclick="location.reload()">Перезагрузить</button></div></div>`); } catch { /* игнорируем */ }
+	}
+}
+function renderInner() {
 	if (!state) { return; }
-	// Прямые переходы из сайдбара: board/git/files → вкладка внутри раздела команд.
-	if (route === 'board' || route === 'git' || route === 'files') { teamTab = route === 'board' ? 'board' : route; route = 'teams'; }
-	if (!['teams','keys','profile'].includes(route)) { route = 'teams'; }
+	// Прямые переходы из сайдбара: board/git/files — полноценные разделы.
+	if (route === 'login' || route === 'register') { route = 'teams'; }
+	if (!['teams','keys','profile','board','git','files'].includes(route)) { route = 'teams'; }
 	updateChrome();
 	// Вход = серверная сессия (не локальный профиль).
 	const needsAuth = !state.signedIn;
 	if (needsAuth) { return mount(renderAuth()); }
 	if (route === 'keys') { return mount(renderKeys()); }
 	if (route === 'profile') { return mount(renderProfile()); }
+	if (route === 'board') { return mount(renderBoardSection()); }
+	if (route === 'git') { return mount(renderGitSection()); }
+	if (route === 'files') { void ensureArchives().then(() => { if (route === 'files') { mount(renderFilesSection()); wireFiles(); } }); return mount(renderFilesSection()); }
 	return mount(renderTeams());
 }
 
@@ -850,13 +1079,21 @@ function updateChrome() {
 	badge.className = 'badge ' + (state.demoMode ? 'demo' : state.signedIn ? 'live' : 'off');
 	document.querySelectorAll('[data-t]').forEach((el) => { el.textContent = T(el.dataset.t); });
 	document.querySelectorAll('[data-tt]').forEach((el) => { el.title = T(el.dataset.tt); });
+	// Аватар и поповер (Профиль/Выйти) показываем только после входа:
+	// на экране входа/регистрации в шапке не должно быть профиля.
 	const btn = avatarBtn();
+	const pop = document.getElementById('avatarMenu');
+	const authHidden = !state.signedIn;
 	if (btn) {
-		const color = flattenColor(state.profile?.avatarColor);
-		btn.style.background = `linear-gradient(135deg, ${color}, ${color}99)`;
-		btn.textContent = initials(state.profile?.nickname, 'A');
-		btn.style.animation = 'popIn .3s var(--ease)';
+		btn.classList.toggle('hidden', authHidden);
+		if (!authHidden) {
+			const color = flattenColor(state.profile?.avatarColor);
+			btn.style.background = `linear-gradient(135deg, ${color}, ${color}99)`;
+			btn.textContent = initials(state.profile?.nickname, 'A');
+			btn.style.animation = 'popIn .3s var(--ease)';
+		}
 	}
+	if (pop && authHidden) { pop.classList.add('hidden'); }
 	const popName = document.getElementById('popName');
 	const popId = document.getElementById('popId');
 	if (popName) { popName.textContent = state.profile?.nickname || '—'; }
@@ -882,7 +1119,12 @@ function loginFormHtml() {
 			</div>
 			<div class="field">
 				<label>${esc(T('loginPassword'))}</label>
-				<input id="loginPassword" type="password" maxlength="200" placeholder="••••••••">
+				<div class="pass-wrap">
+					<input id="loginPassword" type="password" maxlength="200" placeholder="••••••••">
+					<button type="button" class="pass-eye" data-eye-for="loginPassword" tabindex="-1" title="${esc(T('showPass'))}" aria-label="${esc(T('showPass'))}">
+						<svg viewBox="0 0 24 24" fill="none"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/></svg>
+					</button>
+				</div>
 			</div>
 			<button class="btn primary lg" id="loginSubmit" style="width:100%;justify-content:center">${esc(T('loginBtn'))}</button>
 			<div class="progress-bar hidden" id="loginProgress"><div class="fill"></div></div>
@@ -899,7 +1141,12 @@ function loginFormHtml() {
 			</div>
 			<div class="field">
 				<label>${esc(T('regServerPass'))}</label>
-				<input id="regServerPassword" type="password" maxlength="200" placeholder="••••••••">
+				<div class="pass-wrap">
+					<input id="regServerPassword" type="password" maxlength="200" placeholder="••••••••">
+					<button type="button" class="pass-eye" data-eye-for="regServerPassword" tabindex="-1" title="${esc(T('showPass'))}" aria-label="${esc(T('showPass'))}">
+						<svg viewBox="0 0 24 24" fill="none"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/></svg>
+					</button>
+				</div>
 			</div>
 			<button class="btn primary lg" id="regServerSubmit" style="width:100%;justify-content:center">${esc(T('regServerBtn'))}</button>
 			<div class="progress-bar hidden" id="regServerProgress"><div class="fill"></div></div>
@@ -919,6 +1166,17 @@ function renderAuth() {
 	</div>`;
 }
 function wireLoginForm() {
+	// Кнопка-глаз: показать/скрыть пароль во всех полях с data-eye-for.
+	document.querySelectorAll('.pass-eye[data-eye-for]').forEach((eye) => {
+		const input = document.getElementById(eye.dataset.eyeFor);
+		if (!input) { return; }
+		eye.addEventListener('click', () => {
+			const show = input.type === 'password';
+			input.type = show ? 'text' : 'password';
+			eye.classList.toggle('on', show);
+			input.focus();
+		});
+	});
 	const email = document.getElementById('loginEmail');
 	const password = document.getElementById('loginPassword');
 	const submit = document.getElementById('loginSubmit');
@@ -960,20 +1218,11 @@ function wireLoginForm() {
 		regSubmit.disabled = true;
 		regProgress?.classList.remove('hidden');
 		try {
-			const res = await svc('auraTeam.register', [{ displayName: name, email: mail, password: pass }]);
-			toast(res?.message || T('regServerDone'), 'ok');
-			// Без SMTP сервер возвращает verificationUrl — показываем кнопку «Подтвердить сейчас».
-			if (res?.verificationUrl) {
-				openModal({
-					title: T('verifyNow'), sub: String(res.message || ''), actionText: T('verifyNow'),
-					body: `<div class="sub">${esc(T('verifyHint'))}</div>`,
-					onAction: async () => {
-						try { await svc('auraTeam.openExternal', [String(res.verificationUrl)]); toast(T('verifyOpened'), 'ok'); } catch { /* ignore */ }
-						return false;
-					}
-				});
-			}
-			authTab = 'login';
+			await svc('auraTeam.register', [{ displayName: name, email: mail, password: pass }]);
+			// Регистрация без письма: аккаунт активен сразу — входим автоматически.
+			await svc('auraTeam.login', [{ email: mail, password: pass }]);
+			toast(T('regServerDone'), 'ok');
+			route = 'teams';
 			render();
 		} catch (err) { toast(err?.message || T('loginFail'), 'err'); }
 		regSubmit.disabled = false;
@@ -988,6 +1237,18 @@ function wireAuth() {
 }
 
 /* ---------- Команды ---------- */
+// Иконки быстрых ярлыков (те же, что в сайдбаре)
+const NAV_ICONS = {
+	board: '<svg viewBox="0 0 24 24" fill="none"><path d="M9 6h11M9 12h11M9 18h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 6l1.4 1.4L8 4.8M4 12l1.4 1.4L8 10.8M4 18l1.4 1.4L8 16.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+	git: '<svg viewBox="0 0 24 24" fill="none"><circle cx="6" cy="6" r="2.6" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="18" r="2.6" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="9" r="2.6" stroke="currentColor" stroke-width="1.8"/><path d="M6 8.6v6.8M18 11.6c0 3-2.5 4.4-6 4.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+	files: '<svg viewBox="0 0 24 24" fill="none"><path d="M4 8l8-4.5L20 8v8l-8 4.5L4 16V8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4.4 8.4L12 12.6l7.6-4.2M12 12.6V20" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+	keys: '<svg viewBox="0 0 24 24" fill="none"><circle cx="8" cy="14" r="3.6" stroke="currentColor" stroke-width="1.8"/><path d="M11 11L20 4M16.5 7.5L19 10M14 6l2.2 2.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+	profile: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.4" r="3.6" stroke="currentColor" stroke-width="1.8"/><path d="M5 20c1.4-3.4 3.9-5 7-5s5.6 1.6 7 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+};
+
+/** Разделы-«кнопки на вкладке»: канбан, git, файлы — теперь верхнеуровневые маршруты, как «Мои команды». */
+function renderQuickNav() { return ''; }
+
 function renderTeams() {
 	const session = state.session;
 	const isDemo = state.demoMode;
@@ -1016,7 +1277,7 @@ function renderTeams() {
 			<button class="btn ghost" id="btnJoinTeam">${esc(T('joinTeam'))}</button>
 			${hasTeam && !isDemo ? `<button class="btn ghost right" id="btnInvite">${esc(T('invite'))}</button>` : ''}
 		</div>
-		${hasTeam ? renderTeamDetail(teamTab) : ''}`;
+		${''}`;
 }
 function cap(text) { return text ? text.charAt(0).toUpperCase() + text.slice(1) : ''; }
 
@@ -1026,16 +1287,42 @@ function renderTeamDetail(tab) {
 	teamTab = tab;
 	const tabs = [
 		['members', T('members')],
-		['board', T('board')],
-		['git', T('git')],
-		['files', T('files')],
 	];
 	return `<div class="section-title mt16">${esc(T('team'))}</div>
 		<div class="tabs">${tabs.map(([id, label]) => `<button class="tab ${tab === id ? 'active' : ''}" data-tab="${id}">${esc(label)}</button>`).join('')}</div>
-		<div data-tab-body>${tab === 'members' ? renderMembers(board) : tab === 'board' ? renderBoard(board) : tab === 'files' ? renderFiles(board) : renderGit()}</div>`;
+		<div data-tab-body>${renderMembers(board)}</div>`;
 }
 function wireTabs() {
 	document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => { teamTab = t.dataset.tab; render(); }));
+
+}
+
+/* ---------- Верхнеуровневые разделы: Канбан, Git, Файлы ---------- */
+function renderBoardSection() {
+	const board = state.board;
+	if (!board) {
+		return `<div class="view-head"><div class="view-title">${esc(T('navBoard'))}</div><div class="view-sub">${esc(T('noTeamSection'))}</div></div>`;
+	}
+	const tB = (state.session?.teams ?? []).find((x) => x.id === state.teamId);
+	const overdue = overdueCount(board);
+	return `<div class="view-head"><div class="view-title">${esc(T('navBoard'))}
+		${overdue ? `<button class="chip ${boardOverdueOnly ? 'accent' : 'off'}" id="btnOverdueFilter" title="${esc(T('overdueFilterHint'))}" style="cursor:pointer;border:none;font:inherit">⚠ ${overdue}</button>` : ''}
+		</div><div class="view-sub">${esc(tB?.name || '')}${boardOverdueOnly ? ` · ${esc(T('overdueOnly'))}` : ''}</div></div>${renderBoard(board)}`;
+}
+function renderGitSection() {
+	if (!state.teamId) {
+		return `<div class="view-head"><div class="view-title">${esc(T('navGit'))}</div><div class="view-sub">${esc(T('noTeamSection'))}</div></div>`;
+	}
+	const tG = (state.session?.teams ?? []).find((x) => x.id === state.teamId);
+	return `<div class="view-head"><div class="view-title">${esc(T('navGit'))}</div><div class="view-sub">${esc(tG?.name || '')}</div></div>${renderGit()}`;
+}
+function renderFilesSection() {
+	const board = state.board;
+	if (!board) {
+		return `<div class="view-head"><div class="view-title">${esc(T('navFiles'))}</div><div class="view-sub">${esc(T('noTeamSection'))}</div></div>`;
+	}
+	const tF = (state.session?.teams ?? []).find((x) => x.id === state.teamId);
+	return `<div class="view-head"><div class="view-title">${esc(T('navFiles'))}</div><div class="view-sub">${esc(tF?.name || '')}</div></div>${renderFiles(board)}`;
 }
 
 function renderMembers(board) {
@@ -1074,10 +1361,14 @@ function assigneeOptionsHtml(task) {
 }
 /* Активные фильтры канбана (из сайдбара или сброс). */
 let boardFilter = null; // { member: id } | { task: id }
+let boardOverdueOnly = false; // «только просроченные»
 try { boardFilter = JSON.parse('__INITIAL_FILTER__'); } catch { boardFilter = null; }
+function overdueCount(board) {
+	return (board?.tasks ?? []).filter((t) => t.dueAt && t.status !== 'done' && new Date(t.dueAt).getTime() < Date.now()).length;
+}
 function renderBoard(board) {
 	const statuses = [
-		['backlog', T('statusBacklog')], ['todo', T('statusTodo')], ['doing', T('statusDoing')], ['review', T('statusReview')], ['done', T('statusDone')]
+		['todo', T('statusTodo')], ['doing', T('statusDoing')], ['review', T('statusReview')], ['done', T('statusDone')]
 	];
 	let filterMember = null, highlightTask = null;
 	if (boardFilter?.member) {
@@ -1085,50 +1376,123 @@ function renderBoard(board) {
 	} else if (boardFilter?.task) {
 		highlightTask = board.tasks.find((t) => t.id === boardFilter.task)?.id ?? null;
 	}
-	const visible = (t) => !filterMember || t.assigneeId === filterMember.id;
+	const isOverdue = (t) => t.dueAt && t.status !== 'done' && new Date(t.dueAt).getTime() < Date.now();
+	const visible = (t) => (!filterMember || t.assigneeId === filterMember.id) && (!boardOverdueOnly || isOverdue(t));
 	const filterBar = (filterMember || highlightTask)
 		? `<div class="board-filter"><span>⌕ ${filterMember ? esc(filterMember.displayName) : '⌗'} </span><button class="btn ghost" id="boardFilterClear">${esc(T('cancel'))}</button></div>`
 		: '';
 	return `${filterBar}<div class="board-cols">
 		${statuses.map(([id, label], ci) => {
-			const tasks = board.tasks.filter((t) => t.status === id && visible(t));
+			// Внутри колонки: сначала без дедлайна/срочные, просроченные — вверху с подсветкой.
+			const tasks = board.tasks.filter((t) => t.status === id && visible(t)).sort((a, b) => {
+				if (!a.dueAt && !b.dueAt) { return (a.position || 0) - (b.position || 0); }
+				if (!a.dueAt) { return 1; }
+				if (!b.dueAt) { return -1; }
+				return new Date(a.dueAt) - new Date(b.dueAt);
+			});
 			return `<div class="col" style="--i:${ci}" data-status="${id}">
 				<div class="col-head"><span class="col-title">${esc(label)}</span><span class="col-count">${tasks.length}</span></div>
-				${tasks.map((task, i) => `<div class="task-card ${task.id === highlightTask ? 'highlight' : ''}" style="--i:${i}" draggable="true" data-task="${esc(task.id)}" data-open-task="${esc(task.id)}">
+				${tasks.map((task, i) => {
+					// Просрочено: дедлайн в прошлом и задача ещё не готова. Скоро: осталось < 48ч.
+					const overdue = task.dueAt && task.status !== 'done' && new Date(task.dueAt).getTime() < Date.now();
+					const soon = !overdue && task.dueAt && task.status !== 'done' && new Date(task.dueAt).getTime() - Date.now() < 48 * 3600e3;
+					return `<div class="task-card ${task.id === highlightTask ? 'highlight' : ''} ${overdue ? 'overdue' : soon ? 'due-soon' : ''}" style="--i:${i}" draggable="true" data-task="${esc(task.id)}" data-open-task="${esc(task.id)}">
 					<div class="task-title">${esc(task.title)}</div>
 					${task.description ? `<div class="task-desc">${esc(task.description)}</div>` : ''}
 					<div class="task-meta">
-						<span class="task-assignee">${task.assigneeName ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.6" stroke="currentColor" stroke-width="1.7"/><path d="M5 20c1.4-3.4 3.9-5 7-5s5.6 1.6 7 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg> ${esc(task.assigneeName)}` : ''}</span>
-						<select class="task-status" data-task="${esc(task.id)}">${statuses.map(([sid]) => `<option value="${sid}" ${sid === task.status ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select>
-						<select class="task-assignee" data-task="${esc(task.id)}" title="${esc(T('assignee'))}">${assigneeOptionsHtml(task)}</select>
+						<span class="status-dot st-${esc(task.status)}" title="${esc(statusLabel(task.status))}"></span>
+						<span class="task-assignee">${task.assigneeName ? `${esc(task.assigneeName)}` : `<span class="dim">${esc(T('noAssignee'))}</span>`}</span>
+						${task.dueAt ? `<span class="task-due ${overdue ? 'hot' : soon ? 'warm' : ''}">${overdue ? '⚠ ' : soon ? '⏰ ' : ''}${esc(timeAgoStr(task.dueAt))}</span>` : ''}
 					</div>
-				</div>`).join('')}
+				</div>`;
+				}).join('')}
 				<button class="btn ghost add-task" data-status="${id}">${esc(T('addTask'))}</button>
 			</div>`;
 		}).join('')}
 	</div>`;
 }
+/* ---------- Общий модуль жестов (канбан, лента, мои задачи) ---------- */
+// Карточка, перед которой вставится перетаскиваемая (по вертикальной позиции курсора).
+function insertAfterPoint(col, clientY, excludeId) {
+	const els = [...col.querySelectorAll('.task-card')].filter((el) => el.dataset.task !== excludeId);
+	return els.reduce((closest, el) => {
+		const box = el.getBoundingClientRect();
+		const offset = clientY - box.top - box.height / 2;
+		if (offset < 0 && offset > closest.offset) { return { offset, el }; }
+		return closest;
+	}, { offset: Number.NEGATIVE_INFINITY, el: null }).el;
+}
+// Свайп-удаление: pointerdown → 450мс удержание без смещения >8px → «armed» →
+// сдвиг вправо ≥40% ширины → onDelete(id). Раньше — откат. pointercancel учитан.
+function attachSwipeDelete(elements, onDelete) {
+	elements.forEach((el) => {
+		let timer = null, startX = 0, startY = 0, armed = false;
+		const width = () => el.getBoundingClientRect().width || 300;
+		const reset = () => { if (timer) { clearTimeout(timer); timer = null; } armed = false; el.classList.remove('armed'); el.style.transform = ''; };
+		el.addEventListener('pointerdown', (e) => {
+			if (e.button !== 0 || e.target.closest('select, button, input, a')) { return; }
+			startX = e.clientX; startY = e.clientY; armed = false;
+			timer = setTimeout(() => { armed = true; el.classList.add('armed'); }, 450);
+		});
+		el.addEventListener('pointermove', (e) => {
+			if (timer === null && !armed) { return; }
+			if (!armed) {
+				// Сдвиг >8px до срабатывания таймера — это drag, не long-press.
+				if (Math.abs(e.clientX - startX) > 8 || Math.abs(e.clientY - startY) > 8) { clearTimeout(timer); timer = null; }
+				return;
+			}
+			const dx = Math.max(0, e.clientX - startX);
+			el.style.transform = `translateX(${dx}px)`;
+		});
+		const finish = (e) => {
+			const wasArmed = armed;
+			const dx = e.clientX - startX;
+			reset();
+			if (wasArmed && dx > width() * 0.4) { onDelete(el.dataset.task || el.dataset.eventIndex); }
+		};
+		el.addEventListener('pointerup', finish);
+		el.addEventListener('pointercancel', reset);
+		el.addEventListener('pointerleave', (e) => { if (armed) { finish(e); } });
+	});
+}
+// Тост «Удалено · Отменить» с восстановлением.
+function deletedToast(onUndo) {
+	const root = document.getElementById('toastRoot');
+	const el = document.createElement('div');
+	el.className = 'toast';
+	el.innerHTML = `<span>${esc(T('deleted'))}</span><button class="toast-undo">${esc(T('undo'))}</button>`;
+	root.appendChild(el);
+	let done = false;
+	el.querySelector('.toast-undo').addEventListener('click', () => { done = true; el.remove(); onUndo(); });
+	setTimeout(() => { if (!done) { el.classList.add('out'); setTimeout(() => el.remove(), 260); } }, 6000);
+}
+
 function wireBoard() {
 	const clearBtn = document.getElementById('boardFilterClear');
 	if (clearBtn) { clearBtn.addEventListener('click', () => { boardFilter = null; render(); }); }
+	const overdueBtn = document.getElementById('btnOverdueFilter');
+	overdueBtn?.addEventListener('click', () => { boardOverdueOnly = !boardOverdueOnly; render(); });
 	// Клик по карточке — карточка задачи (детали/редактирование). Не мешает drag&drop и контролам.
 	document.querySelectorAll('[data-open-task]').forEach((card) => card.addEventListener('click', (e) => {
 		if (e.target.closest('select, button, .task-status, .task-assignee')) { return; }
 		if (card.classList.contains('dragging')) { return; }
 		openTaskModal(card.dataset.openTask);
 	}));
-	document.querySelectorAll('.task-status').forEach((s) => s.addEventListener('change', async () => {
-		const task = state.board.tasks.find((t) => t.id === s.dataset.task);
-		if (task) { task.status = s.value; try { await demo('auraTeam.updateTask', [task.id, { status: s.value }]); } catch (e) { toast(e.message, 'err'); } render(); }
-	}));
 	let dragId = null;
 	const cards = document.querySelectorAll('.task-card');
 	cards.forEach((c) => {
 		c.addEventListener('dragstart', () => { dragId = c.dataset.task; c.classList.add('dragging'); });
-		c.addEventListener('dragend', () => { dragId = null; cards.forEach((x) => x.classList.remove('dragging')); });
+		c.addEventListener('dragend', () => { dragId = null; document.querySelectorAll('.task-card').forEach((x) => x.classList.remove('dragging', 'task-drop-before')); });
 	});
 	document.querySelectorAll('.col').forEach((col) => {
-		col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('drop-target'); });
+		col.addEventListener('dragover', (e) => {
+			e.preventDefault();
+			col.classList.add('drop-target');
+			// Подсветка места вставки: перед какой карточкой упадёт перетаскиваемая.
+			const after = insertAfterPoint(col, e.clientY, dragId);
+			document.querySelectorAll('.task-card').forEach((x) => x.classList.remove('task-drop-before'));
+			if (after) { after.classList.add('task-drop-before'); }
+		});
 		col.addEventListener('dragleave', () => col.classList.remove('drop-target'));
 		col.addEventListener('drop', async (e) => {
 			e.preventDefault();
@@ -1137,24 +1501,26 @@ function wireBoard() {
 			const moved = state.board.tasks.find((t) => t.id === dragId);
 			const toStatus = col.dataset.status;
 			if (!moved || !toStatus) { return; }
-			const siblings = state.board.tasks.filter((t) => t.status === toStatus);
-			const position = siblings.length ? Math.max.apply(null, siblings.map((t) => t.position || 0)) + 1 : 0;
-			moved.status = toStatus;
-			moved.position = position;
-			try { await demo('auraTeam.updateTask', [moved.id, { status: toStatus, position: position }]); } catch (err) { toast(err.message, 'err'); }
+			// Собираем новый порядок колонки: все задачи статуса, минус перетаскиваемая, с вставкой на место курсора.
+			const ordered = state.board.tasks.filter((t) => t.status === toStatus && t.id !== moved.id)
+				.sort((a, b) => (a.position || 0) - (b.position || 0));
+			const afterEl = insertAfterPoint(col, e.clientY, dragId);
+			const afterId = afterEl?.dataset.task;
+			const idx = afterId ? ordered.findIndex((t) => t.id === afterId) : ordered.length;
+			const insertAt = idx === -1 ? ordered.length : idx;
+			ordered.splice(insertAt, 0, moved);
+			// Локально применяем и отправляем reorder одним запросом (позиции 0..n на сервере).
+			ordered.forEach((t, i) => { t.status = toStatus; t.position = i; });
+			try { await demo('auraTeam.reorderTasks', [toStatus, ordered.map((t) => t.id)]); } catch (err) { toast(err.message, 'err'); }
 			render();
 		});
 	});
-	document.querySelectorAll('.task-assignee').forEach((sel) => sel.addEventListener('change', async () => {
-		const task = state.board.tasks.find((t) => t.id === sel.dataset.task);
-		if (!task) { return; }
-		const member = state.board.members.find((m) => m.id === sel.value);
-		task.assigneeId = sel.value || undefined;
-		task.assigneeName = member ? member.displayName : task.assigneeName;
-		try { await demo('auraTeam.updateTask', [task.id, { assigneeId: sel.value || null }]); } catch (err) { toast(err.message, 'err'); }
+	// Свайп-удаление: удержание 450мс «взводит» карточку, тянем вправо ≥40% ширины — удаляем.
+	attachSwipeDelete(document.querySelectorAll('.task-card'), async (id) => {
+		try { await demo('auraTeam.deleteTask', [id]); } catch (err) { toast(err.message, 'err'); return; }
 		render();
-	}));
-	document.querySelectorAll('.add-task').forEach((btn) => btn.addEventListener('click', () => {
+		deletedToast(async () => { try { await demo('auraTeam.restoreTask', [id]); } catch (err) { toast(err.message, 'err'); } render(); });
+	});	document.querySelectorAll('.add-task').forEach((btn) => btn.addEventListener('click', () => {
 		const status = btn.dataset.status;
 		openModal({
 			title: T('addTask'), actionText: T('create'),
@@ -1179,17 +1545,63 @@ function openTaskModal(taskId) {
 		body: `<div class="field"><label>${esc(T('taskTitle'))}</label><input data-task-edit-title maxlength="120" value="${esc(task.title)}"></div>
 			<div class="field"><label>${esc(T('description'))}</label><textarea data-task-edit-desc rows="3" placeholder="${esc(T('descrPh'))}">${esc(task.description || '')}</textarea></div>
 			<div class="field"><label>${esc(ru ? 'Дедлайн' : 'Due date')}</label><input data-task-edit-due type="datetime-local" value="${task.dueAt ? esc(new Date(task.dueAt).toISOString().slice(0, 16)) : ''}"></div>
-			<div class="flex mt8"><span class="chip">${esc(T('assignee'))}: ${esc(task.assigneeName || T('noAssignee'))}</span><span class="chip">${esc(cap(task.status))}</span></div>`,
+			<div class="row mt8 gap8">
+				<div class="field" style="flex:1"><label>${esc(T('status'))}</label><select data-task-edit-status>${STATUS_META.map(([sid, key]) => `<option value="${sid}" ${sid === task.status ? 'selected' : ''}>${esc(T(key))}</option>`).join('')}</select></div>
+				<div class="field" style="flex:1"><label>${esc(T('assignee'))}</label><select data-task-edit-assignee><option value="">${esc(T('noAssignee'))}</option>${(state.board?.members ?? []).map((m) => `<option value="${esc(m.id)}" ${m.id === task.assigneeId ? 'selected' : ''}>${esc(m.displayName)}</option>`).join('')}</select></div>
+			</div>
+			<div class="field mt8" data-commits-block><label>${esc(T('taskCommits'))}</label><div class="sub">${esc(T('loading'))}</div></div>
+			<div class="hint">${esc(ru ? 'Коммит связывается с задачей, если в сообщении есть #' + esc(task.id.slice(0, 8)) : 'A commit links to this task when the message mentions #' + esc(task.id.slice(0, 8)))}</div>
+			<div class="field mt8" data-history-block><label>${esc(ru ? 'История изменений' : 'Change history')}</label><div class="sub">${esc(T('loading'))}</div></div>`,
 		onAction: async (overlay) => {
 			const title = overlay.querySelector('[data-task-edit-title]')?.value.trim();
 			if (!title) { toast(ru ? 'Введите название' : 'Title is required', 'err'); return true; }
 			const description = overlay.querySelector('[data-task-edit-desc]')?.value ?? '';
 			const dueRaw = overlay.querySelector('[data-task-edit-due]')?.value;
-			try { await demo('auraTeam.updateTask', [task.id, { title, description, dueAt: dueRaw ? new Date(dueRaw).toISOString() : undefined }]); } catch (err) { toast(err.message, 'err'); return true; }
+			const statusSel = overlay.querySelector('[data-task-edit-status]')?.value;
+			const assigneeSel = overlay.querySelector('[data-task-edit-assignee]')?.value;
+			try { await demo('auraTeam.updateTask', [task.id, { title, description, status: statusSel, assigneeId: assigneeSel || null, dueAt: dueRaw ? new Date(dueRaw).toISOString() : undefined }]); } catch (err) { toast(err.message, 'err'); return true; }
 			toast(ru ? 'Задача сохранена ✓' : 'Task saved ✓', 'ok');
 			return false;
 		}
-	});
+	});	// Связанные коммиты подгружаем фоном, не блокируя открытие карточки.
+	if (!state.demoMode) {
+		svc('auraTeam.taskCommits', [task.id]).then((commits) => {
+			const block = document.querySelector('[data-commits-block]');
+			if (!block) { return; }
+			block.querySelector('.sub')?.remove();
+			if (!commits?.length) { block.insertAdjacentHTML('beforeend', `<div class="sub">${esc(T('noCommits'))}</div>`); return; }
+			block.insertAdjacentHTML('beforeend', commits.map((c) => `<div class="member"><span class="chip" style="font-family:var(--mono)">${esc(String(c.hash).slice(0, 8))}</span><span>${esc(c.author || '')}</span><span class="when" style="margin-left:auto">${esc(timeAgoStr(c.createdAt))}</span></div>`).join(''));
+		}).catch(() => { document.querySelector('[data-commits-block] .sub')?.remove(); });
+		// История изменений задачи из audit_log: создания/правки статуса, исполнителя, дедлайна и т.д.
+		svc('auraTeam.taskHistory', [task.id]).then((history) => {
+			const block = document.querySelector('[data-history-block]');
+			if (!block) { return; }
+			block.querySelector('.sub')?.remove();
+			if (!history?.length) { block.insertAdjacentHTML('beforeend', `<div class="sub">${esc(T('noHistory'))}</div>`); return; }
+			block.insertAdjacentHTML('beforeend', history.map((h) => `<div class="member"><span class="who" style="font-weight:600">${esc(h.userName)}</span><span class="dim">${esc(describeTaskAction(h.action, h.details))}</span><span class="when" style="margin-left:auto">${esc(timeAgoStr(h.createdAt))}</span></div>`).join(''));
+		}).catch(() => { document.querySelector('[data-history-block] .sub')?.remove(); });
+	} else {
+		const block = document.querySelector('[data-commits-block]');
+		block?.querySelector('.sub')?.remove();
+		block?.insertAdjacentHTML('beforeend', `<div class="member"><span class="chip" style="font-family:var(--mono)">a1b2c3d4</span><span>Demo</span><span class="when" style="margin-left:auto">2 ч</span></div>`);
+		const hist = document.querySelector('[data-history-block]');
+		hist?.querySelector('.sub')?.remove();
+		hist?.insertAdjacentHTML('beforeend', `<div class="member"><span class="who" style="font-weight:600">Вы</span><span class="dim">${esc(lang === 'ru' ? 'создал задачу' : 'created task')}</span><span class="when" style="margin-left:auto">5 мин</span></div>`);
+	}
+}
+/* Человекочитаемое описание действия над задачей (из action + details audit_log). */
+function describeTaskAction(action, details) {
+	const ru = lang === 'ru';
+	const who = details?.status ? ` → ${statusLabel(details.status)}` : '';
+	const map = {
+		'task.create': ru ? 'создал задачу' : 'created task',
+		'task.update': ru ? 'обновил задачу' : 'updated task',
+		'task.delete': ru ? 'удалил задачу' : 'deleted task',
+		'task.restore': ru ? 'восстановил задачу' : 'restored task',
+		'task.commit_link': ru ? 'привязал коммит' : 'linked a commit',
+		'task.reorder': ru ? 'переместил задачу' : 'moved task'
+	};
+	return (map[action] ?? action) + (action === 'task.update' ? who : '');
 }
 /* ---------- Файлы (витрина архивов) ---------- */
 function ownerName(project, members) {
@@ -1197,25 +1609,52 @@ function ownerName(project, members) {
 	return m ? m.displayName : T('noAssignee');
 }
 function renderFiles(board) {
-	const projects = board.projects ?? [];
-	const grids = projects.length ? projects.map((p, i) => `<div class="card clickable" style="--i:${i}" data-project="${esc(p.id)}">
-			<div class="row" style="margin-top:0;justify-content:space-between">
-				<h3 style="margin-bottom:0">${esc(p.name)}</h3>
-				<span class="chip ${p.archiveId ? 'ok' : 'off'}">${esc(p.archiveId ? T('hasArchive') : T('noArchive'))}</span>
-			</div>
-			${p.gitUrl ? `<div class="sub" style="margin-top:6px">${esc(p.gitUrl)}</div>` : ''}
-			<div class="row" style="margin-top:10px;justify-content:space-between">
-				<span class="chip accent">${esc(p.defaultBranch || 'main')}</span>
-				<span class="chip">${esc(T('projectOwner'))}: ${esc(ownerName(p, board.members))}</span>
-				${p.archiveId ? `<button class="btn ghost sm" data-download="${esc(p.id)}" style="white-space:nowrap">${esc(T('download'))}</button>` : ''}
-				${state.session?.teams.find((t) => t.id === state.teamId)?.role === 'owner' ? `<button class="btn ghost sm" data-transfer="${esc(p.id)}" style="white-space:nowrap">${esc(T('transfer'))}</button>` : ''}
-			</div>
-		</div>`).join('') : `<div class="empty" style="--i:0"><div><div class="big">${esc(T('noFiles'))}</div></div></div>`;
+	const archives = state.archives ?? [];
+	const fmtSize = (b) => b > 1048576 ? (b / 1048576).toFixed(1) + ' МБ' : b > 1024 ? (b / 1024).toFixed(0) + ' КБ' : b + ' Б';
+	const rows = archives.length ? archives.map((a, i) => `<div class="card clickable" style="--i:${i}" data-archive="${esc(a.id)}">
+		<div class="row" style="margin-top:0;justify-content:space-between">
+			<h3 style="margin-bottom:0">${esc(a.projectName || a.id)}</h3>
+			<span class="chip">${fmtSize(a.bytes)}</span>
+		</div>
+		<div class="row" style="margin-top:8px;justify-content:space-between">
+			<span class="sub">${esc(a.createdBy || '')} · ${timeAgoStr(a.createdAt)}</span>
+			<span class="row gap8">
+				<button class="btn ghost sm" data-dl-archive="${esc(a.id)}" style="white-space:nowrap">${esc(T('download'))}</button>
+				<button class="btn ghost sm danger-text" data-del-archive="${esc(a.id)}" style="white-space:nowrap">${esc(T('delete'))}</button>
+			</span>
+		</div>
+	</div>`).join('') : `<div class="empty" style="--i:0"><div><div class="big">${esc(T('noFiles'))}</div></div></div>`;
 	return `<div class="section-title">${esc(T('filesTitle'))}</div>
-		<div class="card-grid">${grids}</div>
+		<div class="card-grid">${rows}</div>
 		<div class="flex mt12"><button class="btn primary" id="btnUploadArchive" style="white-space:nowrap">${esc(T('uploadArchive'))}</button></div>`;
 }
+function timeAgoStr(iso) {
+	if (!iso) { return ''; }
+	const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+	if (s < 60) { return T('timeNow'); }
+	if (s < 3600) { return Math.floor(s / 60) + ' мин'; }
+	if (s < 86400) { return Math.floor(s / 3600) + ' ч'; }
+	return Math.floor(s / 86400) + ' д';
+}
+const STATUS_META = [
+	['todo', 'statusTodo'], ['doing', 'statusDoing'], ['review', 'statusReview'], ['done', 'statusDone']
+];
+function statusLabel(id) { return T(STATUS_META.find(([sid]) => sid === id)?.[1] ?? 'statusTodo'); }
+// Скачивание архива по id: просим расширение показать диалог сохранения.
+async function downloadArchiveById(archive) {
+	try { await demo('auraTeam.downloadArchiveById', [archive]); } catch (err) { toast(err.message, 'err'); }
+}
 function wireFiles() {
+	document.querySelectorAll('[data-dl-archive]').forEach((b) => b.addEventListener('click', (e) => {
+		e.stopPropagation();
+		const archive = (state.archives ?? []).find((a) => a.id === b.dataset.dlArchive);
+		if (archive) { void downloadArchiveById(archive); }
+	}));
+	document.querySelectorAll('[data-del-archive]').forEach((b) => b.addEventListener('click', async (e) => {
+		e.stopPropagation();
+		if (!confirm) { return; }
+		try { await demo('auraTeam.deleteArchive', [b.dataset.delArchive]); state.archivesLoaded = false; state.archives = []; await ensureArchives(); render(); } catch (err) { toast(err.message, 'err'); }
+	}));
 	document.querySelectorAll('[data-download]').forEach((b) => b.addEventListener('click', async () => {
 		const project = state.board?.projects.find((p) => p.id === b.dataset.download);
 		if (project?.archiveId) { await demo('auraTeam.downloadArchive', [project]); }
@@ -1236,17 +1675,8 @@ function wireFiles() {
 	}));
 	const uploadBtn = document.getElementById('btnUploadArchive');
 	uploadBtn?.addEventListener('click', () => {
-		openModal({
-			title: T('uploadArchive'), sub: T('filesTitle'), actionText: T('uploadArchive'),
-			body: `<div class="field"><label>${esc(T('archiveProject'))}</label><input data-archive-name maxlength="60" placeholder="${esc(T('archiveProjectPh'))}" autofocus></div>`,
-			onAction: async (overlay) => {
-				const name = overlay.querySelector('[data-archive-name]')?.value?.trim();
-				if (!name) { toast(T('archiveProject'), 'err'); return true; }
-				await demo('auraTeam.uploadArchive', [name]);
-				return false;
-			}
-		});
-		setTimeout(() => document.querySelector('[data-archive-name]')?.focus(), 30);
+		// Сразу диалог выбора файла с ПК: имя проекта = имя файла, без промежуточной модалки.
+		void demo('auraTeam.uploadArchive', [null]);
 	});
 }
 
@@ -1256,9 +1686,20 @@ function renderGit() {
 		return `<div class="empty" style="--i:0"><div><div class="big">${esc(T('noRepo'))}</div></div></div>`;
 	}
 	const changes = git.changes;
+	const ghBadge = state.githubConnected
+		? `<span class="chip ok">✓ ${esc(T('githubConnected'))}</span> <button class="btn ghost sm" id="btnGitHubOut" style="white-space:nowrap">${esc(T('githubDisconnect'))}</button>`
+		: `<span class="chip off">${esc(T('githubNotConnected'))}</span> <button class="btn ghost sm" id="btnGitHub" style="white-space:nowrap">${esc(T('githubConnect'))}</button>`;
 	return `<div class="card git-card" style="--i:0">
+			<div class="row" style="margin-top:0;justify-content:space-between;align-items:center">
+				<div class="flex">${ghBadge}</div>
+				<div class="flex">
+					<button class="btn ghost sm" id="btnGhRepos" style="white-space:nowrap" ${state.githubConnected ? '' : 'disabled'}>${esc(T('githubRepos'))}</button>
+					<button class="btn ghost sm" id="btnGhCreate" style="white-space:nowrap" ${state.githubConnected ? '' : 'disabled'}>${esc(T('githubCreate'))}</button>
+				</div>
+			</div>
 			<div class="git-head">
 				<span class="chip accent">${esc(git.branch || '—')}</span>
+				${git.ahead || git.behind ? `<span class="chip ${git.behind ? 'off' : 'ok'}">↑${git.ahead || 0} ↓${git.behind || 0}</span>` : ''}
 				<span class="repo-path" title="${esc(git.path)}">${esc(git.path || '')}</span>
 				<div class="right flex">
 					<button class="btn ghost sm" id="btnPull" style="white-space:nowrap">${esc(T('pull'))}</button>
@@ -1270,26 +1711,37 @@ function renderGit() {
 				<input id="commitMsg" placeholder="${esc(T('commitMsg'))}…" maxlength="120">
 				<button class="btn primary" id="btnCommit" style="white-space:nowrap">${esc(T('commitPush'))}</button>
 			</div>
-			${changes.length ? `<div class="changes-list">${changes.slice(0, 24).map((c, i) => `<div class="change-item" style="--i:${i}"><span class="kind ${c.kind}">${c.kind}</span><span>${esc(c.path)}</span></div>`).join('')}</div>` : `<div class="sub mt12">${esc(T('noChanges'))} ✔</div>`}
+			${changes.length ? `<div class="changes-list" id="changesList">${changes.slice(0, 24).map((c, i) => `<label class="change-item" style="--i:${i}"><input type="checkbox" class="change-check" data-path="${esc(c.path)}" checked><span class="kind ${c.kind}">${c.kind}</span><span class="change-path" data-diff="${esc(c.path)}" title="${esc(T('diffHint'))}">${esc(c.path)}</span></label>`).join('')}</div>` : `<div class="sub mt12">${esc(T('noChanges'))} ✔</div>`}
 			<div class="flex mt12">
 				${!state.demoMode ? `<button class="btn ghost sm" id="btnUndo">${esc(T('undo'))}</button>` : ''}
 				${!state.demoMode ? `<button class="btn ghost sm" id="btnRevert">${esc(T('revert'))}</button>` : ''}
-				<button class="btn ghost sm" id="btnGitHub">${esc(T('gitHub'))}</button>
 			</div>
 		</div>
 		${git.commits?.length ? `<div class="section-title">${esc(T('history'))}</div><div class="card" style="--i:0">${git.commits.slice(0, 10).map((c, i) => `<div class="history-item" style="--i:${i}"><span class="hist-dot"></span><div><div class="hist-msg">${esc(c.message)}</div><div class="hist-meta">${esc(c.hash?.slice(0, 8))} · ${esc(c.author || '')} · ${esc(timeAgo(c.date))}</div></div></div>`).join('')}</div>` : ''}`;
 }
 function wireGit() {
+	// Клик по имени файла — дифф (рабочая версия против HEAD). Чекбокс не мешает.
+	document.querySelectorAll('.change-path[data-diff]').forEach((el) => el.addEventListener('click', (e) => {
+		e.preventDefault();
+		e.stopPropagation();
+		void demo('auraTeam.showDiff', [el.dataset.diff]).catch((err) => toast(err.message, 'err'));
+	}));
 	const commitBtn = document.getElementById('btnCommit');
 	const msg = document.getElementById('commitMsg');
 	commitBtn?.addEventListener('click', async (e) => {
 		ripple(e);
 		if (!msg?.value.trim()) { toast(T('commitMsg'), 'err'); return; }
+		// Выбранные файлы (чекбоксы): если сняты все — коммитим всё, как раньше.
+		const checks = [...document.querySelectorAll('.change-check')];
+		const selected = checks.filter((c) => c.checked).map((c) => c.dataset.path);
+		const partial = checks.length > 0 && selected.length > 0 && selected.length < checks.length;
 		commitBtn.disabled = true;
 		commitBtn.innerHTML = '<span class="spin"></span>';
 		try {
-			await demo('auraTeam.commitAll', [msg.value.trim()]);
-			toast(T('commitDone'), 'ok');
+			const res = partial ? await demo('auraTeam.commitSelected', [msg.value.trim(), selected]) : await demo('auraTeam.commitAll', [msg.value.trim()]);
+			// pushed=true — коммит ушёл в GitHub; иначе остался локально (нет remote или пуш не удался).
+			if (res && res.pushError) { toast(T('pushFail') + ': ' + res.pushError, 'err'); }
+			else { toast(res && res.pushed ? T('commitPushed') : T('commitLocal'), 'ok'); }
 			msg.value = '';
 		} catch (err) { toast(err.message, 'err'); }
 		commitBtn.disabled = false;
@@ -1303,20 +1755,35 @@ function wireGit() {
 	const branchBtn = document.getElementById('btnBranch');
 	branchBtn?.addEventListener('click', async () => {
 		let branches = [];
-		if (!state.demoMode) { branches = await svc('auraTeam.listBranches').catch(() => []); }
-		else { branches = ['main', 'develop', 'feature/aura-team']; }
+		if (!state.demoMode) { branches = await svc('auraTeam.branchInfo').catch(() => []); }
+		else { branches = ['main', 'develop', 'feature/aura-team'].map((name) => ({ name, current: name === 'main' })); }
 		if (!branches.length) { return; }
 		openModal({
-			title: T('branch'), actionText: T('join'),
-			body: `<div class="field"><label>${esc(T('branch'))}</label>` + branches.map((b) => `<div class="member" style="--i:${branches.indexOf(b)}"><span class="chip ${b === state.git?.branch ? 'accent' : ''}">${esc(b)}</span><button class="btn sm ghost right" data-pick-branch="${esc(b)}">switch</button></div>`).join('') + `</div>`,
-			onAction: () => false
+			title: T('branch'), actionText: T('branchCreate'),
+			body: `<div class="field"><label>${esc(T('branch'))}</label>` + branches.map((b, i) => `<div class="member" style="--i:${i}">
+				<span class="chip ${b.current ? 'accent' : ''}">${esc(b.name)}</span>
+				${b.ahead || b.behind ? `<span class="chip ${b.behind ? 'off' : 'ok'}">↑${b.ahead || 0} ↓${b.behind || 0}</span>` : ''}
+				${b.current ? '' : `<button class="btn sm ghost right" data-pick-branch="${esc(b.name)}">switch</button><button class="btn sm ghost" data-del-branch="${esc(b.name)}" title="${esc(T('delete'))}">×</button>`}
+			</div>`).join('') +
+			`<div class="row mt8 gap8"><input data-new-branch placeholder="${esc(T('branchCreatePh'))}" maxlength="80" style="flex:1"><button class="btn sm primary" data-create-branch>${esc(T('branchCreate'))}</button></div></div>`,
+			onAction: async (overlay) => {
+				const input = overlay.querySelector('[data-new-branch]');
+				if (!input?.value.trim()) { return true; }
+				try { await demo('auraTeam.createBranch', [input.value.trim()]); document.querySelector('.overlay')?.remove(); render(); return false; } catch (err) { toast(err.message, 'err'); return true; }
+			}
 		});
 		setTimeout(() => {
 			document.querySelectorAll('[data-pick-branch]').forEach((b) => b.addEventListener('click', async () => {
-				await demo('auraTeam.checkout', [b.dataset.pickBranch]);
-				document.querySelector('.overlay')?.remove();
-				render();
+				try { await demo('auraTeam.checkout', [b.dataset.pickBranch]); document.querySelector('.overlay')?.remove(); render(); } catch (err) { toast(err.message, 'err'); }
 			}));
+			document.querySelectorAll('[data-del-branch]').forEach((b) => b.addEventListener('click', async () => {
+				try { await demo('auraTeam.deleteBranch', [b.dataset.delBranch]); b.closest('.member')?.remove(); } catch (err) { toast(err.message, 'err'); }
+			}));
+			document.querySelector('[data-create-branch]')?.addEventListener('click', async () => {
+				const input = document.querySelector('[data-new-branch]');
+				if (!input?.value.trim()) { return; }
+				try { await demo('auraTeam.createBranch', [input.value.trim()]); document.querySelector('.overlay')?.remove(); render(); } catch (err) { toast(err.message, 'err'); }
+			});
 		}, 40);
 	});
 	const undoBtn = document.getElementById('btnUndo');
@@ -1328,6 +1795,17 @@ function wireGit() {
 		if (state.demoMode) { toast(T('demo')); return; }
 		try { await svc('auraTeam.connectGitHub', []); toast(T('gitHubDone'), 'ok'); } catch (err) { toast(err.message, 'err'); }
 	});
+	document.getElementById('btnGitHubOut')?.addEventListener('click', () => { void svc('auraTeam.disconnectGitHub', []); });		document.getElementById('btnGhRepos')?.addEventListener('click', async (e) => {
+			ripple(e);
+			if (state.demoMode) { toast(T('demo')); return; }
+			try { await svc('auraTeam.cloneGithubRepo', []); } catch (err) { toast(err.message, 'err'); }
+		});
+		document.getElementById('btnGhCreate')?.addEventListener('click', async (e) => {
+			ripple(e);
+			if (state.demoMode) { toast(T('demo')); return; }
+			toast(T('githubCreating'), '');
+			try { await svc('auraTeam.createGithubRepo', []); } catch (err) { toast(err.message, 'err'); }
+		});
 }
 function confirmAction(label, job) {
 	openModal({
@@ -1349,29 +1827,59 @@ function providerColor(provider) {
 function providerGlyph(provider) {
 	return `<svg viewBox="0 0 24 24" fill="none"><path d="M12 12a3.2 3.2 0 1 0 0-6.4A3.2 3.2 0 0 0 12 12zm0 0v6.4M12 9.6h6.4" stroke="white" stroke-width="1.7" stroke-linecap="round"/></svg>`;
 }
+/* Приоритет: high / medium / low → подпись и цвет. */
+function priorityMeta(priority) {
+	const p = String(priority ?? 'medium').toLowerCase();
+	if (p === 'high' || p === '2') { return { id: 'high', label: T('prioHigh'), cls: 'ok' }; }
+	if (p === 'low' || p === '0') { return { id: 'low', label: T('prioLow'), cls: 'off' }; }
+	return { id: 'medium', label: T('prioMedium'), cls: 'warn' };
+}
+function priorityWeight(priority) {
+	const meta = priorityMeta(priority);
+	return meta.id === 'high' ? 0 : meta.id === 'medium' ? 100 : 200;
+}
+function groupName(groupId) {
+	if (!groupId) { return null; }
+	const g = (state.keyGroups ?? []).find(x => x.id === groupId);
+	return g ? g.name : null;
+}
 function renderKeys() {
-	const keys = state.keys ?? [];
+	const keys = [...(state.keys ?? [])].sort((a, b) => priorityWeight(a.priority) - priorityWeight(b.priority) || String(a.provider).localeCompare(String(b.provider)));
+	const groups = state.keyGroups ?? [];
 	return `<div class="view-head">
 			<div class="view-title">${esc(T('keysTitle'))} <span class="chip accent">${keys.length}</span></div>
-			<div class="view-sub">${esc(T('keyRole'))} · ${esc(T('keyPriority'))}</div>
+			<div class="view-sub">${esc(T('keyRole'))} · ${esc(T('prioHint'))}</div>
 		</div>
-		${keys.length ? `<div class="card-grid">${keys.map((key, i) => `<div class="card key-card" style="--i:${i}">
+		${groups.length ? `<div class="flex mt8" style="flex-wrap:wrap">${groups.map(g => `<span class="chip">${esc(g.name)} <b>·</b> ${esc(T('prioGroup'))} ${g.priority}</span>`).join('')}</div>` : ''}
+		${keys.length ? `<div class="card-grid">${keys.map((key, i) => {
+			const prio = priorityMeta(key.priority);
+			const ping = key.pingMs;
+			const pingCls = ping == null ? 'off' : ping < 800 ? 'ok' : ping < 2500 ? 'warn' : 'err';
+			return `<div class="card key-card" style="--i:${i}">
 			<div class="key-row">
 				<div class="provider-ico" style="background:linear-gradient(135deg, ${providerColor(key.provider)}, ${providerColor(key.provider)}88);color:#fff">${providerGlyph(key.provider)}</div>
 				<div class="grow">
 					<div class="key-label">${esc(key.label)}</div>
 					<div class="key-hint" style="display:inline-block;margin-top:4px">${esc(key.keyHint)}</div>
 				</div>
+				<button class="btn ghost sm" data-edit-key="${esc(key.id)}" title="${esc(T('editKey'))}">✎</button>
+				<button class="btn ghost sm" data-ping="${esc(key.id)}" title="${esc(T('pingCheck'))}">${esc(T('ping'))}</button>
+				<button class="btn ghost sm danger-text" data-del-key="${esc(key.id)}" title="${esc(T('deleteKey'))}">×</button>
 				<button class="switch ${key.disabledAt ? '' : 'on'}" data-key="${esc(key.id)}" title="${esc(T('disabled'))}"></button>
 			</div>
 			<div class="row">
 				<span class="chip">${esc(key.provider)}</span>
 				<span class="chip ${key.accessRole === 'owner' ? 'accent' : ''}">${esc(T('role' + cap(key.accessRole)))}</span>
-				<span class="chip">P${key.priority}</span>
-				${key.disabledAt ? `<span class="chip off">${esc(T('disabled'))}</span>` : ''}
+				<span class="chip ${prio.cls}">${esc(prio.label)}</span>
+				${groupName(key.groupId) ? `<span class="chip accent">${esc(groupName(key.groupId))}</span>` : ''}
+				${key.disabledAt ? `<span class="chip off">${esc(T('disabled'))}</span>` : `<span class="chip ${pingCls}">${ping == null ? esc(T('pingUnknown')) : esc(T('pingMs').replace('{0}', ping))}</span>`}
 			</div>
-		</div>`).join('')}</div>` : `<div class="empty" style="--i:0"><div><div class="big">${esc(T('emptyKeys'))}</div></div></div>`}
-		<div class="flex mt16"><button class="btn primary" id="btnAddKey">${esc(T('addKey'))}</button></div>`;
+		</div>`; }).join('')}</div>` : `<div class="empty" style="--i:0"><div><div class="big">${esc(T('emptyKeys'))}</div></div></div>`}
+		<div class="flex mt16">
+			<button class="btn primary" id="btnAddKey">${esc(T('addKey'))}</button>
+			<button class="btn ghost" id="btnImportApi">${esc(T('importFromApi'))}</button>
+			${!state.demoMode ? `<button class="btn ghost" id="btnNewGroup">${esc(T('newGroup'))}</button>` : ''}
+		</div>`;
 }
 function wireKeys() {
 	document.querySelectorAll('.switch').forEach((s) => s.addEventListener('click', async () => {
@@ -1384,8 +1892,92 @@ function wireKeys() {
 			});
 		}
 	}));
+	// Удаление ключа навсегда.
+	document.querySelectorAll('[data-del-key]').forEach((b) => b.addEventListener('click', () => {
+		const key = state.keys.find((k) => k.id === b.dataset.delKey);
+		if (!key) { return; }
+		if (state.demoMode) { toast(T('demo')); return; }
+		confirmAction(T('deleteKey') + ' · ' + key.label, async () => { await svc('auraTeam.deleteApiKey', [key]); });
+	}));
+	// Редактирование ключа: лейбл, роль, приоритет, группа (значение не показывается и не меняется).
+	document.querySelectorAll('[data-edit-key]').forEach((b) => b.addEventListener('click', () => {
+		const key = state.keys.find((k) => k.id === b.dataset.editKey);
+		if (!key) { return; }
+		if (state.demoMode) { toast(T('demo')); return; }
+		const groups = state.keyGroups ?? [];
+		openModal({
+			title: T('editKey'), sub: key.label, actionText: T('save'),
+			body: `
+				<div class="field"><label>${esc(T('keyName'))}</label><input data-key-edit-label value="${esc(key.label)}" maxlength="60"></div>
+				<div class="field-grid">
+					<div class="field"><label>${esc(T('keyRole'))}</label><select data-key-edit-role>${['dev', 'maintainer', 'viewer'].map((r) => `<option value="${r}" ${r === key.accessRole ? 'selected' : ''}>${esc(T('role' + cap(r)))}</option>`).join('')}</select></div>
+					<div class="field"><label>${esc(T('keyPriority'))}</label><select data-key-edit-prio>${[['high', 'prioHigh'], ['medium', 'prioMedium'], ['low', 'prioLow']].map(([v, k]) => `<option value="${v}" ${priorityMeta(key.priority).id === v ? 'selected' : ''}>${esc(T(k))}</option>`).join('')}</select></div>
+				</div>
+				<div class="field"><label>${esc(T('keyGroup'))}</label><select data-key-edit-group><option value="">—</option>${groups.map((g) => `<option value="${esc(g.id)}" ${g.id === key.groupId ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></div>`,
+			onAction: async (overlay) => {
+				const label = overlay.querySelector('[data-key-edit-label]')?.value?.trim();
+				if (!label) { toast(T('keyName'), 'err'); return true; }
+				const prioVal = overlay.querySelector('[data-key-edit-prio]')?.value;
+				await svc('auraTeam.updateApiKey', [key.id, {
+					label,
+					accessRole: overlay.querySelector('[data-key-edit-role]')?.value,
+					priority: prioVal === 'high' ? 200 : prioVal === 'low' ? 50 : 100,
+					groupId: overlay.querySelector('[data-key-edit-group]')?.value || null
+				}]);
+				toast(T('saved'), 'ok');
+				return false;
+			}
+		});
+	}));
+	// Пинг ключа: реальная проверка доступа у провайдера с замером времени.
+	document.querySelectorAll('[data-ping]').forEach((b) => b.addEventListener('click', async () => {
+		if (state.demoMode) { toast(T('demo')); return; }
+		b.disabled = true; b.textContent = '…';
+		try {
+			const res = await svc('auraTeam.pingKey', [b.dataset.ping]);
+			toast(res?.ok ? `${T('pingOk')}: ${res.pingMs} ms` : `${T('pingFail')} (HTTP ${res?.status ?? 0})`, res?.ok ? 'ok' : 'err');
+		} catch (err) { toast(err?.message || T('pingFail'), 'err'); }
+		b.disabled = false; b.textContent = T('ping');
+	}));
+	// Новая группа ключей.
+	document.getElementById('btnNewGroup')?.addEventListener('click', () => {
+		openModal({
+			title: T('newGroup'), actionText: T('create'),
+			body: `<div class="field"><label>${esc(T('groupName'))}</label><input data-group-name maxlength="60" placeholder="Work" autofocus></div>
+				<div class="field"><label>${esc(T('prioGroup'))} (0 = ${esc(T('prioHigh')).toLowerCase()})</label><input data-group-prio type="number" min="0" max="100" value="1"></div>`,
+			onAction: async (overlay) => {
+				const name = overlay.querySelector('[data-group-name]')?.value?.trim();
+				if (!name) { return true; }
+				if (state.demoMode) { toast(T('demo')); return false; }
+				await svc('auraTeam.createKeyGroup', [{ name, priority: Number(overlay.querySelector('[data-group-prio]')?.value) || 1 }]);
+				return false;
+			}
+		});
+	});
+	// Импорт из плагина Aura API: выбор локальных ключей чата.
+	document.getElementById('btnImportApi')?.addEventListener('click', async () => {
+		let local = [];
+		try { local = await svc('auraTeam.listAuraApiKeys', []); } catch { local = []; }
+		if (!Array.isArray(local) || local.length === 0) { toast(T('noApiKeys'), 'err'); return; }
+		const groups = state.keyGroups ?? [];
+		openModal({
+			title: T('importFromApi'), sub: T('importFromApiSub'), actionText: T('import'),
+			body: local.map((k, i) => `<label class="check-row"><input type="checkbox" data-imp="${esc(k.id)}" ${i === 0 ? 'checked' : ''}> <span>${esc(k.name || k.model || k.id)}</span><small>${esc(k.baseUrl || '')}</small></label>`).join('') +
+				`<div class="field mt12"><label>${esc(T('keyGroup'))}</label><select data-imp-group><option value="">—</option>${groups.map(g => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('')}</select></div>`,
+			onAction: async (overlay) => {
+				const ids = [...overlay.querySelectorAll('[data-imp]:checked')].map(c => c.dataset.imp);
+				if (!ids.length) { return true; }
+				const groupId = overlay.querySelector('[data-imp-group]')?.value || undefined;
+				if (state.demoMode) { toast(T('demo')); return false; }
+				const res = await svc('auraTeam.importFromAuraApi', [{ keys: ids.map(id => ({ id, groupId })) }]);
+				toast(`${T('imported')}: ${res?.imported ?? 0}`, 'ok');
+				return false;
+			}
+		});
+	});
 	const addBtn = document.getElementById('btnAddKey');
 	addBtn?.addEventListener('click', () => {
+		const groups = state.keyGroups ?? [];
 		openModal({
 			title: T('addKey'), actionText: T('create'),
 			body: `
@@ -1394,7 +1986,10 @@ function wireKeys() {
 					<div class="field"><label>${esc(T('keyRole'))}</label><select data-key-role><option value="dev">${esc(T('roleDev'))}</option><option value="maintainer">${esc(T('roleMaintainer'))}</option><option value="viewer">${esc(T('roleViewer'))}</option></select></div>
 				</div>
 				<div class="field"><label>${esc(T('keyName'))}</label><input data-key-label placeholder="OpenAI team key" maxlength="60"></div>
-				<div class="field"><label>${esc(T('keyPriority'))}</label><input data-key-priority type="number" min="0" max="1000" value="100"></div>
+				<div class="field-grid">
+					<div class="field"><label>${esc(T('keyPriority'))}</label><select data-key-priority><option value="high">${esc(T('prioHigh'))}</option><option value="medium" selected>${esc(T('prioMedium'))}</option><option value="low">${esc(T('prioLow'))}</option></select></div>
+					<div class="field"><label>${esc(T('keyGroup'))}</label><select data-key-group><option value="">—</option>${groups.map(g => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('')}</select></div>
+				</div>
 				<div class="field"><label>${esc(T('keyValue'))}</label><div class="pw-toggle"><input data-key-value type="password" placeholder="sk-…" spellcheck="false"><button class="eye" data-eye="1"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.8" stroke="currentColor" stroke-width="1.7"/></svg></button></div></div>`,
 			onAction: async (overlay) => {
 				const label = overlay.querySelector('[data-key-label]')?.value?.trim();
@@ -1405,7 +2000,8 @@ function wireKeys() {
 					provider: overlay.querySelector('[data-key-provider]')?.value,
 					accessRole: overlay.querySelector('[data-key-role]')?.value,
 					label,
-					priority: overlay.querySelector('[data-key-priority]')?.value || '100',
+					priority: overlay.querySelector('[data-key-priority]')?.value || 'medium',
+					groupId: overlay.querySelector('[data-key-group]')?.value || undefined,
 					value
 				}]);
 				return false;
@@ -1427,6 +2023,9 @@ function overlayEyes() {
 function renderProfile() {
 	const p = state.profile;
 	const color = flattenColor(p.avatarColor);
+	const avatarHtml = p.avatar
+		? `<div class="avatar-big photo"><img src="${p.avatar}" alt=""></div>`
+		: `<div class="avatar-big" style="background:linear-gradient(135deg, ${color}, ${color}88);color:#fff">${esc(initials(p.nickname, 'A'))}</div>`;
 	const loginBlock = (!state.signedIn && !state.demoMode)
 		? `<div class="card" style="--i:1">
 			<div class="section-title">${esc(T('loginTitle'))}</div>
@@ -1434,13 +2033,14 @@ function renderProfile() {
 		</div>`
 		: '';
 	return `<div class="view-head"><div class="view-title">${esc(T('profileTitle'))}</div></div>
-		<div class="card" style="--i:0">
-			<div class="profile-hero">
-				<div class="avatar-big" style="background:linear-gradient(135deg, ${color}, ${color}88);color:#fff">${esc(initials(p.nickname, 'A'))}</div>
-				<div>
+		<div class="card profile-card" style="--i:0">
+			<div class="profile-hero slim">
+				${avatarHtml}
+				<div class="profile-main">
 					<div class="pname">${esc(p.nickname || '—')}</div>
 					<div class="id-strip"><span>${esc(p.id)}</span><button class="btn ghost sm copy-btn" data-copy="${esc(p.id)}">${esc(T('copy'))}</button></div>
-					<div class="flex mt8"><span class="chip ${state.signedIn ? 'ok' : state.demoMode ? 'warn' : 'off'}">${esc(T('server'))}: ${state.demoMode ? T('connDemo') : state.signedIn ? T('connLive') : T('connOff')}</span></div>
+					<button class="btn ghost sm mt8" id="btnAvatar">${p.avatar ? esc(T('changePhoto')) : esc(T('addPhoto'))}</button>
+					<input type="file" id="avatarFile" accept="image/png,image/jpeg,image/webp" class="hidden">
 				</div>
 			</div>
 			<div class="field-grid">
@@ -1451,13 +2051,40 @@ function renderProfile() {
 			<div class="savebar"><button class="btn primary" id="btnSaveProfile">${esc(T('saveProfile'))}</button></div>
 			<div class="profile-actions">
 				<button class="btn ghost logout-btn" id="btnChangePassword">${esc(T('changePassword'))}</button>
-				<button class="btn danger logout-btn" id="btnLogout">${esc(T('logout'))}</button>
+				<button class="btn logout-danger logout-btn" id="btnLogout">${esc(T('logout'))}</button>
 			</div>
 		</div>
 		${loginBlock}`;
 }
 function wireProfile() {
 	wireLoginForm();
+	// Загрузка аватарки: файл → canvas (256×256, JPEG) → dataURL → сервер настроек.
+	const fileInput = document.getElementById('avatarFile');
+	document.getElementById('btnAvatar')?.addEventListener('click', () => fileInput?.click());
+	fileInput?.addEventListener('change', () => {
+		const file = fileInput.files?.[0];
+		if (!file) { return; }
+		const reader = new FileReader();
+		reader.onload = () => {
+			const img = new Image();
+			img.onload = async () => {
+				const size = 256;
+				const canvas = document.createElement('canvas');
+				canvas.width = size; canvas.height = size;
+				const ctx = canvas.getContext('2d');
+				if (!ctx) { return; }
+				// Обрезка по центру в квадрат.
+				const side = Math.min(img.width, img.height);
+				ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+				const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+				try { state.profile = await svc('auraTeam.setAvatar', [dataUrl]) ?? state.profile; toast(T('photoSaved'), 'ok'); render(); updateChrome(); }
+				catch (err) { toast(err?.message || 'error', 'err'); }
+			};
+			img.src = String(reader.result);
+		};
+		reader.readAsDataURL(file);
+		fileInput.value = '';
+	});
 	const saveBtn = document.getElementById('btnSaveProfile');
 	saveBtn?.addEventListener('click', async (e) => {
 		ripple(e);
@@ -1498,9 +2125,11 @@ function wireProfile() {
 /* ---------- Иконки рейла уже в HTML; здесь обработчики ---------- */
 let chromeWired = false;
 function wireChrome() {
-	document.querySelectorAll('.rail-btn').forEach((b) => b.addEventListener('click', () => { route = b.dataset.view; render(); }));
+	// Слушатели chrome вешаются ОДИН раз: rail-кнопки — статичные элементы шапки,
+	// повторная навеска при каждом рендере накапливала слушатели (утечка при частых кликах).
 	if (chromeWired) { return; }
 	chromeWired = true;
+	document.querySelectorAll('.rail-btn').forEach((b) => b.addEventListener('click', () => { route = b.dataset.view; render(); }));
 	const avatarMenu = document.getElementById('avatarMenu');
 	const avatar = document.getElementById('avatarBtn');
 	if (avatar) {
@@ -1535,6 +2164,9 @@ function wire() {
 	if (needsAuth) { wireAuth(); return; }
 	if (route === 'keys') { wireKeys(); return; }
 	if (route === 'profile') { wireProfile(); return; }
+	if (route === 'board') { wireBoard(); return; }
+	if (route === 'git') { wireGit(); return; }
+	if (route === 'files') { wireFiles(); return; }
 	wireTabs();
 	wireMembers();
 	wireBoard();
@@ -1544,7 +2176,7 @@ function wire() {
 	createBtn?.addEventListener('click', () => {
 		openModal({
 			title: T('createTeam'), sub: T('newTeamSub'), actionText: T('create'),
-			body: `<div class="field"><label>${esc(T('teamName'))}</label><input data-team-name maxlength="40" placeholder="Aura Studio" autofocus></div>`,
+			body: `<div class="field"><label>${esc(T('teamName'))}</label><input data-team-name maxlength="40" placeholder="My Team" autofocus></div>`,
 			onAction: async (overlay) => {
 				const name = overlay.querySelector('[data-team-name]')?.value?.trim();
 				if (!name) { toast(T('teamName'), 'err'); return true; }
@@ -1558,7 +2190,7 @@ function wire() {
 	joinBtn?.addEventListener('click', () => {
 		openModal({
 			title: T('joinTeam'), sub: T('inviteSub'), actionText: T('join'),
-			body: `<div class="field"><label>${esc(T('inviteCode'))}</label><input data-join-code maxlength="24" placeholder="AURA-XXXX" spellcheck="false" autofocus></div>`,
+			body: `<div class="field"><label>${esc(T('inviteCode'))}</label><input data-join-code maxlength="24" placeholder="XXXXXXXXXXXX" spellcheck="false" autofocus></div>`,
 			onAction: async (overlay) => {
 				const code = overlay.querySelector('[data-join-code]')?.value?.trim();
 				if (!code) { toast(T('inviteCode'), 'err'); return true; }
@@ -1569,17 +2201,7 @@ function wire() {
 		setTimeout(() => document.querySelector('[data-join-code]')?.focus(), 30);
 	});
 	const inviteBtn = document.getElementById('btnInvite');
-	inviteBtn?.addEventListener('click', async () => {
-		const res = await demo('auraTeam.createInvite', []);
-		if (res?.code) {
-			openModal({
-				title: T('invite'), sub: T('inviteSub'),
-				body: `<div class="invite-code">${esc(res.code)}</div><div class="center"><button class="btn ghost sm" data-copy-invite="${esc(res.code)}">${esc(T('copy'))}</button></div>`,
-				onAction: () => false
-			});
-			setTimeout(() => document.querySelector('[data-copy-invite]')?.addEventListener('click', (e) => copyText(e.target.dataset.copyInvite)), 40);
-		}
-	});
+	inviteBtn?.addEventListener('click', () => openInviteMenu());
 	document.querySelectorAll('.card[data-team]').forEach((card) => card.addEventListener('click', () => {
 		const id = card.dataset.team;
 		if (id !== state.teamId) {

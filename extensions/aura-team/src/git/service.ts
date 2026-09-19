@@ -5,9 +5,10 @@
 
 import * as vscode from 'vscode';
 import { execFile } from 'node:child_process';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { API, GitExtension, Repository } from './git';
-import { GitSnapshot } from '../types';
+import { GitBranchInfo, GitSnapshot } from '../types';
 
 const execFileAsync = promisify(execFile);
 
@@ -60,19 +61,83 @@ export class GitService {
 				date: commit.authorDate?.toISOString()
 			}));
 		} catch { /* лог недоступен */ }
+		let branches: GitBranchInfo[] | undefined;
+		try { branches = await this.branchInfo(); } catch { /* нет веток */ }
 		return {
 			path: repository.rootUri.fsPath,
 			branch: repository.state.HEAD?.name ?? '',
 			remotes: repository.state.remotes.map(remote => remote.name),
 			changes,
-			commits
+			commits,
+			branches,
+			ahead: branches?.find(b => b.current)?.ahead,
+			behind: branches?.find(b => b.current)?.behind
 		};
+	}
+
+	/** Дифф файла: рабочая версия против HEAD (для клика по файлу в списке изменений). */
+	async showDiff(filePath: string): Promise<void> {
+		const repository = this.requireRepository();
+		const uri = vscode.Uri.file(join(repository.rootUri.fsPath, filePath));
+		const title = `${filePath} (${repository.state.HEAD?.name ?? 'HEAD'})`;
+		const untracked = repository.state.untrackedChanges.some(change => vscode.workspace.asRelativePath(change.uri, false) === filePath);
+		if (untracked) {
+			// Нового файла нет в HEAD — сравниваем с пустой версией.
+			const empty = this.api.toGitUri(uri, '/dev/null');
+			await vscode.commands.executeCommand('vscode.diff', empty, uri, title);
+			return;
+		}
+		const head = this.api.toGitUri(uri, 'HEAD');
+		await vscode.commands.executeCommand('vscode.diff', head, uri, title);
 	}
 
 	async listBranches(): Promise<string[]> {
 		const repository = this.requireRepository();
 		const result = await execFileAsync(this.api.git?.path ?? 'git', ['branch', '--format', '%(refname:short)'], { cwd: repository.rootUri.fsPath });
 		return result.stdout.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+	}
+
+	/** Ветки с флагом текущей и ahead/behind относительно upstream. */
+	async branchInfo(): Promise<GitBranchInfo[]> {
+		const repository = this.requireRepository();
+		const current = repository.state.HEAD?.name ?? '';
+		const result = await execFileAsync(this.api.git?.path ?? 'git', ['branch', '--format', '%(refname:short)%09%(upstream:track)'], { cwd: repository.rootUri.fsPath });
+		return result.stdout.split(/\r?\n/).map(line => line.trim()).filter(Boolean).map(line => {
+			const [name, track = ''] = line.split('\t');
+			const ahead = /ahead (\d+)/.exec(track)?.[1];
+			const behind = /behind (\d+)/.exec(track)?.[1];
+			return { name, current: name === current, ahead: ahead ? Number(ahead) : undefined, behind: behind ? Number(behind) : undefined };
+		});
+	}
+
+	async createBranch(name: string): Promise<void> {
+		const repository = this.requireRepository();
+		if (!/^[\w.\-/]{1,80}$/.test(name)) { throw new Error(vscode.l10n.t('Invalid branch name.')); }
+		this.log(`git checkout -b ${name}`);
+		await this.runGit(repository, ['checkout', '-b', name]);
+	}
+
+	async deleteBranch(name: string): Promise<void> {
+		const repository = this.requireRepository();
+		this.log(`git branch -d ${name}`);
+		await this.runGit(repository, ['branch', '-d', name]);
+	}
+
+	/** git stash push (с untracked) — перед пулом при грязном дереве. */
+	async stashPush(message = 'aura-team autostash'): Promise<boolean> {
+		const repository = this.requireRepository();
+		const dirty = [...repository.state.workingTreeChanges, ...repository.state.indexChanges, ...repository.state.untrackedChanges];
+		if (dirty.length === 0) { return false; }
+		this.log('git stash push -u');
+		await this.runGit(repository, ['stash', 'push', '-u', '-m', message]);
+		return true;
+	}
+
+	/** Вернуть последний stash (pop). */
+	async stashPop(): Promise<void> {
+		const repository = this.requireRepository();
+		this.log('git stash pop');
+		await this.runGit(repository, ['stash', 'pop']);
 	}
 
 	async checkout(branch: string): Promise<void> {
@@ -84,15 +149,43 @@ export class GitService {
 	/** Закоммитить всё (включая новые файлы) и запушить с pull-rebase при отклонении. */
 	async commitAll(message: string): Promise<{ hash: string; message: string; remoteUrl?: string }> {
 		const repository = this.requireRepository();
-		const paths = [...repository.state.workingTreeChanges, ...repository.state.untrackedChanges].map(change => change.uri.fsPath);
-		if (paths.length === 0 && repository.state.indexChanges.length === 0) { throw new Error(vscode.l10n.t('There are no changes to save.')); }
+		const commit = await this.commitOnly(message, repository);
+		await this.pushWithRetry(repository);
+		return commit;
+	}
+
+	/** Коммит без пуша — пуш делается отдельно, чтобы ошибка отправки не маскировала успешный коммит. */
+	async commitOnly(message: string, repository?: Repository): Promise<{ hash: string; message: string; remoteUrl?: string }> {
+		const repo = repository ?? this.requireRepository();
+		const paths = [...repo.state.workingTreeChanges, ...repo.state.untrackedChanges].map(change => change.uri.fsPath);
+		if (paths.length === 0 && repo.state.indexChanges.length === 0) { throw new Error(vscode.l10n.t('There are no changes to save.')); }
 		if (paths.length > 0) {
 			this.log(`git add -- ${paths.join(' ')}`);
-			await repository.add(paths);
+			await repo.add(paths);
+		}
+		this.log(`git commit -m ${JSON.stringify(message)}`);
+		await repo.commit(message);
+		const commit = await repo.getCommit('HEAD');
+		return { hash: commit.hash, message, remoteUrl: repo.state.remotes.find(remote => remote.name === 'origin')?.fetchUrl };
+	}
+
+	/** Коммит только выбранных файлов: сначала снимаем staged, добавляем выбранные, коммитим. */
+	async commitSelected(message: string, selectedPaths: string[]): Promise<{ hash: string; message: string; remoteUrl?: string }> {
+		const repository = this.requireRepository();
+		if (selectedPaths.length === 0) { throw new Error(vscode.l10n.t('No files were selected.')); }
+		// Всё, что уже в индексе, но не выбрано — временно снимаем, чтобы не попало в коммит.
+		const stagedNotSelected = repository.state.indexChanges.map(change => change.uri.fsPath).filter(p => !selectedPaths.includes(p));
+		if (stagedNotSelected.length > 0) {
+			this.log(`git restore --staged -- ${stagedNotSelected.length} files`);
+			await repository.restore(stagedNotSelected, { staged: true });
+		}
+		const toAdd = selectedPaths.filter(p => !repository.state.indexChanges.some(change => change.uri.fsPath === p));
+		if (toAdd.length > 0) {
+			this.log(`git add -- ${toAdd.length} files`);
+			await repository.add(toAdd);
 		}
 		this.log(`git commit -m ${JSON.stringify(message)}`);
 		await repository.commit(message);
-		await this.pushWithRetry(repository);
 		const commit = await repository.getCommit('HEAD');
 		return { hash: commit.hash, message, remoteUrl: repository.state.remotes.find(remote => remote.name === 'origin')?.fetchUrl };
 	}
@@ -156,9 +249,20 @@ export class GitService {
 		const repository = this.requireRepository();
 		this.log('git fetch --all --prune');
 		await repository.fetch({ all: true, prune: true });
-		this.log('git pull --rebase');
-		await this.runGit(repository, ['pull', '--rebase']);
-		await this.handleConflicts(repository);
+		// Грязное дерево — прячем локальные изменения в stash и возвращаем их после пулла.
+		const stashed = await this.stashPush('aura-team: перед pull');
+		try {
+			this.log('git pull --rebase');
+			await this.runGit(repository, ['pull', '--rebase']);
+			await this.handleConflicts(repository);
+		} finally {
+			if (stashed) {
+				try { await this.stashPop(); } catch (error) {
+					this.log(`stash pop failed: ${String(error)}`);
+					vscode.window.showWarningMessage(vscode.l10n.t('Your stashed changes could not be applied automatically — run "git stash pop" manually.'));
+				}
+			}
+		}
 	}
 
 	/** Пути изменённых/новых файлов — для авто-коммита по шаблону. */
@@ -227,6 +331,32 @@ export class GitService {
 	requireRepository(): Repository {
 		if (!this.repository) { throw new Error(vscode.l10n.t('Open a Git project first.')); }
 		return this.repository;
+	}
+
+	/** Путь к открытой папке (для init нового репозитория). */
+	workspaceRoot(): string | undefined {
+		return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	}
+
+	/** git init в открытой папке, первый коммит, привязка remote и пуш текущей ветки. */
+	async initAndPublish(remoteUrl: string, message: string): Promise<void> {
+		const root = this.workspaceRoot();
+		if (!root) { throw new Error(vscode.l10n.t('Open a folder to publish first.')); }
+		const gitPath = this.api.git?.path ?? 'git';
+		const run = async (...args: string[]): Promise<void> => {
+			this.log(`git ${args.join(' ')}`);
+			const result = await execFileAsync(gitPath, args, { cwd: root });
+			if (result.stdout) { this.output.append(result.stdout); }
+			if (result.stderr) { this.output.append(result.stderr); }
+		};
+		await run('init');
+		await run('add', '--all');
+		await run('commit', '--allow-empty', '-m', message || 'Initial commit');
+		await run('remote', 'remove', 'origin').catch(() => undefined);
+		await run('remote', 'add', 'origin', remoteUrl);
+		const branch = (await execFileAsync(gitPath, ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root })).stdout.trim() || 'main';
+		this.log(`git push -u origin ${branch}`);
+		await execFileAsync(gitPath, ['push', '-u', 'origin', branch], { cwd: root });
 	}
 
 	private async handleConflicts(repository: Repository): Promise<void> {
