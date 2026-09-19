@@ -16,6 +16,7 @@ export const dirs = [
 	'extensions',
 	'extensions/aura-team',
 	'extensions/aura-kotlin',
+	'extensions/aura-serverkit',
 	'extensions/configuration-editing',
 	'extensions/css-language-features',
 	'extensions/css-language-features/server',

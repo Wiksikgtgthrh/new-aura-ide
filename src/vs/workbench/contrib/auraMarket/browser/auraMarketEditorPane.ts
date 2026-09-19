@@ -112,6 +112,30 @@ export class AuraMarketEditorPane extends EditorPane {
 		btn.classList.add('installed');
 	}
 
+	/** Удаление: сбрасывает флаг установки и предлагает перезагрузить окно. */
+	private async uninstall(item: IAuraMarketItem, btn: HTMLButtonElement): Promise<void> {
+		const choice = await this.dialogService.confirm({
+			type: 'question',
+			title: item.name,
+			message: `Удалить плагин «${item.name}»? Иконка и функции пропадут после перезагрузки окна. Настройки сохранятся.`,
+			primaryButton: 'Удалить',
+			cancelButton: 'Отмена'
+		});
+		if (!choice.confirmed) { return; }
+		this.marketStorage.remove(auraMarketInstalledKey(item.id), StorageScope.APPLICATION);
+		this.notificationService.prompt(
+			Severity.Info,
+			`«${item.name}» удалён. Перезагрузите окно, чтобы применить изменения.`,
+			[{
+				label: 'Перезагрузить окно',
+				run: () => { void this.commandService.executeCommand('workbench.action.reloadWindow'); },
+			}],
+		);
+		btn.textContent = 'Установить';
+		btn.disabled = false;
+		btn.classList.remove('installed');
+	}
+
 	private renderList(): void {
 		if (!this.listEl) { return; }
 		this.listEl.textContent = '';
@@ -150,6 +174,13 @@ export class AuraMarketEditorPane extends EditorPane {
 			installBtn.disabled = installed;
 			if (installed) { installBtn.classList.add('installed'); }
 			this._register(addDisposableListener(installBtn, EventType.CLICK, () => { void this.install(item, installBtn); }));
+
+			// Кнопка «Удалить» рядом с «Установлено ✓»
+			if (installed) {
+				const uninstallBtn = append(actions, $('button.aura-api-btn-small')) as HTMLButtonElement;
+				uninstallBtn.textContent = 'Удалить';
+				this._register(addDisposableListener(uninstallBtn, EventType.CLICK, () => { void this.uninstall(item, uninstallBtn); }));
+			}
 
 			if (item.docs) {
 				const docsBtn = append(actions, $('button.aura-api-btn-small')) as HTMLButtonElement;

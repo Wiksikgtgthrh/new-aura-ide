@@ -784,12 +784,16 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			// --- Activity Actions (always at the end)
 			// Aura IDE: справа кнопка Team-профиля перед «Manage» — как Copilot Sign In,
 			// но наш: без сессии показывает «Sign In», после входа — «Team».
+			// Системный аватар аккаунтов показываем только после входа в Team:
+			// на экране регистрации он дублирует нашу кнопку и вводит в заблуждение.
 			if (this.activityActionsEnabled) {
 				const teamSignedIn = this.contextKeyService.getContextKeyValue<boolean>('auraTeam.signedIn') === true;
 				actions.primary.push(new Action('workbench.action.auraTeamOpen', teamSignedIn ? localize('auraTeam.openTitle', 'Team') : localize('auraTeam.signInTitle', 'Sign In'), 'codicon-account', true, () => {
 					void this.commandService.executeCommand('auraTeam.open').then(undefined, () => undefined);
 				}));
-				actions.primary.push(GLOBAL_ACTIVITY_TITLE_ACTION);
+				if (teamSignedIn) {
+					actions.primary.push(GLOBAL_ACTIVITY_TITLE_ACTION);
+				}
 			}
 
 			this.actionToolBar.setActions(prepareActions(actions.primary), prepareActions(actions.secondary));

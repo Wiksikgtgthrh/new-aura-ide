@@ -289,9 +289,51 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 			...(secret ? { 'Authorization': `Bearer ${secret}` } : {}),
 		};
 
+		// Эндпоинт списка моделей зависит от провайдера (Anthropic/Google имеют свой API).
+		let modelsUrl = `${base}/models`;
+		if (key.provider === 'anthropic') {
+			modelsUrl = `${base}/v1/models`;
+			if (secret) { authHeaders['x-api-key'] = secret; authHeaders['anthropic-version'] = '2023-06-01'; delete authHeaders['Authorization']; }
+		} else if (key.provider === 'google') {
+			modelsUrl = `${base}/v1beta/models${secret ? `?key=${encodeURIComponent(secret)}` : ''}`;
+			delete authHeaders['Authorization'];
+		} else if (key.provider === 'openrouter') {
+			modelsUrl = `${base}/api/v1/models`;
+		}
+
+		// Зонд подлинности модели: у каждого провайдера свой формат запроса и ответа.
+		const IDENTITY_QUESTION = 'Identify yourself: reply with ONLY your exact underlying model name and version, nothing else.';
+		let probeUrl = `${base}/chat/completions`;
+		let probeHeaders = authHeaders;
+		let probeData = JSON.stringify({ model: key.model, messages: [{ role: 'user', content: IDENTITY_QUESTION }], max_tokens: 50 });
+		const parseOpenAIAnswer = (body: string): string => {
+			try { return String(JSON.parse(body)?.choices?.[0]?.message?.content ?? ''); } catch { return body; }
+		};
+		let parseAnswer = parseOpenAIAnswer;
+		let parseReturnedModel = (body: string): string => {
+			try { return String(JSON.parse(body)?.model ?? ''); } catch { return ''; }
+		};
+		if (key.provider === 'anthropic') {
+			probeUrl = `${base}/v1/messages`;
+			probeData = JSON.stringify({ model: key.model, max_tokens: 50, messages: [{ role: 'user', content: IDENTITY_QUESTION }] });
+			parseAnswer = (body: string): string => {
+				try { const c = JSON.parse(body)?.content; return Array.isArray(c) ? c.map((p: { text?: unknown }) => String(p?.text ?? '')).join('') : ''; } catch { return ''; }
+			};
+		} else if (key.provider === 'google') {
+			probeUrl = `${base}/v1beta/models/${encodeURIComponent(key.model)}:generateContent${secret ? `?key=${encodeURIComponent(secret)}` : ''}`;
+			probeHeaders = { 'Content-Type': 'application/json' };
+			probeData = JSON.stringify({ contents: [{ role: 'user', parts: [{ text: IDENTITY_QUESTION }] }], generationConfig: { maxOutputTokens: 50 } });
+			parseAnswer = (body: string): string => {
+				try { const parts = JSON.parse(body)?.candidates?.[0]?.content?.parts; return Array.isArray(parts) ? parts.map((p: { text?: unknown }) => String(p?.text ?? '')).join('') : ''; } catch { return ''; }
+			};
+			parseReturnedModel = (body: string): string => {
+				try { return String(JSON.parse(body)?.modelVersion ?? ''); } catch { return ''; }
+			};
+		}
+
 		try {
-			// 1. Пинг + доступность: GET /models
-			const ping = await this.timedRequest(`${base}/models`, { type: 'GET', headers: authHeaders, timeout: 10000 });
+			// 1. Пинг + доступность: GET списка моделей (формат зависит от провайдера)
+			const ping = await this.timedRequest(modelsUrl, { type: 'GET', headers: authHeaders, timeout: 10000 });
 			if (ping.status === 401 || ping.status === 403) {
 				return this.setStatus(id, { checking: false, lastChecked: Date.now(), pingMs: ping.ms, ok: false, error: `HTTP ${ping.status}: ключ отклонён (недействителен или нет доступа)` });
 			}
@@ -314,22 +356,14 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 			let securityPct: number | null = null;
 			let securityNotes: string[] = [];
 			try {
-				const chat = await this.timedRequest(`${base}/chat/completions`, {
+				const chat = await this.timedRequest(probeUrl, {
 					type: 'POST',
-					headers: authHeaders,
+					headers: probeHeaders,
 					timeout: 20000,
-					data: JSON.stringify({
-						model: key.model,
-						messages: [{ role: 'user', content: 'Identify yourself: reply with ONLY your exact underlying model name and version, nothing else.' }],
-						max_tokens: 50,
-					}),
+					data: probeData,
 				});
 				if (chat.status !== undefined && chat.status >= 200 && chat.status < 300) {
-					let answer = '';
-					try {
-						const parsed = JSON.parse(chat.body);
-						answer = String(parsed?.choices?.[0]?.message?.content ?? '');
-					} catch { answer = chat.body; }
+					const answer = parseAnswer(chat.body);
 					const expected = (key.expectedModel ?? key.model).toLowerCase();
 					const family = expected.split(/[-.]/).filter(w => w.length > 3);
 					const answerL = answer.toLowerCase();
@@ -339,7 +373,7 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 					else { authenticityPct = answer ? 20 : null; }
 					// Этап 2: основной сигнал — declared vs returned model из тела ответа
 					try {
-						const returnedModel = String(JSON.parse(chat.body)?.model ?? '');
+						const returnedModel = parseReturnedModel(chat.body);
 						if (returnedModel) { authenticityPct = modelAuthenticityPercent(key.model, returnedModel, authenticityPct ?? undefined); }
 					} catch { /* тело не JSON — оставляем эвристику */ }
 
@@ -507,11 +541,30 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 		const secret = await this.getSecret(keyId);
 		const base = key.baseUrl.replace(/\/+$/, '');
 		try {
-			const res = await this.timedRequest(`${base}/chat/completions`, {
+			// Формат запроса зависит от провайдера: Anthropic и Google имеют собственный API.
+			let probeUrl = `${base}/chat/completions`;
+			let headers: Record<string, string> = { 'Content-Type': 'application/json', ...(secret ? { 'Authorization': `Bearer ${secret}` } : {}) };
+			let data = JSON.stringify({ model, messages: [{ role: 'user', content: '.' }], max_tokens: 1 });
+			let parseReturned = (body: string): string => {
+				try { return String(JSON.parse(body)?.model ?? ''); } catch { return ''; }
+			};
+			if (key.provider === 'anthropic') {
+				probeUrl = `${base}/v1/messages`;
+				headers = { 'Content-Type': 'application/json', ...(secret ? { 'x-api-key': secret, 'anthropic-version': '2023-06-01' } : {}) };
+				data = JSON.stringify({ model, max_tokens: 1, messages: [{ role: 'user', content: '.' }] });
+			} else if (key.provider === 'google') {
+				probeUrl = `${base}/v1beta/models/${encodeURIComponent(model)}:generateContent${secret ? `?key=${encodeURIComponent(secret)}` : ''}`;
+				headers = { 'Content-Type': 'application/json' };
+				data = JSON.stringify({ contents: [{ role: 'user', parts: [{ text: '.' }] }], generationConfig: { maxOutputTokens: 1 } });
+				parseReturned = (body: string): string => {
+					try { return String(JSON.parse(body)?.modelVersion ?? ''); } catch { return ''; }
+				};
+			}
+			const res = await this.timedRequest(probeUrl, {
 				type: 'POST',
-				headers: { 'Content-Type': 'application/json', ...(secret ? { 'Authorization': `Bearer ${secret}` } : {}) },
+				headers,
 				timeout: 20000,
-				data: JSON.stringify({ model, messages: [{ role: 'user', content: '.' }], max_tokens: 1 }),
+				data,
 			});
 			const status = res.status ?? 0;
 			if (status === 401) {
@@ -529,8 +582,7 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 				return { available: 'unknown', authenticityPct: null, error: `HTTP ${status}: сервер недоступен` };
 			}
 			// 2xx: declared vs returned model — главный сигнал подлинности
-			let returned: string | undefined;
-			try { returned = String(JSON.parse(res.body)?.model ?? '') || undefined; } catch { /* не JSON */ }
+			const returned = parseReturned(res.body) || undefined;
 			const pct = modelAuthenticityPercent(model, returned);
 			return { available: 'yes', authenticityPct: pct, error: returned && returned !== model ? `прокси вернул ${returned} вместо ${model}` : undefined };
 		} catch (e) {

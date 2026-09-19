@@ -99,6 +99,57 @@ export class AuraApiChatProvider implements ILanguageModelChatProvider {
 		let rejectResult!: (e: unknown) => void;
 		const result = new Promise<string>((res, rej) => { resolveResult = res; rejectResult = rej; });
 
+		/** Собрать запрос под провайдера конкретного ключа. */
+		const buildRequest = (key: IAuraApiKey, secret: string | undefined): { url: string; headers: Record<string, string>; body: string } => {
+			const base = key.baseUrl.replace(/\/+$/, '');
+			if (key.provider === 'anthropic') {
+				const system = oaiMessages.filter(m => m.role === 'system').map(m => m.content).join('\n');
+				return {
+					url: `${base}/v1/messages`,
+					headers: {
+						'Content-Type': 'application/json',
+						...(secret ? { 'x-api-key': secret, 'anthropic-version': '2023-06-01' } : {}),
+					},
+					body: JSON.stringify({ model: key.model, system: system || undefined, messages: oaiMessages.filter(m => m.role !== 'system'), stream: true, max_tokens: 8192 }),
+				};
+			}
+			if (key.provider === 'google') {
+				const system = oaiMessages.filter(m => m.role === 'system').map(m => m.content).join('\n');
+				return {
+					url: `${base}/v1beta/models/${encodeURIComponent(key.model)}:streamGenerateContent?alt=sse${secret ? `&key=${encodeURIComponent(secret)}` : ''}`,
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
+						contents: oaiMessages.filter(m => m.role !== 'system').map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.content }] })),
+					}),
+				};
+			}
+			// openai-compatible, openrouter, litellm — единый формат OpenAI
+			return {
+				url: `${base}/chat/completions`,
+				headers: {
+					'Content-Type': 'application/json',
+					...(secret ? { 'Authorization': `Bearer ${secret}` } : {}),
+				},
+				body: JSON.stringify({ model: key.model, messages: oaiMessages, stream: true }),
+			};
+		};
+
+		/** Вытащить дельту текста из SSE-события стрима провайдера. */
+		const extractDelta = (key: IAuraApiKey, json: Record<string, unknown>): string => {
+			if (key.provider === 'anthropic') {
+				// События content_block_delta: { delta: { type: 'text_delta', text } }
+				const delta = json?.delta as { type?: string; text?: string } | undefined;
+				return delta?.type === 'text_delta' && typeof delta.text === 'string' ? delta.text : '';
+			}
+			if (key.provider === 'google') {
+				const parts = (json?.candidates as Array<{ content?: { parts?: Array<{ text?: string }> } }> | undefined)?.[0]?.content?.parts;
+				return Array.isArray(parts) ? parts.map(p => typeof p?.text === 'string' ? p.text : '').join('') : '';
+			}
+			const delta = json?.choices as Array<{ delta?: { content?: string } }> | undefined;
+			return typeof delta?.[0]?.delta?.content === 'string' ? delta[0].delta.content : '';
+		};
+
 		const stream = (async function* () {
 			let lastError: unknown;
 			let yielded = false; // стрим начался — фейловер на другой ключ уже невозможен (иначе дубли текста)
@@ -106,14 +157,11 @@ export class AuraApiChatProvider implements ILanguageModelChatProvider {
 				if (controller.signal.aborted) { break; }
 				try {
 					const secret = await self.keysService.getSecret(key.id);
-					const base = key.baseUrl.replace(/\/+$/, '');
-					const response = await fetch(`${base}/chat/completions`, {
+					const request = buildRequest(key, secret);
+					const response = await fetch(request.url, {
 						method: 'POST',
-						headers: {
-							'Content-Type': 'application/json',
-							...(secret ? { 'Authorization': `Bearer ${secret}` } : {}),
-						},
-						body: JSON.stringify({ model: key.model, messages: oaiMessages, stream: true }),
+						headers: request.headers,
+						body: request.body,
 						signal: controller.signal,
 					});
 					if (!response.ok || !response.body) {
@@ -138,7 +186,7 @@ export class AuraApiChatProvider implements ILanguageModelChatProvider {
 							if (payload === '[DONE]') { continue; }
 							try {
 								const json = JSON.parse(payload);
-								const delta = json?.choices?.[0]?.delta?.content;
+								const delta = extractDelta(key, json);
 								if (typeof delta === 'string' && delta.length > 0) {
 									fullText += delta;
 									yielded = true;

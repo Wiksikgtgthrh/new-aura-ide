@@ -42,6 +42,8 @@ import { ChatViewContainerId } from '../../chat/browser/chat.js';
 
 export const AURA_API_OPEN_COMMAND_ID = 'auraApi.openManager';
 export const AURA_API_ADD_TEAM_PROXY_COMMAND_ID = 'auraApi.addTeamProxy';
+export const AURA_API_EXPORT_KEY_COMMAND_ID = 'auraApi.exportKey';
+export const AURA_API_EXPORT_KEYS_LIST_COMMAND_ID = 'auraApi.exportKeysList';
 export const AURA_API_VIEW_CONTAINER_ID = 'workbench.view.auraApi';
 const AURA_API_LAUNCHER_VIEW_ID = 'auraApi.launcher';
 const AURA_API_CHAT_KEYS_VIEW_ID = 'auraApi.chatKeys';
@@ -205,15 +207,59 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 		}
 	});
 
-	// Провайдер моделей чата: здоровые ключи Aura API доступны в чате справа
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({ id: AURA_API_EXPORT_KEY_COMMAND_ID, title: localize2('auraApi.exportKey', "API Keys: Export Key (for Team bank)"), f1: false });
+		}
+		/** Возвращает { value, provider, baseUrl, model } ключа: использует банк Team. */
+		override async run(accessor: ServicesAccessor, keyId?: string): Promise<{ value?: string; provider?: string; baseUrl?: string; model?: string; name?: string; id?: string } | undefined> {
+			if (!keyId) { return undefined; }
+			const keysService = accessor.get(IAuraApiKeysService);
+			const key = keysService.getKeys().find(k => k.id === keyId);
+			if (!key) { return undefined; }
+			const value = await keysService.getSecret(keyId);
+			if (!value) { return undefined; }
+			return { value, provider: key.provider, baseUrl: key.baseUrl, model: key.model };
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({ id: AURA_API_EXPORT_KEYS_LIST_COMMAND_ID, title: localize2('auraApi.exportKeysList', "API Keys: List Keys (for Team import)"), f1: false });
+		}
+		/** Список ключей без секретов — для выбора при импорте. */
+		override async run(accessor: ServicesAccessor): Promise<Array<{ id: string; name?: string; baseUrl?: string; model?: string; priority?: string }>> {
+			const keysService = accessor.get(IAuraApiKeysService);
+			return keysService.getKeys().map(k => ({ id: k.id, name: k.name, baseUrl: k.baseUrl, model: k.model, priority: k.priority }));
+		}
+	});
+
+	// Провайдер моделей чата: здоровые ключи Aura API доступны в чате справа.
+	// ВАЖНО: vendor 'auraApi' должен быть зарегистрирован ДО registerLanguageModelProvider,
+	// иначе сервис кидает "Chat model provider uses UNKNOWN vendor auraApi" и вкладка падает.
 	instantiationService.invokeFunction(accessor => {
 		const languageModels = accessor.get(ILanguageModelsService);
+		if (!languageModels.getVendors().some(v => v.vendor === AURA_API_VENDOR)) {
+			languageModels.deltaLanguageModelChatProviderDescriptors([{
+				vendor: AURA_API_VENDOR,
+				displayName: localize('auraApi.vendorName', "Aura API"),
+				configuration: undefined,
+				managementCommand: AURA_API_OPEN_COMMAND_ID,
+				when: undefined,
+			}], []);
+		}
 		const keysService = accessor.get(IAuraApiKeysService);
 		const configurationService = accessor.get(IConfigurationService);
 		languageModels.registerLanguageModelProvider(
 			AURA_API_VENDOR,
 			new AuraApiChatProvider(keysService, configurationService)
 		);
+		// Фоновая проверка ключей при старте окна: статусы живут в памяти, и без
+		// этой проверки провайдер чата после перезагрузки не видит ни одного
+		// «здорового» ключа — в кнопке Models пусто до ручной проверки в менеджере.
+		if (keysService.getKeys().length > 0) {
+			setTimeout(() => { void keysService.checkAllQueued(); }, 3000);
+		}
 	});
 }
 
