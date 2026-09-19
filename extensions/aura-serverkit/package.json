@@ -1,0 +1,38 @@
+{
+	"name": "aura-serverkit",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.1.0",
+	"publisher": "aura",
+	"icon": "media/serverkit.svg",
+	"license": "MIT",
+	"engines": { "vscode": "^1.100.0" },
+	"activationEvents": [
+		"onCommand:auraServerkit.openDashboard",
+		"onCommand:auraServerkit.checkStatus"
+	],
+	"main": "./out/extension",
+	"scripts": {
+		"compile": "gulp compile-extension:aura-serverkit",
+		"watch": "gulp watch-extension:aura-serverkit"
+	},
+	"contributes": {
+		"configuration": {
+			"title": "%configuration.title%",
+			"properties": {
+				"auraServerkit.serverUrl": {
+					"type": "string",
+					"default": "https://serverkit.auraide.xyz",
+					"description": "%configuration.serverUrl%"
+				}
+			}
+		},
+		"commands": [
+			{ "command": "auraServerkit.openDashboard", "title": "%command.openDashboard%", "category": "ServerKit", "icon": "$(server)" },
+			{ "command": "auraServerkit.checkStatus", "title": "%command.checkStatus%", "category": "ServerKit" }
+		]
+	},
+	"devDependencies": {
+		"@types/node": "24.x"
+	}
+}
