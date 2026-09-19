@@ -42,12 +42,33 @@ for (const [name, definition] of [
 	['key_hint', "TEXT NOT NULL DEFAULT '••••'"],
 	['priority', 'INTEGER NOT NULL DEFAULT 100'],
 	['disabled_at', 'TEXT'],
+	['group_id', 'TEXT'],
+	['ping_ms', 'INTEGER'],
+	['last_checked_at', 'TEXT'],
 ] as const) {
 	if (!apiKeyColumns.has(name)) { database.exec(`ALTER TABLE api_keys ADD COLUMN ${name} ${definition}`); }
 }
 database.exec('CREATE INDEX IF NOT EXISTS api_keys_team_provider_priority ON api_keys(team_id, provider, priority, created_at)');
 const projectColumns = new Set((database.prepare('PRAGMA table_info(projects)').all() as { name: string }[]).map(column => column.name));
 if (!projectColumns.has('owner_id')) { database.exec('ALTER TABLE projects ADD COLUMN owner_id TEXT'); }
+
+// Мягкое удаление задач: колонка deleted_at + фильтр в выборках канбана/summary.
+const taskColumns = new Set((database.prepare('PRAGMA table_info(tasks)').all() as { name: string }[]).map(column => column.name));
+if (!taskColumns.has('deleted_at')) { database.exec('ALTER TABLE tasks ADD COLUMN deleted_at TEXT'); }
+// Колонка last_seen_at в memberships: когда участник был в сети последний раз (для presence).
+const membershipColumns = new Set((database.prepare('PRAGMA table_info(memberships)').all() as { name: string }[]).map(column => column.name));
+if (!membershipColumns.has('last_seen_at')) { database.exec('ALTER TABLE memberships ADD COLUMN last_seen_at TEXT'); }
+// Убираем статус backlog: канбан теперь todo → doing → review → done.
+database.prepare("UPDATE tasks SET status='todo' WHERE status='backlog'").run();
+// Регистрация без письма: активируем всех, кто не успел подтвердить email до отказа от верификации.
+database.prepare("UPDATE users SET verified_at=COALESCE(verified_at, created_at)").run();
+
+// Группы ключей команды (как в Aura API: имя + приоритет).
+database.exec(`CREATE TABLE IF NOT EXISTS key_groups (id TEXT PRIMARY KEY, team_id TEXT NOT NULL REFERENCES teams(id), name TEXT NOT NULL, priority INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS key_groups_team ON key_groups(team_id, priority);`);
+
+// Открытый текст текущего инвайт-кода (для показа в UI; хэш живёт в invites).
+database.exec(`CREATE TABLE IF NOT EXISTS invite_reveals (invite_id TEXT PRIMARY KEY REFERENCES invites(id), team_id TEXT NOT NULL REFERENCES teams(id), value TEXT NOT NULL);`);
 
 export function audit(userId: string, action: string, teamId?: string, targetType?: string, targetId?: string, details: object = {}): void {
 	database.prepare('INSERT INTO audit_log(team_id,user_id,action,target_type,target_id,details,created_at) VALUES(?,?,?,?,?,?,?)')

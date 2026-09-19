@@ -31,14 +31,64 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		return reply.code(201).send({ id: teamId, name, role: 'owner' });
 	});
 
+	// Активный инвайт-код команды: создаётся один раз и живёт, пока не пересоздан.
+	// (Раньше каждый клик «Пригласить» создавал новый код, а старый оставался валидным.)
+	app.get<{ Params: { teamId: string } }>('/v1/teams/:teamId/invite', async request => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		const existing = database.prepare("SELECT id, code_hash, expires_at FROM invites WHERE team_id=? AND used_at IS NULL AND expires_at>? ORDER BY created_at DESC LIMIT 1").get(request.params.teamId, new Date().toISOString()) as { id: string; code_hash: string; expires_at: string } | undefined;
+		if (existing) {
+			const reveal = database.prepare("SELECT value FROM invite_reveals WHERE invite_id=?").get(existing.id) as { value: string } | undefined;
+			if (reveal) { return { code: reveal.value, expiresAt: existing.expires_at, canRevoke: true }; }
+		}
+		return { code: null, expiresAt: null, canRevoke: true };
+	});
+
 	app.post<{ Params: { teamId: string } }>('/v1/teams/:teamId/invites', async (request, reply) => {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
 		const code = token(9).slice(0, 12).toUpperCase();
-		database.prepare("INSERT INTO invites(id,team_id,code_hash,role,expires_at,created_by) VALUES(?,?,?,'dev',?,?)")
-			.run(id(), request.params.teamId, digest(code), new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString(), user);
-		audit(user, 'invite.create', request.params.teamId, 'invite');
-		return reply.code(201).send({ code, expiresIn: 604800 });
+		const inviteId = id();
+		const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString();
+		database.transaction(() => {
+			database.prepare("INSERT INTO invites(id,team_id,code_hash,role,expires_at,created_by) VALUES(?,?,?,'dev',?,?)")
+				.run(inviteId, request.params.teamId, digest(code), expiresAt, user);
+			// Храним открытым текстом только текущий код, чтобы GET /invite мог его вернуть.
+			database.prepare('INSERT OR REPLACE INTO invite_reveals(invite_id,team_id,value) VALUES(?,?,?)').run(inviteId, request.params.teamId, code);
+			audit(user, 'invite.create', request.params.teamId, 'invite');
+		})();
+		return reply.code(201).send({ code, expiresAt });
+	});
+
+	// Пересоздать код: старый инвайт отзывается и перестаёт работать.
+	app.delete<{ Params: { teamId: string } }>('/v1/teams/:teamId/invite', async request => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		database.transaction(() => {
+			database.prepare("UPDATE invites SET used_at=?, used_by=? WHERE team_id=? AND used_at IS NULL AND expires_at>?").run(new Date().toISOString(), user, request.params.teamId, new Date().toISOString());
+			database.prepare('DELETE FROM invite_reveals WHERE team_id=?').run(request.params.teamId);
+		})();
+		audit(user, 'invite.revoke', request.params.teamId, 'invite');
+		return { ok: true };
+	});
+
+	// Все пользователи платформы (для «Пригласить»): поиск по имени/email, без email тех, кто не в команде.
+	app.get<{ Params: { teamId: string }; Querystring: { q?: string } }>('/v1/teams/:teamId/directory', async request => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		const q = (request.query.q ?? '').trim().toLowerCase();
+		const like = `%${q}%`;
+		const rows = database.prepare(`
+			SELECT u.id, u.display_name AS displayName,
+				CASE WHEN m.user_id IS NOT NULL THEN u.email ELSE NULL END AS email,
+				CASE WHEN m.user_id IS NOT NULL THEN 1 ELSE 0 END AS inTeam
+			FROM users u
+			LEFT JOIN memberships m ON m.user_id = u.id AND m.team_id = ?
+			WHERE (? = '' OR LOWER(u.display_name) LIKE ? OR LOWER(u.email) LIKE ?)
+			ORDER BY inTeam DESC, u.display_name
+			LIMIT 50
+		`).all(request.params.teamId, q, like, like) as Array<{ id: string; displayName: string; email: string | null; inTeam: number }>;
+		return rows;
 	});
 
 	app.post<{ Body: { code?: string } }>('/v1/invites/accept', async (request, reply) => {
@@ -64,7 +114,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		const online = onlineUserIds(request.params.teamId);
 		const members = (database.prepare('SELECT u.id,u.display_name AS displayName,u.email,m.role FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.team_id=? ORDER BY u.display_name').all(request.params.teamId) as { id: string; displayName: string; email: string; role: string }[]).map(member => ({ ...member, online: online.has(member.id) }));
 		const projects = database.prepare('SELECT id,team_id AS teamId,name,git_url AS gitUrl,archive_id AS archiveId,owner_id AS ownerId,default_branch AS defaultBranch FROM projects WHERE team_id=?').all(request.params.teamId);
-		const tasks = database.prepare('SELECT t.id,t.team_id AS teamId,t.title,t.description,t.status,t.assignee_id AS assigneeId,u.display_name AS assigneeName,t.position,t.due_at AS dueAt FROM tasks t LEFT JOIN users u ON u.id=t.assignee_id WHERE t.team_id=? ORDER BY t.status,t.position').all(request.params.teamId);
+		const tasks = database.prepare('SELECT t.id,t.team_id AS teamId,t.title,t.description,t.status,t.assignee_id AS assigneeId,u.display_name AS assigneeName,t.position,t.due_at AS dueAt FROM tasks t LEFT JOIN users u ON u.id=t.assignee_id WHERE t.team_id=? AND t.deleted_at IS NULL ORDER BY t.status,t.position').all(request.params.teamId);
 		return { members, projects, tasks };
 	});
 
@@ -106,7 +156,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		try { requireRole(user, request.params.teamId, 'dev'); } catch (error) { mapAccessError(error); }
 		if (!request.body.title?.trim()) { return reply.badRequest('Task title is required'); }
 		const status = request.body.status ?? 'todo';
-		if (!['backlog', 'todo', 'doing', 'review', 'done'].includes(status)) { return reply.badRequest('Invalid task status'); }
+		if (!['todo', 'doing', 'review', 'done'].includes(status)) { return reply.badRequest('Invalid task status'); }
 		if (request.body.assigneeId && !isMember(request.body.assigneeId, request.params.teamId)) { return reply.badRequest('Assignee must belong to this team'); }
 		const taskId = id(); const now = new Date().toISOString();
 		database.prepare('INSERT INTO tasks(id,team_id,title,description,status,assignee_id,position,due_at,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM tasks WHERE team_id=? AND status=?),?,?,?,?)')
@@ -119,7 +169,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 	app.patch<{ Params: { teamId: string; taskId: string }; Body: { status?: string; position?: number; assigneeId?: string | null; title?: string; description?: string; dueAt?: string } }>('/v1/teams/:teamId/tasks/:taskId', async (request, reply) => {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'dev'); } catch (error) { mapAccessError(error); }
-		const allowed = ['backlog', 'todo', 'doing', 'review', 'done'];
+		const allowed = ['todo', 'doing', 'review', 'done'];
 		if (request.body.status && !allowed.includes(request.body.status)) { return reply.badRequest('Invalid task status'); }
 		if (request.body.assigneeId && !isMember(request.body.assigneeId, request.params.teamId)) { return reply.badRequest('Assignee must belong to this team'); }
 		const result = database.prepare("UPDATE tasks SET status=COALESCE(@status,status),position=COALESCE(@position,position),assignee_id=CASE WHEN @hasAssignee=1 THEN @assignee ELSE assignee_id END,title=COALESCE(@title,title),description=COALESCE(@description,description),due_at=COALESCE(@dueAt,due_at),updated_at=@now WHERE id=@id AND team_id=@team")
@@ -128,6 +178,48 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		audit(user, 'task.update', request.params.teamId, 'task', request.params.taskId, request.body);
 		broadcast(request.params.teamId, 'task.changed');
 		return database.prepare('SELECT * FROM tasks WHERE id=?').get(request.params.taskId);
+	});
+
+	// Реордер колонки канбана: в транзакции проставляем позиции 0..n по присланному порядку id.
+	app.post<{ Params: { teamId: string }; Body: { status?: string; orderedIds?: string[] } }>('/v1/teams/:teamId/tasks/reorder', async (request, reply) => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'dev'); } catch (error) { mapAccessError(error); }
+		const { status, orderedIds } = request.body ?? {};
+		if (!status || !['todo', 'doing', 'review', 'done'].includes(status) || !Array.isArray(orderedIds) || orderedIds.length === 0) { return reply.badRequest('status and orderedIds are required'); }
+		const reorder = database.transaction((ids: string[]) => {
+			ids.forEach((id, index) => database.prepare("UPDATE tasks SET status=@status, position=@pos, updated_at=@now WHERE id=@id AND team_id=@team AND deleted_at IS NULL")
+				.run({ status, pos: index, now: new Date().toISOString(), id, team: request.params.teamId }));
+		});
+		reorder(orderedIds);
+		audit(user, 'task.reorder', request.params.teamId, 'task', orderedIds[0], { status, count: orderedIds.length });
+		broadcast(request.params.teamId, 'task.changed');
+		return { ok: true };
+	});
+
+	// Удаление задачи (мягкое): своя задача — любая роль dev+, чужая — maintainer+.
+	app.delete<{ Params: { teamId: string; taskId: string } }>('/v1/teams/:teamId/tasks/:taskId', async (request, reply) => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'dev'); } catch (error) { mapAccessError(error); }
+		const task = database.prepare('SELECT id, created_by FROM tasks WHERE id=? AND team_id=? AND deleted_at IS NULL').get(request.params.taskId, request.params.teamId) as { id: string; created_by: string } | undefined;
+		if (!task) { return reply.notFound(); }
+		if (task.created_by !== user) {
+			try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		}
+		database.prepare("UPDATE tasks SET deleted_at=?, updated_at=? WHERE id=? AND team_id=?").run(new Date().toISOString(), new Date().toISOString(), request.params.taskId, request.params.teamId);
+		audit(user, 'task.delete', request.params.teamId, 'task', request.params.taskId);
+		broadcast(request.params.teamId, 'task.changed');
+		return { ok: true };
+	});
+
+	// Восстановление мягко удалённой задачи («Отменить» после удаления).
+	app.patch<{ Params: { teamId: string; taskId: string } }>('/v1/teams/:teamId/tasks/:taskId/restore', async (request, reply) => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'dev'); } catch (error) { mapAccessError(error); }
+		const result = database.prepare("UPDATE tasks SET deleted_at=NULL, updated_at=? WHERE id=? AND team_id=? AND deleted_at IS NOT NULL").run(new Date().toISOString(), request.params.taskId, request.params.teamId);
+		if (result.changes !== 1) { return reply.notFound(); }
+		audit(user, 'task.restore', request.params.teamId, 'task', request.params.taskId);
+		broadcast(request.params.teamId, 'task.changed');
+		return { ok: true };
 	});
 
 	app.get<{ Params: { teamId: string }; Querystring: { limit?: string } }>('/v1/teams/:teamId/activity', async request => {
@@ -151,14 +243,44 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		});
 	});
 
-	app.get<{ Params: { teamId: string } }>('/v1/teams/:teamId/summary', async request => {
+	app.get<{ Params: { teamId: string }; Querystring: { limit?: string } }>('/v1/teams/:teamId/summary', async request => {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
 		const online = onlineUserIds(request.params.teamId);
-		const members = (database.prepare('SELECT u.id,u.display_name AS displayName,u.email,m.role FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.team_id=? ORDER BY u.display_name').all(request.params.teamId) as { id: string; displayName: string; email: string; role: string }[]).map(member => ({ ...member, online: online.has(member.id) }));
-		const myTasks = database.prepare("SELECT id,title,status,due_at AS dueAt FROM tasks WHERE team_id=? AND assignee_id=? AND status!='done' ORDER BY due_at IS NULL, due_at LIMIT 10").all(request.params.teamId, user);
+		const members = (database.prepare('SELECT u.id,u.display_name AS displayName,u.email,m.role,m.last_seen_at AS lastSeenAt FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.team_id=? ORDER BY u.display_name').all(request.params.teamId) as { id: string; displayName: string; email: string; role: string; lastSeenAt?: string | null }[]).map(member => ({ ...member, online: online.has(member.id) }));
+		const myTasks = database.prepare("SELECT id,title,status,due_at AS dueAt FROM tasks WHERE team_id=? AND assignee_id=? AND status!='done' AND deleted_at IS NULL ORDER BY due_at IS NULL, due_at LIMIT ?").all(request.params.teamId, user, Math.min(Math.max(Number(request.query.limit ?? 10) || 10, 1), 50));
 		const projects = database.prepare('SELECT id,name,default_branch AS defaultBranch,git_url AS gitUrl FROM projects WHERE team_id=? ORDER BY name').all(request.params.teamId);
 		return { members, myTasks, projects };
+	});
+
+	// Коммиты, связанные с задачей (по #id в сообщении) — для карточки задачи.
+	app.get<{ Params: { teamId: string; taskId: string } }>('/v1/teams/:teamId/tasks/:taskId/commits', async request => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
+		return database.prepare(`
+			SELECT tc.commit_hash AS hash, tc.repository_url AS repositoryUrl, tc.created_at AS createdAt,
+				u.display_name AS author
+			FROM task_commits tc JOIN users u ON u.id = tc.author_id
+			WHERE tc.task_id = ?
+			ORDER BY tc.created_at DESC LIMIT 20
+		`).all(request.params.taskId);
+	});
+
+	// История изменений задачи из audit_log: кто, что и когда менял (статус, исполнитель, дедлайн…).
+	app.get<{ Params: { teamId: string; taskId: string } }>('/v1/teams/:teamId/tasks/:taskId/history', async request => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
+		const rows = database.prepare(`
+			SELECT a.action, a.details, a.created_at AS createdAt, u.display_name AS userName
+			FROM audit_log a JOIN users u ON u.id = a.user_id
+			WHERE a.target_type = 'task' AND a.target_id = ?
+			ORDER BY a.id DESC LIMIT 30
+		`).all(request.params.taskId) as Array<{ action: string; details: string; createdAt: string; userName: string }>;
+		return rows.map(row => {
+			let details: Record<string, unknown> = {};
+			try { details = JSON.parse(row.details ?? '{}'); } catch { details = {}; }
+			return { action: row.action, details, createdAt: row.createdAt, userName: row.userName };
+		});
 	});
 
 	app.post<{ Params: { teamId: string }; Body: { commitHash?: string; repositoryUrl?: string; message?: string } }>('/v1/teams/:teamId/commits', async (request, reply) => {

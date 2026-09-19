@@ -9,7 +9,6 @@ import { database } from '../database.js';
 import { config } from '../config.js';
 import { userId } from '../access.js';
 import { accessToken, digest, id, token } from '../security.js';
-import { sendVerificationEmail } from '../mail.js';
 
 interface Credentials { email: string; password: string; displayName?: string; }
 
@@ -20,32 +19,18 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 		const existing = database.prepare('SELECT id,verified_at FROM users WHERE email=?').get(email) as { id: string; verified_at?: string } | undefined;
 		if (existing?.verified_at) { return reply.conflict('An account with this email already exists'); }
 		const userId = existing?.id ?? id();
-		const verificationToken = token();
 		const passwordHash = await hash(request.body.password);
+		// Aura: регистрация БЕЗ письма — аккаунт сразу активен (email не проверяем).
 		database.transaction(() => {
 			if (existing) {
-				database.prepare('UPDATE users SET display_name=?,password_hash=? WHERE id=? AND verified_at IS NULL').run(request.body.displayName?.trim() || email.split('@')[0], passwordHash, userId);
-				database.prepare('DELETE FROM email_verifications WHERE user_id=? AND consumed_at IS NULL').run(userId);
+				database.prepare('UPDATE users SET display_name=?,password_hash=?,verified_at=? WHERE id=? AND verified_at IS NULL').run(request.body.displayName?.trim() || email.split('@')[0], passwordHash, new Date().toISOString(), userId);
 			} else {
-				database.prepare('INSERT INTO users(id,email,display_name,password_hash,created_at) VALUES(?,?,?,?,?)').run(userId, email, request.body.displayName?.trim() || email.split('@')[0], passwordHash, new Date().toISOString());
+				database.prepare('INSERT INTO users(id,email,display_name,password_hash,created_at,verified_at) VALUES(?,?,?,?,?,?)').run(userId, email, request.body.displayName?.trim() || email.split('@')[0], passwordHash, new Date().toISOString(), new Date().toISOString());
 			}
-			database.prepare('INSERT INTO email_verifications(token_hash,user_id,expires_at) VALUES(?,?,?)').run(digest(verificationToken), userId, new Date(Date.now() + 24 * 60 * 60_000).toISOString());
 		})();
-		// Aura: без SMTP верификация работает по ссылке-фолбэку (самоподтверждение),
-		// с SMTP — письмо приходит как обычно.
-		let devVerificationUrl: string | undefined;
-		try {
-			await sendVerificationEmail(email, `${config.publicUrl}/v1/auth/verify?token=${verificationToken}`);
-		} catch (error) {
-			devVerificationUrl = `${config.publicUrl}/v1/auth/verify?token=${verificationToken}`;
-			request.log.warn({ err: error }, 'SMTP unavailable, returning fallback verification URL');
-		}
 		return reply.code(201).send({
 			ok: true,
-			message: devVerificationUrl
-				? 'SMTP is not configured yet: confirm your email via the returned verificationUrl.'
-				: 'Check your email to confirm the address.',
-			...(devVerificationUrl ? { verificationUrl: devVerificationUrl } : {})
+			message: 'Account created. You can sign in now.'
 		});
 	});
 
@@ -127,7 +112,7 @@ function devicePage(): string {
 }
 
 function registerPage(): string {
-	return `${pageHead('Create Aura Team account')}<h1>Create Account</h1><form><input name="displayName" placeholder="Display name" required><input name="email" type="email" placeholder="Email" required><input name="password" type="password" minlength="8" placeholder="Password (8+ characters)" required><button>Create Account</button></form><p id="result"></p><script>document.querySelector("form").onsubmit=async event=>{event.preventDefault();const body=Object.fromEntries(new FormData(event.target));const response=await fetch("/v1/auth/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});document.querySelector("#result").textContent=response.ok?"Check your email, then return to sign in.":await response.text()}</script>`;
+	return `${pageHead('Create Aura Team account')}<h1>Create Account</h1><form><input name="displayName" placeholder="Display name" required><input name="email" type="email" placeholder="Email" required><input name="password" type="password" minlength="8" placeholder="Password (8+ characters)" required><button>Create Account</button></form><p id="result"></p><script>document.querySelector("form").onsubmit=async event=>{event.preventDefault();const body=Object.fromEntries(new FormData(event.target));const response=await fetch("/v1/auth/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});document.querySelector("#result").textContent=response.ok?"Account created. You can sign in now.":await response.text()}</script>`;
 }
 
 function pageHead(title: string): string {

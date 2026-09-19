@@ -40,11 +40,54 @@ export async function keyRoutes(app: FastifyInstance): Promise<void> {
 	app.get<{ Params: { teamId: string } }>('/v1/teams/:teamId/keys', async request => {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
-		return database.prepare(`SELECT id,label,key_hint AS keyHint,provider,access_role AS accessRole,priority,
-			disabled_at AS disabledAt,created_at AS createdAt FROM api_keys WHERE team_id=? ORDER BY provider,priority,created_at`).all(request.params.teamId);
+		return database.prepare(`SELECT id,label,key_hint AS keyHint,provider,access_role AS accessRole,priority,group_id AS groupId,
+			ping_ms AS pingMs,last_checked_at AS lastCheckedAt,disabled_at AS disabledAt,created_at AS createdAt FROM api_keys WHERE team_id=? ORDER BY provider,priority,created_at`).all(request.params.teamId);
 	});
 
-	app.post<{ Params: { teamId: string }; Body: { provider?: string; value?: string; accessRole?: string; label?: string; priority?: number } }>('/v1/teams/:teamId/keys', async (request, reply) => {
+	// Группы ключей команды.
+	app.get<{ Params: { teamId: string } }>('/v1/teams/:teamId/key-groups', async request => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
+		return database.prepare('SELECT id,name,priority,created_at AS createdAt FROM key_groups WHERE team_id=? ORDER BY priority,name').all(request.params.teamId);
+	});
+
+	app.post<{ Params: { teamId: string }; Body: { name?: string; priority?: number } }>('/v1/teams/:teamId/key-groups', async (request, reply) => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		const name = request.body.name?.trim().slice(0, 60);
+		if (!name) { return reply.badRequest('Group name is required'); }
+		const priority = Number.isInteger(request.body.priority) && request.body.priority! >= 0 && request.body.priority! <= 100 ? request.body.priority! : 1;
+		const groupId = id();
+		database.prepare('INSERT INTO key_groups(id,team_id,name,priority,created_at) VALUES(?,?,?,?,?)').run(groupId, request.params.teamId, name, priority, new Date().toISOString());
+		audit(user, 'key_group.create', request.params.teamId, 'key_group', groupId, { name, priority });
+		return reply.code(201).send({ id: groupId, name, priority });
+	});
+
+	// Пинг ключа: реальный запрос к провайдеру (GET models), замер времени ответа.
+	app.post<{ Params: { teamId: string; keyId: string } }>('/v1/teams/:teamId/keys/:keyId/ping', async (request, reply) => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'dev'); } catch (error) { mapAccessError(error); }
+		const row = database.prepare('SELECT id,provider,encrypted_value FROM api_keys WHERE id=? AND team_id=? AND disabled_at IS NULL').get(request.params.keyId, request.params.teamId) as { id: string; provider: string; encrypted_value: string } | undefined;
+		if (!row) { return reply.notFound('Key not found'); }
+		const provider = providers[row.provider];
+		if (!provider) { return reply.badRequest('Unsupported provider'); }
+		const secret = decrypt(row.encrypted_value);
+		const started = Date.now();
+		let status = 0;
+		try {
+			const response = await fetch(new URL('/v1/models', provider.origin), { headers: provider.authorization(secret), signal: AbortSignal.timeout(10_000) });
+			status = response.status;
+		} catch {
+			status = 0;
+		}
+		const pingMs = Date.now() - started;
+		const ok = status >= 200 && status < 300;
+		database.prepare('UPDATE api_keys SET ping_ms=?,last_checked_at=? WHERE id=?').run(pingMs, new Date().toISOString(), row.id);
+		audit(user, 'api_key.ping', request.params.teamId, 'api_key', row.id, { status, pingMs });
+		return { ok, status, pingMs };
+	});
+
+	app.post<{ Params: { teamId: string }; Body: { provider?: string; value?: string; accessRole?: string; label?: string; priority?: number; groupId?: string } }>('/v1/teams/:teamId/keys', async (request, reply) => {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
 		const provider = request.body.provider?.toLowerCase();
@@ -52,12 +95,49 @@ export async function keyRoutes(app: FastifyInstance): Promise<void> {
 		if (!['owner', 'maintainer', 'dev', 'viewer'].includes(request.body.accessRole ?? 'dev')) { return reply.badRequest('Invalid access role'); }
 		const priority = Number.isInteger(request.body.priority) && request.body.priority! >= 0 && request.body.priority! <= 1000 ? request.body.priority! : 100;
 		const label = request.body.label?.trim().slice(0, 80) || `${provider} key`;
+		const groupId = typeof request.body.groupId === 'string' && request.body.groupId.trim() ? request.body.groupId.trim() : null;
 		const keyHint = maskKey(request.body.value);
 		const keyId = id();
-		database.prepare('INSERT INTO api_keys(id,team_id,owner_id,provider,encrypted_value,access_role,label,key_hint,priority,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
-			.run(keyId, request.params.teamId, user, provider, encrypt(request.body.value), request.body.accessRole ?? 'dev', label, keyHint, priority, new Date().toISOString());
-		audit(user, 'api_key.create', request.params.teamId, 'api_key', keyId, { provider, priority });
-		return reply.code(201).send({ id: keyId, label, keyHint, provider, accessRole: request.body.accessRole ?? 'dev', priority });
+		database.prepare('INSERT INTO api_keys(id,team_id,owner_id,provider,encrypted_value,access_role,label,key_hint,priority,group_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+			.run(keyId, request.params.teamId, user, provider, encrypt(request.body.value), request.body.accessRole ?? 'dev', label, keyHint, priority, groupId, new Date().toISOString());
+		audit(user, 'api_key.create', request.params.teamId, 'api_key', keyId, { provider, priority, groupId });
+		return reply.code(201).send({ id: keyId, label, keyHint, provider, accessRole: request.body.accessRole ?? 'dev', priority, groupId });
+	});
+
+	// Редактирование ключа: лейбл, роль, приоритет, группа (значение ключа не меняется).
+	app.patch<{ Params: { teamId: string; keyId: string }; Body: { label?: string; accessRole?: string; priority?: number; groupId?: string | null } }>('/v1/teams/:teamId/keys/:keyId', async (request, reply) => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		const key = database.prepare('SELECT id, group_id FROM api_keys WHERE id=? AND team_id=? AND disabled_at IS NULL').get(request.params.keyId, request.params.teamId) as { id: string; group_id: string | null } | undefined;
+		if (!key) { return reply.notFound(); }
+		const updates: Record<string, unknown> = {};
+		if (typeof request.body.label === 'string' && request.body.label.trim()) { updates.label = request.body.label.trim().slice(0, 80); }
+		if (request.body.accessRole !== undefined) {
+			if (!['owner', 'maintainer', 'dev', 'viewer'].includes(request.body.accessRole)) { return reply.badRequest('Invalid access role'); }
+			updates.access_role = request.body.accessRole;
+		}
+		if (request.body.priority !== undefined) {
+			if (!Number.isInteger(request.body.priority) || request.body.priority < 0 || request.body.priority > 1000) { return reply.badRequest('Invalid priority'); }
+			updates.priority = request.body.priority;
+		}
+		if (request.body.groupId !== undefined) { updates.group_id = request.body.groupId === null ? null : String(request.body.groupId); }
+		const fields = Object.keys(updates);
+		if (fields.length === 0) { return reply.badRequest('Nothing to update'); }
+		const setSql = fields.map(f => `${f}=@${f}`).join(',');
+		database.prepare(`UPDATE api_keys SET ${setSql} WHERE id=@id AND team_id=@team`).run({ ...updates, id: request.params.keyId, team: request.params.teamId });
+		audit(user, 'api_key.update', request.params.teamId, 'api_key', request.params.keyId, updates);
+		return { ok: true };
+	});
+
+	// Полное удаление ключа из банка (в отличие от disable — строка исчезает навсегда).
+	app.delete<{ Params: { teamId: string; keyId: string } }>('/v1/teams/:teamId/keys/:keyId/remove', async (request, reply) => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		const key = database.prepare('SELECT id FROM api_keys WHERE id=? AND team_id=?').get(request.params.keyId, request.params.teamId) as { id: string } | undefined;
+		if (!key) { return reply.notFound(); }
+		database.prepare('DELETE FROM api_keys WHERE id=? AND team_id=?').run(request.params.keyId, request.params.teamId);
+		audit(user, 'api_key.delete', request.params.teamId, 'api_key', request.params.keyId);
+		return { ok: true };
 	});
 
 	app.delete<{ Params: { teamId: string; keyId: string } }>('/v1/teams/:teamId/keys/:keyId', async (request, reply) => {

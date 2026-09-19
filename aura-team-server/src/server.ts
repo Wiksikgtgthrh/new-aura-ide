@@ -11,7 +11,7 @@ import websocket from '@fastify/websocket';
 import { mapAccessError, requireRole } from './access.js';
 import { config } from './config.js';
 import { database } from './database.js';
-import { addClient } from './realtime.js';
+import { addClient, startHeartbeat } from './realtime.js';
 import { archiveRoutes, cleanupArchives } from './routes/archives.js';
 import { authRoutes } from './routes/auth.js';
 import { keyRoutes } from './routes/keys.js';
@@ -67,6 +67,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
 	cleanupArchives();
 	setInterval(cleanupArchives, 60 * 60_000).unref();
 	setInterval(() => database.prepare('DELETE FROM device_codes WHERE expires_at<=?').run(new Date().toISOString()), 60 * 60_000).unref();
+	startHeartbeat();
 	await app.listen({ host: config.host, port: config.port });
 }
 
