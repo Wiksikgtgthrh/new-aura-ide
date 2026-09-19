@@ -139,7 +139,10 @@ describe('API Integration Tests', function (): void {
 	describe('Accessibility', function (): void {
 		beforeEach(async () => {
 			await page.goto(APP);
-			await injectAxe(page);
+			// axe-playwright types `Page` from the hoisted `playwright` package, while this file uses
+			// `@playwright/test`, which the lockfile pins to its own nested `playwright-core`. Both are the
+			// same runtime object; the cast only reconciles the two type declarations.
+			await injectAxe(page as unknown as Parameters<typeof injectAxe>[0]);
 			await page.evaluate(`
 			(function () {
 				instance.focus();

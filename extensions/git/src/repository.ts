@@ -1742,6 +1742,11 @@ export class Repository implements Disposable {
 		await this.run(Operation.CherryPick, () => this.repository.cherryPick(commitHash));
 	}
 
+	/** Aura Teams: откат коммита обратным коммитом (без редактора сообщения). */
+	async revertCommit(commitHash: string): Promise<void> {
+		await this.run(Operation.CherryPick, () => this.repository.revertCommit(commitHash));
+	}
+
 	async cherryPickAbort(): Promise<void> {
 		await this.run(Operation.CherryPick, () => this.repository.cherryPickAbort());
 	}

@@ -495,3 +495,6 @@ import './contrib/aggg/browser/aggg.contribution.js';
 
 // Aura ServerKit (server control panel plugin: activity bar icon only when installed from Aura Market)
 import './contrib/auraServerkit/browser/auraServerkit.contribution.js';
+
+// Aura Teams (kanban board, my tasks)
+import './contrib/auraTeams/browser/auraTeams.contribution.js';

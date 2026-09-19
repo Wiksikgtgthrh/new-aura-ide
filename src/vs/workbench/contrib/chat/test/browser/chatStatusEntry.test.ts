@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { isWeb } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -189,13 +188,16 @@ suite('ChatStatusBarEntry', () => {
 		assert.strictEqual(persistedState(storageService), 'blocked');
 	});
 
-	test('keeps Sign In visible in the status bar only while Update owns the title bar', () => {
+	test('does not surface Copilot Sign In in the status bar even while Update owns the title bar', () => {
+		// Aura IDE: signed-out state no longer falls into the Copilot setup entry (BYOK keys work
+		// without sign-in), so every variant renders the plain default entry — on web as well, since
+		// the web-only "Sign In" label lived in the setup entry that is no longer reached.
 		const withoutUpdate = createEntry({ entitlement: ChatEntitlement.Unknown });
 		const withUpdate = createEntry({ entitlement: ChatEntitlement.Unknown, updateTitleBar: true });
 		const whileDebugging = createEntry({ entitlement: ChatEntitlement.Unknown, updateTitleBar: true, inDebugMode: true });
 		const whileChatInProgress = createEntry({ entitlement: ChatEntitlement.Unknown, updateTitleBar: true, updateTitleBarChatInProgress: true });
 		const inZenMode = createEntry({ entitlement: ChatEntitlement.Unknown, updateTitleBar: true, inZenMode: true });
-		const defaultStatusText = isWeb ? '$(copilot) Sign In' : '$(copilot)';
+		const defaultStatusText = '$(copilot)';
 
 		assert.deepStrictEqual({
 			text: {
@@ -215,10 +217,10 @@ suite('ChatStatusBarEntry', () => {
 		}, {
 			text: {
 				withoutUpdate: defaultStatusText,
-				withUpdate: '$(copilot) Sign In',
+				withUpdate: defaultStatusText,
 				whileDebugging: defaultStatusText,
 				whileChatInProgress: defaultStatusText,
-				inZenMode: '$(copilot) Sign In',
+				inZenMode: defaultStatusText,
 			},
 			visibility: {
 				withoutUpdate: false,

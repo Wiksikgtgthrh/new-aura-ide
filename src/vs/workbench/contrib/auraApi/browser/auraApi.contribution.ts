@@ -31,13 +31,15 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { AuraApiEditorPane } from './auraApiEditorPane.js';
 import { AuraApiEditorInput, AuraApiEditorInputSerializer } from './auraApiEditorInput.js';
-import { AuraApiChatProvider, AURA_API_VENDOR, AURA_API_SYSTEM_PROMPT_SETTING } from './auraApiChatProvider.js';
-import { IAuraApiKeysService } from '../common/auraApiKeys.js';
+import { AuraApiChatProvider, AURA_API_VENDOR, AURA_API_SYSTEM_PROMPT_SETTING, AURA_API_PROJECT_RULES_SETTING } from './auraApiChatProvider.js';
+import { IAuraApiKeysService, AURA_HEALTH_INTERVAL_SETTING } from '../common/auraApiKeys.js';
 import { ChatViewContainerId } from '../../chat/browser/chat.js';
 
 export const AURA_API_OPEN_COMMAND_ID = 'auraApi.openManager';
@@ -250,9 +252,11 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 		}
 		const keysService = accessor.get(IAuraApiKeysService);
 		const configurationService = accessor.get(IConfigurationService);
+		const fileService = accessor.get(IFileService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
 		languageModels.registerLanguageModelProvider(
 			AURA_API_VENDOR,
-			new AuraApiChatProvider(keysService, configurationService)
+			new AuraApiChatProvider(keysService, configurationService, fileService, workspaceContextService)
 		);
 		// Фоновая проверка ключей при старте окна: статусы живут в памяти, и без
 		// этой проверки провайдер чата после перезагрузки не видит ни одного
@@ -292,6 +296,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			default: '',
 			markdownDescription: localize('auraApi.chat.systemPrompt', "Системные правила для моделей Aura API: как модель должна себя вести в чате (стиль, ограничения, соглашения проекта). Добавляется первым системным сообщением к каждому запросу. Дополнительно работают штатные файлы правил: AGENTS.md и .github/copilot-instructions.md в корне проекта."),
+		},
+		[AURA_API_PROJECT_RULES_SETTING]: {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('auraApi.chat.useProjectRules', "Подставлять правила проекта в системный промпт моделей Aura API: `AGENTS.md` или `.github/copilot-instructions.md` из корня каждой папки workspace (первый найденный). Файл читается при каждом запросе, правки подхватываются сразу."),
+		},
+		[AURA_HEALTH_INTERVAL_SETTING]: {
+			type: 'number',
+			default: 0,
+			minimum: 0,
+			markdownDescription: localize('auraApi.health.intervalMinutes', "Интервал автоматической проверки ключей Aura API в минутах. `0` — автопроверка выключена, ключи проверяются только вручную."),
 		},
 	},
 });

@@ -1,0 +1,56 @@
+/*---------------------------------------------------------------------------------------------
+ *  Aura Teams — канбан-доска и «Мои задачи».
+ *--------------------------------------------------------------------------------------------*/
+
+.aura-teams { display: flex; flex-direction: column; height: 100%; padding: 16px; box-sizing: border-box; gap: 12px; }
+.aura-teams-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.aura-teams-title { margin: 0; }
+.aura-teams-subtitle { margin: 2px 0 0; color: var(--vscode-descriptionForeground); }
+.aura-teams-header-actions { display: flex; gap: 8px; }
+
+.aura-teams-btn { padding: 4px 12px; border: none; border-radius: 4px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 12px; }
+.aura-teams-btn:hover { background: var(--vscode-button-hoverBackground); }
+.aura-teams-btn.secondary { background: var(--vscode-button-secondaryBackground, var(--vscode-input-background)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }
+.aura-teams-btn.secondary:hover { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-input-background)); }
+.aura-teams-icon-btn { border: none; background: transparent; color: var(--vscode-icon-foreground); cursor: pointer; padding: 2px; border-radius: 3px; }
+.aura-teams-icon-btn:hover { background: var(--vscode-toolbar-hoverBackground); }
+
+/* Доска */
+.aura-teams-board { display: flex; gap: 12px; flex: 1; min-height: 0; overflow-x: auto; }
+.aura-teams-column { display: flex; flex-direction: column; flex: 1 0 240px; max-width: 360px; min-height: 0; border-radius: 8px; background: var(--vscode-sideBar-background); border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
+.aura-teams-column-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
+.aura-teams-column-title { font-weight: 600; flex: 1; }
+.aura-teams-column-count { font-size: 11px; padding: 0 7px; border-radius: 9px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
+.aura-teams-column-list { display: flex; flex-direction: column; gap: 8px; padding: 10px; flex: 1; overflow-y: auto; min-height: 80px; border-radius: 0 0 8px 8px; transition: background 80ms ease; }
+.aura-teams-column-list.drop-target { background: var(--vscode-list-dropBackground, var(--vscode-list-hoverBackground)); }
+.aura-teams-column-empty { color: var(--vscode-descriptionForeground); font-size: 12px; text-align: center; padding: 16px 8px; border: 1px dashed var(--vscode-widget-border, var(--vscode-panel-border, transparent)); border-radius: 6px; }
+
+/* Карточка */
+.aura-teams-card { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 6px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); cursor: grab; outline-offset: 2px; }
+.aura-teams-card:hover { border-color: var(--vscode-focusBorder); }
+.aura-teams-card:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+.aura-teams-card.dragging { opacity: 0.5; cursor: grabbing; }
+.aura-teams-card-top { display: flex; align-items: center; gap: 8px; }
+.aura-teams-card-title { font-weight: 600; flex: 1; word-break: break-word; }
+.aura-teams-card-desc { font-size: 12px; color: var(--vscode-descriptionForeground); white-space: pre-wrap; word-break: break-word; max-height: 72px; overflow: hidden; }
+.aura-teams-card-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.aura-teams-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 1px 8px; border-radius: 10px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
+.aura-teams-chip.branch { cursor: pointer; background: var(--vscode-textCodeBlock-background, var(--vscode-input-background)); color: var(--vscode-textLink-foreground); font-family: var(--monaco-monospace-font); }
+.aura-teams-chip .codicon { font-size: 12px; }
+
+.aura-teams-priority { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.aura-teams-priority.priority-high { background: var(--vscode-charts-red, #f14c4c); }
+.aura-teams-priority.priority-medium { background: var(--vscode-charts-yellow, #cca700); }
+.aura-teams-priority.priority-low { background: var(--vscode-charts-green, #4ec9b0); }
+
+/* Мои задачи (сайдбар) */
+.aura-teams-my { padding: 4px 8px; }
+.aura-teams-my-list { display: flex; flex-direction: column; gap: 2px; }
+.aura-teams-my-empty { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 8px 4px; color: var(--vscode-descriptionForeground); }
+.aura-teams-my-empty p { margin: 0; }
+.aura-teams-my-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.aura-teams-my-row:hover { background: var(--vscode-list-hoverBackground); }
+.aura-teams-my-row:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+.aura-teams-my-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.aura-teams-my-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aura-teams-my-status { font-size: 11px; color: var(--vscode-descriptionForeground); }

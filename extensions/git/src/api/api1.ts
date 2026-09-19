@@ -600,5 +600,56 @@ export function registerAPICommands(extension: GitExtensionImpl): Disposable {
 		return commands.executeCommand('git-base.api.getRemoteSources', opts);
 	}));
 
+	// --- Aura: примитивы для умного коммита, контрольных точек и истории задач ---
+	const repositoryFor = (uri: string): BaseRepository => {
+		const repository = extension.model?.getRepository(Uri.parse(uri));
+		if (!repository) {
+			throw new Error(`Git repository not found for ${uri}`);
+		}
+		return repository;
+	};
+
+	disposables.push(commands.registerCommand('git.api.diff', (uri: string, cached?: boolean) => {
+		return repositoryFor(uri).diff(cached);
+	}));
+
+	disposables.push(commands.registerCommand('git.api.setInputBox', (uri: string, value: string) => {
+		repositoryFor(uri).sourceControl.inputBox.value = value;
+	}));
+
+	disposables.push(commands.registerCommand('git.api.log', (uri: string, options?: LogOptions) => {
+		return repositoryFor(uri).log(options).then(commits => commits.map(c => ({
+			hash: c.hash,
+			message: c.message,
+			parents: c.parents,
+			authorName: c.authorName,
+			authorDate: c.authorDate?.getTime(),
+		})));
+	}));
+
+	disposables.push(commands.registerCommand('git.api.getRefs', (uri: string, query?: RefQuery) => {
+		return repositoryFor(uri).getRefs(query ?? {}).then(refs => refs.map(r => ({ name: r.name, commit: r.commit, type: getRefType(r.type) })));
+	}));
+
+	disposables.push(commands.registerCommand('git.api.tag', (uri: string, name: string, message?: string, ref?: string) => {
+		return repositoryFor(uri).tag({ name, message, ref });
+	}));
+
+	disposables.push(commands.registerCommand('git.api.deleteTag', (uri: string, name: string) => {
+		return repositoryFor(uri).deleteTag(name);
+	}));
+
+	disposables.push(commands.registerCommand('git.api.createStash', (uri: string, message?: string, includeUntracked?: boolean) => {
+		return repositoryFor(uri).createStash(message, includeUntracked);
+	}));
+
+	disposables.push(commands.registerCommand('git.api.reset', (uri: string, treeish: string, hard?: boolean) => {
+		return repositoryFor(uri).reset(treeish, hard);
+	}));
+
+	disposables.push(commands.registerCommand('git.api.revertCommit', (uri: string, hash: string) => {
+		return repositoryFor(uri).revertCommit(hash);
+	}));
+
 	return Disposable.from(...disposables);
 }
