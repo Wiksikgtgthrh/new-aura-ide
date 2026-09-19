@@ -270,11 +270,35 @@ export class AuraApiChatProvider implements ILanguageModelChatProvider {
 		const controller = new AbortController();
 		token.onCancellationRequested(() => controller.abort());
 
-		const openStream = async (key: IAuraApiKey): Promise<Response> => {
-			const secret = await this.keysService.getSecret(key.id);
+		/** Собрать запрос под провайдера конкретного ключа (Anthropic и Google — своими протоколами, остальные — OpenAI). */
+		const buildRequest = (key: IAuraApiKey, secret: string | undefined): { url: string; headers: Record<string, string>; body: string } => {
 			const base = key.baseUrl.replace(/\/+$/, '');
-			const response = await fetch(`${base}/chat/completions`, {
-				method: 'POST',
+			const system = oaiMessages.filter(m => m.role === 'system').map(m => m.content).join('\n');
+			const conversation = oaiMessages.filter(m => m.role !== 'system');
+			if (key.provider === 'anthropic') {
+				return {
+					url: `${base}/v1/messages`,
+					headers: {
+						'Content-Type': 'application/json',
+						'Accept': 'text/event-stream',
+						...(secret ? { 'x-api-key': secret, 'anthropic-version': '2023-06-01' } : {}),
+					},
+					body: JSON.stringify({ model: key.model, system: system || undefined, messages: conversation, stream: true, max_tokens: 8192 }),
+				};
+			}
+			if (key.provider === 'google') {
+				return {
+					url: `${base}/v1beta/models/${encodeURIComponent(key.model)}:streamGenerateContent?alt=sse${secret ? `&key=${encodeURIComponent(secret)}` : ''}`,
+					headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+					body: JSON.stringify({
+						...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
+						contents: conversation.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.content }] })),
+					}),
+				};
+			}
+			// openai-compatible, openrouter, litellm — единый формат OpenAI; tools только здесь
+			return {
+				url: `${base}/chat/completions`,
 				headers: {
 					'Content-Type': 'application/json',
 					'Accept': 'text/event-stream',
@@ -286,8 +310,13 @@ export class AuraApiChatProvider implements ILanguageModelChatProvider {
 					stream: true,
 					...(tools ? { tools, tool_choice: toolChoice } : {}),
 				}),
-				signal: controller.signal,
-			});
+			};
+		};
+
+		const openStream = async (key: IAuraApiKey): Promise<Response> => {
+			const secret = await this.keysService.getSecret(key.id);
+			const request = buildRequest(key, secret);
+			const response = await fetch(request.url, { method: 'POST', headers: request.headers, body: request.body, signal: controller.signal });
 			if (!response.ok) {
 				const body = await response.text().catch(() => '');
 				// Фейловер только на сетевых/лимитных/серверных ошибках: на 401/403 другой ключ может быть жив

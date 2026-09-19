@@ -425,6 +425,10 @@ export function parseSseChunk(raw: string): IAuraStreamDelta | undefined {
 	let parsed: {
 		model?: unknown;
 		choices?: Array<{ delta?: { content?: unknown; tool_calls?: IRawToolCall[] }; message?: { content?: unknown; tool_calls?: IRawToolCall[] }; finish_reason?: unknown }>;
+		// Anthropic Messages API: content_block_delta → { delta: { type: 'text_delta', text } }
+		delta?: { type?: unknown; text?: unknown };
+		// Google Gemini streamGenerateContent: { candidates: [{ content: { parts: [{ text }] } }] }
+		candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }>;
 	};
 	try {
 		parsed = JSON.parse(payload);
@@ -432,7 +436,16 @@ export function parseSseChunk(raw: string): IAuraStreamDelta | undefined {
 		return undefined; // битый chunk не должен рвать поток
 	}
 	const choice = parsed.choices?.[0];
-	const content = choice?.delta?.content ?? choice?.message?.content;
+	let content: unknown = choice?.delta?.content ?? choice?.message?.content;
+	if (content === undefined) {
+		if (parsed.delta?.type === 'text_delta' && typeof parsed.delta.text === 'string') {
+			content = parsed.delta.text;
+		} else if (Array.isArray(parsed.candidates)) {
+			const parts = parsed.candidates[0]?.content?.parts;
+			const joined = Array.isArray(parts) ? parts.map(p => typeof p?.text === 'string' ? p.text : '').join('') : '';
+			content = joined || undefined;
+		}
+	}
 	const rawCalls = choice?.delta?.tool_calls ?? choice?.message?.tool_calls;
 	const toolCalls = Array.isArray(rawCalls)
 		? rawCalls.map((c, i): IAuraToolCallDelta => ({

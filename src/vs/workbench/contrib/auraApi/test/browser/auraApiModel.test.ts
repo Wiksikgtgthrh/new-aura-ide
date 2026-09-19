@@ -179,6 +179,12 @@ suite('AuraApiModel — SSE-стриминг', () => {
 			{ text: undefined, model: undefined, finishReason: 'stop', toolCalls: undefined });
 	});
 
+	test('parseSseChunk: дельты Anthropic и Gemini', () => {
+		assert.strictEqual(parseSseChunk('data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Привет"}}')?.text, 'Привет');
+		assert.strictEqual(parseSseChunk('data: {"type":"content_block_delta","delta":{"type":"input_json_delta","partial_json":"{"}}'), undefined);
+		assert.strictEqual(parseSseChunk('data: {"candidates":[{"content":{"parts":[{"text":"Hel"},{"text":"lo"}]}}]}')?.text, 'Hello');
+	});
+
 	test('AuraSseParser: дельты собираются в порядке, чанк режется посреди строки', () => {
 		const parser = new AuraSseParser();
 		const deltas = [
