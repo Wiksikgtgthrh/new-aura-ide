@@ -5,6 +5,9 @@
 
 import * as vscode from 'vscode';
 import { spawn } from 'node:child_process';
+import { createReadStream, statSync } from 'node:fs';
+import { basename } from 'node:path';
+import { PassThrough } from 'node:stream';
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { BoardSnapshot, DeviceAuthorization, KeyGroup, Session, TaskStatus, TeamActivityEvent, TeamApiKey, TeamSummary, TeamTask, Tokens } from '../types';
@@ -173,8 +176,13 @@ export class AuraApiClient implements vscode.Disposable {
 	listArchives(teamId: string): Promise<Array<{ id: string; projectId?: string; projectName?: string; bytes: number; createdAt: string; expiresAt: string; createdBy?: string }>> { return this.request(`/v1/teams/${teamId}/archives`); }
 	deleteArchive(teamId: string, archiveId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/archives/${archiveId}`, { method: 'DELETE' }); }
 	changeRole(teamId: string, memberId: string, role: string): Promise<void> { return this.request(`/v1/teams/${teamId}/members/${memberId}`, { method: 'PATCH', body: JSON.stringify({ role }) }); }
+	removeMember(teamId: string, memberId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/members/${memberId}`, { method: 'DELETE' }); }
+	fetchLimits(teamId: string): Promise<{ archiveMaxBytes: number; archiveTtlDays: number; proxyRequestsPerDay: number }> { return this.request(`/v1/teams/${teamId}/limits`); }
+	checkAllKeys(teamId: string): Promise<Array<{ keyId: string; ok: boolean; status: number; pingMs: number }>> { return this.request(`/v1/teams/${teamId}/keys/check`, { method: 'POST', body: '{}' }); }
+	listProviders(teamId: string): Promise<Array<{ id: string; name: string; origin: string; builtin: boolean }>> { return this.request(`/v1/teams/${teamId}/providers`); }
+	fetchUsage(teamId: string): Promise<{ limitPerUserPerDay: number; usedToday: number; remainingToday: number; perDay: Array<{ day: string; requests: number }>; perUser: Array<{ userId: string; name: string; requests: number }>; perKey: Array<{ keyId: string; label: string; provider: string; requests: number }> }> { return this.request(`/v1/teams/${teamId}/usage`); }
 	createProject(teamId: string, name: string, gitUrl: string, defaultBranch: string): Promise<void> { return this.request(`/v1/teams/${teamId}/projects`, { method: 'POST', body: JSON.stringify({ name, gitUrl, defaultBranch }) }); }
-	createTask(teamId: string, title: string, status: TaskStatus = 'todo'): Promise<TeamTask> { return this.request(`/v1/teams/${teamId}/tasks`, { method: 'POST', body: JSON.stringify({ title, status }) }); }
+	createTask(teamId: string, title: string, status: TaskStatus = 'todo', assigneeId?: string): Promise<TeamTask> { return this.request(`/v1/teams/${teamId}/tasks`, { method: 'POST', body: JSON.stringify({ title, status, ...(assigneeId ? { assigneeId } : {}) }) }); }
 	storeApiKey(teamId: string, provider: string, value: string, accessRole: string, label: string, priority: number, groupId?: string): Promise<void> { return this.request(`/v1/teams/${teamId}/keys`, { method: 'POST', body: JSON.stringify({ provider, value, accessRole, label, priority, groupId }) }); }
 	listApiKeys(teamId: string): Promise<TeamApiKey[]> { return this.request(`/v1/teams/${teamId}/keys`); }
 	disableApiKey(teamId: string, keyId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/keys/${keyId}`, { method: 'DELETE' }); }
@@ -188,6 +196,34 @@ export class AuraApiClient implements vscode.Disposable {
 		form.append('file', new Blob([bytes]), name);
 		const qs = projectId ? `projectId=${encodeURIComponent(projectId)}` : `projectName=${encodeURIComponent(projectName)}`;
 		return this.request(`/v1/teams/${teamId}/archives?${qs}`, { method: 'POST', body: form });
+	}
+
+	/**
+	 * Стриминговая загрузка архива: файл не читается целиком в память (иначе большой
+	 * архив положит extension host). Multipart собирается вручную поверх fs stream,
+	 * прогресс — через onProgress(sentBytes, totalBytes).
+	 */
+	async uploadArchiveStream(teamId: string, filePath: string, projectName: string, projectId?: string, onProgress?: (sent: number, total: number) => void): Promise<{ id: string; projectId: string; expiresAt: string }> {
+		const stat = statSync(filePath);
+		const fileName = basename(filePath);
+		const boundary = `----aura${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+		const qs = projectId ? `projectId=${encodeURIComponent(projectId)}` : `projectName=${encodeURIComponent(projectName)}`;
+		const head = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName.replace(/["\\]/g, '')}"\r\nContent-Type: application/octet-stream\r\n\r\n`;
+		const tail = `\r\n--${boundary}--\r\n`;
+		const pass = new PassThrough();
+		let sent = 0;
+		pass.write(head);
+		const fileStream = createReadStream(filePath);
+		fileStream.on('data', chunk => { sent += chunk.length; onProgress?.(sent, stat.size); });
+		fileStream.on('error', error => pass.destroy(error));
+		fileStream.on('end', () => { pass.end(tail); });
+		fileStream.pipe(pass, { end: false });
+		const webBody = (await import('node:stream')).Readable.toWeb(pass) as unknown as ReadableStream<Uint8Array>;
+		return this.request(`/v1/teams/${teamId}/archives?${qs}`, {
+			method: 'POST',
+			body: webBody,
+			duplex: 'half'
+		} as unknown as RequestInit);
 	}
 	createProxyToken(teamId: string, provider: string, model: string): Promise<{ id: string; token: string }> { return this.request(`/v1/teams/${teamId}/proxy-tokens`, { method: 'POST', body: JSON.stringify({ provider, model }) }); }
 	revokeProxyToken(teamId: string, tokenId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/proxy-tokens/${tokenId}`, { method: 'DELETE' }); }

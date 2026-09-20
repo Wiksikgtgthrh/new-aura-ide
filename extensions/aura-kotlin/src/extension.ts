@@ -6,10 +6,12 @@
 import * as vscode from 'vscode';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { registerKotlinLsp } from './lsp';
+import { registerKotlinLsp, KotlinLspClient } from './lsp';
 import { registerAndroidPanel } from './android';
 import { ClasspathSync } from './classpath';
 import { registerKotlinDebugger } from './debugAdapter';
+import { registerGradleIntegration } from './gradle';
+import { AndroidTreeProvider, registerLspStatusbar, showOnboarding } from './ui';
 
 const execFileAsync = promisify(execFile);
 
@@ -23,20 +25,32 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('auraKotlin.newProject', (folder?: vscode.Uri) => newProject(folder)),
 	);
 
-	// Этап 3: фоновый разбор Gradle/Maven → classpath для компиляции и LSP.
+	// Этап 1 ТЗ: classpath — Gradle через init-скрипт (основной источник), парсер — фолбэк,
+	// кэш на диске с ключом по mtime build-файлов.
 	classpathSync = new ClasspathSync();
 	classpathSync.start(context);
-	// Этап 1: Kotlin Language Server — автозапуск при открытии .kt/.kts, диагностика,
-	// hover, автодополнение и переход к определению. При смене classpath — рестарт.
+
+	// Этап 6 ТЗ: LSP — didSave/signatureHelp/symbols/references/rename/codeAction,
+	// инкрементальные изменения, перезапуск с новым classpath (с дебаунсом).
 	const lsp = registerKotlinLsp(context, classpathSync);
+	let restartTimer: NodeJS.Timeout | undefined;
 	context.subscriptions.push(classpathSync.onDidChange(() => {
-		if (lsp.available) { lsp.restart(); }
+		if (!lsp.available) { return; }
+		if (restartTimer) { clearTimeout(restartTimer); }
+		restartTimer = setTimeout(() => lsp.restart(), 3000);
 	}));
-	// Этап 4: устройства ADB, установка .apk, живой logcat с фильтрами.
+
+	// Этап 2 ТЗ: Gradle — таски, команды сборки, problem matcher, прогресс в статус-баре.
+	registerGradleIntegration(context);
+
+	// Этап 3 ТЗ: Android SDK/эмуляторы, единый селектор устройств, webview-logcat.
 	const androidPanel = registerAndroidPanel(context);
-	// Этап 2: отладка через JDWP (встроенный DAP-адаптер, launch/attach, брейкпоинты,
-	// Android: install + am start -D + adb forward + attach к jdwp:PID).
+	// Этап 4 ТЗ: отладка — Run Android App по F5, PID через pidof+ps, applicationId из Gradle.
 	registerKotlinDebugger(context, classpathSync, androidPanel);
+
+	// Этап 5 ТЗ: UI — контейнер в activity bar (устройства/модули/зависимости),
+	// статус-бар LSP, один онбординг-баннер вместо трёх нотификаций.
+	registerAndroidUi(context, classpathSync, androidPanel, lsp);
 
 	// Шаблонный код при создании нового .kt-файла (как в IntelliJ: пакет + fun main / класс).
 	context.subscriptions.push(vscode.workspace.onDidCreateFiles(async event => {
@@ -48,24 +62,28 @@ export function activate(context: vscode.ExtensionContext): void {
 	}));
 }
 
+function registerAndroidUi(context: vscode.ExtensionContext, classpathSync: ClasspathSync, androidPanel: import('./android').AndroidPanel, lsp: KotlinLspClient): void {
+	const provider = new AndroidTreeProvider(androidPanel, classpathSync);
+	const tree = vscode.window.createTreeView('auraKotlin.androidView', { treeDataProvider: provider });
+	context.subscriptions.push(tree);
+
+	context.subscriptions.push(		vscode.commands.registerCommand('auraKotlin.refreshAndroidView', () => provider.refresh()));
+
+	registerLspStatusbar(context, () => lsp.serverState, lsp.onDidChangeState);
+
+	void showOnboarding(context, androidPanel);
+}
+
 /** Шаблон нового .kt: package по папке + fun main для standalone, класс для остальных. */
 async function writeKotlinTemplate(file: vscode.Uri): Promise<void> {
 	const workspace = vscode.workspace.getWorkspaceFolder(file);
 	const rel = workspace ? vscode.workspace.asRelativePath(file, false).replace(/\\/g, '/') : file.fsPath.split('/').pop() ?? 'Main.kt';
 	const dirParts = rel.split('/').slice(0, -1).filter(p => p && !/^(src|main|kotlin)$/.test(p));
-	const pkg = dirParts.length > 0 ? `package ${dirParts.map(p => p.replace(/[^A-Za-z0-9_]/g, '_').replace(/^_(.*)$/, '$1')).join('.')}
-
-` : '';
+	const pkg = dirParts.length > 0 ? `package ${dirParts.map(p => p.replace(/[^A-Za-z0-9_]/g, '_').replace(/^_(.*)$/, '$1')).join('.')}\n\n` : '';
 	const isMain = /main\.kt$/i.test(file.fsPath);
 	const body = isMain
-		? `${pkg}fun main() {
-	println("Hello, Kotlin!")
-}
-`
-		: `${pkg}class ${file.fsPath.split(/[\\/]/).pop()?.replace(/\.kt$/, '')?.replace(/_(\w)/g, (_, c: string) => c.toUpperCase())?.replace(/^./, c => c.toUpperCase()) ?? 'MyClass'} {
-	// TODO: add members
-}
-`;
+		? `${pkg}fun main() {\n\tprintln("Hello, Kotlin!")\n}\n`
+		: `${pkg}class ${file.fsPath.split(/[\\/]/).pop()?.replace(/\.kt$/, '')?.replace(/_(\w)/g, (_, c: string) => c.toUpperCase())?.replace(/^./, c => c.toUpperCase()) ?? 'MyClass'} {\n\t// TODO: add members\n}\n`;
 	try {
 		await vscode.workspace.fs.writeFile(file, Buffer.from(body, 'utf8'));
 		const doc = await vscode.workspace.openTextDocument(file);
@@ -91,14 +109,8 @@ async function newProject(folder?: vscode.Uri): Promise<void> {
 		// Простой CLI-проект: src/Main.kt, компилируется kotlinc без Gradle.
 		const src = vscode.Uri.joinPath(root, 'src');
 		await vscode.workspace.fs.createDirectory(src);
-		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(src, 'Main.kt'), Buffer.from(`fun main() {
-	println("Hello, ${namePick}!")
-}
-`, 'utf8'));
-		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'README.md'), Buffer.from(`# ${namePick}
-
-Build: kotlinc src/Main.kt -include-runtime -d app.jar && java -jar app.jar
-`, 'utf8'));
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(src, 'Main.kt'), Buffer.from(`fun main() {\n\tprintln("Hello, ${namePick}!")\n}\n`, 'utf8'));
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'README.md'), Buffer.from(`# ${namePick}\n\nBuild: kotlinc src/Main.kt -include-runtime -d app.jar && java -jar app.jar\n`, 'utf8'));
 	} else {
 		// Android-структура как в IntelliJ (минимум для Gradle-сборки).
 		const mainDir = vscode.Uri.joinPath(root, 'app', 'src', 'main', 'kotlin', ...pkg.split('').length ? [pkg] : ['app']);
@@ -106,61 +118,12 @@ Build: kotlinc src/Main.kt -include-runtime -d app.jar && java -jar app.jar
 		await vscode.workspace.fs.createDirectory(mainDir);
 		await vscode.workspace.fs.createDirectory(resDir);
 		const activity = namePick.replace(/[^A-Za-z0-9]/g, '').replace(/^./, c => c.toUpperCase());
-		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'settings.gradle.kts'), Buffer.from(`rootProject.name = "${namePick}"
-include(":app")
-`, 'utf8'));
-		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'build.gradle.kts'), Buffer.from(`plugins {
-	id("org.jetbrains.kotlin.android") version "2.1.0" apply false
-}
-`, 'utf8'));
-		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'app', 'build.gradle.kts'), Buffer.from(`plugins {
-	id("com.android.application")
-	id("org.jetbrains.kotlin.android")
-}
-
-android {
-	namespace = "com.example.${pkg}"
-	compileSdk = 35
-	defaultConfig {
-		applicationId = "com.example.${pkg}"
-		minSdk = 24
-		targetSdk = 35
-	}
-}
-
-dependencies {
-	implementation("androidx.core:core-ktx:1.15.0")
-	implementation("androidx.appcompat:appcompat:1.7.0")
-}
-`, 'utf8'));
-		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'app', 'src', 'main', 'AndroidManifest.xml'), Buffer.from(`<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-	<application android:label="${namePick}" android:theme="@style/Theme.AppCompat">
-		<activity android:name=".${activity}" android:exported="true">
-			<intent-filter>
-				<action android:name="android.intent.action.MAIN" />
-				<category android:name="android.intent.category.LAUNCHER" />
-			</intent-filter>
-		</activity>
-	</application>
-</manifest>
-`, 'utf8'));
-		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(mainDir, `${activity}.kt`), Buffer.from(`package com.example.${pkg}
-
-import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
-
-class ${activity} : AppCompatActivity() {
-	override fun onCreate(savedInstanceState: Bundle?) {
-		super.onCreate(savedInstanceState)
-	}
-}
-`, 'utf8'));
-		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(resDir, 'strings.xml'), Buffer.from(`<?xml version="1.0" encoding="utf-8"?>
-<resources>
-	<string name="app_name">${namePick}</string>
-</resources>
-`, 'utf8'));
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'settings.gradle.kts'), Buffer.from(`rootProject.name = "${namePick}"\ninclude(":app")\n`, 'utf8'));
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'build.gradle.kts'), Buffer.from(`plugins {\n\tid("org.jetbrains.kotlin.android") version "2.1.0" apply false\n}\n`, 'utf8'));
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'app', 'build.gradle.kts'), Buffer.from(`plugins {\n\tid("com.android.application")\n\tid("org.jetbrains.kotlin.android")\n}\n\nandroid {\n\tnamespace = "com.example.${pkg}"\n\tcompileSdk = 35\n\tdefaultConfig {\n\t\tapplicationId = "com.example.${pkg}"\n\t\tminSdk = 24\n\t\ttargetSdk = 35\n\t}\n}\n\ndependencies {\n\timplementation("androidx.core:core-ktx:1.15.0")\n\timplementation("androidx.appcompat:appcompat:1.7.0")\n}\n`, 'utf8'));
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'app', 'src', 'main', 'AndroidManifest.xml'), Buffer.from(`<?xml version="1.0" encoding="utf-8"?>\n<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n\t<application android:label="${namePick}" android:theme="@style/Theme.AppCompat">\n\t\t<activity android:name=".${activity}" android:exported="true">\n\t\t\t<intent-filter>\n\t\t\t\t<action android:name="android.intent.action.MAIN" />\n\t\t\t\t<category android:name="android.intent.category.LAUNCHER" />\n\t\t\t</intent-filter>\n\t\t</activity>\n\t</application>\n</manifest>\n`, 'utf8'));
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(mainDir, `${activity}.kt`), Buffer.from(`package com.example.${pkg}\n\nimport android.os.Bundle\nimport androidx.appcompat.app.AppCompatActivity\n\nclass ${activity} : AppCompatActivity() {\n\toverride fun onCreate(savedInstanceState: Bundle?) {\n\t\tsuper.onCreate(savedInstanceState)\n\t}\n}\n`, 'utf8'));
+		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(resDir, 'strings.xml'), Buffer.from(`<?xml version="1.0" encoding="utf-8"?>\n<resources>\n\t<string name="app_name">${namePick}</string>\n</resources>\n`, 'utf8'));
 	}
 
 	const open = await vscode.window.showInformationMessage(vscode.l10n.t('Project \'{0}\' created.', namePick), vscode.l10n.t('Open folder'));
@@ -192,10 +155,11 @@ async function compileFile(): Promise<void> {
 	if (!workspace) {
 		vscode.window.showWarningMessage(vscode.l10n.t('Open a Kotlin workspace first.'));
 		return;
-	}		const output = vscode.Uri.joinPath(workspace, 'out');
+	}
+	const output = vscode.Uri.joinPath(workspace, 'out');
 	await vscode.workspace.fs.createDirectory(output);
 	try {
-		// Этап 3: зависимости из Gradle/Maven идут в classpath компиляции.
+		// Зависимости из Gradle/Maven идут в classpath компиляции.
 		const args = [editor.document.uri.fsPath];
 		const classpath = classpathSync.classpath.jars;
 		if (classpath.length) {

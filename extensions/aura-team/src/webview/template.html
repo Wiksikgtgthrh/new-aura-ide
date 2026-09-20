@@ -339,25 +339,49 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 .hist-meta { font-size: 10.5px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
 
 /* ---------- Доска задач ---------- */
-.board-cols { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 6px; }
-.col { background: color-mix(in srgb, var(--surface) 45%, transparent); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 10px; min-height: 160px; animation: fadeUp .35s var(--ease) both; animation-delay: calc(var(--i, 0) * 50ms); }
+/* Доска: grid без горизонтального скролла; 4 колонки → 2 ниже 1040px → 1 ниже 620px. */
+.board-cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding-bottom: 6px; }
+@media (max-width: 1040px) { .board-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .board-cols { grid-template-columns: minmax(0, 1fr); } }
+.col { background: color-mix(in srgb, var(--surface) 45%, transparent); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 10px; min-height: 160px; min-width: 0; display: flex; flex-direction: column; animation: fadeUp .35s var(--ease) both; animation-delay: calc(var(--i, 0) * 50ms); }
+.col .task-card:last-of-type { margin-bottom: 0; }
+.col-empty { min-height: 88px; flex: 1; border: 1.5px dashed var(--border); border-radius: 9px; display: grid; place-items: center; color: var(--muted); font-size: 11px; }
 .col-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .col-title { font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); }
 .col-count { font-size: 10.5px; font-weight: 700; background: var(--card-hover); padding: 1px 7px; border-radius: 999px; }
-.task-card {
-	background: var(--card); border: 1px solid var(--border-soft);
-	border-radius: 9px; padding: 10px; margin-bottom: 8px;
-	transition: transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s;
-	animation: fadeUp .3s var(--ease) both;
-	animation-delay: calc(var(--i, 0) * 35ms);
-}
+.task-card { position: relative; background: var(--card); border: 1px solid var(--border-soft); border-radius: 9px; padding: 10px; margin-bottom: 8px; transition: transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s; animation: fadeUp .3s var(--ease) both; animation-delay: calc(var(--i, 0) * 35ms); touch-action: pan-y; }
+.task-card:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--focus); }
+.task-foot { display: flex; align-items: center; gap: 6px; margin-top: 8px; min-height: 20px; flex-wrap: wrap; }
+.card-menu-btn { display: grid; }
+.task-card { padding-right: 34px; }
+.ava-18 { width: 18px; height: 18px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: 8px; font-weight: 700; color: #fff; }
+.commit-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-left: auto; flex: none; }
+.card-menu-btn { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 6px; place-items: center; color: var(--muted); font-size: 14px; line-height: 1; }
+.task-card:hover .card-menu-btn { color: var(--text); }
+.card-menu-btn:hover { background: var(--card-hover); color: var(--text); }
+.qa-pop { position: fixed; z-index: 90; width: 220px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 8px; animation: popIn .16s var(--ease); }
+.qa-seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 8px; }
+.qa-seg button { padding: 5px 0; border-radius: 6px; font-size: 10.5px; font-weight: 600; background: var(--card-hover); color: var(--muted); }
+.qa-seg button.on { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
+.qa-pop .qa-row { display: flex; align-items: center; gap: 7px; padding: 6px 7px; border-radius: 6px; width: 100%; font-size: 12px; text-align: left; }
+.qa-pop .qa-row:hover { background: var(--card-hover); }
+.qa-pop .qa-due { display: flex; gap: 4px; margin: 6px 0; flex-wrap: wrap; }
+.qa-pop .qa-due button { padding: 3px 8px; font-size: 10.5px; border-radius: 999px; background: var(--card-hover); }
+.qa-pop .qa-due button:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.qa-div { border-top: 1px solid var(--border-soft); margin: 6px 0; }
+.kanban-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; min-height: 36px; }
+.kanban-filters input[data-kanban-search] { width: 200px; padding: 5px 10px; font-size: 12px; }
+.kanban-ava { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 9px; font-weight: 700; color: #fff; cursor: pointer; opacity: .45; border: 2px solid transparent; transition: opacity .15s, border-color .15s; }
+.kanban-ava.on { opacity: 1; border-color: var(--accent); }
+.filter-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.filter-chip button { font-size: 12px; line-height: 1; color: inherit; }
 .task-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
 .task-card.highlight { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), var(--shadow); animation: highlightPulse 1.2s ease 2; cursor: pointer; }
 @keyframes highlightPulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent); } }
 .board-filter { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 7px 12px; border-radius: 9px; background: color-mix(in srgb, var(--accent) 12%, var(--card)); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); font-size: 12px; animation: fadeUp .25s var(--ease) both; }
 .board-filter button { padding: 3px 10px; font-size: 11px; }
 .task-title { font-size: 12.5px; font-weight: 600; line-height: 1.35; }
-.task-desc { color: var(--muted); font-size: 11px; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.task-desc { color: var(--muted); font-size: 11px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
 .task-assignee { font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
 .add-task { width: 100%; margin-top: 2px; padding: 7px 10px; font-size: 11.5px; border-style: dashed; opacity: .85; transition: opacity .18s, background .18s; }
@@ -365,7 +389,10 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 
 /* ---------- Ключи ---------- */
 .key-card { animation: fadeUp .35s var(--ease) both; animation-delay: calc(var(--i, 0) * 45ms); }
-.key-row { display: flex; align-items: center; gap: 12px; }
+.key-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; row-gap: 6px; }
+.key-row .grow { min-width: 140px; flex: 1 1 140px; }
+.key-row .btn { margin-left: 0; flex: none; }
+.key-row > .btn:first-of-type { margin-left: auto; }
 .provider-ico {
 	width: 36px; height: 36px; border-radius: 10px; flex: none;
 	display: grid; place-items: center; color: #fff;
@@ -417,6 +444,13 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 .presence-dot { position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%; background: var(--ok, #34d399); border: 2px solid var(--bg); }
 .presence-dot.off { background: var(--text-30, #666); }
 .task-card { touch-action: pan-y; }
+/* Таблица файлов: имя, проект, размер, автор, загружено, истекает, действия. */
+.file-table { display: flex; flex-direction: column; gap: 2px; }
+.file-tr { display: grid; grid-template-columns: minmax(120px, 2fr) 70px minmax(80px, 1fr) 70px 90px minmax(150px, auto); gap: 10px; align-items: center; padding: 7px 8px; border-radius: 7px; font-size: 12px; animation: fadeUp .3s var(--ease) both; animation-delay: calc(var(--i, 0) * 30ms); }
+.file-tr:nth-child(even) { background: color-mix(in srgb, var(--text) 3%, transparent); }
+.file-tr:hover { background: var(--card-hover); }
+.file-th { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+@media (max-width: 760px) { .file-tr { grid-template-columns: 1fr auto; } .file-tr > :nth-child(n+3) { display: none; } }
 .task-card.armed { box-shadow: -3px 0 0 var(--danger, #f87171); opacity: .9; }
 .status-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .status-dot.st-todo { background: var(--vscode-charts-blue, #4d9fff); }
@@ -621,7 +655,7 @@ const DICT = {
 		emptyKeys: 'Ключей ещё нет — добавьте первый командный ключ.',
 		prioHigh: 'Высокий', prioMedium: 'Средний', prioLow: 'Низкий',
 		prioHint: 'Приоритет: высокий / средний / низкий', prioGroup: 'Приоритет',
-		ping: 'Пинг', pingCheck: 'Проверить ключ у провайдера', pingOk: 'Отвечает', pingFail: 'Не отвечает', pingUnknown: 'Пинг: —', pingMs: '{0} мс',
+		ping: 'Пинг', pingCheck: 'Проверить ключ у провайдера', pingOk: 'Отвечает', pingFail: 'Не отвечает', pingUnknown: 'Пинг: —', pingMs: '{0} мс', toChat: 'В чат',
 		importFromApi: 'Импорт из API', importFromApiSub: 'Выберите ключи из плагина API для копирования в банк команды.',
 		import: 'Импортировать', imported: 'Импортировано', noApiKeys: 'В плагине API нет ключей — добавьте их там сначала.',
 		newGroup: 'Новая группа', groupName: 'Название группы', keyGroup: 'Группа',
@@ -674,6 +708,23 @@ const DICT = {
 		taskMoved: 'Задача перенесена',
 		transfer: 'Передать', projectOwner: 'Владелец', transferProject: 'Передать проект',
 		transferred: 'Проект передан ✓', chooseOwner: 'Новый владелец проекта',
+		summaryTasks: 'задач', summaryOverdue: 'просрочено', summaryMine: 'мои',
+		searchPh: 'Поиск по названию…', quickActions: 'Быстрые действия', dropHere: 'Перетащите задачи сюда',
+		openTask: 'Открыть', dueToday: 'Сегодня', dueTomorrow: 'Завтра', dueWeek: 'Через неделю',
+		resetTo: 'Сбросить', removeMember: 'Удалить из команды', offlineAgo: 'был(а) в сети',
+		loadError: 'Не удалось загрузить', retry: 'Повторить',
+		discardFile: 'Отменить изменения в файле', selectAll: 'Выбрать всё', selectNone: 'Снять всё',
+		stagedChanges: 'Подготовлено (staged)', unstagedChanges: 'Не подготовлено',
+		resetBranch: 'Сбросить ветку', resetSoft: 'Soft — изменения останутся', resetSoftHint: 'последний коммит отменится, правки сохранятся в индексе',
+		resetHard: 'Hard — всё сотрётся', resetHardHint: 'последний коммит и правки будут потеряны безвозвратно',
+		resetHardConfirm: 'Безвозвратно стереть последний коммит и все незакоммиченные изменения?',
+		openFolder: 'Открыть папку', gitInit: 'Инициализировать репозиторий',
+		checkAll: 'Проверить все', deleteForeverHint: 'Ключ будет удалён навсегда. Введите', typeLabelHint: 'Введите название ключа для подтверждения',
+		autoDetectHint: 'Провайдер определится автоматически: sk-ant-… → Anthropic, sk-or-… → OpenRouter',
+		expired: 'истёк', unitMb: 'МБ', unitKb: 'КБ', unitB: 'Б',
+		filesColSize: 'Размер', filesColAuthor: 'Автор', filesColUploaded: 'Загружено', filesColExpires: 'Истекает',
+		ttlHint: 'Файлы хранятся {0} дн. — потом автоматически удаляются с сервера.',
+		usageRemaining: 'Запросов осталось сегодня: {0} из {1}',
 	},
 	en: {
 		connDemo: 'Demo', connLive: 'Online', connOff: 'Offline',
@@ -716,7 +767,7 @@ const DICT = {
 		emptyKeys: 'No keys yet — add the first team key.',
 		prioHigh: 'High', prioMedium: 'Medium', prioLow: 'Low',
 		prioHint: 'Priority: high / medium / low', prioGroup: 'Priority',
-		ping: 'Ping', pingCheck: 'Check the key against the provider', pingOk: 'Alive', pingFail: 'No response', pingUnknown: 'Ping: —', pingMs: '{0} ms',
+		ping: 'Ping', pingCheck: 'Check the key against the provider', pingOk: 'Alive', pingFail: 'No response', pingUnknown: 'Ping: —', pingMs: '{0} ms', toChat: 'Chat',
 		importFromApi: 'Import from API', importFromApiSub: 'Pick keys from the API plugin to copy into the team bank.',
 		import: 'Import', imported: 'Imported', noApiKeys: 'No keys in the API plugin — add some there first.',
 		newGroup: 'New group', groupName: 'Group name', keyGroup: 'Group',
@@ -749,6 +800,23 @@ noFiles: 'No archives yet — upload the first one.',		archiveDone: 'Archive upl
 	taskMoved: 'Task moved',
 	transfer: 'Transfer', projectOwner: 'Owner', transferProject: 'Transfer project',
 	transferred: 'Project transferred ✓', chooseOwner: 'New project owner',
+	summaryTasks: 'tasks', summaryOverdue: 'overdue', summaryMine: 'mine',
+	searchPh: 'Search by title…', quickActions: 'Quick actions', dropHere: 'Drop tasks here',
+	openTask: 'Open', dueToday: 'Today', dueTomorrow: 'Tomorrow', dueWeek: 'In a week',
+	resetTo: 'Reset', removeMember: 'Remove from team', offlineAgo: 'last seen',
+	loadError: 'Failed to load', retry: 'Retry',
+	discardFile: 'Discard file changes', selectAll: 'Select all', selectNone: 'Select none',
+	stagedChanges: 'Staged', unstagedChanges: 'Unstaged',
+	resetBranch: 'Reset branch', resetSoft: 'Soft — keep changes', resetSoftHint: 'undoes the last commit, edits stay in the index',
+	resetHard: 'Hard — erase everything', resetHardHint: 'last commit and edits are lost permanently',
+	resetHardConfirm: 'Permanently discard the last commit and all uncommitted changes?',
+	openFolder: 'Open folder', gitInit: 'Initialize repository',
+	checkAll: 'Check all', deleteForeverHint: 'The key will be deleted permanently. Type', typeLabelHint: 'Type the key label to confirm',
+	autoDetectHint: 'Provider is detected automatically: sk-ant-… → Anthropic, sk-or-… → OpenRouter',
+	expired: 'expired', unitMb: 'MB', unitKb: 'KB', unitB: 'B',
+	filesColSize: 'Size', filesColAuthor: 'Author', filesColUploaded: 'Uploaded', filesColExpires: 'Expires',
+	ttlHint: 'Files are kept for {0} days — then removed from the server automatically.',
+	usageRemaining: 'Proxy requests left today: {0} of {1}',
 	}
 };
 // Язык — из state.uiLanguage (настройка team.ui.language, по умолчанию русский).
@@ -769,7 +837,7 @@ function svc(command, args = []) {
 		const id = reqId++;
 		pending.set(id, { resolve, reject });
 		vscode.postMessage({ type: 'invoke', command, args, id });
-		setTimeout(() => { if (pending.has(id)) { pending.delete(id); reject(new Error('timeout')); } }, 20000);
+		setTimeout(() => { if (pending.has(id)) { pending.delete(id); reject(new Error('timeout')); } }, 10000);
 	});
 }
 
@@ -811,10 +879,20 @@ window.addEventListener('message', (event) => {
 	}
 });
 
+// Расход прокси для банка ключей: остаток дневного лимита + топ ключей.
+async function ensureUsage() {
+	if (!state?.teamId || state.demoMode || state.usageLoaded) { return; }
+	try { state.usage = await svc('auraTeam.teamUsage', []); state.usageLoaded = true; } catch { state.usage = undefined; state.usageLoaded = true; }
+}
+
 // Список архивов для раздела «Файлы» подгружается при входе в раздел (не в общем state).
+// Вместе с ним — лимиты сервера (размер/TTL), чтобы честно показывать срок хранения.
 async function ensureArchives() {
-	if (!state?.teamId || state.archivesLoaded) { return; }
-	try { state.archives = await demo('auraTeam.listArchives', []); state.archivesLoaded = true; } catch { state.archives = []; }
+	if (!state?.teamId) { return; }
+	if (!state.archivesLoaded) {
+		try { state.archives = await demo('auraTeam.listArchives', []); state.archivesLoaded = true; } catch { state.archives = []; }
+	}
+	if (!state.limits) { state.limits = await svc('auraTeam.fetchLimits', []).catch(() => undefined); }
 }
 
 function esc(value) {
@@ -1064,7 +1142,7 @@ function renderInner() {
 	// Вход = серверная сессия (не локальный профиль).
 	const needsAuth = !state.signedIn;
 	if (needsAuth) { return mount(renderAuth()); }
-	if (route === 'keys') { return mount(renderKeys()); }
+	if (route === 'keys') { void ensureUsage().then(() => { if (route === 'keys') { mount(renderKeys()); wireKeys(); } }); return mount(renderKeys()); }
 	if (route === 'profile') { return mount(renderProfile()); }
 	if (route === 'board') { return mount(renderBoardSection()); }
 	if (route === 'git') { return mount(renderGitSection()); }
@@ -1298,6 +1376,21 @@ function wireTabs() {
 }
 
 /* ---------- Верхнеуровневые разделы: Канбан, Git, Файлы ---------- */
+// Фильтры канбана: поиск по названию + мультивыбор участников + «только просроченные».
+let kanban = { search: '', members: [], overdueOnly: false };
+const boardFilterIsOn = () => !!(kanban.search || kanban.members.length || kanban.overdueOnly || boardFilter);
+function kanbanChipHtml(label, onClear) {
+	return `<span class="filter-chip">${esc(label)}<button data-chip-clear="${esc(onClear)}" title="${esc(T('cancel'))}">×</button></span>`;
+}
+function myRole() {
+	return (state.session?.teams ?? []).find((t) => t.id === state.teamId)?.role ?? 'viewer';
+}
+function canDeleteTask(task) {
+	const role = myRole();
+	if (['owner', 'maintainer'].includes(role)) { return true; }
+	return role === 'dev' && task.assigneeId === state.session?.user?.id;
+}
+function canEditBoard() { return myRole() !== 'viewer'; }
 function renderBoardSection() {
 	const board = state.board;
 	if (!board) {
@@ -1305,9 +1398,27 @@ function renderBoardSection() {
 	}
 	const tB = (state.session?.teams ?? []).find((x) => x.id === state.teamId);
 	const overdue = overdueCount(board);
-	return `<div class="view-head"><div class="view-title">${esc(T('navBoard'))}
-		${overdue ? `<button class="chip ${boardOverdueOnly ? 'accent' : 'off'}" id="btnOverdueFilter" title="${esc(T('overdueFilterHint'))}" style="cursor:pointer;border:none;font:inherit">⚠ ${overdue}</button>` : ''}
-		</div><div class="view-sub">${esc(tB?.name || '')}${boardOverdueOnly ? ` · ${esc(T('overdueOnly'))}` : ''}</div></div>${renderBoard(board)}`;
+	const mine = board.tasks.filter((t) => t.assigneeId === state.session?.user?.id).length;
+	const me = board.members.find((m) => m.id === state.session?.user?.id);
+	// Сводка: каждый фрагмент — быстрый фильтр.
+	const summary = `<div class="flex mt8" style="flex-wrap:wrap;gap:6px">
+		<button class="chip ${!boardFilterIsOn() ? 'accent' : ''}" data-quick="all" style="cursor:pointer;border:none;font:inherit">${board.tasks.length} ${esc(T('summaryTasks'))}</button>
+		${overdue ? `<button class="chip ${kanban.overdueOnly ? 'accent' : 'off'}" data-quick="overdue" style="cursor:pointer;border:none;font:inherit">⚠ ${overdue} ${esc(T('summaryOverdue'))}</button>` : ''}
+		${mine ? `<button class="chip ${kanban.members.length === 1 && kanban.members[0] === state.session?.user?.id ? 'accent' : ''}" data-quick="mine" style="cursor:pointer;border:none;font:inherit">${mine} ${esc(T('summaryMine'))}</button>` : ''}
+	</div>`;
+	// Строка фильтров: поиск, аватарки участников, тумблер просроченных.
+	const filterRow = `<div class="kanban-filters">
+		<input data-kanban-search placeholder="⌕ ${esc(T('searchPh'))}" value="${esc(kanban.search)}">
+		${board.members.map((m) => `<span class="kanban-ava ${kanban.members.includes(m.id) ? 'on' : ''}" data-kanban-member="${esc(m.id)}" title="${esc(m.displayName)}" style="background:linear-gradient(135deg, ${flattenColor(m.id)}cc, ${flattenColor(m.id)}88)">${esc(initials(m.displayName))}</span>`).join('')}
+		<button class="chip ${kanban.overdueOnly ? 'accent' : ''}" data-quick="overdue" style="cursor:pointer;border:none;font:inherit">⚠ ${esc(T('overdueFilterHint'))}</button>
+	</div>`;
+	// Чипсы активных фильтров + кнопка «Сбросить: Wiks».
+	const chips = [];
+	if (kanban.search) { chips.push(kanbanChipHtml('⌕ ' + kanban.search, 'search')); }
+	kanban.members.forEach((id) => { const m = board.members.find((x) => x.id === id); if (m) { chips.push(kanbanChipHtml(m.displayName, 'member:' + id)); } });
+	if (kanban.overdueOnly) { chips.push(kanbanChipHtml(T('overdueOnly'), 'overdue')); }
+	const chipBar = chips.length ? `<div class="flex mt8" style="flex-wrap:wrap">${chips.join('')}<button class="btn ghost sm" id="kanbanReset">${esc(T('resetTo'))}: ${esc(me?.displayName || '')}</button></div>` : '';
+	return `<div class="view-head"><div class="view-title">${esc(T('navBoard'))}</div><div class="view-sub">${esc(tB?.name || '')}</div>${summary}${chipBar}${filterRow}</div><div aria-live="polite" class="hidden" id="kanbanLive"></div>${renderBoard(board)}`;
 }
 function renderGitSection() {
 	if (!state.teamId) {
@@ -1326,8 +1437,23 @@ function renderFilesSection() {
 }
 
 function renderMembers(board) {
-	return `<div class="card" style="--i:0">
-			${board.members.map((m, i) => `<div class="member" style="--i:${i}">
+	const myRole = (state.session?.teams ?? []).find((t) => t.id === state.teamId)?.role ?? 'viewer';
+	// Сначала онлайн; у офлайновых — «был в сети …» из lastSeenAt.
+	const sorted = [...board.members].sort((a, b) => Number(b.online) - Number(a.online) || a.displayName.localeCompare(b.displayName));
+	const onlineCount = board.members.filter((m) => m.online).length;
+	const lastSeenText = (m) => {
+		if (m.online || m.id === 'demo-me') { return T('onlineNow'); }
+		if (!m.lastSeenAt) { return T('offlineAgo') + ': —'; }
+		return T('offlineAgo') + ' ' + timeAgoStr(m.lastSeenAt);
+	};
+	// Удаление участника: owner удаляет maintainer/dev/viewer; maintainer — dev/viewer. Owner-ов не удаляем.
+	const canRemove = (m) => !state.demoMode && m.role !== 'owner' && m.id !== state.session?.user?.id
+		&& (myRole === 'owner' || (myRole === 'maintainer' && ['dev', 'viewer'].includes(m.role)));
+	return `<div class="flex" style="justify-content:space-between;margin-bottom:10px">
+			<span class="chip ok">● ${onlineCount} ${esc(T('onlineNow'))}</span>
+		</div>
+		<div class="card" style="--i:0">
+			${sorted.map((m, i) => `<div class="member" style="--i:${i}">
 				<div class="avatar-mini" style="background:${flattenColor(m.id === 'demo-me' ? state.profile?.avatarColor : m.id)}00;background:linear-gradient(135deg, ${flattenColor(m.id)}cc, ${flattenColor(m.id)}88)">${esc(initials(m.displayName))}
 					<span class="presence ${m.online ? 'live' : 'off'}"></span>
 				</div>
@@ -1337,12 +1463,22 @@ function renderMembers(board) {
 				</div>
 				<span class="chip ${m.role === 'owner' ? 'accent' : ''}">${esc(T('role' + cap(m.role)))}</span>
 				${state.session?.teams.find(t => t.id === state.teamId)?.role === 'owner' && m.role !== 'owner' ? `<select class="role-select" data-member="${esc(m.id)}">${['owner', 'maintainer', 'dev', 'viewer'].map((r) => `<option value="${r}" ${r === m.role ? 'selected' : ''}>${esc(T('role' + cap(r)))}</option>`).join('')}</select>` : ''}
+				${canRemove(m) ? `<button class="btn ghost sm danger-text" data-remove-member="${esc(m.id)}" title="${esc(T('removeMember'))}">×</button>` : ''}
+				<div class="memail" style="flex-basis:100%">${esc(lastSeenText(m))}</div>
 			</div>`).join('')}
 		</div>`;
 }
 function wireMembers() {
 	document.querySelectorAll('.role-select').forEach((s) => s.addEventListener('change', async () => {
 		await demo('auraTeam.changeRole', [s.dataset.member, s.value]);
+	}));
+	// Удаление участника с подтверждением; при ошибке сервера — тост.
+	document.querySelectorAll('[data-remove-member]').forEach((b) => b.addEventListener('click', () => {
+		const m = state.board?.members.find((x) => x.id === b.dataset.removeMember);
+		if (!m) { return; }
+		confirmAction(`${T('removeMember')} · ${m.displayName}`, async () => {
+			try { await svc('auraTeam.removeMember', [m.id]); } catch (err) { toast(err.message, 'err'); }
+		});
 	}));
 }
 
@@ -1365,8 +1501,7 @@ let boardOverdueOnly = false; // «только просроченные»
 try { boardFilter = JSON.parse('__INITIAL_FILTER__'); } catch { boardFilter = null; }
 function overdueCount(board) {
 	return (board?.tasks ?? []).filter((t) => t.dueAt && t.status !== 'done' && new Date(t.dueAt).getTime() < Date.now()).length;
-}
-function renderBoard(board) {
+}function renderBoard(board) {
 	const statuses = [
 		['todo', T('statusTodo')], ['doing', T('statusDoing')], ['review', T('statusReview')], ['done', T('statusDone')]
 	];
@@ -1376,37 +1511,41 @@ function renderBoard(board) {
 	} else if (boardFilter?.task) {
 		highlightTask = board.tasks.find((t) => t.id === boardFilter.task)?.id ?? null;
 	}
+	const needle = kanban.search.trim().toLowerCase();
 	const isOverdue = (t) => t.dueAt && t.status !== 'done' && new Date(t.dueAt).getTime() < Date.now();
-	const visible = (t) => (!filterMember || t.assigneeId === filterMember.id) && (!boardOverdueOnly || isOverdue(t));
-	const filterBar = (filterMember || highlightTask)
-		? `<div class="board-filter"><span>⌕ ${filterMember ? esc(filterMember.displayName) : '⌗'} </span><button class="btn ghost" id="boardFilterClear">${esc(T('cancel'))}</button></div>`
-		: '';
-	return `${filterBar}<div class="board-cols">
+	const visible = (t) =>
+		(!filterMember || t.assigneeId === filterMember.id)
+		&& (!kanban.members.length || kanban.members.includes(t.assigneeId))
+		&& (!kanban.overdueOnly || isOverdue(t))
+		&& (!needle || String(t.title).toLowerCase().includes(needle));
+	const editable = canEditBoard();
+	return `<div class="board-cols">
 		${statuses.map(([id, label], ci) => {
-			// Внутри колонки: сначала без дедлайна/срочные, просроченные — вверху с подсветкой.
+			// Внутри колонки: сначала срочные по дедлайну, без дедлайна — внизу в ручном порядке.
 			const tasks = board.tasks.filter((t) => t.status === id && visible(t)).sort((a, b) => {
 				if (!a.dueAt && !b.dueAt) { return (a.position || 0) - (b.position || 0); }
 				if (!a.dueAt) { return 1; }
 				if (!b.dueAt) { return -1; }
 				return new Date(a.dueAt) - new Date(b.dueAt);
 			});
-			return `<div class="col" style="--i:${ci}" data-status="${id}">
+			return `<div class="col" style="--i:${ci}" data-status="${id}" tabindex="0">
 				<div class="col-head"><span class="col-title">${esc(label)}</span><span class="col-count">${tasks.length}</span></div>
 				${tasks.map((task, i) => {
-					// Просрочено: дедлайн в прошлом и задача ещё не готова. Скоро: осталось < 48ч.
 					const overdue = task.dueAt && task.status !== 'done' && new Date(task.dueAt).getTime() < Date.now();
 					const soon = !overdue && task.dueAt && task.status !== 'done' && new Date(task.dueAt).getTime() - Date.now() < 48 * 3600e3;
-					return `<div class="task-card ${task.id === highlightTask ? 'highlight' : ''} ${overdue ? 'overdue' : soon ? 'due-soon' : ''}" style="--i:${i}" draggable="true" data-task="${esc(task.id)}" data-open-task="${esc(task.id)}">
+					const assignee = board.members.find((m) => m.id === task.assigneeId);
+					return `<div class="task-card ${task.id === highlightTask ? 'highlight' : ''} ${overdue ? 'overdue' : soon ? 'due-soon' : ''}" style="--i:${i}" tabindex="0" role="listitem" aria-label="${esc(task.title)}" data-task="${esc(task.id)}" data-open-task="${esc(task.id)}" data-col="${id}">
 					<div class="task-title">${esc(task.title)}</div>
 					${task.description ? `<div class="task-desc">${esc(task.description)}</div>` : ''}
-					<div class="task-meta">
-						<span class="status-dot st-${esc(task.status)}" title="${esc(statusLabel(task.status))}"></span>
-						<span class="task-assignee">${task.assigneeName ? `${esc(task.assigneeName)}` : `<span class="dim">${esc(T('noAssignee'))}</span>`}</span>
+					<div class="task-foot">
+						${task.assigneeName ? `<span class="ava-18" style="background:linear-gradient(135deg, ${flattenColor(task.assigneeId || task.assigneeName)}cc, ${flattenColor(task.assigneeId || task.assigneeName)}88)" title="${esc(task.assigneeName)}">${esc(initials(task.assigneeName))}</span>` : ''}
 						${task.dueAt ? `<span class="task-due ${overdue ? 'hot' : soon ? 'warm' : ''}">${overdue ? '⚠ ' : soon ? '⏰ ' : ''}${esc(timeAgoStr(task.dueAt))}</span>` : ''}
 					</div>
+					<button class="card-menu-btn" data-menu-task="${esc(task.id)}" title="${esc(T('quickActions'))}" tabindex="0">⋮</button>
 				</div>`;
 				}).join('')}
-				<button class="btn ghost add-task" data-status="${id}">${esc(T('addTask'))}</button>
+				${tasks.length ? '' : `<div class="col-empty">${esc(T('dropHere'))}</div>`}
+				${editable ? `<button class="btn ghost add-task" data-status="${id}">${esc(T('addTask'))}</button>` : ''}
 			</div>`;
 		}).join('')}
 	</div>`;
@@ -1468,26 +1607,99 @@ function deletedToast(onUndo) {
 }
 
 function wireBoard() {
-	const clearBtn = document.getElementById('boardFilterClear');
-	if (clearBtn) { clearBtn.addEventListener('click', () => { boardFilter = null; render(); }); }
-	const overdueBtn = document.getElementById('btnOverdueFilter');
-	overdueBtn?.addEventListener('click', () => { boardOverdueOnly = !boardOverdueOnly; render(); });
-	// Клик по карточке — карточка задачи (детали/редактирование). Не мешает drag&drop и контролам.
+	// Фильтры: поиск (дебаунс 250мс), мультивыбор участников, тумблер просроченных, чипсы.
+	let searchTimer = null;
+	const searchInput = document.querySelector('[data-kanban-search]');
+	searchInput?.addEventListener('input', () => {
+		clearTimeout(searchTimer);
+		searchTimer = setTimeout(() => { kanban.search = searchInput.value; render(); }, 250);
+	});
+	document.querySelectorAll('[data-kanban-member]').forEach((el) => el.addEventListener('click', () => {
+		const id = el.dataset.kanbanMember;
+		kanban.members = kanban.members.includes(id) ? kanban.members.filter((x) => x !== id) : [...kanban.members, id];
+		render();
+	}));
+	document.querySelectorAll('[data-quick]').forEach((el) => el.addEventListener('click', () => {
+		const kind = el.dataset.quick;
+		if (kind === 'all') { kanban = { search: '', members: [], overdueOnly: false }; boardFilter = null; }
+		else if (kind === 'overdue') { kanban.overdueOnly = !kanban.overdueOnly; }
+		else if (kind === 'mine') { kanban.members = kanban.members.length === 1 && kanban.members[0] === state.session?.user?.id ? [] : [state.session?.user?.id]; }
+		render();
+	}));
+	document.querySelectorAll('[data-chip-clear]').forEach((el) => el.addEventListener('click', () => {
+		const what = el.dataset.chipClear;
+		if (what === 'search') { kanban.search = ''; }
+		else if (what === 'overdue') { kanban.overdueOnly = false; }
+		else if (what?.startsWith('member:')) { kanban.members = kanban.members.filter((x) => x !== what.slice(7)); }
+		render();
+	}));
+	document.getElementById('kanbanReset')?.addEventListener('click', () => { kanban = { search: '', members: [], overdueOnly: false }; boardFilter = null; render(); });
+	// Клик по карточке — карточка задачи. Не мешает drag&drop и контролам.
 	document.querySelectorAll('[data-open-task]').forEach((card) => card.addEventListener('click', (e) => {
-		if (e.target.closest('select, button, .task-status, .task-assignee')) { return; }
+		if (e.target.closest('button, input, select')) { return; }
 		if (card.classList.contains('dragging')) { return; }
 		openTaskModal(card.dataset.openTask);
 	}));
+	// Поповер быстрых действий (⋮).
+	document.querySelectorAll('[data-menu-task]').forEach((btn) => btn.addEventListener('click', (e) => {
+		e.stopPropagation();
+		openQuickActions(btn.dataset.menuTask, btn);
+	}));
+	// Клавиатура: стрелки внутри колонки, Enter открывает, Ctrl+←→ переносит, Delete удаляет, N создаёт.
+	// Делегирование с защитой от повторной подписки: wireBoard вызывается на каждый рендер,
+	// а #view живёт между рендерами — иначе обработчики накапливаются (утечка).
+	const viewEl = document.getElementById('view');
+	if (!viewEl.dataset.kbWired) {
+		viewEl.dataset.kbWired = '1';
+		viewEl.addEventListener('keydown', (e) => {
+		const card = e.target.closest?.('.task-card');
+		if (!card) { return; }
+		const id = card.dataset.task;
+		const col = card.dataset.col;
+		const cardsInCol = [...document.querySelectorAll(`.task-card[data-col="${col}"]`)];
+		const idx = cardsInCol.indexOf(card);
+		const order = ['todo', 'doing', 'review', 'done'];
+		if (e.key === 'ArrowDown' && idx < cardsInCol.length - 1) { e.preventDefault(); cardsInCol[idx + 1].focus(); }
+		else if (e.key === 'ArrowUp' && idx > 0) { e.preventDefault(); cardsInCol[idx - 1].focus(); }
+		else if (e.key === 'Enter') { e.preventDefault(); openTaskModal(id); }
+		else if (e.key === 'Delete' && canDeleteTask(state.board.tasks.find((t) => t.id === id))) { e.preventDefault(); void deleteTaskWithUndo(id); }
+		else if (e.ctrlKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') && canEditBoard()) {
+			e.preventDefault();
+			const next = order[Math.min(order.indexOf(col) + (e.key === 'ArrowRight' ? 1 : -1), order.length - 1)];
+			if (next && next !== col) { void demo('auraTeam.updateTask', [id, { status: next }]).then(() => render()).catch((err) => toast(err.message, 'err')); }
+		} else if ((e.key === 'n' || e.key === 'N' || e.key === 'т' || e.key === 'Т') && !e.ctrlKey && !e.metaKey && canEditBoard()) {
+			e.preventDefault(); openAddTaskModal(col);
+		}
+		});
+	}
 	let dragId = null;
+	const viewWrap = document.getElementById('view');
 	const cards = document.querySelectorAll('.task-card');
 	cards.forEach((c) => {
-		c.addEventListener('dragstart', () => { dragId = c.dataset.task; c.classList.add('dragging'); });
-		c.addEventListener('dragend', () => { dragId = null; document.querySelectorAll('.task-card').forEach((x) => x.classList.remove('dragging', 'task-drop-before')); });
+		c.addEventListener('dragstart', (e) => {
+			if (!canEditBoard()) { e.preventDefault(); return; }
+			dragId = c.dataset.task; c.classList.add('dragging');
+		});
+		c.addEventListener('dragend', () => { dragId = null; document.querySelectorAll('.task-card').forEach((x) => x.classList.remove('dragging', 'task-drop-before')); document.querySelectorAll('.col').forEach((x) => x.classList.remove('drop-target')); });
 	});
+	// Esc отменяет перетаскивание (один глобальный обработчик, не на каждый рендер).
+	if (!window.__kanbanEscWired) {
+		window.__kanbanEscWired = true;
+		document.addEventListener('keydown', (e) => {
+			if (e.key === 'Escape') { document.querySelectorAll('.task-card').forEach((x) => x.classList.remove('dragging', 'task-drop-before')); }
+		});
+	}
 	document.querySelectorAll('.col').forEach((col) => {
 		col.addEventListener('dragover', (e) => {
+			if (!canEditBoard()) { return; }
 			e.preventDefault();
 			col.classList.add('drop-target');
+			// Автоскролл при приближении курсора к краю видимой области.
+			const box = viewWrap?.getBoundingClientRect();
+			if (box) {
+				if (e.clientY < box.top + 40) { viewWrap.scrollTop -= 12; }
+				else if (e.clientY > box.bottom - 40) { viewWrap.scrollTop += 12; }
+			}
 			// Подсветка места вставки: перед какой карточкой упадёт перетаскиваемая.
 			const after = insertAfterPoint(col, e.clientY, dragId);
 			document.querySelectorAll('.task-card').forEach((x) => x.classList.remove('task-drop-before'));
@@ -1495,13 +1707,14 @@ function wireBoard() {
 		});
 		col.addEventListener('dragleave', () => col.classList.remove('drop-target'));
 		col.addEventListener('drop', async (e) => {
+			if (!canEditBoard()) { return; }
 			e.preventDefault();
 			col.classList.remove('drop-target');
 			if (!dragId) { return; }
 			const moved = state.board.tasks.find((t) => t.id === dragId);
 			const toStatus = col.dataset.status;
 			if (!moved || !toStatus) { return; }
-			// Собираем новый порядок колонки: все задачи статуса, минус перетаскиваемая, с вставкой на место курсора.
+			// Собираем новый порядок колонки и отправляем один POST /tasks/reorder.
 			const ordered = state.board.tasks.filter((t) => t.status === toStatus && t.id !== moved.id)
 				.sort((a, b) => (a.position || 0) - (b.position || 0));
 			const afterEl = insertAfterPoint(col, e.clientY, dragId);
@@ -1509,49 +1722,143 @@ function wireBoard() {
 			const idx = afterId ? ordered.findIndex((t) => t.id === afterId) : ordered.length;
 			const insertAt = idx === -1 ? ordered.length : idx;
 			ordered.splice(insertAt, 0, moved);
-			// Локально применяем и отправляем reorder одним запросом (позиции 0..n на сервере).
+			const prevStatus = moved.status; const prevOrder = state.board.tasks.filter((t) => t.status === toStatus).map((t) => t.id);
 			ordered.forEach((t, i) => { t.status = toStatus; t.position = i; });
-			try { await demo('auraTeam.reorderTasks', [toStatus, ordered.map((t) => t.id)]); } catch (err) { toast(err.message, 'err'); }
-			render();
-		});
-	});
-	// Свайп-удаление: удержание 450мс «взводит» карточку, тянем вправо ≥40% ширины — удаляем.
-	attachSwipeDelete(document.querySelectorAll('.task-card'), async (id) => {
-		try { await demo('auraTeam.deleteTask', [id]); } catch (err) { toast(err.message, 'err'); return; }
-		render();
-		deletedToast(async () => { try { await demo('auraTeam.restoreTask', [id]); } catch (err) { toast(err.message, 'err'); } render(); });
-	});	document.querySelectorAll('.add-task').forEach((btn) => btn.addEventListener('click', () => {
-		const status = btn.dataset.status;
-		openModal({
-			title: T('addTask'), actionText: T('create'),
-			body: `<div class="field"><label>${esc(T('addTaskPh'))}</label><input data-task-title maxlength="80" placeholder="${esc(T('addTaskPh'))}" autofocus></div>`,
-			onAction: async (overlay) => {
-				const input = overlay.querySelector('[data-task-title]');
-				if (!input?.value.trim()) { return true; }
-				await demo('auraTeam.createTask', [input.value.trim(), status]);
-				return false;
+			render(); // оптимистично: карточка уже на месте
+			try { await demo('auraTeam.reorderTasks', [toStatus, ordered.map((t) => t.id)]); }
+			catch (err) {
+				toast(err.message, 'err');
+				moved.status = prevStatus; render(); // откат
 			}
 		});
-		setTimeout(() => document.querySelector('[data-task-title]')?.focus(), 30);
+	});
+	// Свайп-удаление: только свои задачи у dev / любые у maintainer+. На чужих — подсказка.
+	const deletable = new Set(state.board.tasks.filter((t) => canDeleteTask(t)).map((t) => t.id));
+	attachSwipeDelete([...document.querySelectorAll('.task-card')].filter((el) => deletable.has(el.dataset.task)), async (id) => { await deleteTaskWithUndo(id); });
+	document.querySelectorAll('.add-task').forEach((btn) => btn.addEventListener('click', () => openAddTaskModal(btn.dataset.status)));
+}
+function openAddTaskModal(status) {
+	const members = state.board?.members ?? [];
+	const ru = lang === 'ru';
+	openModal({
+		title: T('addTask'), actionText: T('create'),
+		body: `<div class="field"><label>${esc(T('addTaskPh'))}</label><input data-task-title maxlength="80" placeholder="${esc(T('addTaskPh'))}" autofocus></div>
+			${members.length ? `<div class="field"><label>${esc(T('assignee'))}</label><select data-task-assignee><option value="">${esc(T('noAssignee'))}</option>${members.map((m) => `<option value="${esc(m.id)}" ${m.id === state.session?.user?.id ? 'selected' : ''}>${esc(m.displayName)}</option>`).join('')}</select></div>` : ''}`,
+		onAction: async (overlay) => {
+			const input = overlay.querySelector('[data-task-title]');
+			if (!input?.value.trim()) { return true; }
+			const assigneeId = overlay.querySelector('[data-task-assignee]')?.value;
+			const task = await demo('auraTeam.createTask', [input.value.trim(), status]);
+			if (task && assigneeId && assigneeId !== state.session?.user?.id) {
+				try { await demo('auraTeam.updateTask', [task.id, { assigneeId }]); } catch { /* назначение не критично */ }
+			}
+			return false;
+		}
+	});
+	setTimeout(() => document.querySelector('[data-task-title]')?.focus(), 30);
+}
+// Оптимистичное удаление с тостом «Отменить» и откатом при ошибке.
+async function deleteTaskWithUndo(id) {
+	const task = state.board?.tasks.find((t) => t.id === id);
+	if (!task) { return; }
+	state.board.tasks = state.board.tasks.filter((t) => t.id !== id); // оптимистично
+	render();
+	try {
+		await demo('auraTeam.deleteTask', [id]);
+	} catch (err) {
+		toast(err.message, 'err');
+		state.board.tasks.push(task); render(); // откат
+		return;
+	}
+	deletedToast(async () => {
+		try { await demo('auraTeam.restoreTask', [id]); } catch (err) { toast(err.message, 'err'); }
+		render();
+	});
+}
+/* Поповер быстрых действий карточки: статус, исполнитель, дедлайн-пресеты, открыть/удалить. */
+function openQuickActions(taskId, anchor) {
+	const task = (state.board?.tasks ?? []).find((t) => t.id === taskId);
+	if (!task) { return; }
+	document.querySelector('.qa-pop')?.remove();
+	const members = state.board?.members ?? [];
+	const canDelete = canDeleteTask(task);
+	const pop = document.createElement('div');
+	pop.className = 'qa-pop';
+	pop.innerHTML = `
+		<div class="qa-seg">${STATUS_META.map(([sid, key]) => `<button data-qa-status="${sid}" class="${sid === task.status ? 'on' : ''}" title="${esc(T(key))}">${esc(T(key).slice(0, 8))}</button>`).join('')}</div>
+		<select data-qa-assignee style="width:100%;padding:5px 8px;font-size:11.5px">
+			<option value="">${esc(T('noAssignee'))}</option>
+			${members.map((m) => `<option value="${esc(m.id)}" ${m.id === task.assigneeId ? 'selected' : ''}>${esc(m.displayName)}</option>`).join('')}
+		</select>
+		<div class="qa-due">
+			<button data-qa-due="today">${esc(T('dueToday'))}</button>
+			<button data-qa-due="tomorrow">${esc(T('dueTomorrow'))}</button>
+			<button data-qa-due="week">${esc(T('dueWeek'))}</button>
+			<button data-qa-due="clear">×</button>
+		</div>
+		<div class="qa-div"></div>
+		<button class="qa-row" data-qa-open>⤢ ${esc(T('openTask'))}</button>
+		${canDelete ? `<button class="qa-row danger-text" data-qa-delete>🗑 ${esc(T('delete'))}</button>` : ''}`;
+	document.body.appendChild(pop);
+	const rect = anchor.getBoundingClientRect();
+	pop.style.top = Math.min(rect.bottom + 6, window.innerHeight - pop.offsetHeight - 8) + 'px';
+	pop.style.left = Math.max(8, Math.min(rect.right - 220, window.innerWidth - 228)) + 'px';
+	const close = () => { pop.remove(); document.removeEventListener('click', onDoc); };
+	const onDoc = (e) => { if (!pop.contains(e.target)) { close(); } };
+	setTimeout(() => document.addEventListener('click', onDoc), 0);
+	pop.querySelector('[data-qa-open]').addEventListener('click', () => { close(); openTaskModal(taskId); });
+	pop.querySelector('[data-qa-delete]')?.addEventListener('click', () => { close(); void deleteTaskWithUndo(taskId); });
+	pop.querySelectorAll('[data-qa-status]').forEach((b) => b.addEventListener('click', async () => {
+		close();
+		const prev = task.status;
+		task.status = b.dataset.qaStatus; render();
+		try { await demo('auraTeam.updateTask', [taskId, { status: b.dataset.qaStatus }]); } catch (err) { toast(err.message, 'err'); task.status = prev; render(); }
+	}));
+	pop.querySelector('[data-qa-assignee]').addEventListener('change', async (e) => {
+		close();
+		try { await demo('auraTeam.updateTask', [taskId, { assigneeId: e.target.value || null }]); } catch (err) { toast(err.message, 'err'); }
+		render();
+	});
+	pop.querySelectorAll('[data-qa-due]').forEach((b) => b.addEventListener('click', async () => {
+		close();
+		const kind = b.dataset.qaDue;
+		const dueAt = kind === 'clear' ? undefined
+			: kind === 'today' ? new Date(new Date().setHours(18, 0, 0, 0)).toISOString()
+			: kind === 'tomorrow' ? new Date(new Date().setHours(18, 0, 0, 0) + 864e5).toISOString()
+			: new Date(new Date().setHours(18, 0, 0, 0) + 7 * 864e5).toISOString();
+		try { await demo('auraTeam.updateTask', [taskId, { dueAt }]); } catch (err) { toast(err.message, 'err'); }
+		render();
 	}));
 }
 /* ---------- Карточка задачи: детали + редактирование ---------- */
+// Три состояния асинхронного блока: скелетон / пусто / ошибка с повтором. Вечное «Загрузка…» — дефект.
+function asyncBlockHtml(stateKind, retryCmd) {
+	if (stateKind === 'loading') { return `<div class="skeleton" style="height:14px;margin-top:6px"></div><div class="skeleton" style="height:14px;margin-top:6px;width:70%"></div>`; }
+	if (stateKind === 'error') { return `<div class="sub" style="color:var(--danger)">${esc(T('loadError'))}</div><button class="btn ghost sm mt8" data-retry="${esc(retryCmd)}">${esc(T('retry'))}</button>`; }
+	return '';
+}
 function openTaskModal(taskId) {
 	const task = (state.board?.tasks ?? []).find((t) => t.id === taskId);
 	if (!task) { return; }
 	const ru = lang === 'ru';
+	const shortId = esc(task.id.slice(0, 8));
 	openModal({
-		title: T('taskCard'), actionText: T('save'),
-		body: `<div class="field"><label>${esc(T('taskTitle'))}</label><input data-task-edit-title maxlength="120" value="${esc(task.title)}"></div>
-			<div class="field"><label>${esc(T('description'))}</label><textarea data-task-edit-desc rows="3" placeholder="${esc(T('descrPh'))}">${esc(task.description || '')}</textarea></div>
-			<div class="field"><label>${esc(ru ? 'Дедлайн' : 'Due date')}</label><input data-task-edit-due type="datetime-local" value="${task.dueAt ? esc(new Date(task.dueAt).toISOString().slice(0, 16)) : ''}"></div>
-			<div class="row mt8 gap8">
-				<div class="field" style="flex:1"><label>${esc(T('status'))}</label><select data-task-edit-status>${STATUS_META.map(([sid, key]) => `<option value="${sid}" ${sid === task.status ? 'selected' : ''}>${esc(T(key))}</option>`).join('')}</select></div>
-				<div class="field" style="flex:1"><label>${esc(T('assignee'))}</label><select data-task-edit-assignee><option value="">${esc(T('noAssignee'))}</option>${(state.board?.members ?? []).map((m) => `<option value="${esc(m.id)}" ${m.id === task.assigneeId ? 'selected' : ''}>${esc(m.displayName)}</option>`).join('')}</select></div>
+		title: esc(task.title), actionText: T('save'),
+		body: `
+			<div class="flex" style="justify-content:space-between;margin-bottom:12px">
+				<span class="id-strip" style="margin-top:0">#<span data-task-id>${shortId}</span><button class="btn ghost sm copy-btn" data-copy-id="${esc(task.id)}">${esc(T('copy'))}</button></span>
 			</div>
-			<div class="field mt8" data-commits-block><label>${esc(T('taskCommits'))}</label><div class="sub">${esc(T('loading'))}</div></div>
-			<div class="hint">${esc(ru ? 'Коммит связывается с задачей, если в сообщении есть #' + esc(task.id.slice(0, 8)) : 'A commit links to this task when the message mentions #' + esc(task.id.slice(0, 8)))}</div>
-			<div class="field mt8" data-history-block><label>${esc(ru ? 'История изменений' : 'Change history')}</label><div class="sub">${esc(T('loading'))}</div></div>`,
+			<div class="hint" style="margin:-6px 0 10px">${esc(ru ? 'Коммит связывается с задачей, если в сообщении есть #' + shortId : 'A commit links to this task when the message mentions #' + shortId)}</div>
+			<div class="field"><label>${esc(T('taskTitle'))}</label><input data-task-edit-title maxlength="120" value="${esc(task.title)}"></div>
+			<div class="field"><label>${esc(T('description'))}</label><textarea data-task-edit-desc rows="3" placeholder="${esc(T('descrPh'))}">${esc(task.description || '')}</textarea></div>
+			<div class="row gap8" style="flex-wrap:wrap">
+				<div class="field" style="flex:1;min-width:110px;margin-bottom:0"><label>${esc(T('status'))}</label><select data-task-edit-status>${STATUS_META.map(([sid, key]) => `<option value="${sid}" ${sid === task.status ? 'selected' : ''}>${esc(T(key))}</option>`).join('')}</select></div>
+				<div class="field" style="flex:1;min-width:130px;margin-bottom:0"><label>${esc(T('assignee'))}</label><select data-task-edit-assignee><option value="">${esc(T('noAssignee'))}</option>${(state.board?.members ?? []).map((m) => `<option value="${esc(m.id)}" ${m.id === task.assigneeId ? 'selected' : ''}>${esc(m.displayName)}</option>`).join('')}</select></div>
+				<div class="field" style="flex:1;min-width:170px;margin-bottom:0"><label>${esc(ru ? 'Дедлайн' : 'Due date')}</label><input data-task-edit-due type="datetime-local" value="${task.dueAt ? esc(new Date(task.dueAt).toISOString().slice(0, 16)) : ''}"></div>
+			</div>
+			<div class="field mt12" data-commits-block data-state="loading"><label>${esc(T('taskCommits'))}</label>${asyncBlockHtml('loading')}</div>
+			<div class="field mt8" data-history-block data-state="loading"><label>${esc(ru ? 'История изменений' : 'Change history')}</label>${asyncBlockHtml('loading')}</div>
+			<div class="mt12"><button class="btn danger-text sm" style="background:none" data-delete-task="${esc(task.id)}" ${canDeleteTask(task) ? '' : 'hidden'}>${esc(T('delete'))}</button></div>`,
 		onAction: async (overlay) => {
 			const title = overlay.querySelector('[data-task-edit-title]')?.value.trim();
 			if (!title) { toast(ru ? 'Введите название' : 'Title is required', 'err'); return true; }
@@ -1563,30 +1870,44 @@ function openTaskModal(taskId) {
 			toast(ru ? 'Задача сохранена ✓' : 'Task saved ✓', 'ok');
 			return false;
 		}
-	});	// Связанные коммиты подгружаем фоном, не блокируя открытие карточки.
+	});
+	document.querySelector('[data-copy-id]')?.addEventListener('click', () => {
+		navigator.clipboard?.writeText(task.id).catch(() => {});
+		toast(T('copied'), 'ok');
+	});
+	document.querySelector('[data-delete-task]')?.addEventListener('click', () => { document.querySelector('.overlay')?.remove(); void deleteTaskWithUndo(task.id); });
+	// Связанные коммиты + история: три состояния с повтором.
+	const loadBlock = (selector, command, renderItems) => {
+		const load = () => {
+			const block = document.querySelector(selector);
+			if (!block) { return; }
+			block.dataset.state = 'loading';
+			block.innerHTML = `<label>${block.querySelector('label')?.textContent ?? ''}</label>${asyncBlockHtml('loading')}`;
+			svc(command, [task.id]).then((items) => {
+				const fresh = document.querySelector(selector);
+				if (!fresh) { return; }
+				fresh.dataset.state = 'done';
+				fresh.innerHTML = `<label>${fresh.querySelector('label')?.textContent ?? ''}</label>` + (items?.length ? renderItems(items) : `<div class="sub">${esc(command === 'auraTeam.taskCommits' ? T('noCommits') : T('noHistory'))}</div>`);
+			}).catch(() => {
+				const fresh = document.querySelector(selector);
+				if (!fresh) { return; }
+				fresh.dataset.state = 'error';
+				fresh.innerHTML = `<label>${fresh.querySelector('label')?.textContent ?? ''}</label>${asyncBlockHtml('error', command)}`;
+				fresh.querySelector('[data-retry]')?.addEventListener('click', load);
+			});
+		};
+		load();
+	};
 	if (!state.demoMode) {
-		svc('auraTeam.taskCommits', [task.id]).then((commits) => {
-			const block = document.querySelector('[data-commits-block]');
-			if (!block) { return; }
-			block.querySelector('.sub')?.remove();
-			if (!commits?.length) { block.insertAdjacentHTML('beforeend', `<div class="sub">${esc(T('noCommits'))}</div>`); return; }
-			block.insertAdjacentHTML('beforeend', commits.map((c) => `<div class="member"><span class="chip" style="font-family:var(--mono)">${esc(String(c.hash).slice(0, 8))}</span><span>${esc(c.author || '')}</span><span class="when" style="margin-left:auto">${esc(timeAgoStr(c.createdAt))}</span></div>`).join(''));
-		}).catch(() => { document.querySelector('[data-commits-block] .sub')?.remove(); });
-		// История изменений задачи из audit_log: создания/правки статуса, исполнителя, дедлайна и т.д.
-		svc('auraTeam.taskHistory', [task.id]).then((history) => {
-			const block = document.querySelector('[data-history-block]');
-			if (!block) { return; }
-			block.querySelector('.sub')?.remove();
-			if (!history?.length) { block.insertAdjacentHTML('beforeend', `<div class="sub">${esc(T('noHistory'))}</div>`); return; }
-			block.insertAdjacentHTML('beforeend', history.map((h) => `<div class="member"><span class="who" style="font-weight:600">${esc(h.userName)}</span><span class="dim">${esc(describeTaskAction(h.action, h.details))}</span><span class="when" style="margin-left:auto">${esc(timeAgoStr(h.createdAt))}</span></div>`).join(''));
-		}).catch(() => { document.querySelector('[data-history-block] .sub')?.remove(); });
+		loadBlock('[data-commits-block]', 'auraTeam.taskCommits', (commits) => commits.map((c) => `<div class="member"><span class="chip" style="font-family:var(--mono)">${esc(String(c.hash).slice(0, 8))}</span><span>${esc(c.author || '')}</span><span class="when" style="margin-left:auto">${esc(timeAgoStr(c.createdAt))}</span></div>`).join(''));
+		loadBlock('[data-history-block]', 'auraTeam.taskHistory', (history) => history.map((h) => `<div class="member"><span class="who" style="font-weight:600">${esc(h.userName)}</span><span class="dim">${esc(describeTaskAction(h.action, h.details))}</span><span class="when" style="margin-left:auto">${esc(timeAgoStr(h.createdAt))}</span></div>`).join(''));
 	} else {
 		const block = document.querySelector('[data-commits-block]');
-		block?.querySelector('.sub')?.remove();
-		block?.insertAdjacentHTML('beforeend', `<div class="member"><span class="chip" style="font-family:var(--mono)">a1b2c3d4</span><span>Demo</span><span class="when" style="margin-left:auto">2 ч</span></div>`);
+		block.dataset.state = 'done';
+		block.innerHTML = `<label>${esc(T('taskCommits'))}</label><div class="member"><span class="chip" style="font-family:var(--mono)">a1b2c3d4</span><span>Demo</span><span class="when" style="margin-left:auto">2 ч</span></div>`;
 		const hist = document.querySelector('[data-history-block]');
-		hist?.querySelector('.sub')?.remove();
-		hist?.insertAdjacentHTML('beforeend', `<div class="member"><span class="who" style="font-weight:600">Вы</span><span class="dim">${esc(lang === 'ru' ? 'создал задачу' : 'created task')}</span><span class="when" style="margin-left:auto">5 мин</span></div>`);
+		hist.dataset.state = 'done';
+		hist.innerHTML = `<label>${esc(lang === 'ru' ? 'История изменений' : 'Change history')}</label><div class="member"><span class="who" style="font-weight:600">Вы</span><span class="dim">${esc(lang === 'ru' ? 'создал задачу' : 'created task')}</span><span class="when" style="margin-left:auto">5 мин</span></div>`;
 	}
 }
 /* Человекочитаемое описание действия над задачей (из action + details audit_log). */
@@ -1609,23 +1930,34 @@ function ownerName(project, members) {
 	return m ? m.displayName : T('noAssignee');
 }
 function renderFiles(board) {
-	const archives = state.archives ?? [];
-	const fmtSize = (b) => b > 1048576 ? (b / 1048576).toFixed(1) + ' МБ' : b > 1024 ? (b / 1024).toFixed(0) + ' КБ' : b + ' Б';
-	const rows = archives.length ? archives.map((a, i) => `<div class="card clickable" style="--i:${i}" data-archive="${esc(a.id)}">
-		<div class="row" style="margin-top:0;justify-content:space-between">
-			<h3 style="margin-bottom:0">${esc(a.projectName || a.id)}</h3>
-			<span class="chip">${fmtSize(a.bytes)}</span>
+	const archives = [...(state.archives ?? [])];
+	const fmtSize = (b) => b > 1048576 ? (b / 1048576).toFixed(1) + ' ' + T('unitMb') : b > 1024 ? (b / 1024).toFixed(0) + ' ' + T('unitKb') : b + ' ' + T('unitB');
+	const hoursLeft = (a) => (new Date(a.expiresAt).getTime() - Date.now()) / 3600e3;
+	// Предупреждение оранжевым, если до истечения TTL меньше суток — файлы реально исчезают.
+	const expiresChip = (a) => {
+		if (hoursLeft(a) < 0) { return `<span class="chip off">${esc(T('expired'))}</span>`; }
+		if (hoursLeft(a) < 24) { return `<span class="chip warn">⏰ ${esc(timeAgoStr(a.expiresAt))}</span>`; }
+		return `<span class="chip">${esc(timeAgoStr(a.expiresAt))}</span>`;
+	};
+	const rows = archives.length ? `<div class="card" style="--i:0;overflow-x:auto">
+		<div class="file-table">
+			<div class="file-tr file-th"><span>${esc(T('archiveProject'))}</span><span>${esc(T('filesColSize'))}</span><span>${esc(T('filesColAuthor'))}</span><span>${esc(T('filesColUploaded'))}</span><span>${esc(T('filesColExpires'))}</span><span></span></div>
+			${archives.map((a, i) => `<div class="file-tr" style="--i:${i}">
+				<span title="${esc(a.id)}">${esc(a.projectName || a.id)}</span>
+				<span>${fmtSize(a.bytes)}</span>
+				<span>${esc(a.createdBy || '—')}</span>
+				<span>${esc(timeAgoStr(a.createdAt))}</span>
+				${expiresChip(a)}
+				<span class="row gap8" style="justify-content:flex-end">
+					<button class="btn ghost sm" data-dl-archive="${esc(a.id)}" data-dl-name="${esc(a.projectName || 'archive')}" style="white-space:nowrap">${esc(T('download'))}</button>
+					<button class="btn ghost sm danger-text" data-del-archive="${esc(a.id)}" style="white-space:nowrap">${esc(T('delete'))}</button>
+				</span>
+			</div>`).join('')}
 		</div>
-		<div class="row" style="margin-top:8px;justify-content:space-between">
-			<span class="sub">${esc(a.createdBy || '')} · ${timeAgoStr(a.createdAt)}</span>
-			<span class="row gap8">
-				<button class="btn ghost sm" data-dl-archive="${esc(a.id)}" style="white-space:nowrap">${esc(T('download'))}</button>
-				<button class="btn ghost sm danger-text" data-del-archive="${esc(a.id)}" style="white-space:nowrap">${esc(T('delete'))}</button>
-			</span>
-		</div>
-	</div>`).join('') : `<div class="empty" style="--i:0"><div><div class="big">${esc(T('noFiles'))}</div></div></div>`;
+	</div>` : `<div class="empty" style="--i:0"><div><div class="big">${esc(T('noFiles'))}</div></div></div>`;
+	const ttl = state.limits ? `<div class="sub mt8">${esc(T('ttlHint').replace('{0}', state.limits.archiveTtlDays))}</div>` : '';
 	return `<div class="section-title">${esc(T('filesTitle'))}</div>
-		<div class="card-grid">${rows}</div>
+		${rows}${ttl}
 		<div class="flex mt12"><button class="btn primary" id="btnUploadArchive" style="white-space:nowrap">${esc(T('uploadArchive'))}</button></div>`;
 }
 function timeAgoStr(iso) {
@@ -1683,9 +2015,20 @@ function wireFiles() {
 function renderGit() {
 	const git = state.git;
 	if (!git) {
-		return `<div class="empty" style="--i:0"><div><div class="big">${esc(T('noRepo'))}</div></div></div>`;
+		// Экран без репозитория: три действия вместо тупика.
+		return `<div class="empty" style="--i:0"><div>
+			<div class="big">${esc(T('noRepo'))}</div>
+			<div class="flex mt12" style="justify-content:center;flex-wrap:wrap">
+				<button class="btn primary" id="btnNoRepoClone">${esc(T('githubClone'))}</button>
+				<button class="btn ghost" id="btnNoRepoOpen">${esc(T('openFolder'))}</button>
+				<button class="btn ghost" id="btnNoRepoInit">${esc(T('gitInit'))}</button>
+			</div>
+		</div></div>`;
 	}
 	const changes = git.changes;
+	const staged = changes.filter((c) => c.kind === 'index');
+	const unstaged = changes.filter((c) => c.kind !== 'index');
+	const changeRow = (c, i) => `<label class="change-item" style="--i:${i}"><input type="checkbox" class="change-check" data-path="${esc(c.path)}" checked><span class="kind ${c.kind}">${c.kind}</span><span class="change-path" data-diff="${esc(c.path)}" title="${esc(T('diffHint'))}">${esc(c.path)}</span><button class="btn ghost sm danger-text" data-discard-file="${esc(c.path)}" title="${esc(T('discardFile'))}">×</button></label>`;
 	const ghBadge = state.githubConnected
 		? `<span class="chip ok">✓ ${esc(T('githubConnected'))}</span> <button class="btn ghost sm" id="btnGitHubOut" style="white-space:nowrap">${esc(T('githubDisconnect'))}</button>`
 		: `<span class="chip off">${esc(T('githubNotConnected'))}</span> <button class="btn ghost sm" id="btnGitHub" style="white-space:nowrap">${esc(T('githubConnect'))}</button>`;
@@ -1711,15 +2054,63 @@ function renderGit() {
 				<input id="commitMsg" placeholder="${esc(T('commitMsg'))}…" maxlength="120">
 				<button class="btn primary" id="btnCommit" style="white-space:nowrap">${esc(T('commitPush'))}</button>
 			</div>
-			${changes.length ? `<div class="changes-list" id="changesList">${changes.slice(0, 24).map((c, i) => `<label class="change-item" style="--i:${i}"><input type="checkbox" class="change-check" data-path="${esc(c.path)}" checked><span class="kind ${c.kind}">${c.kind}</span><span class="change-path" data-diff="${esc(c.path)}" title="${esc(T('diffHint'))}">${esc(c.path)}</span></label>`).join('')}</div>` : `<div class="sub mt12">${esc(T('noChanges'))} ✔</div>`}
-			<div class="flex mt12">
-				${!state.demoMode ? `<button class="btn ghost sm" id="btnUndo">${esc(T('undo'))}</button>` : ''}
+			${changes.length ? `<div class="flex mt12" style="gap:6px">
+				<button class="btn ghost sm" id="btnSelectAll">${esc(T('selectAll'))}</button>
+				<button class="btn ghost sm" id="btnSelectNone">${esc(T('selectNone'))}</button>
+			</div>
+			<div class="changes-list" id="changesList">
+				${staged.length ? `<div class="section-title" style="margin-top:6px">${esc(T('stagedChanges'))} · ${staged.length}</div>${staged.map(changeRow).join('')}` : ''}
+				${unstaged.length ? `<div class="section-title" style="margin-top:6px">${esc(T('unstagedChanges'))} · ${unstaged.length}</div>${unstaged.slice(0, 40).map(changeRow).join('')}${unstaged.length > 40 ? `<div class="sub mt8">… +${unstaged.length - 40}</div>` : ''}` : ''}
+			</div>` : `<div class="sub mt12">${esc(T('noChanges'))} ✔</div>`}
+			<div class="flex mt12" style="flex-wrap:wrap">
 				${!state.demoMode ? `<button class="btn ghost sm" id="btnRevert">${esc(T('revert'))}</button>` : ''}
+				${!state.demoMode ? `<button class="btn ghost sm" id="btnReset">${esc(T('resetBranch'))}</button>` : ''}
 			</div>
 		</div>
 		${git.commits?.length ? `<div class="section-title">${esc(T('history'))}</div><div class="card" style="--i:0">${git.commits.slice(0, 10).map((c, i) => `<div class="history-item" style="--i:${i}"><span class="hist-dot"></span><div><div class="hist-msg">${esc(c.message)}</div><div class="hist-meta">${esc(c.hash?.slice(0, 8))} · ${esc(c.author || '')} · ${esc(timeAgo(c.date))}</div></div></div>`).join('')}</div>` : ''}`;
 }
 function wireGit() {
+	// Экран без репозитория: клонировать проект команды / открыть папку / git init.
+	document.getElementById('btnNoRepoClone')?.addEventListener('click', async () => {
+		try { await svc('auraTeam.cloneGithubRepo', []); } catch (err) { toast(err.message, 'err'); }
+	});
+	document.getElementById('btnNoRepoOpen')?.addEventListener('click', () => { void svc('auraTeam.openWorkspaceFolder', []).catch((err) => toast(err.message, 'err')); });
+	document.getElementById('btnNoRepoInit')?.addEventListener('click', () => { void svc('auraTeam.gitInit', []).catch((err) => toast(err.message, 'err')); });
+	// Выбрать всё / снять всё.
+	document.getElementById('btnSelectAll')?.addEventListener('click', () => { document.querySelectorAll('.change-check').forEach((c) => { c.checked = true; }); });
+	document.getElementById('btnSelectNone')?.addEventListener('click', () => { document.querySelectorAll('.change-check').forEach((c) => { c.checked = false; }); });
+	// Отменить изменения в одном файле (git restore) с подтверждением.
+	document.querySelectorAll('[data-discard-file]').forEach((b) => b.addEventListener('click', (e) => {
+		e.preventDefault(); e.stopPropagation();
+		const path = b.dataset.discardFile;
+		if (state.demoMode) { toast(T('demo')); return; }
+		confirmAction(`${T('discardFile')} · ${path}`, async () => {
+			try { await svc('auraTeam.gitDiscardFile', [path]); } catch (err) { toast(err.message, 'err'); }
+		});
+	}));
+	// Сбросить ветку: явный выбор soft/hard с описанием последствий, hard — с подтверждением ввода.
+	document.getElementById('btnReset')?.addEventListener('click', () => {
+		if (state.demoMode) { toast(T('demo')); return; }
+		openModal({
+			title: T('resetBranch'), actionText: T('resetBranch'), danger: true,
+			body: `<div class="field"><label>${esc(T('resetSoft'))} — ${esc(T('resetSoftHint'))}</label><button class="btn ghost" data-reset-mode="soft">${esc(T('resetSoft'))}</button></div>
+				<div class="field"><label>${esc(T('resetHard'))} — ${esc(T('resetHardHint'))}</label><button class="btn danger" data-reset-mode="hard">${esc(T('resetHard'))}</button></div>`,
+			onAction: async () => true
+		});
+			setTimeout(() => {
+				document.querySelectorAll('[data-reset-mode]').forEach((b) => b.addEventListener('click', () => {
+					const mode = b.dataset.resetMode;
+					document.querySelector('.overlay')?.remove();
+					if (mode === 'hard') {
+						confirmAction(T('resetHardConfirm'), async () => {
+							try { await svc('auraTeam.gitResetBranch', ['hard']); toast(T('saved'), 'ok'); } catch (err) { toast(err.message, 'err'); }
+						});
+						return;
+					}
+					void svc('auraTeam.gitResetBranch', ['soft']).then(() => toast(T('saved'), 'ok')).catch((err) => toast(err.message, 'err'));
+				}));
+			}, 40);
+	});
 	// Клик по имени файла — дифф (рабочая версия против HEAD). Чекбокс не мешает.
 	document.querySelectorAll('.change-path[data-diff]').forEach((el) => el.addEventListener('click', (e) => {
 		e.preventDefault();
@@ -1786,8 +2177,6 @@ function wireGit() {
 			});
 		}, 40);
 	});
-	const undoBtn = document.getElementById('btnUndo');
-	undoBtn?.addEventListener('click', () => confirmAction(T('undo'), async () => { await demo('auraTeam.undoChanges', [true]); }));
 	const revertBtn = document.getElementById('btnRevert');
 	revertBtn?.addEventListener('click', () => confirmAction(T('revert'), async () => { await demo('auraTeam.revertLastCommit', [true]); }));
 	const gitHubBtn = document.getElementById('btnGitHub');
@@ -1846,15 +2235,25 @@ function groupName(groupId) {
 function renderKeys() {
 	const keys = [...(state.keys ?? [])].sort((a, b) => priorityWeight(a.priority) - priorityWeight(b.priority) || String(a.provider).localeCompare(String(b.provider)));
 	const groups = state.keyGroups ?? [];
+	// Видимый остаток дневного лимита прокси: раньше о лимите узнавали только по ошибке 429.
+	const usage = state.usage;
+	const usageBlock = usage ? `<div class="flex mt8" style="flex-wrap:wrap;gap:6px">
+		<span class="chip ${usage.remainingToday > usage.limitPerUserPerDay * 0.2 ? 'ok' : 'warn'}">${esc(T('usageRemaining').replace('{0}', usage.remainingToday).replace('{1}', usage.limitPerUserPerDay))}</span>
+		${(usage.perKey ?? []).slice(0, 3).map((row) => `<span class="chip" title="${esc(row.provider)}">${esc(row.label)}: ${row.requests}</span>`).join('')}
+	</div>` : '';
 	return `<div class="view-head">
 			<div class="view-title">${esc(T('keysTitle'))} <span class="chip accent">${keys.length}</span></div>
 			<div class="view-sub">${esc(T('keyRole'))} · ${esc(T('prioHint'))}</div>
+			${usageBlock}
 		</div>
 		${groups.length ? `<div class="flex mt8" style="flex-wrap:wrap">${groups.map(g => `<span class="chip">${esc(g.name)} <b>·</b> ${esc(T('prioGroup'))} ${g.priority}</span>`).join('')}</div>` : ''}
 		${keys.length ? `<div class="card-grid">${keys.map((key, i) => {
 			const prio = priorityMeta(key.priority);
-			const ping = key.pingMs;
-			const pingCls = ping == null ? 'off' : ping < 800 ? 'ok' : ping < 2500 ? 'warn' : 'err';
+			// Здоровье ключа: результат последней проверки (ok), а не только время ответа.
+			const healthy = key.ok === true;
+			const dead = key.ok === false;
+			const pingCls = key.ok == null ? 'off' : healthy ? (key.pingMs != null && key.pingMs < 2500 ? 'ok' : 'warn') : 'off';
+			const pingText = key.ok == null ? esc(T('pingUnknown')) : healthy ? `✓ ${esc(T('pingMs').replace('{0}', key.pingMs ?? 0))}` : esc(T('pingFail'));
 			return `<div class="card key-card" style="--i:${i}">
 			<div class="key-row">
 				<div class="provider-ico" style="background:linear-gradient(135deg, ${providerColor(key.provider)}, ${providerColor(key.provider)}88);color:#fff">${providerGlyph(key.provider)}</div>
@@ -1864,6 +2263,7 @@ function renderKeys() {
 				</div>
 				<button class="btn ghost sm" data-edit-key="${esc(key.id)}" title="${esc(T('editKey'))}">✎</button>
 				<button class="btn ghost sm" data-ping="${esc(key.id)}" title="${esc(T('pingCheck'))}">${esc(T('ping'))}</button>
+				<button class="btn ghost sm" data-chat-key="${esc(key.id)}" title="${esc(lang === 'ru' ? 'Подключить ключ команды к чату ИИ' : 'Use this team key in AI chat')}">${esc(lang === 'ru' ? 'В чат' : 'Chat')}</button>
 				<button class="btn ghost sm danger-text" data-del-key="${esc(key.id)}" title="${esc(T('deleteKey'))}">×</button>
 				<button class="switch ${key.disabledAt ? '' : 'on'}" data-key="${esc(key.id)}" title="${esc(T('disabled'))}"></button>
 			</div>
@@ -1872,11 +2272,12 @@ function renderKeys() {
 				<span class="chip ${key.accessRole === 'owner' ? 'accent' : ''}">${esc(T('role' + cap(key.accessRole)))}</span>
 				<span class="chip ${prio.cls}">${esc(prio.label)}</span>
 				${groupName(key.groupId) ? `<span class="chip accent">${esc(groupName(key.groupId))}</span>` : ''}
-				${key.disabledAt ? `<span class="chip off">${esc(T('disabled'))}</span>` : `<span class="chip ${pingCls}">${ping == null ? esc(T('pingUnknown')) : esc(T('pingMs').replace('{0}', ping))}</span>`}
+				${key.disabledAt ? `<span class="chip off">${esc(T('disabled'))}</span>` : `<span class="chip ${pingCls}">${pingText}${key.lastCheckedAt ? ` · ${esc(timeAgoStr(key.lastCheckedAt))}` : ''}</span>`}
 			</div>
 		</div>`; }).join('')}</div>` : `<div class="empty" style="--i:0"><div><div class="big">${esc(T('emptyKeys'))}</div></div></div>`}
 		<div class="flex mt16">
 			<button class="btn primary" id="btnAddKey">${esc(T('addKey'))}</button>
+			<button class="btn ghost" id="btnCheckAll">${esc(T('checkAll'))}</button>
 			<button class="btn ghost" id="btnImportApi">${esc(T('importFromApi'))}</button>
 			${!state.demoMode ? `<button class="btn ghost" id="btnNewGroup">${esc(T('newGroup'))}</button>` : ''}
 		</div>`;
@@ -1892,12 +2293,34 @@ function wireKeys() {
 			});
 		}
 	}));
-	// Удаление ключа навсегда.
+	// Проверить все ключи параллельно.
+	document.getElementById('btnCheckAll')?.addEventListener('click', async (e) => {
+		ripple(e);
+		if (state.demoMode) { toast(T('demo')); return; }
+		const btn = e.currentTarget;
+		btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+		try {
+			const results = await svc('auraTeam.checkAllKeys', []);
+			const okCount = (results ?? []).filter((r) => r.ok).length;
+			toast(`${T('pingOk')}: ${okCount}/${results?.length ?? 0}`, okCount === results?.length ? 'ok' : 'err');
+		} catch (err) { toast(err?.message || T('pingFail'), 'err'); }
+		btn.disabled = false; btn.textContent = T('checkAll');
+	});
+	// Удаление ключа навсегда: подтверждение вводом лейбла (необратимо).
 	document.querySelectorAll('[data-del-key]').forEach((b) => b.addEventListener('click', () => {
 		const key = state.keys.find((k) => k.id === b.dataset.delKey);
 		if (!key) { return; }
 		if (state.demoMode) { toast(T('demo')); return; }
-		confirmAction(T('deleteKey') + ' · ' + key.label, async () => { await svc('auraTeam.deleteApiKey', [key]); });
+		openModal({
+			title: T('deleteKey'), sub: `${T('deleteForeverHint')} «${key.label}»`, actionText: T('delete'), danger: true,
+			body: `<div class="field"><label>${esc(T('typeLabelHint'))}: <b>${esc(key.label)}</b></label><input data-del-confirm autocomplete="off"></div>`,
+			onAction: async (overlay) => {
+				if (overlay.querySelector('[data-del-confirm]')?.value?.trim() !== key.label) { toast(T('typeLabelHint'), 'err'); return true; }
+				await svc('auraTeam.deleteApiKey', [key]);
+				toast(T('deleted'), 'ok');
+				return false;
+			}
+		});
 	}));
 	// Редактирование ключа: лейбл, роль, приоритет, группа (значение не показывается и не меняется).
 	document.querySelectorAll('[data-edit-key]').forEach((b) => b.addEventListener('click', () => {
@@ -1939,6 +2362,13 @@ function wireKeys() {
 		} catch (err) { toast(err?.message || T('pingFail'), 'err'); }
 		b.disabled = false; b.textContent = T('ping');
 	}));
+	// «В чат»: подключить ключ команды к чату ИИ через прокси-токен сервера.
+	document.querySelectorAll('[data-chat-key]').forEach((b) => b.addEventListener('click', async () => {
+		if (state.demoMode) { toast(T('demo')); return; }
+		b.disabled = true; b.textContent = '…';
+		try { await svc('auraTeam.connectAuraApi', []); } catch (err) { toast(err?.message || 'error', 'err'); }
+		b.disabled = false; b.textContent = T('toChat');
+	}));
 	// Новая группа ключей.
 	document.getElementById('btnNewGroup')?.addEventListener('click', () => {
 		openModal({
@@ -1976,13 +2406,16 @@ function wireKeys() {
 		});
 	});
 	const addBtn = document.getElementById('btnAddKey');
-	addBtn?.addEventListener('click', () => {
+	addBtn?.addEventListener('click', async () => {
 		const groups = state.keyGroups ?? [];
+		// Провайдеры команды: встроенные + добавленные (OpenRouter, локальный сервер и т.д.).
+		let providersList = [{ id: 'openai', name: 'OpenAI' }, { id: 'anthropic', name: 'Anthropic' }];
+		try { const list = await svc('auraTeam.listProviders', []); if (Array.isArray(list) && list.length) { providersList = list; } } catch { /* дефолтные */ }
 		openModal({
 			title: T('addKey'), actionText: T('create'),
 			body: `
 				<div class="field-grid">
-					<div class="field"><label>${esc(T('keyProvider'))}</label><select data-key-provider><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="other">Other</option></select></div>
+					<div class="field"><label>${esc(T('keyProvider'))}</label><select data-key-provider>${providersList.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></div>
 					<div class="field"><label>${esc(T('keyRole'))}</label><select data-key-role><option value="dev">${esc(T('roleDev'))}</option><option value="maintainer">${esc(T('roleMaintainer'))}</option><option value="viewer">${esc(T('roleViewer'))}</option></select></div>
 				</div>
 				<div class="field"><label>${esc(T('keyName'))}</label><input data-key-label placeholder="OpenAI team key" maxlength="60"></div>
@@ -1990,7 +2423,7 @@ function wireKeys() {
 					<div class="field"><label>${esc(T('keyPriority'))}</label><select data-key-priority><option value="high">${esc(T('prioHigh'))}</option><option value="medium" selected>${esc(T('prioMedium'))}</option><option value="low">${esc(T('prioLow'))}</option></select></div>
 					<div class="field"><label>${esc(T('keyGroup'))}</label><select data-key-group><option value="">—</option>${groups.map(g => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('')}</select></div>
 				</div>
-				<div class="field"><label>${esc(T('keyValue'))}</label><div class="pw-toggle"><input data-key-value type="password" placeholder="sk-…" spellcheck="false"><button class="eye" data-eye="1"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.8" stroke="currentColor" stroke-width="1.7"/></svg></button></div></div>`,
+				<div class="field"><label>${esc(T('keyValue'))}</label><div class="pw-toggle"><input data-key-value type="password" placeholder="sk-…" spellcheck="false"><button class="eye" data-eye="1"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.8" stroke="currentColor" stroke-width="1.7"/></svg></button></div><div class="hint">${esc(T('autoDetectHint'))}</div></div>`,
 			onAction: async (overlay) => {
 				const label = overlay.querySelector('[data-key-label]')?.value?.trim();
 				const value = overlay.querySelector('[data-key-value]')?.value?.trim();
@@ -2001,13 +2434,33 @@ function wireKeys() {
 					accessRole: overlay.querySelector('[data-key-role]')?.value,
 					label,
 					priority: overlay.querySelector('[data-key-priority]')?.value || 'medium',
-					groupId: overlay.querySelector('[data-key-group]')?.value || undefined,
-					value
+					groupId: overlay.querySelector('[data-key-group]')?.value || undefined,						value
 				}]);
+				toast(T('saved'), 'ok');
+				// Немедленная проверка добавленного ключа с показом результата.
+				try {
+					const keys = await svc('auraTeam.getState', []).then((s) => s.keys).catch(() => []);
+					const fresh = (keys ?? []).find((k) => k.label === label);
+					if (fresh) {
+						const res = await svc('auraTeam.pingKey', [fresh.id]);
+						toast(res?.ok ? `${T('pingOk')}: ${res.pingMs} ms` : `${T('pingFail')} (HTTP ${res?.status ?? 0})`, res?.ok ? 'ok' : 'err');
+					}
+				} catch { /* пинг не критичен */ }
 				return false;
 			}
 		});
 		overlayEyes();
+		// Автоопределение провайдера по префиксу: sk-ant- → Anthropic, sk-or- → OpenRouter и т.д.
+		document.querySelector('[data-key-value]')?.addEventListener('input', (e) => {
+			const v = String(e.target.value || '').toLowerCase();
+			const sel = document.querySelector('[data-key-provider]');
+			if (!sel) { return; }
+			let want = null;
+			if (v.startsWith('sk-ant')) { want = 'anthropic'; }
+			else if (v.startsWith('sk-or')) { want = [...sel.options].find((o) => o.value.includes('openrouter'))?.value; }
+			else if (v.startsWith('sk-')) { want = 'openai'; }
+			if (want && [...sel.options].some((o) => o.value === want)) { sel.value = want; }
+		});
 	});
 }
 function overlayEyes() {

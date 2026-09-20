@@ -6,10 +6,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { spawn, ChildProcess } from 'node:child_process';
-import { JdwpConnection, EventKind, Tag, JdwpFrame, JdwpLocation } from './jdwp';
+import { spawn, execFile, ChildProcess } from 'node:child_process';
+import { promisify } from 'node:util';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { JdwpConnection, EventKind, StepSize, StepDepth, Tag, JdwpFrame, JdwpLocation } from './jdwp';
 import { ClasspathSync } from './classpath';
 import { AndroidPanel } from './android';
+import { findGradleCommand } from './gradle';
+
+const execFileAsync = promisify(execFile);
 
 const DEBUG_TYPE = 'kotlin';
 
@@ -74,6 +80,8 @@ export class KotlinDebugAdapter implements vscode.DebugAdapter {
 	private currentThreadId?: number;
 	private frameCache: JdwpFrame[] = [];
 	private readonly varHandles = new Map<number, { frameId: number; slot: number; tag: number; name: string }>();
+	/** Активный StepRequest (requestId JDWP) для текущей нити. */
+	private stepRequestId?: number;
 	private nextVarRef = 1000;
 	private readonly classCache = new Map<string, number>();
 	private readonly lineCache = new Map<string, Array<{ line: number; index: number }>>();
@@ -189,11 +197,23 @@ export class KotlinDebugAdapter implements vscode.DebugAdapter {
 				return;
 			case 'next':
 			case 'stepIn':
+				await this.step(request, request.command === 'next' ? StepDepth.Over : StepDepth.Into);
+				return;
 			case 'stepOut':
+				await this.step(request, StepDepth.Out);
+				return;
 			case 'pause':
-				// Step-команды JDWP (StepRequest) — в базовой версии выполняем continue.
-				// TODO: StepRequest (kind=LINE, depth) в следующей итерации.
-				await this.jdwp.resume();
+				// Suspend текущей нити и сообщить DA об останове.
+				try {
+					const threadId = this.currentThreadId;
+					if (threadId) {
+						await this.jdwp.threadSuspend(threadId);
+						this.event('stopped', { reason: 'pause', threadId, allThreadsStopped: false });
+					} else {
+						await this.jdwp.suspend();
+						this.event('stopped', { reason: 'pause', threadId: 1, allThreadsStopped: true });
+					}
+				} catch { /* VM уже остановлена */ }
 				this.response(request, true);
 				return;
 			case 'disconnect':
@@ -260,10 +280,11 @@ export class KotlinDebugAdapter implements vscode.DebugAdapter {
 		this.event('output', { category: 'console', output: 'Android: preparing debug session…\n' });
 
 		// 1. Установка APK (если указан) и определение applicationId.
+		// applicationId берём из Gradle (init-скрипт, этап 1 ТЗ); aapt — фолбэк.
 		let device = args.deviceId;
-		let pkg = args.applicationId;
+		let pkg = args.applicationId ?? this.classpathSync.classpath.modules.find(module => module.applicationId)?.applicationId;
 		if (args.apk) {
-			const installed = await panel.installForDebug(args.apk, device);
+			const installed = await panel.installForDebug(args.apk, device, pkg);
 			if (!installed) { throw new Error('No Android device selected'); }
 			device = installed.device;
 			pkg = installed.package;
@@ -328,12 +349,39 @@ export class KotlinDebugAdapter implements vscode.DebugAdapter {
 		this.process?.kill();
 		// Android: снять forward и дать приложению продолжить работу без отладчика.
 		if (this.androidDevice && this.androidPackage) {
-			try {
-				await this.androidPanel?.['adb']('-s', this.androidDevice, 'forward', '--remove', `tcp:${this.port}`);
-			} catch { /* forward мог уже исчезнуть */ }
+			await this.androidPanel?.removeForward(this.androidDevice, this.port);
 		}
-		void this.androidDevice; void this.androidPackage;
 		this.event('terminated', {});
+	}
+
+	// ---------- Шаги ----------
+
+	/**
+	 * DAP next/stepIn/stepOut → JDWP StepRequest: Count=1 + ThreadOnly,
+	 * после установки запроса нить возобновляется и сработает Step-событие.
+	 */
+	private async step(request: { command: string; request_seq?: number }, depth: number): Promise<void> {
+		const threadId = this.currentThreadId;
+		if (!threadId) {
+			// Нить неизвестна — fallback: просто продолжить.
+			await this.jdwp.resume().catch(() => undefined);
+			this.response(request, true);
+			return;
+		}
+		this.frameCache = [];
+		try {
+			// Снимаем предыдущий Step-запрос этой нити, если он не сработал.
+			if (this.stepRequestId !== undefined) {
+				await this.jdwp.clearEventRequest(EventKind.Step, this.stepRequestId).catch(() => undefined);
+				this.stepRequestId = undefined;
+			}
+			this.stepRequestId = await this.jdwp.setStepRequest(threadId, StepSize.Line, depth);
+			await this.jdwp.threadResume(threadId);
+		} catch (error) {
+			this.response(request, false, undefined, error instanceof Error ? error.message : String(error));
+			return;
+		}
+		this.response(request, true);
 	}
 
 	// ---------- Брейкпоинты ----------
@@ -483,6 +531,17 @@ export class KotlinDebugAdapter implements vscode.DebugAdapter {
 				const line = Number(key?.split(':').pop() ?? 0);
 				this.event('stopped', { reason: 'breakpoint', threadId: event.threadId, allThreadsStopped: true, line });
 				await this.jdwp.suspend().catch(() => undefined);
+			} else if (event.kind === EventKind.Step && event.threadId && event.location) {
+				// Шаг выполнен: нить уже приостановлена по SuspendPolicy.EventThread.
+				this.currentThreadId = event.threadId;
+				this.stepRequestId = undefined;
+				const info = await this.locationToSource(event.location).catch(() => undefined);
+				this.event('stopped', {
+					reason: 'step',
+					threadId: event.threadId,
+					allThreadsStopped: false,
+					line: info?.line ?? 0,
+				});
 			} else if (event.kind === EventKind.VMDeath || event.kind === EventKind.VMDisconnect) {
 				this.terminated = true;
 				this.event('terminated', {});
@@ -497,6 +556,25 @@ export function registerKotlinDebugger(context: vscode.ExtensionContext, classpa
 	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory(DEBUG_TYPE, {
 		createDebugAdapterDescriptor: () => new vscode.DebugAdapterInlineImplementation(new KotlinDebugAdapter(classpathSync, androidPanel)),
 	}));
+
+	// Run Android App по F5: собирает assembleDebug, ставит на устройство, запускает и цепляет отладчик.
+	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider(DEBUG_TYPE, {
+		async resolveDebugConfiguration(folder: vscode.WorkspaceFolder | undefined, config: vscode.DebugConfiguration): Promise<vscode.DebugConfiguration | undefined> {
+			const isAndroid = !!config.apk || !!config.applicationId || (folder && fs.existsSync(path.join(folder.uri.fsPath, 'gradlew')));
+			if (!isAndroid) { return config; }
+			let apk = config.apk;
+			if (!apk) {
+				apk = await buildDebugApk();
+				if (!apk) { return undefined; }
+				config.apk = apk;
+			}
+			if (!config.applicationId) {
+				config.applicationId = classpathSync.classpath.modules.find(module => module.applicationId)?.applicationId;
+			}
+			return config;
+		},
+	}));
+
 	context.subscriptions.push(vscode.commands.registerCommand('auraKotlin.debugFile', async () => {
 		const editor = vscode.window.activeTextEditor;
 		if (!editor || editor.document.languageId !== 'kotlin') {
@@ -510,4 +588,43 @@ export function registerKotlinDebugger(context: vscode.ExtensionContext, classpa
 			program: editor.document.uri.fsPath,
 		});
 	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('auraKotlin.android.runAndDebug', async () => {
+		const apk = await buildDebugApk();
+		if (!apk) { return; }
+		await vscode.debug.startDebugging(undefined, {
+			type: DEBUG_TYPE,
+			name: 'Run Android App',
+			request: 'launch',
+			apk,
+		});
+	}));
+}
+
+/** assembleDebug через Gradle; возвращает путь к app-debug.apk. */
+async function buildDebugApk(): Promise<string | undefined> {
+	const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	if (!root) { return undefined; }
+	const gradle = await findGradleCommand(root);
+	if (!gradle) {
+		void vscode.window.showErrorMessage(vscode.l10n.t('gradlew not found in the project and system gradle is not installed.'));
+		return undefined;
+	}
+	return vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Building APK (gradle assembleDebug)…'), cancellable: false }, async () => {
+		try {
+			await execFileAsync(gradle.command, [...gradle.args, 'assembleDebug'], { cwd: root, timeout: 10 * 60_000, maxBuffer: 64 * 1024 * 1024 });
+			const candidates = [
+				path.join(root, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'),
+				path.join(root, 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'),
+			];
+			const apk = candidates.find(file => fs.existsSync(file));
+			if (!apk) {
+				void vscode.window.showErrorMessage(vscode.l10n.t('Build succeeded, but no APK found in build/outputs/apk/debug.'));
+			}
+			return apk;
+		} catch (error) {
+			void vscode.window.showErrorMessage(vscode.l10n.t('Gradle build failed: {0}', error instanceof Error ? error.message.split(/\r?\n/)[0] : String(error)));
+			return undefined;
+		}
+	});
 }

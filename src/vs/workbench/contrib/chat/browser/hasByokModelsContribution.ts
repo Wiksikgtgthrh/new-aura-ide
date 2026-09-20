@@ -84,8 +84,10 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 	}
 
 	private _isFeatureEnabled(): boolean {
-		return !this._configurationService.getValue<boolean>(ChatAIDisabledSettingId)
-			&& !!this._contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.clientByokEnabled.key);
+		// Aura IDE: BYOK-модели (Aura API и любые не-Copilot вендоры) не должны зависеть
+		// от флага clientByokEnabled, который привязан к расширению GitHub Copilot.
+		// Достаточно, что чат не выключен настройкой.
+		return !this._configurationService.getValue<boolean>(ChatAIDisabledSettingId);
 	}
 
 	private _restore(): void {

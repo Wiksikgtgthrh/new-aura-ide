@@ -298,6 +298,32 @@ export class GitService {
 		await repository.restore([uri.fsPath], { ref });
 	}
 
+	/** Отменить изменения в одном файле (git restore --staged --worktree). */
+	async discardFile(filePath: string): Promise<void> {
+		const repository = this.requireRepository();
+		const uri = await this.toUri(filePath);
+		if (!uri) { throw new Error(vscode.l10n.t('File not found in workspace: {0}', filePath)); }
+		this.log(`git restore --staged --worktree -- ${filePath}`);
+		await repository.restore([uri.fsPath], { staged: true });
+		await repository.restore([uri.fsPath]);
+	}
+
+	/** Сбросить ветку к HEAD~1: soft — изменения остаются в индексе, hard — стираются. */
+	async resetBranch(mode: 'soft' | 'hard'): Promise<void> {
+		const repository = this.requireRepository();
+		this.log(`git reset --${mode} HEAD~1`);
+		await this.runGit(repository, ['reset', `--${mode}`, 'HEAD~1']);
+	}
+
+	private async toUri(filePath: string): Promise<vscode.Uri | undefined> {
+		const roots = vscode.workspace.workspaceFolders ?? [];
+		for (const root of roots) {
+			const candidate = vscode.Uri.joinPath(root.uri, filePath);
+			try { await vscode.workspace.fs.stat(candidate); return candidate; } catch { /* не в этой папке */ }
+		}
+		return undefined;
+	}
+
 	async relink(url: string): Promise<void> {
 		const repository = this.requireRepository();
 		const hasOrigin = repository.state.remotes.some(remote => remote.name === 'origin');

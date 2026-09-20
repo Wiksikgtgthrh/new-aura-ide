@@ -17,7 +17,7 @@ import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { auraMarketInstalledKey } from '../../auraMarket/common/auraMarketCatalog.js';
+import { auraMarketInstalledKey, auraMarketDisabledKey } from '../../auraMarket/common/auraMarketCatalog.js';
 import { AGGG_ENABLED_SETTING, AGGG_PROJECT_BOOST_SETTING, agggBoostActive } from '../common/agggBoost.js';
 
 export const AGGG_TOGGLE_COMMAND_ID = 'aggg.toggleBoost';
@@ -40,7 +40,9 @@ class AgggPluginContribution extends Disposable {
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 	) {
 		super();
-		if (storageService.get(auraMarketInstalledKey('aggg'), StorageScope.APPLICATION, 'false') !== 'true') {
+		// Плагин отключён через Market — статус-бар и команды не регистрируются.
+		if (storageService.get(auraMarketInstalledKey('aggg'), StorageScope.APPLICATION, 'false') !== 'true'
+			|| storageService.get(auraMarketDisabledKey('aggg'), StorageScope.APPLICATION, 'false') === 'true') {
 			return;
 		}
 		this.registerSettings();

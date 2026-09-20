@@ -2,13 +2,14 @@
 	"name": "aura-kotlin",
 	"displayName": "%displayName%",
 	"description": "%description%",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"publisher": "aura",
 	"license": "MIT",
 	"engines": { "vscode": "*" },
 	"main": "./out/extension.js",
-	"activationEvents": ["onLanguage:kotlin", "onCommand:auraKotlin.checkToolchain", "onCommand:auraKotlin.compileFile", "onCommand:auraKotlin.androidDoctor", "onCommand:auraKotlin.android.logcat", "onCommand:auraKotlin.restartLsp", "onCommand:auraKotlin.debugFile", "onDebug", "onDebugAdapterDynamicConfiguration:kotlin"],
+	"activationEvents": ["onLanguage:kotlin", "onCommand:auraKotlin.checkToolchain", "onCommand:auraKotlin.compileFile", "onCommand:auraKotlin.androidDoctor", "onCommand:auraKotlin.android.logcat", "onCommand:auraKotlin.restartLsp", "onCommand:auraKotlin.installLsp", "onCommand:auraKotlin.debugFile", "onDebug", "onDebugAdapterDynamicConfiguration:kotlin", "workspaceContains:build.gradle", "workspaceContains:build.gradle.kts", "workspaceContains:gradlew"],
 	"categories": ["Programming Languages", "Other"],
+	"l10n": "./l10n",
 	"contributes": {
 		"languages": [{
 			"id": "kotlin",
@@ -16,13 +17,38 @@
 			"extensions": [".kt", ".kts"],
 			"configuration": "./language-configuration.json"
 		}],
+		"viewsContainers": {
+			"activitybar": [{
+				"id": "auraKotlin-android",
+				"title": "Android",
+				"icon": "media/android.svg"
+			}]
+		},
+		"views": {
+			"auraKotlin-android": [{
+				"id": "auraKotlin.androidView",
+				"name": "Android",
+				"icon": "media/android.svg"
+			}]
+		},
+		"menus": {
+			"view/title": [{
+				"command": "auraKotlin.refreshAndroidView",
+				"when": "view == auraKotlin.androidView",
+				"group": "navigation"
+			}]
+		},
+		"viewsWelcome": [{
+			"view": "auraKotlin.androidView",
+			"contents": "No Gradle/Maven project in the workspace. Open an Android project folder or create one with the command 'Kotlin: New Kotlin/Android Project'."
+		}],
 		"configuration": {
 			"title": "%configuration.title%",
 			"properties": {
 				"auraKotlin.compilerPath": { "type": "string", "default": "kotlinc", "description": "%configuration.compilerPath%" },
 				"auraKotlin.androidSdkPath": { "type": "string", "default": "", "description": "%configuration.androidSdkPath%" },
 				"auraKotlin.javaPath": { "type": "string", "default": "java", "description": "%configuration.javaPath%" },
-				"auraKotlin.kotlinLspPath": { "type": "string", "default": "kotlin-language-server", "description": "Path or command for the Kotlin Language Server (provides completion, diagnostics, hover and go-to-definition for .kt files). Install from github.com/fwcd/kotlin-language-server or point to your bundled copy." }
+				"auraKotlin.kotlinLspPath": { "type": "string", "default": "kotlin-language-server", "description": "Explicit path or command for the Kotlin Language Server. Leave default to use the bundled/downloaded server automatically (downloaded on first use, ~83 MB, needs JDK 11+)." }
 			}
 		},
 		"commands": [
@@ -30,15 +56,54 @@
 			{ "command": "auraKotlin.compileFile", "title": "%command.compileFile%", "category": "Kotlin" },
 			{ "command": "auraKotlin.androidDoctor", "title": "%command.androidDoctor%", "category": "Kotlin" },
 			{ "command": "auraKotlin.newProject", "title": "%command.newProject%", "category": "Kotlin" },
-			{ "command": "auraKotlin.restartLsp", "title": "Restart Language Server", "category": "Kotlin" },
-			{ "command": "auraKotlin.android.devices", "title": "Show Connected Devices", "category": "Android" },
-			{ "command": "auraKotlin.android.pickDevice", "title": "Select Device", "category": "Android" },
-			{ "command": "auraKotlin.android.installApk", "title": "Install APK to Device", "category": "Android" },
-			{ "command": "auraKotlin.android.logcat", "title": "Start Logcat Stream", "category": "Android" },
-			{ "command": "auraKotlin.android.logcatFilter", "title": "Filter Logcat (level, tag)", "category": "Android" },
-			{ "command": "auraKotlin.android.logcatStop", "title": "Stop Logcat Stream", "category": "Android" },
-			{ "command": "auraKotlin.debugFile", "title": "Debug Kotlin File", "category": "Kotlin" }
+			{ "command": "auraKotlin.restartLsp", "title": "%command.restartLsp%", "category": "Kotlin" },
+			{ "command": "auraKotlin.installLsp", "title": "%command.installLsp%", "category": "Kotlin" },
+			{ "command": "auraKotlin.debugFile", "title": "%command.debugFile%", "category": "Kotlin" },
+			{ "command": "auraKotlin.gradle.sync", "title": "%command.gradle.sync%", "category": "Gradle" },
+			{ "command": "auraKotlin.gradle.build", "title": "%command.gradle.build%", "category": "Gradle" },
+			{ "command": "auraKotlin.gradle.clean", "title": "%command.gradle.clean%", "category": "Gradle" },
+			{ "command": "auraKotlin.gradle.test", "title": "%command.gradle.test%", "category": "Gradle" },
+			{ "command": "auraKotlin.gradle.release", "title": "%command.gradle.release%", "category": "Gradle" },
+			{ "command": "auraKotlin.gradle.runTask", "title": "%command.gradle.runTask%", "category": "Gradle" },
+			{ "command": "auraKotlin.android.devices", "title": "%command.android.devices%", "category": "Android" },
+			{ "command": "auraKotlin.android.pickDevice", "title": "%command.android.pickDevice%", "category": "Android" },
+			{ "command": "auraKotlin.android.installApk", "title": "%command.android.installApk%", "category": "Android" },
+			{ "command": "auraKotlin.android.logcat", "title": "%command.android.logcat%", "category": "Android" },
+			{ "command": "auraKotlin.android.logcatFilter", "title": "%command.android.logcatFilter%", "category": "Android" },
+			{ "command": "auraKotlin.android.logcatStop", "title": "%command.android.logcatStop%", "category": "Android" },
+			{ "command": "auraKotlin.android.startEmulator", "title": "%command.android.startEmulator%", "category": "Android" },
+			{ "command": "auraKotlin.android.stopEmulator", "title": "%command.android.stopEmulator%", "category": "Android" },
+			{ "command": "auraKotlin.android.createAvd", "title": "%command.android.createAvd%", "category": "Android" },
+			{ "command": "auraKotlin.android.runAndDebug", "title": "%command.android.runAndDebug%", "category": "Android" },
+			{ "command": "auraKotlin.refreshAndroidView", "title": "%command.refreshAndroidView%", "icon": "$(refresh)", "category": "Android" }
 		],
+		"problemMatchers": [{
+			"name": "aura-kotlinc",
+			"label": "Kotlin compiler (kotlinc)",
+			"owner": "kotlin",
+			"source": "kotlinc",
+			"fileLocation": ["absolute"],
+			"pattern": {
+				"regexp": "^(e|w):\\s+(?:file:/{2})?(.+?):(\\d+)(?::(\\d+))?:?\\s+(.*)$",
+				"severity": 1,
+				"file": 2,
+				"line": 3,
+				"column": 4,
+				"message": 5
+			}
+		}, {
+			"name": "aura-gradle",
+			"label": "Gradle / AGP (javac-style and resource errors)",
+			"owner": "gradle",
+			"fileLocation": ["absolute"],
+			"pattern": {
+				"regexp": "^(.+?):(\\d+):\\s+(error|warning):\\s+(.*)$",
+				"file": 1,
+				"line": 2,
+				"severity": 3,
+				"message": 4
+			}
+		}],
 		"debuggers": [{
 			"type": "kotlin",
 			"label": "Kotlin (Aura)",
@@ -70,11 +135,11 @@
 				"label": "Kotlin (Aura): Debug active file",
 				"body": { "type": "kotlin", "request": "launch", "name": "Debug active file", "program": "${file}" }
 			}, {
-				"label": "Kotlin (Aura): Debug Android app on device",
-				"body": { "type": "kotlin", "request": "launch", "name": "Debug Android app", "apk": "${workspaceFolder}/app/build/outputs/apk/debug/app-debug.apk" }
+				"label": "Kotlin (Aura): Run Android App (F5)",
+				"body": { "type": "kotlin", "request": "launch", "name": "Run Android App" }
 			}]
 		}]
 	},
-	"scripts": { "compile": "gulp compile-extension:aura-kotlin", "watch": "gulp watch-extension:aura-kotlin" },
+	"scripts": { "compile": "gulp compile-extension:aura-kotlin", "watch": "gulp watch-extension:aura-kotlin", "fetch-server": "node scripts/fetch-lsp.mjs" },
 	"devDependencies": { "@types/node": "24.x" }
 }

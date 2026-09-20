@@ -9,19 +9,14 @@ import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { mapAccessError, proxyIdentity, requireRole, userId } from '../access.js';
 import { config } from '../config.js';
 import { audit, database } from '../database.js';
-import { decrypt, encrypt, id } from '../security.js';
-import { digest, token } from '../security.js';
-
-const providers: Record<string, { origin: string; authorization: (key: string) => Record<string, string> }> = {
-	openai: { origin: 'https://api.openai.com', authorization: key => ({ authorization: `Bearer ${key}` }) },
-	anthropic: { origin: 'https://api.anthropic.com', authorization: key => ({ 'x-api-key': key, 'anthropic-version': '2023-06-01' }) }
-};
+import { BUILTIN_PROVIDERS, getProvider, isAllowedPath, listProviders, providerAuthorization, providerRoutes, type ProviderModel } from '../providers.js';
+import { decrypt, encrypt, id, digest, token } from '../security.js';
 
 export async function keyRoutes(app: FastifyInstance): Promise<void> {
 	app.post<{ Params: { teamId: string }; Body: { provider?: string; model?: string } }>('/v1/teams/:teamId/proxy-tokens', async (request, reply) => {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'dev'); } catch (error) { mapAccessError(error); }
-		if (!request.body.provider || !providers[request.body.provider] || !request.body.model?.trim()) { return reply.badRequest('Supported provider and model are required'); }
+		if (!request.body.provider || !getProvider(request.params.teamId, request.body.provider) || !request.body.model?.trim()) { return reply.badRequest('Supported provider and model are required'); }
 		const value = `aura_pt_${token(32)}`;
 		const tokenId = id();
 		database.prepare('INSERT INTO proxy_tokens(id,token_hash,user_id,team_id,provider,model,created_at) VALUES(?,?,?,?,?,?,?)').run(tokenId, digest(value), user, request.params.teamId, request.body.provider, request.body.model.trim(), new Date().toISOString());
@@ -41,57 +36,44 @@ export async function keyRoutes(app: FastifyInstance): Promise<void> {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
 		return database.prepare(`SELECT id,label,key_hint AS keyHint,provider,access_role AS accessRole,priority,group_id AS groupId,
-			ping_ms AS pingMs,last_checked_at AS lastCheckedAt,disabled_at AS disabledAt,created_at AS createdAt FROM api_keys WHERE team_id=? ORDER BY provider,priority,created_at`).all(request.params.teamId);
+			ping_ms AS pingMs,last_ok AS ok,last_checked_at AS lastCheckedAt,disabled_at AS disabledAt,created_at AS createdAt FROM api_keys WHERE team_id=? ORDER BY provider,priority,created_at`).all(request.params.teamId);
 	});
 
-	// Группы ключей команды.
-	app.get<{ Params: { teamId: string } }>('/v1/teams/:teamId/key-groups', async request => {
-		const user = await userId(request);
-		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
-		return database.prepare('SELECT id,name,priority,created_at AS createdAt FROM key_groups WHERE team_id=? ORDER BY priority,name').all(request.params.teamId);
-	});
-
-	app.post<{ Params: { teamId: string }; Body: { name?: string; priority?: number } }>('/v1/teams/:teamId/key-groups', async (request, reply) => {
-		const user = await userId(request);
-		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
-		const name = request.body.name?.trim().slice(0, 60);
-		if (!name) { return reply.badRequest('Group name is required'); }
-		const priority = Number.isInteger(request.body.priority) && request.body.priority! >= 0 && request.body.priority! <= 100 ? request.body.priority! : 1;
-		const groupId = id();
-		database.prepare('INSERT INTO key_groups(id,team_id,name,priority,created_at) VALUES(?,?,?,?,?)').run(groupId, request.params.teamId, name, priority, new Date().toISOString());
-		audit(user, 'key_group.create', request.params.teamId, 'key_group', groupId, { name, priority });
-		return reply.code(201).send({ id: groupId, name, priority });
-	});
-
-	// Пинг ключа: реальный запрос к провайдеру (GET models), замер времени ответа.
+	// Пинг ключа: проба здоровья конкретного провайдера (у каждого своя), замер времени ответа.
 	app.post<{ Params: { teamId: string; keyId: string } }>('/v1/teams/:teamId/keys/:keyId/ping', async (request, reply) => {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'dev'); } catch (error) { mapAccessError(error); }
 		const row = database.prepare('SELECT id,provider,encrypted_value FROM api_keys WHERE id=? AND team_id=? AND disabled_at IS NULL').get(request.params.keyId, request.params.teamId) as { id: string; provider: string; encrypted_value: string } | undefined;
 		if (!row) { return reply.notFound('Key not found'); }
-		const provider = providers[row.provider];
+		const provider = getProvider(request.params.teamId, row.provider);
 		if (!provider) { return reply.badRequest('Unsupported provider'); }
-		const secret = decrypt(row.encrypted_value);
-		const started = Date.now();
-		let status = 0;
-		try {
-			const response = await fetch(new URL('/v1/models', provider.origin), { headers: provider.authorization(secret), signal: AbortSignal.timeout(10_000) });
-			status = response.status;
-		} catch {
-			status = 0;
-		}
-		const pingMs = Date.now() - started;
-		const ok = status >= 200 && status < 300;
-		database.prepare('UPDATE api_keys SET ping_ms=?,last_checked_at=? WHERE id=?').run(pingMs, new Date().toISOString(), row.id);
-		audit(user, 'api_key.ping', request.params.teamId, 'api_key', row.id, { status, pingMs });
-		return { ok, status, pingMs };
+		const result = await probeKey(provider, decrypt(row.encrypted_value));
+		database.prepare('UPDATE api_keys SET ping_ms=?,last_ok=?,last_checked_at=? WHERE id=?').run(result.pingMs, result.ok ? 1 : 0, new Date().toISOString(), row.id);
+		audit(user, 'api_key.ping', request.params.teamId, 'api_key', row.id, { status: result.status, pingMs: result.pingMs });
+		return result;
+	});
+
+	// Проверить все ключи команды параллельно: {keyId, ok, status, pingMs} по каждому.
+	app.post<{ Params: { teamId: string } }>('/v1/teams/:teamId/keys/check', async (request, reply) => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'dev'); } catch (error) { mapAccessError(error); }
+		const rows = database.prepare('SELECT id,provider,encrypted_value FROM api_keys WHERE team_id=? AND disabled_at IS NULL').all(request.params.teamId) as { id: string; provider: string; encrypted_value: string }[];
+		const results = await Promise.all(rows.map(async row => {
+			const provider = getProvider(request.params.teamId, row.provider);
+			if (!provider) { return { keyId: row.id, ok: false, status: 0, pingMs: 0 }; }
+			const result = await probeKey(provider, decrypt(row.encrypted_value));
+			database.prepare('UPDATE api_keys SET ping_ms=?,last_ok=?,last_checked_at=? WHERE id=?').run(result.pingMs, result.ok ? 1 : 0, new Date().toISOString(), row.id);
+			return { keyId: row.id, ...result };
+		}));
+		audit(user, 'api_key.check_all', request.params.teamId, undefined, undefined, { checked: results.length });
+		return results;
 	});
 
 	app.post<{ Params: { teamId: string }; Body: { provider?: string; value?: string; accessRole?: string; label?: string; priority?: number; groupId?: string } }>('/v1/teams/:teamId/keys', async (request, reply) => {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
 		const provider = request.body.provider?.toLowerCase();
-		if (!provider || !providers[provider] || !request.body.value) { return reply.badRequest('Supported provider and key value are required'); }
+		if (!provider || !getProvider(request.params.teamId, provider) || !request.body.value) { return reply.badRequest('Supported provider and key value are required'); }
 		if (!['owner', 'maintainer', 'dev', 'viewer'].includes(request.body.accessRole ?? 'dev')) { return reply.badRequest('Invalid access role'); }
 		const priority = Number.isInteger(request.body.priority) && request.body.priority! >= 0 && request.body.priority! <= 1000 ? request.body.priority! : 100;
 		const label = request.body.label?.trim().slice(0, 80) || `${provider} key`;
@@ -154,7 +136,7 @@ export async function keyRoutes(app: FastifyInstance): Promise<void> {
 		const user = identity.userId;
 		let role;
 		try { role = requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
-		const provider = providers[request.params.provider];
+		const provider = getProvider(request.params.teamId, request.params.provider);
 		if (!provider) { return reply.notFound('Unsupported provider'); }
 		const row = database.prepare(`SELECT id,encrypted_value,access_role FROM api_keys WHERE team_id=? AND provider=? AND disabled_at IS NULL
 			AND CASE access_role WHEN 'viewer' THEN 0 WHEN 'dev' THEN 1 WHEN 'maintainer' THEN 2 ELSE 3 END <= ?
@@ -162,10 +144,10 @@ export async function keyRoutes(app: FastifyInstance): Promise<void> {
 		if (!row) { return reply.notFound('No key configured for this provider'); }
 		let upstream: URL;
 		try { upstream = providerUrl(provider.origin, request.params['*']); } catch { return reply.badRequest('Invalid provider path'); }
-		if (!isAllowedProviderRequest(request.params.provider, request.method, upstream.pathname)) { return reply.forbidden('This provider operation is not available through the team proxy'); }
+		if (!isAllowedPath(provider, request.method, upstream.pathname)) { return reply.forbidden('This provider operation is not available through the team proxy'); }
 		if (identity.model && request.method === 'POST' && requestedModel(request.body) !== identity.model) { return reply.forbidden('This proxy token is restricted to another model'); }
-		consumeQuota(user, request.params.teamId);
-		const headers = { ...provider.authorization(decrypt(row.encrypted_value)), 'content-type': request.headers['content-type'] ?? 'application/json' };
+		consumeQuota(user, request.params.teamId, row.id);
+		const headers = { ...providerAuthorization(provider, decrypt(row.encrypted_value)), 'content-type': request.headers['content-type'] ?? 'application/json' };
 		const body = request.method === 'GET' || request.method === 'HEAD' ? undefined : JSON.stringify(request.body ?? {});
 		const response = await fetch(upstream, { method: request.method, headers, body, redirect: 'manual', signal: AbortSignal.timeout(60_000) });
 		audit(user, 'proxy.request', request.params.teamId, 'api_key', row.id, { provider: request.params.provider, status: response.status });
@@ -176,6 +158,39 @@ export async function keyRoutes(app: FastifyInstance): Promise<void> {
 		if (!response.body) { return reply.send(); }
 		return reply.send(Readable.fromWeb(response.body as NodeReadableStream<Uint8Array>));
 	});
+
+	// Провайдеры команды (встроенные + кастомные) и их CRUD.
+	await providerRoutes(app);
+
+	// Статистика расхода прокси: по дням, пользователям и ключам + остаток дневного лимита.
+	app.get<{ Params: { teamId: string }; Querystring: { days?: string } }>('/v1/teams/:teamId/usage', async request => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		const days = Math.min(Math.max(Number(request.query.days ?? 14) || 14, 1), 90);
+		const since = new Date(Date.now() - (days - 1) * 86_400_000).toISOString().slice(0, 10);
+		const today = new Date().toISOString().slice(0, 10);
+		const perDay = database.prepare(`SELECT day, SUM(requests) AS requests FROM proxy_usage WHERE team_id=? AND day>=? GROUP BY day ORDER BY day`).all(request.params.teamId, since) as { day: string; requests: number }[];
+		const perUser = database.prepare(`SELECT u.id AS userId, u.display_name AS name, SUM(p.requests) AS requests FROM proxy_usage p JOIN users u ON u.id=p.user_id
+			WHERE p.team_id=? AND p.day>=? GROUP BY p.user_id ORDER BY requests DESC`).all(request.params.teamId, since) as { userId: string; name: string; requests: number }[];
+		const perKey = database.prepare(`SELECT k.id AS keyId, k.label, k.provider, SUM(r.requests) AS requests FROM proxy_usage_keys r JOIN api_keys k ON k.id=r.key_id
+			WHERE r.team_id=? AND r.day>=? GROUP BY r.key_id ORDER BY requests DESC`).all(request.params.teamId, since) as { keyId: string; label: string; provider: string; requests: number }[];
+		const usedToday = (database.prepare('SELECT requests FROM proxy_usage WHERE team_id=? AND user_id=? AND day=?').get(request.params.teamId, user, today) as { requests: number } | undefined)?.requests ?? 0;
+		return { since, days, limitPerUserPerDay: config.proxyRequestsPerDay, usedToday, remainingToday: Math.max(config.proxyRequestsPerDay - usedToday, 0), perDay, perUser, perKey };
+	});
+}
+
+/** Проба здоровья: у каждого провайдера свой достоверный запрос. */
+async function probeKey(provider: ProviderModel, secret: string): Promise<{ ok: boolean; status: number; pingMs: number }> {
+	const started = Date.now();
+	let status = 0;
+	try {
+		const url = new URL(provider.probe.path, provider.origin);
+		const response = await fetch(url, { method: provider.probe.method, headers: providerAuthorization(provider, secret), signal: AbortSignal.timeout(10_000) });
+		status = response.status;
+	} catch {
+		status = 0;
+	}
+	return { ok: status >= 200 && status < 300, status, pingMs: Date.now() - started };
 }
 
 function requestedModel(body: unknown): string | undefined {
@@ -187,10 +202,10 @@ function maskKey(value: string): string {
 	return key.length <= 8 ? '••••' : `${key.slice(0, 3)}…${key.slice(-4)}`;
 }
 
+// Обратная совместимость: старые сигнатуры для тестов.
 export function isAllowedProviderRequest(provider: string, method: string, path: string): boolean {
-	if (provider === 'openai') { return (method === 'GET' && path === '/v1/models') || (method === 'POST' && path === '/v1/chat/completions'); }
-	if (provider === 'anthropic') { return method === 'POST' && path === '/v1/messages'; }
-	return false;
+	const model = BUILTIN_PROVIDERS.find(candidate => candidate.id === provider);
+	return model ? isAllowedPath(model, method, path) : false;
 }
 
 export function providerUrl(origin: string, path: string): URL {
@@ -201,9 +216,16 @@ export function providerUrl(origin: string, path: string): URL {
 	return upstream;
 }
 
-function consumeQuota(userId: string, teamId: string): void {
+function consumeQuota(userId: string, teamId: string, keyId?: string): void {
 	const day = new Date().toISOString().slice(0, 10);
 	const result = database.prepare(`INSERT INTO proxy_usage(user_id,team_id,day,requests) VALUES(?,?,?,1)
 		ON CONFLICT(user_id,team_id,day) DO UPDATE SET requests=requests+1 WHERE requests<?`).run(userId, teamId, day, config.proxyRequestsPerDay);
 	if (result.changes !== 1) { throw Object.assign(new Error('Daily proxy request limit reached'), { statusCode: 429 }); }
+	if (keyId) {
+		database.prepare(`INSERT INTO proxy_usage_keys(team_id,key_id,day,requests) VALUES(?,?,?,1)
+			ON CONFLICT(team_id,key_id,day) DO UPDATE SET requests=requests+1`).run(teamId, keyId, day);
+	}
 }
+
+// listProviders экспортируется для будущих экранов выбора провайдера.
+export { listProviders };

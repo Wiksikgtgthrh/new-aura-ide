@@ -1,15 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Aura Market — каталог плагинов и наборов скилов + состояние установки.
+ *  Aura Market — каталог плагинов и наборов скилов + состояние установки/отключения.
  *--------------------------------------------------------------------------------------------*/
 
 export type AuraMarketItemKind = 'plugin' | 'skillset';
+
+export interface IAuraMarketVersion {
+	/** Версия (semver). */
+	readonly version: string;
+	/** Дата публикации (ISO или человекочитаемая). */
+	readonly date: string;
+	/** Список изменений для этой версии. */
+	readonly changelog: readonly string[];
+}
 
 export interface IAuraMarketItem {
 	readonly id: string;
 	readonly name: string;
 	readonly description: string;
 	readonly kind: AuraMarketItemKind;
+	/** Последняя (актуальная) версия — сокращение versions[0]. */
 	readonly version?: string;
+	/** История версий: новая сверху. */
+	readonly versions?: readonly IAuraMarketVersion[];
 	readonly author?: string;
 	/** Подробная документация (кнопка «Документация»). */
 	readonly docs?: string;
@@ -23,6 +35,20 @@ export function auraMarketInstalledKey(itemId: string): string {
 	return `auraMarket.installed.${itemId}`;
 }
 
+/** Флаг отключения: плагин установлен, но временно выключен (иконка и функции скрыты до включения). */
+export function auraMarketDisabledKey(itemId: string): string {
+	return `auraMarket.disabled.${itemId}`;
+}
+
+/** Установлен ли плагин и не отключён ли он. */
+export function isAuraItemActive(get: (key: string, scope: StorageScopeLike, fallback: string) => string, itemId: string): boolean {
+	return get(auraMarketInstalledKey(itemId), StorageScopeLike.APPLICATION, 'false') === 'true'
+		&& get(auraMarketDisabledKey(itemId), StorageScopeLike.APPLICATION, 'false') !== 'true';
+}
+
+/** Минимальная заглушка scope, чтобы не тянуть IStorageService в common-код. */
+export enum StorageScopeLike { APPLICATION = 0, WORKSPACE = 1 }
+
 /**
  * Каталог Aura Market. Добавляйте сюда свои плагины и наборы скилов.
  */
@@ -32,20 +58,38 @@ export const AURA_MARKET_ITEMS: IAuraMarketItem[] = [
 		builtinId: 'aura-kotlin',
 		name: 'Kotlin & Android',
 		kind: 'plugin',
-		version: '0.1.0',
+		version: '0.2.0',
+		versions: [
+			{
+				version: '0.2.0',
+				date: '2026-09-19',
+				changelog: [
+					'Полноценные шаги отладчика: next / stepIn / stepOut / pause через JDWP StepRequest',
+					'Точная строка останова при шаге — редактор прыгает по коду',
+					'Исправлен clearAllBreakpoints (лишний async)',
+				]
+			},
+			{
+				version: '0.1.0',
+				date: '2026-09-05',
+				changelog: [
+					'Первая версия: classpath из Gradle, задачи Gradle, logcat, запуск и отладка по F5',
+				]
+			}
+		],
 		author: 'IDE',
-		description: 'Поддержка Kotlin compiler, Java и Android SDK: проверка toolchain, компиляция активного .kt-файла и диагностика adb/sdkmanager.',
-		size: '≈ 90 КБ сам плагин; toolchain (Kotlin compiler + JDK + Android SDK) — до 6 ГБ, если ещё не установлен',
+		description: 'Kotlin и Android без Android Studio: classpath из Gradle через init-скрипт (транзитивные зависимости, android.jar), задачи Gradle с problem matcher, Android SDK и эмуляторы, запуск и отладка по F5 (JDWP), logcat с фильтрами, автодополнение и диагностика через LSP.',
+		size: '≈ 150 КБ сам плагин; Kotlin Language Server докачивается при первом открытии .kt (~83 МБ, или включите offline-комплект в сборку); toolchain (JDK 11+ + Android SDK) — до 6 ГБ, если ещё не установлен',
 		docs: [
-			'Aura Kotlin & Android — базовый toolchain-плагин для Kotlin и Android SDK.',
+			'Aura Kotlin & Android — полноценная разработка Kotlin/Android в Aura IDE.',
 			'',
 			'БЫСТРЫЙ СТАРТ',
-			'1. Установите Kotlin compiler и JDK, добавьте их в PATH или настройте auraKotlin.compilerPath и auraKotlin.javaPath.',
-			'2. Для Android задайте auraKotlin.androidSdkPath либо ANDROID_HOME / ANDROID_SDK_ROOT.',
-			'3. Используйте команды Aura Kotlin: Check Kotlin Toolchain, Compile Kotlin File и Check Android SDK.',
-			'',
-			'Плагин не скачивает SDK автоматически и не выполняет произвольные команды: он запускает только выбранные системные инструменты с фиксированными аргументами.',
-		].join('\\n'),
+			'1. Откройте существующий Android-проект (Gradle) — classpath соберётся автоматически через init-скрипт Gradle; парсер build-файлов работает как фолбэк.',
+			'2. Сборка: команды Gradle — Sync, Build (assembleDebug), Clean, Tests, Release или произвольная задача; ошибки — в панели Problems, прогресс — в статус-баре.',
+			'3. Устройства и эмуляторы: панель Android в activity bar — запуск/остановка AVD, единый селектор устройств, logcat с фильтром по приложению.',
+			'4. Запуск и отладка: F5 («Run Android App») — собирает APK, ставит на устройство, запускает и цепляет отладчик (точки останова, переменные, стек).',
+			'5. Автодополнение: Kotlin Language Server ставится по кнопке при первом открытии .kt (или попадите в комплект через scripts/fetch-server). Нужен JDK 11+ (подойдёт JDK из Android Studio) — укажите его в auraKotlin.javaPath.',
+		].join('\n'),
 	},
 	{
 		id: 'aura-api',
@@ -53,6 +97,17 @@ export const AURA_MARKET_ITEMS: IAuraMarketItem[] = [
 		name: 'API Keys',
 		kind: 'plugin',
 		version: '1.0.0',
+		versions: [
+			{
+				version: '1.0.0',
+				date: '2026-09-14',
+				changelog: [
+					'Менеджер ключей: хранение в Secret Storage, группы, приоритеты',
+					'Автопроверка пинга, проверка подлинности модели и безопасности ответов',
+					'Выбор активного ключа для чата («В чат»)',
+				]
+			}
+		],
 		author: 'IDE',
 		description: 'Менеджер API-ключей: хранение, группировка, приоритеты, автопроверка пинга и ошибок, проверка подлинности модели и безопасности ответов, выбор активного ключа для чата.',
 		size: '≈ 90 КБ',
@@ -93,6 +148,16 @@ export const AURA_MARKET_ITEMS: IAuraMarketItem[] = [
 		name: 'AGGG Boost',
 		kind: 'plugin',
 		version: '2.0.0',
+		versions: [
+			{
+				version: '2.0.0',
+				date: '2026-09-10',
+				changelog: [
+					'Ядро правил AGGG2.0 в системном промпте чата на каждый ход',
+					'Включение глобально (aggg.enabled) или на проект (aggg.projectBoost)',
+				]
+			}
+		],
 		author: 'AGGG',
 		description: 'Обвязка-бустер моделей: встраивает ядро правил AGGG2.0 в системный промпт чата на каждый ход. Включается глобально (aggg.enabled) или отдельно на проект (aggg.projectBoost в настройках workspace). Индикатор и переключатель — в статус-баре.',
 		size: '≈ 25 КБ',
@@ -117,6 +182,15 @@ export const AURA_MARKET_ITEMS: IAuraMarketItem[] = [
 		name: 'ServerKit',
 		kind: 'plugin',
 		version: '0.1.0',
+		versions: [
+			{
+				version: '0.1.0',
+				date: '2026-09-08',
+				changelog: [
+					'Первая версия: панель ServerKit во вкладке IDE, статус и открытие приложения',
+				]
+			}
+		],
 		author: 'IDE',
 		description: 'Панель управления сервером ServerKit во вкладке IDE: деплой приложений, базы данных, Docker-контейнеры, SSL и мониторинг. Иконка сбоку — клик открывает вкладку с приложением.',
 		size: '≈ 10 КБ',

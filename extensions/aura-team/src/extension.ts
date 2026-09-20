@@ -107,7 +107,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		teams: [{ id: 'demo', name: 'Aura Studio', role: 'owner' }]
 	});
 
-	const demoBoard = (): BoardSnapshot => ({
+	// Демо-доска живёт между refresh-ами: иначе все правки (статус, удаление)
+	// терялись при следующем broadcast, и «выполнено/удалить» в сайдбаре не работали.
+	let demoBoardCache: BoardSnapshot | undefined;
+
+	const demoBoard = (): BoardSnapshot => {
+		if (demoBoardCache) { return demoBoardCache; }
+		demoBoardCache = ({
 		members: [
 			{ id: 'demo-1', displayName: 'Alex', email: 'alex@demo.dev', role: 'maintainer', online: true },
 			{ id: 'demo-2', displayName: 'Mia', email: 'mia@demo.dev', role: 'dev', online: true },
@@ -121,7 +127,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			{ id: 'dt4', teamId: 'demo', title: 'Регистрация (mock)', description: 'Форма без сервера, чисто для вида', status: 'done', assigneeId: 'demo-me', assigneeName: 'Вы', position: 0 },
 			{ id: 'dt5', teamId: 'demo', title: 'Передача файлов', description: 'Позже, через сервер', status: 'todo', position: 0 }
 		]
-	});
+		}) as BoardSnapshot;
+		return demoBoardCache;
+	};
 
 	const demoKeys = (): TeamApiKey[] => ([
 		{ id: 'k1', label: 'OpenAI team key', keyHint: 'sk-…k3Nd', provider: 'openai', accessRole: 'dev', priority: 100, createdAt: new Date(Date.now() - 3 * 864e5).toISOString() },
@@ -291,6 +299,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	);
 
 	const handlerFor = async (id: string, args: unknown[]): Promise<unknown> => {
+		// Демо-режим: правки задач применяем к кэшированной демо-доске, без сервера.
+		if (demoMode() && !state.session) {
+			const board = demoBoard();
+			if (id === 'auraTeam.updateTask' && typeof args[0] === 'string') {
+				const task = board.tasks.find(t => t.id === args[0]);
+				if (task) { Object.assign(task, ...(typeof args[1] === 'object' && args[1] !== null ? [args[1] as Record<string, unknown>] : [])); }
+				await broadcast();
+				return task;
+			}
+			if (id === 'auraTeam.deleteTask' && typeof args[0] === 'string') {
+				// Удаляем из кэша демо-доски (in place), чтобы refresh не вернул задачу.
+				const index = board.tasks.findIndex(t => t.id === args[0]);
+				if (index !== -1) { board.tasks.splice(index, 1); }
+				state.board = board;
+				await broadcast();
+				return { ok: true };
+			}
+			if (id === 'auraTeam.restoreTask' && typeof args[0] === 'string') {
+				await broadcast();
+				return { ok: true };
+			}
+		}
 		const handler = handlers.get(id);
 		if (!handler) { throw new Error(vscode.l10n.t('Unknown command: {0}', id)); }
 		return handler(...(args as never[]));
@@ -487,7 +517,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		await api.createProject(requireTeam(state), name ?? await requiredInput(vscode.l10n.t('Project name')), gitUrl ?? await requiredInput(vscode.l10n.t('Git repository URL')), branch ?? await requiredInput(vscode.l10n.t('Default branch'), 'main'));
 		await refresh();
 	});
-	register('auraTeam.createTask', async (title?: string, status?: string) => { await api.createTask(requireTeam(state), title ?? await requiredInput(vscode.l10n.t('Task title')), (status as never) ?? undefined); await refresh(); });
+	register('auraTeam.createTask', async (title?: string, status?: string, assigneeId?: string) => {
+		const created = await api.createTask(requireTeam(state), title ?? await requiredInput(vscode.l10n.t('Task title')), (status as never) ?? undefined, assigneeId);
+		await refresh();
+		return created;
+	});
 	register('auraTeam.updateTask', async (taskId?: string, changes?: { status?: TaskStatus; position?: number; assigneeId?: string | null; title?: string; description?: string; dueAt?: string }) => {
 		if (!taskId) { throw new Error(vscode.l10n.t('Task ID is required.')); }
 		const updated = await api.updateTask(requireTeam(state), taskId, { status: changes?.status, position: changes?.position, assigneeId: changes?.assigneeId, title: changes?.title, description: changes?.description, dueAt: changes?.dueAt });
@@ -575,18 +609,80 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		await api.updateApiKey(requireTeam(state), String(keyId), changes);
 		await refresh();
 	});
+	// Удаление участника из команды (права проверяет сервер; UI скрывает кнопку по роли).
+	register('auraTeam.removeMember', async (memberId?: string) => {
+		if (!memberId) { return; }
+		await api.removeMember(requireTeam(state), memberId);
+		vscode.window.showInformationMessage(vscode.l10n.t('The member was removed from the team.'));
+		await refresh();
+	});
+	// Лимиты сервера: клиент валидирует размер архива до отправки и показывает срок хранения.
+	let limitsCache: { teamId: string; at: number; value: { archiveMaxBytes: number; archiveTtlDays: number; proxyRequestsPerDay: number } } | undefined;
+	const teamLimits = async (): Promise<{ archiveMaxBytes: number; archiveTtlDays: number; proxyRequestsPerDay: number } | undefined> => {
+		if (demoMode() || !state.teamId) { return undefined; }
+		if (limitsCache && limitsCache.teamId === state.teamId && Date.now() - limitsCache.at < 300_000) { return limitsCache.value; }
+		try { const value = await api.fetchLimits(state.teamId); limitsCache = { teamId: state.teamId, at: Date.now(), value }; return value; } catch { return undefined; }
+	};
+	register('auraTeam.fetchLimits', async () => teamLimits());
+	// Проверить все ключи параллельно: обновляем снапшот и отдаём результаты в UI.
+	register('auraTeam.checkAllKeys', async () => {
+		const results = await api.checkAllKeys(requireTeam(state));
+		try { state.keys = await api.listApiKeys(requireTeam(state)); } catch { /* не критично */ }
+		await broadcast();
+		return results;
+	});
+	register('auraTeam.listProviders', async () => demoMode() ? [] : api.listProviders(requireTeam(state)));
+	register('auraTeam.teamUsage', async () => demoMode() ? undefined : api.fetchUsage(requireTeam(state)));
+	// Git: три вида отката — по файлу / revert / reset soft|hard (hard подтверждает UI).
+	register('auraTeam.gitDiscardFile', async (filePath?: string) => {
+		if (!filePath) { return; }
+		await gitSvc().discardFile(filePath);
+		await broadcast();
+	});
+	register('auraTeam.gitResetBranch', async (mode?: 'soft' | 'hard') => {
+		if (mode !== 'soft' && mode !== 'hard') { return; }
+		await gitSvc().resetBranch(mode);
+		await broadcast();
+	});
+	// Экран без репозитория не тупик: открыть папку / инициализировать репозиторий.
+	register('auraTeam.openWorkspaceFolder', async () => { await vscode.commands.executeCommand('workbench.action.files.openFolder'); });
+	register('auraTeam.gitInit', async () => {
+		const root = vscode.workspace.workspaceFolders?.[0];
+		if (!root) { throw new Error(vscode.l10n.t('Open a folder first.')); }
+		const { execFile } = await import('node:child_process');
+		const { promisify } = await import('node:util');
+		await promisify(execFile)('git', ['init'], { cwd: root.uri.fsPath });
+		vscode.window.showInformationMessage(vscode.l10n.t('Git repository initialized.'));
+		await refresh();
+	});
+	// Стриминговая загрузка с прогрессом и отменой + проверка лимита ДО отправки.
+	const uploadWithProgress = async (uri: vscode.Uri, projectName: string, projectId?: string): Promise<{ id: string; projectId: string; expiresAt: string }> => {
+		const limits = await teamLimits();
+		let size = 0;
+		try { size = (await vscode.workspace.fs.stat(uri)).size; } catch { /* недоступен stat — пусть сервер решит */ }
+		if (limits && size > limits.archiveMaxBytes) { throw new Error(vscode.l10n.t('The archive exceeds the server limit of {0} MiB.', Math.round(limits.archiveMaxBytes / 1048576))); }
+		const fileName = uri.fsPath.split(/[\\/]/).pop() ?? 'project';
+		return vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Uploading {0}…', fileName), cancellable: true }, async (progress, token) => {
+			let lastPercent = 0;
+			const upload = api.uploadArchiveStream(requireTeam(state), uri.fsPath, projectName, projectId, (sent, total) => {
+				if (total <= 0) { return; }
+				const percent = Math.min(100, Math.floor((sent / total) * 100));
+				if (percent > lastPercent) { progress.report({ increment: percent - lastPercent }); lastPercent = percent; }
+			});
+			const cancelled = new Promise<never>((_, reject) => token.onCancellationRequested(() => reject(new Error(vscode.l10n.t('Upload cancelled.')))));
+			const result = await Promise.race([upload, cancelled]);
+			vscode.window.showInformationMessage(vscode.l10n.t('Archive uploaded. It expires at {0}.', new Date(result.expiresAt).toLocaleString()));
+			await refresh();
+			return result;
+		});
+	};
 	register('auraTeam.uploadArchive', async (projectName?: string) => {
 		const uri = (await vscode.window.showOpenDialog({ canSelectMany: false, openLabel: vscode.l10n.t('Upload archive') }))?.[0];
 		if (!uri) { return; }
-		const bytes = await vscode.workspace.fs.readFile(uri);
-		if (bytes.byteLength > 50 * 1024 * 1024) { throw new Error(vscode.l10n.t('The archive exceeds 50 MiB.')); }
 		const fileName = uri.fsPath.split(/[\\/]/).pop() ?? 'project';
 		// Без явного имени проекта берём имя файла без расширения — модалка не нужна.
 		const name = projectName?.trim() || fileName.replace(/\.[^.]+$/, '') || 'project';
-		const result = await api.uploadArchive(requireTeam(state), fileName, name, bytes);
-		vscode.window.showInformationMessage(vscode.l10n.t('Archive uploaded. It expires at {0}.', new Date(result.expiresAt).toLocaleString()));
-		await refresh();
-		return result;
+		return uploadWithProgress(uri, name);
 	});
 	register('auraTeam.downloadArchive', async (project?: Project) => {
 		if (!project?.archiveId) { throw new Error(vscode.l10n.t('This project has no archive.')); }
@@ -616,13 +712,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		if (!project) { throw new Error(vscode.l10n.t('Project not found.')); }
 		const uri = (await vscode.window.showOpenDialog({ canSelectMany: false, openLabel: vscode.l10n.t('Upload archive') }))?.[0];
 		if (!uri) { return; }
-		const bytes = await vscode.workspace.fs.readFile(uri);
-		if (bytes.byteLength > 50 * 1024 * 1024) { throw new Error(vscode.l10n.t('The archive exceeds 50 MiB.')); }
-		const fileName = uri.fsPath.split(/[\\/]/).pop() ?? 'project';
-		const result = await api.uploadArchive(requireTeam(state), fileName, project.name, bytes, project.id);
-		vscode.window.showInformationMessage(vscode.l10n.t('Archive uploaded. It expires at {0}.', new Date(result.expiresAt).toLocaleString()));
-		await refresh();
-		return result;
+		return uploadWithProgress(uri, project.name, project.id);
 	});
 	register('auraTeam.transferProject', async (projectId?: string, ownerMemberId?: string) => {
 		const project = projectId ? state.board?.projects.find(p => p.id === projectId) : undefined;
@@ -722,6 +812,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
 	private view?: vscode.WebviewView;
 	private lastState?: unknown;
+	private lastInviteCode?: string;
 
 	constructor(
 		private readonly open: (view: string, filter?: unknown) => Promise<void>,
@@ -738,8 +829,14 @@ class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
 		webviewView.webview.html = LAUNCHER_HTML.split('__NONCE__').join(nonce);
 		webviewView.webview.onDidReceiveMessage(async message => {
 			if (message?.type === 'open' && typeof message.view === 'string') { await this.open(message.view, message.filter); }
+			else if (message?.type === 'toast' && typeof message.text === 'string') { void vscode.window.showInformationMessage(message.text); }
+			else if (message?.type === 'copy' && typeof message.text === 'string') { await vscode.env.clipboard.writeText(message.text); void vscode.window.showInformationMessage(vscode.l10n.t('Copied to clipboard.')); }
 			else if (message?.type === 'invoke' && typeof message.command === 'string') {
-				try { await this.invoke(message.command, Array.isArray(message.args) ? message.args : []); } catch { /* ошибка уже показана хэндлером */ }
+				try {
+					const result = await this.invoke(message.command, Array.isArray(message.args) ? message.args : []);
+					// Код приглашения возвращается из auraTeam.currentInvite/createInvite — кладём в state для сайдбара.
+					if (result && typeof result === 'object' && 'code' in (result as Record<string, unknown>)) { this.lastInviteCode = String((result as Record<string, unknown>).code ?? ''); }
+				} catch (error) { void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error)); }
 				await this.push();
 			} else if (message?.type === 'ready') { await this.push(); }
 		});
@@ -749,7 +846,9 @@ class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
 	/** Протолкнуть свежее состояние в сайдбар (вызывается из broadcast). */
 	async push(): Promise<void> {
 		this.lastState = await this.getState();
-		if (this.view) { void this.view.webview.postMessage({ type: 'state', state: this.lastState }); }
+		if (this.view) {
+			void this.view.webview.postMessage({ type: 'state', state: this.lastState, inviteCode: this.lastInviteCode });
+		}
 	}
 }
 
@@ -778,6 +877,9 @@ const LAUNCHER_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta ht
 	.section .count { background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); border-radius: 999px; padding: 1px 8px; font-size: 10px; text-transform: none; letter-spacing: 0; font-weight: 500; }
 	.section .count.hot { background: #d29922; color: #1f1300; animation: pulse 1.6s ease infinite; }
 	@keyframes pulse { 50% { opacity: .55; } }
+	.done-btn { margin-left: auto; width: 18px; height: 18px; border: none; border-radius: 5px; background: transparent; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 11px; line-height: 1; padding: 0; flex: none; }
+	.done-btn:hover { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+	.day-sep { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; opacity: .55; padding: 5px 8px 2px; font-weight: 600; }
 	.member { display: flex; gap: 8px; align-items: center; padding: 4px 8px; border-radius: 7px; animation: in .25s ease both; }
 	.member:hover { background: var(--vscode-list-hoverBackground); cursor: pointer; }
 	.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; margin-left: auto; }
@@ -797,6 +899,11 @@ const LAUNCHER_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta ht
 	.taskline .st { flex: none; font-size: 10px; padding: 1px 6px; border-radius: 6px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
 	.taskline .due { margin-left: auto; font-size: 10px; opacity: .55; }
 	.taskline .due.hot { color: #d29922; opacity: 1; font-weight: 600; }
+	.line-btn { width: 18px; height: 18px; border: none; border-radius: 5px; background: transparent; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 11px; line-height: 1; padding: 0; flex: none; }
+	.line-btn:hover { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+	.line-btn.del:hover { background: var(--vscode-errorForeground); color: #fff; }
+	.invite-menu { text-align: left; margin: 6px 0 2px; }
+	.invite-menu .code { font-family: var(--vscode-editor-font-family); font-size: 16px; font-weight: 700; letter-spacing: 2px; background: var(--vscode-input-background); border: 1px solid var(--vscode-panel-border); border-radius: 8px; padding: 9px 12px; margin: 8px 0; text-align: center; user-select: all; }
 	.projline { display: flex; gap: 7px; align-items: center; padding: 4px 8px; border-radius: 7px; font-size: 12px; cursor: pointer; animation: in .25s ease both; }
 	.projline:hover { background: var(--vscode-list-hoverBackground); }
 	.projline .br { margin-left: auto; font-size: 10px; opacity: .55; font-family: var(--vscode-editor-font-family); }
@@ -818,6 +925,20 @@ const LAUNCHER_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta ht
 		const colors = ['#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#f59e0b', '#10b981', '#14b8a6', '#0ea5e9', '#3b82f6'];
 		let h = 0; for (const c of String(id ?? '')) { h = (h * 31 + c.charCodeAt(0)) >>> 0; }
 		return colors[h % colors.length];
+	}
+	function confirmInline(message) {
+		// Модальные showWarningMessage из webview недоступны — лёгкий inline-confirm.
+		// Повторный клик по кнопке в течение 3с подтверждает удаление.
+		const btn = window.__confirmBtn;
+		if (window.__confirmMsg === message && Date.now() - window.__confirmAt < 3000) {
+			window.__confirmMsg = null;
+			return true;
+		}
+		window.__confirmMsg = message;
+		window.__confirmAt = Date.now();
+		vscode.postMessage({ type: 'toast', text: message + ' — ' + (state?.uiLanguage === 'en' ? 'click again to confirm' : 'нажмите ещё раз для подтверждения') });
+		void btn;
+		return false;
 	}
 	function describe(ev, ru) {
 		const map = {
@@ -867,6 +988,7 @@ const LAUNCHER_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta ht
 				['keys', ru ? 'Ключи команды' : 'Team keys'],
 				['profile', ru ? 'Профиль' : 'Profile']
 			];
+			const teamRole = (state.session?.teams ?? []).find(t => t.id === state.teamId)?.role ?? 'viewer';
 			let html = '<div class="me"><div class="ava" style="background:' + colorFor(u.id) + '">' + esc(initials(u.displayName)) + '</div><div><div>' + esc(u.displayName ?? '') + '</div><div class="id">' + esc(teamName || u.email || '') + '</div></div></div>';
 			// Мои задачи
 			const myTasks = summary?.myTasks ?? [];
@@ -874,7 +996,7 @@ const LAUNCHER_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta ht
 			html += myTasks.length
 				? myTasks.slice(0, 4).map(t => {
 					const hot = t.dueAt && new Date(t.dueAt).getTime() < soon;
-					return '<div class="taskline" data-view="board" data-task="' + esc(t.id) + '"><span class="st">' + esc(t.status) + '</span><span>' + esc(t.title) + '</span>' + (t.dueAt ? '<span class="due' + (hot ? ' hot' : '') + '">' + (hot ? '⏰ ' : '') + timeAgo(t.dueAt) + '</span>' : '') + '</div>';
+					return '<div class="taskline" data-view="board" data-task="' + esc(t.id) + '"><span class="st">' + esc(t.status) + '</span><span>' + esc(t.title) + '</span>' + (t.dueAt ? '<span class="due' + (hot ? ' hot' : '') + '">' + (hot ? '⏰ ' : '') + timeAgo(t.dueAt) + '</span>' : '') + '<button class="line-btn del" data-del-task="' + esc(t.id) + '" title="' + (ru ? 'Удалить' : 'Delete') + '">×</button><button class="line-btn" data-done-task="' + esc(t.id) + '" title="' + (ru ? 'Выполнено' : 'Done') + '">✓</button><button class="line-btn" data-status-task="' + esc(t.id) + '" title="' + (ru ? 'Сменить статус' : 'Change status') + '">⇄</button></div>';
 				}).join('')
 				: '<div class="feed-item"><span class="ico">✓</span><span class="what">' + (ru ? 'Незакрытых задач нет' : 'No open tasks') + '</span></div>';
 			// Участники
@@ -887,9 +1009,28 @@ const LAUNCHER_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta ht
 			const feedAll = state.activity ?? [];
 			const showHiddenMode = state._showHiddenActivity === true;
 			const feed = showHiddenMode ? feedAll.filter(ev => dismissed.has(key(ev))) : feedAll.filter(ev => !dismissed.has(key(ev)));
-			html += '<div class="section"><span>' + (ru ? 'События' : 'Activity') + '</span>' + (dismissed.size && !showHiddenMode ? '<span class="count" id="showHiddenBtn" style="cursor:pointer">' + dismissed.size + ' ' + (ru ? 'скрыт' : 'hidden') + '</span>' : showHiddenMode ? '<span class="count" id="showHiddenBtn" style="cursor:pointer">←</span>' : '') + '</div><div class="feed">';
-			html += feed.length
-				? feed.slice(0, 6).map(ev => '<div class="feed-item" data-evkey="' + esc(key(ev)) + '"><span class="ico">' + (ev.action.includes('commit') ? '⎇' : ev.action.includes('task') ? '☑' : ev.action.includes('invite') ? '✉' : '•') + '</span><span><span class="who">' + esc(ev.userName) + '</span> <span class="what">' + esc(describe(ev, ru)) + (ev.taskTitle ? ' «' + esc(ev.taskTitle) + '»' : '') + '</span></span><span class="when">' + timeAgo(ev.createdAt) + '</span></div>').join('')
+			// Фильтр по типу события: все / задачи / коммиты (клик по значку циклит).
+			const feedFilter = state._feedFilter ?? 'all';
+			const filterIcons = { all: '•', task: '☑', commit: '⎇' };
+			const nextFilter = { all: 'task', task: 'commit', commit: 'all' };
+			const feedFiltered = feedFilter === 'all' ? feed : feed.filter(ev => ev.action.includes(feedFilter === 'task' ? 'task' : 'commit'));
+			html += '<div class="section"><span>' + (ru ? 'События' : 'Activity') + '</span><span>' +
+				(dismissed.size && !showHiddenMode ? '<span class="count" id="showHiddenBtn" style="cursor:pointer">' + dismissed.size + ' ' + (ru ? 'скрыт' : 'hidden') + '</span>' : showHiddenMode ? '<span class="count" id="showHiddenBtn" style="cursor:pointer">←</span>' : '') +
+				'<span class="count" id="feedFilterBtn" style="cursor:pointer" title="' + (ru ? 'Фильтр событий' : 'Filter events') + '">' + filterIcons[feedFilter] + '</span></span></div><div class="feed">';
+			// Группировка по дням: «Сегодня / Вчера / 12 сент».
+			const dayLabel = (iso) => {
+				const d = new Date(iso); const now = new Date(); const yesterday = new Date(Date.now() - 864e5);
+				if (d.toDateString() === now.toDateString()) { return ru ? 'Сегодня' : 'Today'; }
+				if (d.toDateString() === yesterday.toDateString()) { return ru ? 'Вчера' : 'Yesterday'; }
+				return d.toLocaleDateString(ru ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short' });
+			};
+			let lastDay = null;
+			html += feedFiltered.length
+				? feedFiltered.slice(0, 8).map(ev => {
+					const day = dayLabel(ev.createdAt);
+					const head = day !== lastDay ? ((lastDay = day), '<div class="day-sep">' + esc(day) + '</div>') : '';
+					return head + '<div class="feed-item" data-evkey="' + esc(key(ev)) + '"><span class="ico">' + (ev.action.includes('commit') ? '⎇' : ev.action.includes('task') ? '☑' : ev.action.includes('invite') ? '✉' : '•') + '</span><span><span class="who">' + esc(ev.userName) + '</span> <span class="what">' + esc(describe(ev, ru)) + (ev.taskTitle ? ' «' + esc(ev.taskTitle) + '»' : '') + '</span></span><span class="when">' + timeAgo(ev.createdAt) + '</span><button class="line-btn del" data-hide-ev="' + esc(key(ev)) + '" title="' + (ru ? 'Скрыть' : 'Hide') + '">×</button></div>';
+				}).join('')
 				: '<div class="feed-item"><span class="what">' + (showHiddenMode ? (ru ? 'Скрытых событий нет' : 'No hidden events') : (ru ? 'Пока тихо' : 'Nothing yet')) + '</span></div>';
 			html += '</div>';
 			// Проекты
@@ -902,11 +1043,32 @@ const LAUNCHER_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta ht
 				'<button id="invite"><span class="n-ico">' + icons.add + '</span>' + (ru ? 'Пригласить в команду' : 'Invite to team') + '</button></div>' +
 				'<div class="nav"><button id="logout" class="danger"><span class="n-ico">' + icons.logout + '</span>' + (ru ? 'Выйти' : 'Sign out') + '</button></div>';
 			root.innerHTML = html;
-			document.getElementById('invite').onclick = () => vscode.postMessage({ type: 'invoke', command: 'auraTeam.createInvite', args: [] });
 			document.getElementById('logout').onclick = () => vscode.postMessage({ type: 'invoke', command: 'auraTeam.signOut', args: [] });
+			// «Пригласить в команду» — меню: показать код, скопировать, перегенерировать.
+			document.getElementById('invite').onclick = async () => {
+				const sec = document.getElementById('inviteMenu');
+				if (sec) { sec.remove(); return; }
+				const block = document.createElement('div');
+				block.id = 'inviteMenu';
+				block.className = 'card invite-menu';
+				block.innerHTML = '<div class="title">' + (ru ? 'Приглашение в команду' : 'Team invite') + '</div><div class="sub">' + (ru ? 'Отправьте код участнику — он введёт его в разделе «Команды».' : 'Share the code — the teammate enters it under Teams.') + '</div><div class="code mono" id="inviteCode">…</div><div class="nav"><button id="inviteCopy">📋 ' + (ru ? 'Скопировать код' : 'Copy code') + '</button><button class="secondary" id="inviteRegen">↻ ' + (ru ? 'Новый код' : 'New code') + '</button></div>';
+				document.getElementById('invite').after(block);
+				const load = (cmd, notice) => {
+					vscode.postMessage({ type: 'invoke', command: cmd, args: [] });
+					if (notice) { vscode.postMessage({ type: 'toast', text: notice }); }
+				};
+				// Код приходит ответом на invoke auraTeam.currentInvite (результат игнорируем — см. state._inviteCode).
+				block.querySelector('#inviteCopy').onclick = () => {
+					const code = (state._inviteCode ?? '').trim();
+					if (!code) { vscode.postMessage({ type: 'toast', text: ru ? 'Код ещё не получен' : 'Code not loaded yet' }); return; }
+					vscode.postMessage({ type: 'copy', text: code });
+				};
+				block.querySelector('#inviteRegen').onclick = () => load('auraTeam.createInvite', ru ? 'Старый код отозван, создан новый' : 'Old code revoked, new one created');
+				load('auraTeam.currentInvite');
+			};
 		}
 		for (const b of root.querySelectorAll('button[data-view]')) { b.onclick = () => vscode.postMessage({ type: 'open', view: b.dataset.view }); }			for (const el of root.querySelectorAll('[data-view].member, [data-view].taskline, [data-view].projline')) { el.onclick = () => vscode.postMessage({ type: 'open', view: el.dataset.view, filter: el.dataset.member ? { member: el.dataset.member } : el.dataset.task ? { task: el.dataset.task } : undefined }); }
-			// Свайп-скрытие событий ленты: долгое удержание не нужно — короткий свайп вправо.
+			// Свайп-скрытие событий ленты (короткий свайп вправо) + явная кнопка ×.
 			for (const el of root.querySelectorAll('[data-evkey]')) {
 				let sx = 0, active = false;
 				el.style.touchAction = 'pan-y';
@@ -917,10 +1079,37 @@ const LAUNCHER_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta ht
 					if (e.clientX - sx > 60) { vscode.postMessage({ type: 'invoke', command: 'auraTeam.dismissActivity', args: [el.dataset.evkey] }); }
 				};
 			}
+			for (const btn of root.querySelectorAll('[data-hide-ev]')) {
+				btn.onclick = (e) => { e.stopPropagation(); vscode.postMessage({ type: 'invoke', command: 'auraTeam.dismissActivity', args: [btn.dataset.hideEv] }); };
+			}
 			const hiddenBtn = document.getElementById('showHiddenBtn');
 			if (hiddenBtn) { hiddenBtn.onclick = () => { state._showHiddenActivity = !showHiddenMode; render(); }; }
+			const filterBtn = document.getElementById('feedFilterBtn');
+			if (filterBtn) { filterBtn.onclick = () => { state._feedFilter = nextFilter[feedFilter]; render(); }; }
+			// Чекбокс «выполнено», смена статуса и удаление у моих задач.
+			for (const btn of root.querySelectorAll('[data-done-task]')) {
+				btn.onclick = (e) => { e.stopPropagation(); vscode.postMessage({ type: 'invoke', command: 'auraTeam.updateTask', args: [btn.dataset.doneTask, { status: 'done' }] }); };
+			}
+			// Смена статуса: клик по ⇄ циклит todo → doing → review → done.
+			const statusCycle = ['todo', 'doing', 'review', 'done'];
+			for (const btn of root.querySelectorAll('[data-status-task]')) {
+				btn.onclick = (e) => {
+					e.stopPropagation();
+					const task = (summary?.myTasks ?? []).find(t => t.id === btn.dataset.statusTask);
+					const current = statusCycle.indexOf(task?.status ?? 'todo');
+					const next = statusCycle[(current + 1) % statusCycle.length];
+					vscode.postMessage({ type: 'invoke', command: 'auraTeam.updateTask', args: [btn.dataset.statusTask, { status: next }] });
+				};
+			}
+			for (const btn of root.querySelectorAll('[data-del-task]')) {
+				btn.onclick = (e) => {
+					e.stopPropagation();
+					if (!confirmInline(ru ? 'Удалить задачу?' : 'Delete task?')) { return; }
+					vscode.postMessage({ type: 'invoke', command: 'auraTeam.deleteTask', args: [btn.dataset.delTask] });
+				};
+			}
 	}
-	window.addEventListener('message', e => { if (e.data?.type === 'state') { state = e.data.state; render(); } });
+	window.addEventListener('message', e => { if (e.data?.type === 'state') { state = e.data.state; if (typeof e.data.inviteCode === 'string') { state._inviteCode = e.data.inviteCode; } render(); } });
 	vscode.postMessage({ type: 'ready' });
 </script></body></html>`;
 

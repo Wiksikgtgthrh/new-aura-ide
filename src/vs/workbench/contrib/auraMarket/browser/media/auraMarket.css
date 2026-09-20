@@ -148,3 +148,13 @@
 .aura-market-docs { margin: 6px 0 0; padding: 14px; border-radius: 10px; background: var(--vscode-textCodeBlock-background, var(--vscode-input-background)); font-size: 12px; line-height: 1.65; white-space: pre-wrap; max-height: 420px; overflow-y: auto; border-left: 3px solid var(--vscode-button-background); animation: auraMarketDocs .22s ease both; }
 @keyframes auraMarketDocs { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 420px; } }
 .aura-market-launcher { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+
+/* --- История версий (как в расширениях VS Code) --- */
+.aura-market-versions { margin: 4px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--vscode-editorWidget-background, var(--vscode-input-background)); border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; animation: auraMarketDocs .22s ease both; }
+.aura-market-version { display: flex; flex-direction: column; gap: 4px; }
+.aura-market-version-head { display: flex; align-items: baseline; gap: 8px; }
+.aura-market-version-num { font-weight: 700; font-size: 12.5px; font-family: var(--vscode-editor-font-family); }
+.aura-market-version-latest { font-size: 10px; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--vscode-button-background) 20%, transparent); color: var(--vscode-button-background); font-weight: 600; }
+.aura-market-version-date { font-size: 11px; color: var(--vscode-descriptionForeground); margin-left: auto; }
+.aura-market-version-log { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.55; color: var(--vscode-descriptionForeground); }
+.aura-market-version:first-child .aura-market-version-log { color: var(--vscode-foreground); }

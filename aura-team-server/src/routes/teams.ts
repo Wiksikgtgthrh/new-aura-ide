@@ -5,6 +5,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { mapAccessError, requireRole, userId } from '../access.js';
+import { config } from '../config.js';
 import { audit, database } from '../database.js';
 import { broadcast } from '../realtime.js';
 import { onlineUserIds } from '../realtime.js';
@@ -112,7 +113,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
 		const online = onlineUserIds(request.params.teamId);
-		const members = (database.prepare('SELECT u.id,u.display_name AS displayName,u.email,m.role FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.team_id=? ORDER BY u.display_name').all(request.params.teamId) as { id: string; displayName: string; email: string; role: string }[]).map(member => ({ ...member, online: online.has(member.id) }));
+		const members = (database.prepare('SELECT u.id,u.display_name AS displayName,u.email,m.role,m.last_seen_at AS lastSeenAt FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.team_id=? ORDER BY u.display_name').all(request.params.teamId) as { id: string; displayName: string; email: string; role: string; lastSeenAt: string | null }[]).map(member => ({ ...member, online: online.has(member.id) }));
 		const projects = database.prepare('SELECT id,team_id AS teamId,name,git_url AS gitUrl,archive_id AS archiveId,owner_id AS ownerId,default_branch AS defaultBranch FROM projects WHERE team_id=?').all(request.params.teamId);
 		const tasks = database.prepare('SELECT t.id,t.team_id AS teamId,t.title,t.description,t.status,t.assignee_id AS assigneeId,u.display_name AS assigneeName,t.position,t.due_at AS dueAt FROM tasks t LEFT JOIN users u ON u.id=t.assignee_id WHERE t.team_id=? AND t.deleted_at IS NULL ORDER BY t.status,t.position').all(request.params.teamId);
 		return { members, projects, tasks };
@@ -127,6 +128,30 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		audit(user, 'membership.role', request.params.teamId, 'user', request.params.memberId, { role: request.body.role });
 		broadcast(request.params.teamId, 'membership.changed');
 		return { ok: true };
+	});
+
+	// Удаление участника из команды: maintainer+ может удалять dev/viewer, owner — также maintainer.
+	// Запрещено удалять себя, любого owner (кроме случая, когда owner удаляет другого owner вручную?
+	// нет — owner не удаляется вовсе, передача владения отдельная операция) и последнего owner косвенно.
+	app.delete<{ Params: { teamId: string; memberId: string } }>('/v1/teams/:teamId/members/:memberId', async (request, reply) => {
+		const user = await userId(request);
+		const target = database.prepare('SELECT role FROM memberships WHERE user_id=? AND team_id=?').get(request.params.memberId, request.params.teamId) as { role: string } | undefined;
+		if (!target) { return reply.notFound(); }
+		if (request.params.memberId === user) { return reply.badRequest('Use leave to remove yourself'); }
+		try { requireRole(user, request.params.teamId, target.role === 'maintainer' ? 'owner' : 'maintainer'); } catch (error) { mapAccessError(error); }
+		if (target.role === 'owner') { return reply.badRequest('Ownership transfer is a separate operation'); }
+		const result = database.prepare('DELETE FROM memberships WHERE user_id=? AND team_id=?').run(request.params.memberId, request.params.teamId);
+		if (result.changes !== 1) { return reply.notFound(); }
+		audit(user, 'membership.remove', request.params.teamId, 'user', request.params.memberId, { role: target.role });
+		broadcast(request.params.teamId, 'membership.changed');
+		return reply.code(204).send();
+	});
+
+	// Лимиты команды: клиент валидирует размер архива до отправки и честно показывает срок хранения.
+	app.get<{ Params: { teamId: string } }>('/v1/teams/:teamId/limits', async request => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
+		return { archiveMaxBytes: config.archiveMaxBytes, archiveTtlDays: config.archiveTtlDays, proxyRequestsPerDay: config.proxyRequestsPerDay };
 	});
 
 	app.post<{ Params: { teamId: string }; Body: { name?: string; gitUrl?: string; defaultBranch?: string } }>('/v1/teams/:teamId/projects', async (request, reply) => {

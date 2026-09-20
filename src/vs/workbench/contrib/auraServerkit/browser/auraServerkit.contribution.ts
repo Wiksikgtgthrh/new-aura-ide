@@ -27,7 +27,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
-import { auraMarketInstalledKey } from '../../auraMarket/common/auraMarketCatalog.js';
+import { auraMarketInstalledKey, auraMarketDisabledKey } from '../../auraMarket/common/auraMarketCatalog.js';
 
 export const AURA_SERVERKIT_OPEN_COMMAND_ID = 'auraServerkit.openDashboard';
 export const AURA_SERVERKIT_VIEW_CONTAINER_ID = 'workbench.view.auraServerkit';
@@ -102,7 +102,9 @@ class AuraServerkitPluginContribution extends Disposable {
 		@IStorageService storageService: IStorageService,
 	) {
 		super();
-		if (storageService.get(auraMarketInstalledKey('aura-serverkit'), StorageScope.APPLICATION, 'false') !== 'true') {
+		// Плагин отключён через Market: иконка и функции не регистрируются до включения.
+		if (storageService.get(auraMarketInstalledKey('aura-serverkit'), StorageScope.APPLICATION, 'false') !== 'true'
+			|| storageService.get(auraMarketDisabledKey('aura-serverkit'), StorageScope.APPLICATION, 'false') === 'true') {
 			return;
 		}
 		registerAuraServerkitPlugin();

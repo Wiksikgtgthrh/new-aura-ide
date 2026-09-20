@@ -55,3 +55,6 @@ dist
 # Local agent validation evidence
 .agent-validation/
 extensions/copilot/test/simulation/cache/
+
+# Bundled Kotlin Language Server (offline kit; fetch with npm run fetch-server)
+extensions/aura-kotlin/server/

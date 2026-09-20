@@ -111,9 +111,9 @@ class AuraApiChatKeysViewPane extends ViewPane {
 		const keys = this.keysService.getKeys();
 		if (keys.length === 0) {
 			const empty = append(this.keysBody, $('.aura-api-chat-empty'));
-			empty.textContent = localize('auraApi.chatKeys.empty', "No API keys configured");
+			empty.textContent = localize('auraApi.chatKeys.empty', "Ключи для чата не настроены");
 			const open = append(empty, $('button.aura-api-chat-empty-open'));
-			open.textContent = localize('auraApi.chatKeys.openManager', "Add key");
+			open.textContent = localize('auraApi.chatKeys.openManager', "Добавить ключ");
 			this._register(addDisposableListener(open, 'click', () => { void this.commandService.executeCommand(AURA_API_OPEN_COMMAND_ID); }));
 			return;
 		}
@@ -125,7 +125,7 @@ class AuraApiChatKeysViewPane extends ViewPane {
 			append(row, $('span.aura-api-chat-key-name')).textContent = key.name;
 			append(row, $('code')).textContent = this.keysService.maskedSecretLabel(key.id);
 			const detail = append(row, $('small'));
-			detail.textContent = `${key.model} · ${key.priority} · ${status.ok === true ? localize('auraApi.chatKeys.ready', "ready") : localize('auraApi.chatKeys.unavailable', "not ready")}`;
+			detail.textContent = `${key.model} · ${key.priority} · ${status.ok === true ? localize('auraApi.chatKeys.ready', "готов") : localize('auraApi.chatKeys.unavailable', "не готов")}`;
 			row.style.cursor = 'pointer';
 			this._register(addDisposableListener(row, 'click', () => { void this.keysService.selectForChat(key.id); }));
 		}
@@ -140,8 +140,7 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 	registered = true;
 
 	// Центральная вкладка менеджера ключей
-	Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-		EditorPaneDescriptor.create(AuraApiEditorPane, AuraApiEditorPane.ID, localize('auraApiEditor', "API Keys")),
+	Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(			EditorPaneDescriptor.create(AuraApiEditorPane, AuraApiEditorPane.ID, localize('auraApiEditor', "Ключи API")),
 		[new SyncDescriptor(AuraApiEditorInput)]
 	);
 	Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(AuraApiEditorInput.ID, AuraApiEditorInputSerializer);
@@ -149,7 +148,7 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 	// Иконка слева: клик по ней сразу открывает вкладку
 	const auraApiContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 		id: AURA_API_VIEW_CONTAINER_ID,
-		title: localize2('auraApi', "API Keys"),
+		title: localize2('auraApi', "Ключи API"),
 		ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [AURA_API_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 		icon: auraApiViewIcon,
 		hideIfEmpty: false,
@@ -158,7 +157,7 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 
 	Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 		id: AURA_API_LAUNCHER_VIEW_ID,
-		name: localize2('auraApi.launcher', "API Keys"),
+		name: localize2('auraApi.launcher', "Ключи API"),
 		containerIcon: auraApiViewIcon,
 		ctorDescriptor: new SyncDescriptor(AuraApiLauncherViewPane),
 		canToggleVisibility: true,
@@ -169,7 +168,7 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 	if (chatContainer) {
 		Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 			id: AURA_API_CHAT_KEYS_VIEW_ID,
-			name: localize2('auraApi.chatKeys', "API Keys"),
+			name: localize2('auraApi.chatKeys', "Ключи для чата"),
 			containerIcon: auraApiViewIcon,
 			ctorDescriptor: new SyncDescriptor(AuraApiChatKeysViewPane),
 			order: 1,
@@ -197,11 +196,10 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 	});
 
 	registerAction2(class extends Action2 {
-		constructor() {
-			super({ id: AURA_API_ADD_TEAM_PROXY_COMMAND_ID, title: localize2('auraApi.addTeamProxy', "API Keys: Add Team Proxy"), f1: false });
+		constructor() {			super({ id: AURA_API_ADD_TEAM_PROXY_COMMAND_ID, title: localize2('auraApi.addTeamProxy', "API Keys: Добавить прокси команды"), f1: false });
 		}
 		override async run(accessor: ServicesAccessor, input?: { name?: string; baseUrl?: string; model?: string; token?: string; provider?: 'openai-compatible' | 'anthropic' }): Promise<void> {
-			if (!input?.name || !input.baseUrl || !input.model || !input.token) { throw new Error(localize('auraApi.addTeamProxy.invalid', "Team proxy configuration is incomplete.")); }
+			if (!input?.name || !input.baseUrl || !input.model || !input.token) { throw new Error(localize('auraApi.addTeamProxy.invalid', "Конфигурация прокси команды неполная.")); }
 			const keysService = accessor.get(IAuraApiKeysService);
 			await keysService.addKey({ name: input.name, baseUrl: input.baseUrl, model: input.model, priority: 'high', provider: input.provider ?? 'openai-compatible', weight: 1 }, input.token);
 		}
@@ -209,7 +207,7 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 
 	registerAction2(class extends Action2 {
 		constructor() {
-			super({ id: AURA_API_EXPORT_KEY_COMMAND_ID, title: localize2('auraApi.exportKey', "API Keys: Export Key (for Team bank)"), f1: false });
+			super({ id: AURA_API_EXPORT_KEY_COMMAND_ID, title: localize2('auraApi.exportKey', "API Keys: Экспорт ключа (в банк команды)"), f1: false });
 		}
 		/** Возвращает { value, provider, baseUrl, model } ключа: использует банк Team. */
 		override async run(accessor: ServicesAccessor, keyId?: string): Promise<{ value?: string; provider?: string; baseUrl?: string; model?: string; name?: string; id?: string } | undefined> {
@@ -225,7 +223,7 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 
 	registerAction2(class extends Action2 {
 		constructor() {
-			super({ id: AURA_API_EXPORT_KEYS_LIST_COMMAND_ID, title: localize2('auraApi.exportKeysList', "API Keys: List Keys (for Team import)"), f1: false });
+			super({ id: AURA_API_EXPORT_KEYS_LIST_COMMAND_ID, title: localize2('auraApi.exportKeysList', "API Keys: Список ключей (импорт в команду)"), f1: false });
 		}
 		/** Список ключей без секретов — для выбора при импорте. */
 		override async run(accessor: ServicesAccessor): Promise<Array<{ id: string; name?: string; baseUrl?: string; model?: string; priority?: string }>> {

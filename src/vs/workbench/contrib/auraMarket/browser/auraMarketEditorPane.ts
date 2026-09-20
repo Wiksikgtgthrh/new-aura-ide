@@ -13,7 +13,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { AuraMarketEditorInput } from './auraMarketEditorInput.js';
-import { AURA_MARKET_ITEMS, AuraMarketFilter, IAuraMarketItem, auraMarketInstalledKey } from '../common/auraMarketCatalog.js';
+import { AURA_MARKET_ITEMS, AuraMarketFilter, IAuraMarketItem, auraMarketInstalledKey, auraMarketDisabledKey } from '../common/auraMarketCatalog.js';
 
 export class AuraMarketEditorPane extends EditorPane {
 
@@ -24,6 +24,7 @@ export class AuraMarketEditorPane extends EditorPane {
 	private listEl!: HTMLElement;
 	private chipsEl!: HTMLElement;
 	private readonly expandedDocs = new Set<string>();
+	private readonly expandedVersions = new Set<string>();
 
 	constructor(
 		group: IEditorGroup,
@@ -82,6 +83,11 @@ export class AuraMarketEditorPane extends EditorPane {
 		return this.marketStorage.get(auraMarketInstalledKey(item.id), StorageScope.APPLICATION, 'false') === 'true';
 	}
 
+	/** Плагин установлен, но временно отключён (иконка/функции скрыты до включения). */
+	private isDisabled(item: IAuraMarketItem): boolean {
+		return this.marketStorage.get(auraMarketDisabledKey(item.id), StorageScope.APPLICATION, 'false') === 'true';
+	}
+
 	private async install(item: IAuraMarketItem, btn: HTMLButtonElement): Promise<void> {
 		// Тяжёлые плагины: предупреждаем, что установится вместе с toolchain.
 		if (!this.isInstalled(item) && item.size && /ГБ|GB/i.test(item.size)) {
@@ -110,6 +116,34 @@ export class AuraMarketEditorPane extends EditorPane {
 		btn.textContent = 'Установлено ✓';
 		btn.disabled = true;
 		btn.classList.add('installed');
+	}
+
+	/** Временное отключение: флаг остаётся, иконка/функции пропадают до включения. */
+	private async disable(item: IAuraMarketItem, btn: HTMLButtonElement): Promise<void> {
+		this.marketStorage.store(auraMarketDisabledKey(item.id), 'true', StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this.notificationService.prompt(
+			Severity.Info,
+			`«${item.name}» отключён. Перезагрузите окно — иконка и функции пропадут, пока не включите плагин снова.`,
+			[{
+				label: 'Перезагрузить окно',
+				run: () => { void this.commandService.executeCommand('workbench.action.reloadWindow'); },
+			}],
+		);
+		btn.textContent = 'Включить';
+	}
+
+	/** Включение обратно после отключения. */
+	private async enable(item: IAuraMarketItem, btn: HTMLButtonElement): Promise<void> {
+		this.marketStorage.remove(auraMarketDisabledKey(item.id), StorageScope.APPLICATION);
+		this.notificationService.prompt(
+			Severity.Info,
+			`«${item.name}» включён. Перезагрузите окно, чтобы вернуть иконку и функции.`,
+			[{
+				label: 'Перезагрузить окно',
+				run: () => { void this.commandService.executeCommand('workbench.action.reloadWindow'); },
+			}],
+		);
+		btn.textContent = 'Отключить';
 	}
 
 	/** Удаление: сбрасывает флаг установки и предлагает перезагрузить окно. */
@@ -168,15 +202,22 @@ export class AuraMarketEditorPane extends EditorPane {
 				[item.author, item.version ? `v${item.version}` : undefined, item.size].filter(Boolean).join(' · ');
 
 			const actions = append(card, $('.aura-market-card-actions'));
+			const disabled = this.isDisabled(item);
 			const installBtn = append(actions, $('button.aura-market-install')) as HTMLButtonElement;
 			const installed = this.isInstalled(item);
-			installBtn.textContent = installed ? 'Установлено ✓' : 'Установить';
-			installBtn.disabled = installed;
-			if (installed) { installBtn.classList.add('installed'); }
-			this._register(addDisposableListener(installBtn, EventType.CLICK, () => { void this.install(item, installBtn); }));
+			installBtn.textContent = !installed ? 'Установить' : disabled ? 'Включить' : 'Установлено ✓';
+			installBtn.disabled = installed && !disabled;
+			if (installed && !disabled) { installBtn.classList.add('installed'); }
+			this._register(addDisposableListener(installBtn, EventType.CLICK, () => {
+				if (!installed) { void this.install(item, installBtn); }
+				else if (disabled) { void this.enable(item, installBtn); }
+			}));
 
-			// Кнопка «Удалить» рядом с «Установлено ✓»
-			if (installed) {
+			// «Отключить» у установленного: временно прячет иконку/функции до включения.
+			if (installed && !disabled) {
+				const disableBtn = append(actions, $('button.aura-api-btn-small')) as HTMLButtonElement;
+				disableBtn.textContent = 'Отключить';
+				this._register(addDisposableListener(disableBtn, EventType.CLICK, () => { void this.disable(item, disableBtn); }));
 				const uninstallBtn = append(actions, $('button.aura-api-btn-small')) as HTMLButtonElement;
 				uninstallBtn.textContent = 'Удалить';
 				this._register(addDisposableListener(uninstallBtn, EventType.CLICK, () => { void this.uninstall(item, uninstallBtn); }));
@@ -191,8 +232,33 @@ export class AuraMarketEditorPane extends EditorPane {
 				}));
 			}
 
+			// История версий — как в расширениях VS Code: кнопка + разворачиваемый список.
+			if (item.versions?.length) {
+				const versionsBtn = append(actions, $('button.aura-api-btn-small')) as HTMLButtonElement;
+				versionsBtn.textContent = this.expandedVersions.has(item.id) ? 'Скрыть версии' : `Версии (${item.versions.length})`;
+				this._register(addDisposableListener(versionsBtn, EventType.CLICK, () => {
+					if (this.expandedVersions.has(item.id)) { this.expandedVersions.delete(item.id); } else { this.expandedVersions.add(item.id); }
+					this.renderList();
+				}));
+			}
+
 			if (item.docs && this.expandedDocs.has(item.id)) {
 				append(card, $('pre.aura-market-docs')).textContent = item.docs;
+			}
+
+			if (item.versions?.length && this.expandedVersions.has(item.id)) {
+				const versionsEl = append(card, $('.aura-market-versions'));
+				for (const v of item.versions) {
+					const row = append(versionsEl, $('.aura-market-version'));
+					const head = append(row, $('.aura-market-version-head'));
+					append(head, $('span.aura-market-version-num')).textContent = `v${v.version}`;
+					if (v.version === item.version) { append(head, $('span.aura-market-version-latest')).textContent = 'последняя'; }
+					append(head, $('span.aura-market-version-date')).textContent = v.date;
+					const list = append(row, $('ul.aura-market-version-log'));
+					for (const line of v.changelog) {
+						append(list, $('li')).textContent = line;
+					}
+				}
 			}
 		}
 	}

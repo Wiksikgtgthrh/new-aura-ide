@@ -54,6 +54,14 @@ export const EventKind = {
 
 export const SuspendPolicy = { None: 0, EventThread: 1, All: 2 } as const;
 
+/** StepSize для StepRequest: минимальный шаг (одна инструкция) или строка исходника. */
+export const StepSize = { Min: 0, Line: 1 } as const;
+/** StepDepth для StepRequest: into/over/out. */
+export const StepDepth = { Into: 0, Over: 1, Out: 2 } as const;
+
+/** Modifiers EventRequest.Set: Count = 9, ThreadOnly = 2. */
+const ModifierKind = { ThreadOnly: 2, Count: 9 } as const;
+
 export const Tag = {
 	Array: 91, Byte: 66, Char: 67, Object: 76, Float: 70, Double: 68,
 	Int: 73, Long: 74, Short: 83, Void: 86, Boolean: 90, String: 115,
@@ -311,10 +319,42 @@ export class JdwpConnection {
 		return this.request(CommandSet.EventRequest, Command.Clear, data);
 	}
 
-	async clearAllBreakpoints(): Promise<void> {
+	clearAllBreakpoints(): Promise<void> {
 		const data = Buffer.alloc(1);
 		data.writeUInt8(EventKind.Breakpoint, 0);
-		await this.request(CommandSet.EventRequest, Command.ClearAllBreakpoints, data);
+		return this.request(CommandSet.EventRequest, Command.ClearAllBreakpoints, data).then(() => undefined);
+	}
+
+	/**
+	 * StepRequest: пошаговое исполнение. kind=Step, модификаторы:
+	 * Count=1 (шагнуть один раз) + ThreadOnly(threadId). size: Line, depth: Into/Over/Out.
+	 * Возвращает requestId события Step.
+	 */
+	async setStepRequest(threadId: number, size: number = StepSize.Line, depth: number = StepDepth.Over): Promise<number> {
+		// формат: suspendPolicy(1) eventKind(1) modCount(4) [Count: modKind(1) count(4)] [ThreadOnly: modKind(1) threadId(4)] size(1) depth(1)
+		const packet = Buffer.alloc(1 + 1 + 4 + (1 + 4) + (1 + 4) + 1 + 1);
+		let off = 0;
+		packet.writeUInt8(SuspendPolicy.EventThread, off); off += 1;
+		packet.writeUInt8(EventKind.Step, off); off += 1;
+		packet.writeUInt32BE(2, off); off += 4; // два модификатора
+		// Count=1: сработать на первом же step-событии
+		packet.writeUInt8(ModifierKind.Count, off); off += 1;
+		packet.writeUInt32BE(1, off); off += 4;
+		// ThreadOnly: только эта нить
+		packet.writeUInt8(ModifierKind.ThreadOnly, off); off += 1;
+		packet.writeUInt32BE(threadId, off); off += 4;
+		packet.writeUInt8(size, off); off += 1;
+		packet.writeUInt8(depth, off); off += 1;
+		const reader = await this.request(CommandSet.EventRequest, Command.Set, packet);
+		return reader.id();
+	}
+
+	/** Снять любой EventRequest по id (для Step-запросов, если шаг не сработал). */
+	clearEventRequest(eventKind: number, requestId: number): Promise<JdwpReader> {
+		const data = Buffer.alloc(1 + 4);
+		data.writeUInt8(eventKind, 0);
+		data.writeUInt32BE(requestId, 4);
+		return this.request(CommandSet.EventRequest, Command.Clear, data);
 	}
 
 	// ---------- ThreadReference ----------
@@ -331,6 +371,18 @@ export class JdwpConnection {
 			frames.push({ id: reader.id(), location: { typeTag: reader.u1(), classId: reader.id(), methodId: reader.id(), index: Number(reader.i8()) } });
 		}
 		return frames;
+	}
+
+	threadSuspend(threadId: number): Promise<JdwpReader> {
+		const data = Buffer.alloc(4);
+		data.writeUInt32BE(threadId, 0);
+		return this.request(CommandSet.ThreadReference, Command.ThreadSuspend, data);
+	}
+
+	threadResume(threadId: number): Promise<JdwpReader> {
+		const data = Buffer.alloc(4);
+		data.writeUInt32BE(threadId, 0);
+		return this.request(CommandSet.ThreadReference, Command.ThreadResume, data);
 	}
 
 	// ---------- События ----------

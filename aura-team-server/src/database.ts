@@ -45,6 +45,7 @@ for (const [name, definition] of [
 	['group_id', 'TEXT'],
 	['ping_ms', 'INTEGER'],
 	['last_checked_at', 'TEXT'],
+	['last_ok', 'INTEGER'],
 ] as const) {
 	if (!apiKeyColumns.has(name)) { database.exec(`ALTER TABLE api_keys ADD COLUMN ${name} ${definition}`); }
 }
@@ -69,6 +70,9 @@ CREATE INDEX IF NOT EXISTS key_groups_team ON key_groups(team_id, priority);`);
 
 // Открытый текст текущего инвайт-кода (для показа в UI; хэш живёт в invites).
 database.exec(`CREATE TABLE IF NOT EXISTS invite_reveals (invite_id TEXT PRIMARY KEY REFERENCES invites(id), team_id TEXT NOT NULL REFERENCES teams(id), value TEXT NOT NULL);`);
+
+// Расход прокси по ключам: для экрана статистики (GET /usage).
+database.exec(`CREATE TABLE IF NOT EXISTS proxy_usage_keys (team_id TEXT NOT NULL, key_id TEXT NOT NULL, day TEXT NOT NULL, requests INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(team_id, key_id, day));`);
 
 export function audit(userId: string, action: string, teamId?: string, targetType?: string, targetId?: string, details: object = {}): void {
 	database.prepare('INSERT INTO audit_log(team_id,user_id,action,target_type,target_id,details,created_at) VALUES(?,?,?,?,?,?,?)')
