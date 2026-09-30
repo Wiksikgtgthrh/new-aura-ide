@@ -487,30 +487,57 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 .toast.out { animation: toastIn .25s var(--ease) reverse; }
 
 /* ---------- Профиль ---------- */
-.profile-hero { display: flex; align-items: center; gap: 18px; margin-bottom: 20px; animation: fadeUp .35s var(--ease); }
-.profile-hero.slim { gap: 16px; margin-bottom: 16px; }
-.profile-main { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
-.avatar-big {
-	width: 74px; height: 74px; border-radius: 50%;
-	display: grid; place-items: center;
-	font-size: 26px; font-weight: 700; color: #fff;
-	box-shadow: 0 2px 10px color-mix(in srgb, var(--vscode-widget-shadow, #000) 40%, transparent);
-	animation: popIn .4s var(--ease);
+/* Спокойная «настройковая» раскладка: секции с подписью слева и полями справа,
+   плоский аватар, без свечений и капса — в духе нативных экранов VS Code. */
+.profile { max-width: 760px; animation: fadeUp .25s var(--ease); }
+.profile-head { display: flex; align-items: center; gap: 16px; padding: 2px 0 20px; border-bottom: 1px solid var(--border-soft); }
+.avatar-edit {
+	position: relative; flex: none; width: 64px; height: 64px; border-radius: 50%; overflow: hidden;
+	display: grid; place-items: center; font-size: 22px; font-weight: 600; color: #fff;
 }
-.avatar-big.photo { overflow: hidden; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
-.avatar-big.photo img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.avatar-edit .ini { transition: opacity .15s ease; }
+.avatar-edit:hover .ini, .avatar-edit:focus-visible .ini { opacity: 0; }
+.avatar-edit img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avatar-edit::after { content: ''; position: absolute; inset: 0; background: rgba(0, 0, 0, .5); opacity: 0; transition: opacity .15s ease; }
+.avatar-edit .cam { position: absolute; z-index: 1; width: 20px; height: 20px; color: #fff; opacity: 0; transition: opacity .15s ease; }
+.avatar-edit:hover::after, .avatar-edit:focus-visible::after, .avatar-edit:hover .cam, .avatar-edit:focus-visible .cam { opacity: 1; }
+.avatar-edit:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.profile-who { min-width: 0; display: grid; gap: 2px; justify-items: start; }
+.profile-who .pname { font-size: 16px; font-weight: 600; }
+.profile-who .pmail { max-width: 100%; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.id-chip { display: inline-flex; align-items: center; gap: 2px; margin-top: 6px; padding: 1px 2px 1px 8px; border: 1px solid var(--border-soft); border-radius: 6px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.icon-btn { width: 24px; height: 24px; border-radius: 5px; display: grid; place-items: center; color: var(--muted); transition: background .15s ease, color .15s ease; }
+.icon-btn:hover { background: var(--card-hover); color: var(--text); }
+.icon-btn:focus-visible { outline: 1px solid var(--focus); }
+.icon-btn svg { width: 14px; height: 14px; }
+.p-section { display: grid; grid-template-columns: minmax(150px, 220px) 1fr; gap: 8px 32px; padding: 20px 0; border-bottom: 1px solid var(--border-soft); }
+.profile > .p-section:last-child { border-bottom: 0; }
+.p-section h2 { font-size: 13px; font-weight: 600; }
+.p-section .p-desc { margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.p-fields { min-width: 0; }
+.p-fields .field:last-child { margin-bottom: 0; }
+.p-fields .field label { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 500; color: var(--text); }
+.p-fields textarea { resize: vertical; min-height: 64px; line-height: 1.45; }
+.field-foot { display: flex; justify-content: flex-end; margin-top: 4px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.p-savebar { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 0; background: var(--bg); border-bottom: 1px solid var(--border-soft); }
+.p-savebar .p-state { margin-right: auto; color: var(--muted); font-size: 12px; }
+.p-savebar.dirty .p-state { color: var(--text); }
+.p-savebar.dirty .p-state::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 7px; border-radius: 50%; background: var(--warn); vertical-align: 1px; }
+.profile .btn.primary { box-shadow: none; }
+.p-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; }
+.p-row:first-child { padding-top: 0; }
+.p-row + .p-row { border-top: 1px solid var(--border-soft); }
+.p-row .t { font-weight: 500; }
+.p-row .d { margin-top: 2px; color: var(--muted); font-size: 12px; }
+.p-row .btn { flex: none; }
+.btn.outline-danger { background: transparent; color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); }
+.btn.outline-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.profile .p-login { padding-top: 20px; }
+@media (max-width: 640px) { .p-section { grid-template-columns: 1fr; gap: 12px; } }
 .check-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border: 1px solid var(--border-soft); border-radius: 8px; margin-bottom: 6px; cursor: pointer; }
 .check-row:hover { background: var(--card-hover); }
 .check-row small { color: var(--muted); margin-left: auto; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .check-row input { flex: none; }
-.profile-hero .pname { font-size: 17px; font-weight: 700; }
-.id-strip { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
-.copy-btn { padding: 3px 10px; font-size: 11px; border-radius: 7px; }
-.savebar { position: sticky; bottom: 0; margin-top: 8px; padding-top: 12px; background: transparent; display: flex; justify-content: flex-end; gap: 8px; }
-.profile-actions { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--border-soft); display: grid; gap: 8px; }
-.logout-btn { width: 100%; display: flex; justify-content: center; gap: 8px; padding: 9px 14px; }
-.btn.logout-danger { background: color-mix(in srgb, var(--danger) 22%, var(--card)); color: var(--text); border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent); }
-.btn.logout-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 38%, var(--card)); }
 
 /* ---------- Экран регистрации ---------- */
 .auth-wrap { max-width: 440px; margin: 6vh auto 0; animation: fadeUp .4s var(--ease); }
@@ -644,6 +671,9 @@ const DICT = {
 		keysTitle: 'Командный банк API-ключей', addKey: '+ Добавить ключ',
 		keyName: 'Название', keyProvider: 'Провайдер', keyRole: 'Минимальная роль',
 		keyPriority: 'Приоритет (0 — высший)', keyValue: 'Ключ', disabled: 'Отключён',
+		pfPublic: 'Публичный профиль', pfPublicHint: 'Так вас видят участники команды.', pfContact: 'Контакты', pfContactHint: 'Адрес, привязанный к аккаунту.',
+		pfAccount: 'Аккаунт', pfAccountHint: 'Безопасность и сеанс.', pfPasswordHint: 'После смены потребуется войти заново.', pfLogoutHint: 'Завершить сеанс на этом устройстве.',
+		pfUnsaved: 'Есть несохранённые изменения', pfSynced: 'Все изменения сохранены', pfSaved: 'Профиль сохранён', pfCopyId: 'Скопировать ID', pfPassword: 'Пароль', pfChange: 'Изменить', pfLogoutTitle: 'Выход из аккаунта', pfDiscard: 'Сбросить',
 		profileTitle: 'Профиль', nickname: 'Никнейм', id: 'ID', description: 'Описание',
 		descrPh: 'Пара слов о вас…', saveProfile: 'Сохранить профиль',
 		serverStatus: 'Сервер', demoNote: 'Демо-режим: сервер отключён, данные локальные — для наглядности. Подключите aura-team-server, чтобы включить настоящую работу.',
@@ -756,6 +786,9 @@ const DICT = {
 		keysTitle: 'Team API key vault', addKey: '+ Add key',
 		keyName: 'Name', keyProvider: 'Provider', keyRole: 'Minimum role',
 		keyPriority: 'Priority (0 is highest)', keyValue: 'Key', disabled: 'Disabled',
+		pfPublic: 'Public profile', pfPublicHint: 'This is how teammates see you.', pfContact: 'Contact', pfContactHint: 'The address linked to your account.',
+		pfAccount: 'Account', pfAccountHint: 'Security and session.', pfPasswordHint: 'You will need to sign in again afterwards.', pfLogoutHint: 'End the session on this device.',
+		pfUnsaved: 'You have unsaved changes', pfSynced: 'All changes saved', pfSaved: 'Profile saved', pfCopyId: 'Copy ID', pfPassword: 'Password', pfChange: 'Change', pfLogoutTitle: 'Sign out of account', pfDiscard: 'Discard',
 		profileTitle: 'Profile', nickname: 'Nickname', id: 'ID', description: 'Description',
 		descrPh: 'A few words about you…', saveProfile: 'Save profile',
 		serverStatus: 'Server', demoNote: 'Demo mode: server is off, data is local — for preview. Connect aura-team-server to enable real work.',
@@ -2476,38 +2509,56 @@ function overlayEyes() {
 function renderProfile() {
 	const p = state.profile;
 	const color = flattenColor(p.avatarColor);
-	const avatarHtml = p.avatar
-		? `<div class="avatar-big photo"><img src="${p.avatar}" alt=""></div>`
-		: `<div class="avatar-big" style="background:linear-gradient(135deg, ${color}, ${color}88);color:#fff">${esc(initials(p.nickname, 'A'))}</div>`;
-	const loginBlock = (!state.signedIn && !state.demoMode)
-		? `<div class="card" style="--i:1">
-			<div class="section-title">${esc(T('loginTitle'))}</div>
-			${loginFormHtml()}
-		</div>`
-		: '';
-	return `<div class="view-head"><div class="view-title">${esc(T('profileTitle'))}</div></div>
-		<div class="card profile-card" style="--i:0">
-			<div class="profile-hero slim">
-				${avatarHtml}
-				<div class="profile-main">
-					<div class="pname">${esc(p.nickname || '—')}</div>
-					<div class="id-strip"><span>${esc(p.id)}</span><button class="btn ghost sm copy-btn" data-copy="${esc(p.id)}">${esc(T('copy'))}</button></div>
-					<button class="btn ghost sm mt8" id="btnAvatar">${p.avatar ? esc(T('changePhoto')) : esc(T('addPhoto'))}</button>
-					<input type="file" id="avatarFile" accept="image/png,image/jpeg,image/webp" class="hidden">
-				</div>
-			</div>
-			<div class="field-grid">
-				<div class="field"><label>${esc(T('nickname'))}</label><input id="pNick" maxlength="40" value="${esc(p.nickname || '')}"></div>
-				<div class="field"><label>${esc(T('regEmail'))}</label><input id="pEmail" type="email" maxlength="120" value="${esc(p.email || '')}"></div>
-			</div>
-			<div class="field"><label>${esc(T('description'))}</label><textarea id="pDesc" rows="3" maxlength="240" placeholder="${esc(T('descrPh'))}">${esc(p.description || '')}</textarea></div>
-			<div class="savebar"><button class="btn primary" id="btnSaveProfile">${esc(T('saveProfile'))}</button></div>
-			<div class="profile-actions">
-				<button class="btn ghost logout-btn" id="btnChangePassword">${esc(T('changePassword'))}</button>
-				<button class="btn logout-danger logout-btn" id="btnLogout">${esc(T('logout'))}</button>
+	const signedIn = state.signedIn && !state.demoMode;
+	const cam = '<svg class="cam" viewBox="0 0 24 24" fill="none"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-9z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.2" stroke="currentColor" stroke-width="1.6"/></svg>';
+	const copyIco = '<svg viewBox="0 0 24 24" fill="none"><rect x="8" y="8" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M5 15V6a1 1 0 0 1 1-1h9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+	const photoLabel = p.avatar ? T('changePhoto') : T('addPhoto');
+	const avatarInner = p.avatar ? `<img src="${p.avatar}" alt="">` : `<span class="ini">${esc(initials(p.nickname, 'A'))}</span>`;
+	const desc = p.description || '';
+	const accountRows = [
+		signedIn ? `<div class="p-row"><div><div class="t">${esc(T('pfPassword'))}</div><div class="d">${esc(T('pfPasswordHint'))}</div></div>
+			<button class="btn ghost sm" id="btnChangePassword">${esc(T('pfChange'))}</button></div>` : '',
+		(state.signedIn || state.demoMode) ? `<div class="p-row"><div><div class="t">${esc(T('pfLogoutTitle'))}</div><div class="d">${esc(T('pfLogoutHint'))}</div></div>
+			<button class="btn outline-danger sm" id="btnLogout">${esc(T('logout'))}</button></div>` : ''
+	].join('');
+	return `<div class="profile">
+		<div class="view-head"><div class="view-title">${esc(T('profileTitle'))}</div></div>
+		<div class="profile-head">
+			<button class="avatar-edit" id="btnAvatar" style="background:${esc(color)}" title="${esc(photoLabel)}" aria-label="${esc(photoLabel)}">${avatarInner}${cam}</button>
+			<input type="file" id="avatarFile" accept="image/png,image/jpeg,image/webp" class="hidden">
+			<div class="profile-who">
+				<div class="pname">${esc(p.nickname || '—')}</div>
+				${p.email ? `<div class="pmail">${esc(p.email)}</div>` : ''}
+				<div class="id-chip"><span>${esc(p.id)}</span><button class="icon-btn" data-copy="${esc(p.id)}" title="${esc(T('pfCopyId'))}" aria-label="${esc(T('pfCopyId'))}">${copyIco}</button></div>
 			</div>
 		</div>
-		${loginBlock}`;
+		<form id="profileForm" autocomplete="off">
+			<section class="p-section">
+				<div><h2>${esc(T('pfPublic'))}</h2><p class="p-desc">${esc(T('pfPublicHint'))}</p></div>
+				<div class="p-fields">
+					<div class="field"><label for="pNick">${esc(T('nickname'))}</label><input id="pNick" maxlength="40" value="${esc(p.nickname || '')}"></div>
+					<div class="field"><label for="pDesc">${esc(T('description'))}</label><textarea id="pDesc" rows="3" maxlength="240" placeholder="${esc(T('descrPh'))}">${esc(desc)}</textarea>
+						<div class="field-foot"><span id="pDescCount">${desc.length}/240</span></div></div>
+				</div>
+			</section>
+			<section class="p-section">
+				<div><h2>${esc(T('pfContact'))}</h2><p class="p-desc">${esc(T('pfContactHint'))}</p></div>
+				<div class="p-fields">
+					<div class="field"><label for="pEmail">${esc(T('regEmail'))}</label><input id="pEmail" type="email" maxlength="120" value="${esc(p.email || '')}"></div>
+				</div>
+			</section>
+			<div class="p-savebar" id="pSavebar">
+				<span class="p-state" id="pState">${esc(T('pfSynced'))}</span>
+				<button type="button" class="btn ghost" id="btnResetProfile" disabled>${esc(T('pfDiscard'))}</button>
+				<button type="submit" class="btn primary" id="btnSaveProfile" disabled>${esc(T('saveProfile'))}</button>
+			</div>
+		</form>
+		${accountRows ? `<section class="p-section">
+			<div><h2>${esc(T('pfAccount'))}</h2><p class="p-desc">${esc(T('pfAccountHint'))}</p></div>
+			<div class="p-fields">${accountRows}</div>
+		</section>` : ''}
+		${(!state.signedIn && !state.demoMode) ? `<div class="p-login"><div class="section-title">${esc(T('loginTitle'))}</div>${loginFormHtml()}</div>` : ''}
+	</div>`;
 }
 function wireProfile() {
 	wireLoginForm();
@@ -2538,16 +2589,38 @@ function wireProfile() {
 		reader.readAsDataURL(file);
 		fileInput.value = '';
 	});
+	const form = document.getElementById('profileForm');
 	const saveBtn = document.getElementById('btnSaveProfile');
-	saveBtn?.addEventListener('click', async (e) => {
-		ripple(e);
+	const resetBtn = document.getElementById('btnResetProfile');
+	const nick = document.getElementById('pNick');
+	const email = document.getElementById('pEmail');
+	const desc = document.getElementById('pDesc');
+	const initial = { nick: nick?.value ?? '', email: email?.value ?? '', desc: desc?.value ?? '' };
+	const syncDirty = () => {
+		const dirty = nick.value !== initial.nick || email.value !== initial.email || desc.value !== initial.desc;
+		const valid = nick.value.trim().length > 0 && (email.value === '' || email.checkValidity());
+		saveBtn.disabled = !dirty || !valid;
+		resetBtn.disabled = !dirty;
+		document.getElementById('pSavebar')?.classList.toggle('dirty', dirty);
+		const st = document.getElementById('pState');
+		if (st) { st.textContent = dirty ? T('pfUnsaved') : T('pfSynced'); }
+		const cnt = document.getElementById('pDescCount');
+		if (cnt) { cnt.textContent = `${desc.value.length}/240`; }
+	};
+	form?.addEventListener('input', syncDirty);
+	resetBtn?.addEventListener('click', () => { nick.value = initial.nick; email.value = initial.email; desc.value = initial.desc; syncDirty(); });
+	form?.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); if (!saveBtn.disabled) { form.requestSubmit(); } } });
+	form?.addEventListener('submit', async (e) => {
+		e.preventDefault();
+		if (saveBtn.disabled) { return; }
 		const data = {
-			nickname: document.getElementById('pNick')?.value?.trim() || state.profile.nickname,
-			email: document.getElementById('pEmail')?.value?.trim() || state.profile.email,
-			description: document.getElementById('pDesc')?.value?.trim()
+			nickname: nick.value.trim() || state.profile.nickname,
+			email: email.value.trim(),
+			description: desc.value.trim()
 		};
-		try { const res = await svc('auraTeam.registerProfile', [data]); if (res) { state.profile = res; } toast(T('regDone'), 'ok'); render(); }
-		catch (err) { toast(err.message, 'err'); }
+		saveBtn.disabled = true;
+		try { const res = await svc('auraTeam.registerProfile', [data]); if (res) { state.profile = res; } toast(T('pfSaved'), 'ok'); render(); updateChrome(); }
+		catch (err) { toast(err.message, 'err'); syncDirty(); }
 	});
 	const changePasswordBtn = document.getElementById('btnChangePassword');
 	changePasswordBtn?.addEventListener('click', () => {
