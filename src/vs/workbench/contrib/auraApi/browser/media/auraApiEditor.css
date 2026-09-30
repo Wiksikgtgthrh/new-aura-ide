@@ -1,9 +1,10 @@
-/* API Keys Editor — карточный layout, микро-анимации, нативные VS Code токены.
+/* API Keys Editor — шапка со сводкой, поиск и группы, таблица с иконками действий.
    Все отступы/радиусы/длительности через auraTokens.css (класс .aura на корне). */
 
 @import './auraTokens.css';
 
 /* ---- Layout ---- */
+
 .aura-api-editor {
 	display: flex;
 	flex-direction: column;
@@ -13,22 +14,44 @@
 	gap: var(--sp-4);
 	overflow-y: auto;
 	background: var(--aura-surface-alt);
+	color: var(--aura-fg);
 }
 
 /* Контентная колонка: читаемая ширина, центрирование на широких окнах */
 .aura-api-editor > * {
 	width: 100%;
-	max-width: 1080px;
+	max-width: 1120px;
 	margin-inline: auto;
 	box-sizing: border-box;
 }
 
 .aura-api-editor > .aura-api-table-wrap {
-	flex: 1;
-	min-height: 160px;
+	flex: none;
 }
 
-/* ---- Section header ---- */
+.aura-api-editor .codicon {
+	font-size: 14px;
+	line-height: 1;
+}
+
+/* ---- Hero ---- */
+
+.aura-api-hero {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--sp-4);
+	flex-wrap: wrap;
+}
+
+.aura-api-hero-text {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-1);
+	min-width: 260px;
+	flex: 1 1 360px;
+}
+
 .aura-api-header {
 	display: flex;
 	align-items: center;
@@ -38,6 +61,18 @@
 	font-weight: 600;
 	letter-spacing: 0.01em;
 	color: var(--aura-fg);
+}
+
+.aura-api-header-icon {
+	width: 28px;
+	height: 28px;
+	border-radius: var(--r-ctl);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 16px !important;
+	color: var(--vscode-button-foreground);
+	background: var(--vscode-button-background);
 }
 
 .aura-api-header .count {
@@ -54,25 +89,163 @@
 	font-variant-numeric: tabular-nums;
 	color: var(--aura-fg);
 	background: color-mix(in srgb, var(--aura-focus) 18%, transparent);
-	transition: background var(--dur-2) var(--ease-out);
 }
 
-/* ---- Toolbar ---- */
-.aura-api-toolbar {
+.aura-api-sub {
+	margin: 0;
+	max-width: 640px;
+	font-size: 12px;
+	line-height: 1.5;
+	color: var(--aura-fg-muted);
+}
+
+.aura-api-hero-actions {
 	display: flex;
 	gap: var(--sp-2);
 	align-items: center;
 	flex-wrap: wrap;
 }
 
+/* ---- Stats ---- */
+
+.aura-api-stats {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	gap: var(--sp-2);
+}
+
+.aura-api-stat {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+	padding: var(--sp-2) var(--sp-3);
+	border: 1px solid var(--aura-line);
+	border-radius: var(--r-ctl);
+	background: var(--aura-surface);
+	overflow: hidden;
+}
+
+.aura-api-stat::before {
+	content: '';
+	position: absolute;
+	inset: 0 auto 0 0;
+	width: 3px;
+	background: var(--aura-line);
+}
+
+.aura-api-stat.ok::before { background: var(--aura-ok); }
+.aura-api-stat.warn::before { background: var(--aura-warn); }
+.aura-api-stat.error::before { background: var(--aura-err); }
+.aura-api-stat.info::before { background: var(--aura-info); }
+
+.aura-api-stat .label {
+	font-size: 11px;
+	color: var(--aura-fg-muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.aura-api-stat .value {
+	font-size: 15px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.aura-api-stat.warn .value { color: var(--aura-warn); }
+.aura-api-stat.error .value { color: var(--aura-err); }
+
+/* ---- Toolbar: search + group chips ---- */
+
+.aura-api-toolbar {
+	display: flex;
+	gap: var(--sp-3);
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.aura-api-search {
+	position: relative;
+	flex: 0 1 320px;
+	min-width: 200px;
+	display: flex;
+	align-items: center;
+}
+
+.aura-api-search > .codicon {
+	position: absolute;
+	left: var(--sp-2);
+	color: var(--aura-fg-muted);
+	pointer-events: none;
+}
+
+.aura-api-search .aura-api-input {
+	width: 100%;
+	padding-left: 28px;
+}
+
+.aura-api-chips {
+	display: flex;
+	gap: var(--sp-1);
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.aura-api-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 26px;
+	padding: 0 10px;
+	border: 1px solid var(--aura-line);
+	border-radius: 999px;
+	background: transparent;
+	color: var(--aura-fg-muted);
+	font-size: 12px;
+	cursor: pointer;
+	transition:
+		background var(--dur-2) var(--ease-out),
+		border-color var(--dur-2) var(--ease-out),
+		color var(--dur-2) var(--ease-out);
+}
+
+.aura-api-chip .n {
+	font-size: 10px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	opacity: .8;
+}
+
+.aura-api-chip:hover {
+	color: var(--aura-fg);
+	border-color: color-mix(in srgb, var(--aura-focus) 60%, var(--aura-line));
+}
+
+.aura-api-chip.active {
+	color: var(--vscode-button-foreground);
+	background: var(--vscode-button-background);
+	border-color: transparent;
+}
+
+.aura-api-chip:focus-visible {
+	outline: 1px solid var(--aura-focus);
+	outline-offset: 2px;
+}
+
 /* ---- Buttons ---- */
+
 .aura-api-btn {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	gap: var(--sp-1);
+	gap: 6px;
 	padding: 0 var(--sp-3);
-	height: 30px;
+	height: 28px;
 	border: 1px solid var(--aura-line);
 	border-radius: var(--r-ctl);
 	background: var(--vscode-button-secondaryBackground);
@@ -85,20 +258,15 @@
 		background var(--dur-2) var(--ease-out),
 		border-color var(--dur-2) var(--ease-out),
 		color var(--dur-2) var(--ease-out),
-		transform var(--dur-1) var(--ease-out),
-		box-shadow var(--dur-2) var(--ease-out);
+		transform var(--dur-1) var(--ease-out);
 }
 
 .aura-api-btn:hover {
 	background: var(--vscode-button-secondaryHoverBackground);
-	transform: translateY(-1px);
-	box-shadow: 0 2px 6px color-mix(in srgb, #000 20%, transparent);
 }
 
 .aura-api-btn:active {
-	transform: translateY(0) scale(0.97);
-	box-shadow: none;
-	transition-duration: var(--dur-1);
+	transform: scale(0.97);
 }
 
 .aura-api-btn:focus-visible {
@@ -110,63 +278,89 @@
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 	border-color: transparent;
-	box-shadow: 0 1px 3px color-mix(in srgb, #000 30%, transparent);
 }
 
 .aura-api-btn.primary:hover {
 	background: var(--vscode-button-hoverBackground);
-	box-shadow: 0 3px 8px color-mix(in srgb, #000 35%, transparent);
 }
 
-.aura-api-btn.small {
-	height: 22px;
-	padding: 0 6px;
-	font-size: 11px;
-	font-weight: 400;
+/* Иконка-кнопка: действия строки, закрытие формы */
+.aura-api-icon-btn {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	min-width: 26px;
+	height: 26px;
+	padding: 0 5px;
 	border: none;
+	border-radius: var(--r-ctl);
 	background: transparent;
 	color: var(--aura-fg-muted);
-	box-shadow: none;
+	cursor: pointer;
+	transition:
+		background var(--dur-2) var(--ease-out),
+		color var(--dur-2) var(--ease-out),
+		opacity var(--dur-2) var(--ease-out);
 }
 
-.aura-api-btn.small:hover {
-	background: var(--vscode-list-hoverBackground);
+.aura-api-icon-btn:hover:not(:disabled) {
+	background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
 	color: var(--aura-fg);
-	transform: none;
-	box-shadow: none;
 }
 
-.aura-api-btn.small:active {
-	transform: scale(0.96);
+.aura-api-icon-btn:focus-visible {
+	outline: 1px solid var(--aura-focus);
+	outline-offset: -1px;
+	opacity: 1;
 }
 
-.aura-api-btn.small.danger:hover {
+.aura-api-icon-btn:disabled {
+	cursor: default;
+}
+
+.aura-api-icon-btn.active {
+	color: var(--aura-info);
+}
+
+.aura-api-icon-btn.danger:hover {
 	color: var(--aura-err);
-	background: color-mix(in srgb, var(--aura-err) 12%, transparent);
+	background: color-mix(in srgb, var(--aura-err) 14%, transparent);
 }
 
-/* ---- Group filter ---- */
-.aura-api-group-filter {
-	display: flex;
-	align-items: center;
-	gap: var(--sp-2);
-	margin-left: auto;
-	font-size: 12px;
-	color: var(--aura-fg-muted);
+.aura-api-actions-row.confirming > .aura-api-icon-btn:not(.danger-confirm) {
+	display: none;
+}
+
+.aura-api-icon-btn.danger-confirm,
+.aura-api-icon-btn.danger-confirm:hover:not(:disabled) {
+	color: var(--vscode-button-foreground);
+	background: var(--aura-err);
+	font-size: 11px;
+	font-weight: 600;
+	padding: 0 8px;
+	animation: auraApiFormIn var(--dur-2) var(--ease-out);
+}
+
+.aura-api-icon-btn.spinning .codicon {
+	animation: auraApiSpin 1s linear infinite;
+}
+
+@keyframes auraApiSpin {
+	to { transform: rotate(360deg); }
 }
 
 .aura-api-select {
 	height: 26px;
 	padding: 0 var(--sp-2);
-	border: 1px solid var(--aura-line);
+	border: 1px solid var(--vscode-dropdown-border, var(--aura-line));
 	border-radius: var(--r-ctl);
 	background: var(--vscode-dropdown-background);
 	color: var(--vscode-dropdown-foreground);
 	font-size: 12px;
 	cursor: pointer;
-	transition:
-		border-color var(--dur-2) var(--ease-out),
-		box-shadow var(--dur-2) var(--ease-out);
+	transition: border-color var(--dur-2) var(--ease-out);
 }
 
 .aura-api-select:hover {
@@ -180,12 +374,12 @@
 }
 
 /* ---- Table card ---- */
+
 .aura-api-table-wrap {
 	overflow: auto;
 	border: 1px solid var(--aura-line);
 	border-radius: var(--r-box);
 	background: var(--aura-surface);
-	box-shadow: 0 2px 10px color-mix(in srgb, #000 18%, transparent);
 }
 
 .aura-api-table {
@@ -202,8 +396,6 @@
 	color: var(--aura-fg-muted);
 	font-weight: 600;
 	font-size: 11px;
-	text-transform: uppercase;
-	letter-spacing: 0.06em;
 	position: sticky;
 	top: 0;
 	background: var(--aura-surface);
@@ -220,66 +412,233 @@
 	transition: background-color var(--dur-2) var(--ease-out);
 }
 
-.aura-api-table tr:last-child td {
+.aura-api-table tbody tr:last-child td {
 	border-bottom: none;
 }
 
-/* Column widths: имя резиновое, действия — фикс, чтобы 4 кнопки всегда влезали */
+/* Column widths: ключ резиновый, действия — фикс под четыре иконки */
 .aura-api-table .col-name { width: auto; }
-.aura-api-table .col-model { width: 15%; }
-.aura-api-table .col-status { width: 130px; }
-.aura-api-table .col-ping { width: 80px; text-align: right; font-variant-numeric: tabular-nums; }
+.aura-api-table .col-model { width: 18%; }
+.aura-api-table .col-status { width: 150px; }
+.aura-api-table .col-ping { width: 84px; }
 .aura-api-table .col-group { width: 12%; }
-.aura-api-table .col-actions { width: 264px; }
-
-.aura-api-table th.col-ping,
-.aura-api-table th.col-actions {
-	text-align: left;
-}
+.aura-api-table .col-actions { width: 132px; }
 
 /* Row hover / selection */
+.aura-api-row {
+	cursor: pointer;
+}
+
 .aura-api-row:hover td {
 	background: var(--vscode-list-hoverBackground);
 }
 
-.aura-api-row.selected td {
-	background: var(--vscode-list-activeSelectionBackground);
-	color: var(--vscode-list-activeSelectionForeground);
+.aura-api-row:focus-visible {
+	outline: 1px solid var(--aura-focus);
+	outline-offset: -1px;
+}
+
+.aura-api-row.expanded td {
+	background: color-mix(in srgb, var(--vscode-list-hoverBackground) 70%, transparent);
+	border-bottom-color: transparent;
 }
 
 .aura-api-row.selected td:first-child {
-	box-shadow: inset 3px 0 0 var(--aura-focus);
+	box-shadow: inset 3px 0 0 var(--aura-info);
+}
+
+.aura-api-row.h-off td:not(.aura-api-actions) {
+	opacity: .55;
+}
+
+/* Ключ: шеврон + аватар + имя/хост */
+.aura-api-ident {
+	display: flex;
+	align-items: center;
+	gap: var(--sp-2);
+	min-width: 0;
+}
+
+.aura-api-chevron {
+	flex: none;
+	color: var(--aura-fg-muted);
+	transition: transform var(--dur-2) var(--ease-out);
+}
+
+.aura-api-avatar {
+	flex: none;
+	width: 28px;
+	height: 28px;
+	border-radius: var(--r-ctl);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: .02em;
+	color: hsl(var(--hue, 210) 70% 78%);
+	background: hsl(var(--hue, 210) 45% 30% / .55);
+	border: 1px solid hsl(var(--hue, 210) 50% 55% / .35);
+}
+
+.vs .aura-api-avatar {
+	color: hsl(var(--hue, 210) 60% 32%);
+	background: hsl(var(--hue, 210) 70% 90%);
+}
+
+.aura-api-ident-text {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	gap: 1px;
+}
+
+.aura-api-name {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	font-size: 13px;
+	font-weight: 500;
+}
+
+.aura-api-name > span:first-child {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.aura-api-host {
+	font-size: 11px;
+	color: var(--aura-fg-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.aura-api-tag {
+	flex: none;
+	font-size: 10px;
+	font-weight: 600;
+	padding: 0 6px;
+	border-radius: 999px;
+	line-height: 16px;
+	color: var(--aura-fg-muted);
+	background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.aura-api-tag.info {
+	color: var(--aura-info);
+}
+
+.aura-api-group {
+	display: inline-block;
+	max-width: 100%;
+	padding: 1px 8px;
+	border-radius: 999px;
+	border: 1px solid var(--aura-line);
+	font-size: 11px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	vertical-align: middle;
+}
+
+.aura-api-muted {
+	color: var(--aura-fg-muted);
 }
 
 /* Monospace cells */
-.aura-api-table td.mono {
+.aura-api-table td.mono,
+.aura-api-editor .mono {
 	font-family: var(--monaco-monospace-font);
 	font-size: 11px;
+}
+
+.aura-api-table td.mono {
 	color: var(--aura-fg-muted);
 }
 
+/* Пинг: число с цветной точкой по порогам */
+.aura-api-ping {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-variant-numeric: tabular-nums;
+}
+
+.aura-api-ping::before {
+	content: '';
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: currentColor;
+}
+
+.aura-api-ping.fast { color: var(--aura-ok); }
+.aura-api-ping.mid { color: var(--aura-warn); }
+.aura-api-ping.slow { color: var(--aura-err); }
+
 /* Empty state */
-.aura-api-empty {
+.aura-api-table td.aura-api-empty {
+	padding: var(--sp-6) var(--sp-4);
+	white-space: normal;
+	cursor: default;
+}
+
+.aura-api-empty-box {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--sp-2);
 	text-align: center;
+}
+
+.aura-api-empty-icon {
+	width: 44px;
+	height: 44px;
+	border-radius: 50%;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 22px !important;
 	color: var(--aura-fg-muted);
-	padding: var(--sp-6) var(--sp-4) !important;
-	font-size: 13px;
-	line-height: 1.6;
+	background: color-mix(in srgb, var(--aura-fg) 7%, transparent);
+}
+
+.aura-api-empty-title {
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.aura-api-empty-text {
+	max-width: 420px;
+	font-size: 12px;
+	line-height: 1.5;
+	color: var(--aura-fg-muted);
+}
+
+.aura-api-empty-actions {
+	display: flex;
+	gap: var(--sp-2);
+	margin-top: var(--sp-2);
 }
 
 /* ---- Status badge ---- */
+
 .aura-badge {
 	display: inline-flex;
 	align-items: center;
-	gap: var(--sp-1);
+	gap: 6px;
 	height: 20px;
+	max-width: 100%;
 	padding: 0 var(--sp-2);
+	box-sizing: border-box;
 	border-radius: 999px;
 	font-size: 11px;
 	font-weight: 500;
 	line-height: 1;
 	background: color-mix(in srgb, currentColor 12%, transparent);
 	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	transition: background var(--dur-2) var(--ease-out);
 }
 
@@ -309,34 +668,75 @@
 }
 
 /* ---- Form (add / bulk import / edit) ---- */
+
+.aura-api-form-host:empty {
+	display: none;
+}
+
 .aura-api-form {
 	border: 1px solid var(--aura-line);
+	border-top: 2px solid var(--aura-focus);
 	border-radius: var(--r-box);
 	padding: var(--sp-4);
 	display: flex;
 	flex-direction: column;
 	gap: var(--sp-3);
-	max-width: 1080px;
 	background: var(--aura-surface);
-	box-shadow: 0 4px 16px color-mix(in srgb, #000 22%, transparent);
+	box-shadow: 0 4px 16px color-mix(in srgb, #000 18%, transparent);
 	animation: auraApiFormIn var(--dur-3) var(--ease-out);
 }
 
 @keyframes auraApiFormIn {
-	from { opacity: 0; transform: translateY(-8px); }
+	from { opacity: 0; transform: translateY(-6px); }
 	to { opacity: 1; transform: translateY(0); }
+}
+
+.aura-api-form-head {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--sp-3);
+}
+
+.aura-api-form-icon {
+	flex: none;
+	width: 30px;
+	height: 30px;
+	border-radius: var(--r-ctl);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 16px !important;
+	color: var(--aura-focus);
+	background: color-mix(in srgb, var(--aura-focus) 16%, transparent);
+}
+
+.aura-api-form-title {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
 }
 
 .aura-api-form h3 {
 	margin: 0;
 	font-size: 14px;
 	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.aura-api-form-badge {
+	flex: none;
+	align-self: center;
 }
 
 .aura-api-field {
 	display: flex;
 	flex-direction: column;
 	gap: var(--sp-1);
+	min-width: 0;
 }
 
 .aura-api-field label {
@@ -345,16 +745,23 @@
 }
 
 .aura-api-input {
-	height: 30px;
+	height: 28px;
 	padding: 0 var(--sp-2);
-	border: 1px solid var(--aura-line);
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-input-border, var(--aura-line));
 	border-radius: var(--r-ctl);
 	background: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
 	font-size: 12px;
+	font-family: inherit;
 	transition:
 		border-color var(--dur-2) var(--ease-out),
 		box-shadow var(--dur-2) var(--ease-out);
+}
+
+.aura-api-input::placeholder,
+.aura-api-bulk::placeholder {
+	color: var(--vscode-input-placeholderForeground);
 }
 
 .aura-api-input:hover {
@@ -370,8 +777,8 @@
 .aura-api-bulk {
 	width: 100%;
 	box-sizing: border-box;
-	padding: var(--sp-2);
-	border: 1px solid var(--aura-line);
+	padding: var(--sp-2) var(--sp-3);
+	border: 1px solid var(--vscode-input-border, var(--aura-line));
 	border-radius: var(--r-ctl);
 	background: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
@@ -401,43 +808,46 @@
 	display: flex;
 	gap: var(--sp-2);
 	margin-top: var(--sp-1);
+	flex-wrap: wrap;
 }
 
 /* ---- Actions cell ---- */
-.aura-api-actions {
-	display: flex;
-	gap: 2px;
-	white-space: nowrap;
-}
 
-/* Кнопки действий не должны обрезаться, даже если колонка чуть уже */
 .aura-api-table td.aura-api-actions {
 	overflow: visible;
 	text-overflow: clip;
+	padding-top: 0;
+	padding-bottom: 0;
 }
 
-/* Действия проявляются при наведении на строку — меньше визуального шума */
-.aura-api-actions .aura-api-btn.small {
-	opacity: 0.55;
-	transition:
-		opacity var(--dur-2) var(--ease-out),
-		background var(--dur-2) var(--ease-out),
-		color var(--dur-2) var(--ease-out),
-		transform var(--dur-1) var(--ease-out);
+.aura-api-actions-row {
+	display: flex;
+	justify-content: flex-end;
+	gap: 2px;
 }
 
-.aura-api-row:hover .aura-api-actions .aura-api-btn.small,
-.aura-api-row.selected .aura-api-actions .aura-api-btn.small,
-.aura-api-actions .aura-api-btn.small:focus-visible {
+/* Действия приглушены, пока строку не навели — меньше визуального шума */
+.aura-api-actions .aura-api-icon-btn {
+	opacity: 0.5;
+}
+
+.aura-api-row:hover .aura-api-actions .aura-api-icon-btn,
+.aura-api-row.expanded .aura-api-actions .aura-api-icon-btn,
+.aura-api-row:focus-within .aura-api-actions .aura-api-icon-btn,
+.aura-api-actions .aura-api-icon-btn.active,
+.aura-api-actions .aura-api-icon-btn.danger-confirm,
+.aura-api-actions .aura-api-icon-btn.spinning {
 	opacity: 1;
 }
 
 /* ---- Detail row (expandable) ---- */
+
 .aura-api-detail td {
-	padding: var(--sp-3) var(--sp-3) var(--sp-4);
+	padding: var(--sp-1) var(--sp-3) var(--sp-4) calc(var(--sp-3) + 22px);
 	white-space: normal;
-	background: color-mix(in srgb, var(--aura-surface) 70%, var(--aura-surface-alt));
+	background: color-mix(in srgb, var(--vscode-list-hoverBackground) 70%, transparent);
 	border-bottom: 1px solid var(--aura-line);
+	cursor: default;
 }
 
 .aura-api-detail td.animate-in > * {
@@ -449,19 +859,47 @@
 	to { opacity: 1; transform: translateY(0); }
 }
 
-.aura-api-detail-grid,
+.aura-api-detail-sections {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	gap: var(--sp-2);
+}
+
+.aura-api-detail-section {
+	padding: var(--sp-2) var(--sp-3) var(--sp-3);
+	border: 1px solid var(--aura-line);
+	border-radius: var(--r-ctl);
+	background: var(--aura-surface-alt);
+	min-width: 0;
+}
+
+.aura-api-detail-title {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--aura-fg-muted);
+	margin-bottom: var(--sp-2);
+}
+
+.aura-api-detail-grid {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	font-size: 12px;
+}
+
 .aura-api-settings-meta {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 	gap: var(--sp-2) var(--sp-4);
 	font-size: 12px;
 }
 
-/* Каждое поле — неделимая пара «метка: значение» */
+/* Каждое поле — неделимая пара «метка — значение» */
 .aura-api-detail-grid .field,
 .aura-api-settings-meta .field {
 	display: flex;
-	gap: 6px;
+	justify-content: space-between;
+	gap: var(--sp-3);
 	min-width: 0;
 }
 
@@ -477,51 +915,66 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	min-width: 0;
+	text-align: right;
 }
 
-/* ---- Шестерёнка настроек: иконка-кнопка у правого края строки ---- */
-.aura-api-actions .aura-api-btn.small.gear {
-	margin-left: auto;
-	width: 22px;
-	padding: 0;
+/* Процент подлинности/безопасности — короткая шкала */
+.aura-api-pct {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sp-2);
+	font-variant-numeric: tabular-nums;
+}
+
+.aura-api-pct .meter {
+	width: 64px;
+	height: 4px;
+	border-radius: 2px;
+	background: color-mix(in srgb, var(--aura-fg) 12%, transparent);
+	overflow: hidden;
+}
+
+.aura-api-pct .meter > span {
+	display: block;
+	height: 100%;
+	border-radius: 2px;
+	background: var(--aura-ok);
+}
+
+.aura-api-pct .meter.warn > span { background: var(--aura-warn); }
+.aura-api-pct .meter.error > span { background: var(--aura-err); }
+
+.aura-api-detail-error {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--sp-2);
+	margin-top: var(--sp-2);
+	padding: var(--sp-2) var(--sp-3);
 	border-radius: var(--r-ctl);
-	font-size: 13px;
+	font-size: 12px;
+	color: var(--aura-err);
+	background: color-mix(in srgb, var(--aura-err) 10%, transparent);
+	word-break: break-word;
+}
+
+.aura-api-detail-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--sp-2);
+	margin-top: var(--sp-3);
+	flex-wrap: wrap;
+}
+
+.aura-api-inline-field {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sp-2);
+	margin-left: auto;
+	font-size: 12px;
 	color: var(--aura-fg-muted);
 }
 
-.aura-api-actions .aura-api-btn.small.gear:hover {
-	background: var(--vscode-toolbar-hoverBackground);
-	color: var(--aura-focus);
-}
-
-.aura-api-btn.gear .codicon {
-	transition: transform var(--dur-4) var(--ease-out);
-}
-
-.aura-api-btn.gear:hover .codicon {
-	transform: rotate(120deg);
-}
-
-/* ---- Панель настроек ключа (по шестерёнке) ---- */
-.aura-api-settings {
-	max-width: 720px;
-}
-
-.aura-api-settings-head {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: var(--sp-3);
-}
-
-.aura-api-settings-head h3 {
-	margin: 0;
-	font-size: 14px;
-	font-weight: 600;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
+/* ---- Панель настроек ключа ---- */
 
 .aura-api-settings-grid {
 	display: grid;
@@ -531,6 +984,12 @@
 
 .aura-api-settings-grid .span-2 {
 	grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+	.aura-api-settings-grid {
+		grid-template-columns: 1fr;
+	}
 }
 
 .aura-api-secret-row {
@@ -545,7 +1004,7 @@
 
 .aura-api-secret-row .aura-api-btn {
 	flex: none;
-	height: 30px;
+	height: 28px;
 }
 
 .aura-api-check {

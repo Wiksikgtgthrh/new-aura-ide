@@ -772,7 +772,7 @@ export class OrchestratorHost implements vscode.Disposable {
 	async startSidecar(): Promise<{ state: SidecarState; error?: string }> {
 		try {
 			await this.ensureProxy();
-			await this.sidecar.ensureStarted();
+			await this.sidecar.restartManually();
 		} catch (err) {
 			logWarn(`sidecar start failed: ${err instanceof Error ? err.message : err}`);
 		}

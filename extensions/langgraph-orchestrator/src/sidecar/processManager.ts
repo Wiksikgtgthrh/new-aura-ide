@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import * as path from 'path';
 import { ChildProcess, spawn } from 'child_process';
 import { RpcClient } from './rpcClient';
@@ -26,6 +27,8 @@ export class SidecarProcessManager implements vscode.Disposable {
 	private intentionallyStopped = true;
 	private stateValue: SidecarState = 'off';
 	private lastError?: string;
+	/** Хвост stderr последнего процесса: в причину падения попадает реальная ошибка, а не «код 1». */
+	private stderrTail = '';
 	private readonly onDidSpawnEmitter = new vscode.EventEmitter<RpcClient>();
 	private readonly onDidExitEmitter = new vscode.EventEmitter<void>();
 	private readonly onDidChangeStateEmitter = new vscode.EventEmitter<void>();
@@ -63,6 +66,18 @@ export class SidecarProcessManager implements vscode.Disposable {
 		return this.spawn();
 	}
 
+	/**
+	 * Ручной запуск из панели: счётчик автоперезапусков сбрасывается, иначе после
+	 * трёх падений кнопка «Запустить сайдкар» навсегда упиралась бы в лимит.
+	 */
+	async restartManually(): Promise<RpcClient> {
+		this.restarts = [];
+		if (this.stateValue === 'error') {
+			this.setState('off');
+		}
+		return this.ensureStarted();
+	}
+
 	async stop(): Promise<void> {
 		this.intentionallyStopped = true;
 		if (this.child && this.child.exitCode === null) {
@@ -84,11 +99,20 @@ export class SidecarProcessManager implements vscode.Disposable {
 
 	private async spawn(): Promise<RpcClient> {
 		if (!this.canRestart()) {
-			const message = `sidecar restarted more than ${MAX_RESTARTS} times in ${RESTART_WINDOW_MS / 60000} min — giving up`;
+			const tail = this.stderrTail ? `: ${this.stderrTail}` : '';
+			const message = `сайдкар упал ${MAX_RESTARTS} раза за ${RESTART_WINDOW_MS / 60000} мин${tail}`;
 			this.setState('error', message);
 			throw new Error(message);
 		}
 		const sidecarPath = path.join(this.extensionUri.fsPath, 'dist', 'sidecar.cjs');
+		// Без бандла spawn «успешно» стартует node, тот тут же падает, и после трёх
+		// перезапусков пользователь видел только «restarted more than 3 times».
+		if (!fs.existsSync(sidecarPath)) {
+			const message = 'сайдкар не собран (нет dist/sidecar.cjs) — выполните `npm install` в extensions/langgraph-orchestrator/sidecar и `npm run compile-sidecar` в extensions/langgraph-orchestrator';
+			this.intentionallyStopped = true;
+			this.setState('error', message);
+			throw new Error(message);
+		}
 		logInfo(`spawning sidecar: ${sidecarPath}`);
 		this.intentionallyStopped = false;
 		this.setState('starting');
@@ -106,6 +130,13 @@ export class SidecarProcessManager implements vscode.Disposable {
 		this.child = child;
 		this.rpc = new RpcClient(child);
 		this.restarts.push(Date.now());
+		this.stderrTail = '';
+		child.stderr?.on('data', (chunk: Buffer) => {
+			const lines = chunk.toString().split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+			if (lines.length) {
+				this.stderrTail = lines[lines.length - 1].slice(0, 300);
+			}
+		});
 
 		child.on('exit', (code, signal) => {
 			logWarn(`sidecar exited: code=${code} signal=${signal}`);
@@ -121,7 +152,7 @@ export class SidecarProcessManager implements vscode.Disposable {
 				// Причина уже показана в панели — не перетираем её перезапуском.
 				return;
 			}
-			this.setState('starting', `процесс завершился (код ${code ?? '?'}), перезапуск`);
+			this.setState('starting', `процесс завершился (код ${code ?? '?'})${this.stderrTail ? `: ${this.stderrTail}` : ''}, перезапуск`);
 			void this.spawn().catch(err => {
 				this.setState('error', err instanceof Error ? err.message : String(err));
 				logError('sidecar respawn failed', err);

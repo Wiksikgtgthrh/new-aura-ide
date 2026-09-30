@@ -10,290 +10,463 @@
 	--gap: 8px;
 	--gap-lg: 12px;
 	--gap-xl: 16px;
-	--radius: 4px;
+	--radius: 6px;
+	--radius-sm: 4px;
+	--border: var(--vscode-panel-border, rgba(128, 128, 128, .35));
+	--surface: var(--vscode-editorWidget-background, rgba(128, 128, 128, .06));
+	--surface-2: var(--vscode-sideBar-background, var(--surface));
+	--muted: var(--vscode-descriptionForeground);
+	--c-ok: var(--vscode-charts-green, #89d185);
+	--c-run: var(--vscode-charts-blue, #3794ff);
+	--c-warn: var(--vscode-charts-yellow, #cca700);
+	--c-err: var(--vscode-charts-red, #f14c4c);
+	--c-llm: var(--vscode-charts-purple, #b180d7);
+	--mono: var(--vscode-editor-font-family, ui-monospace, monospace);
 }
 * { box-sizing: border-box; }
 body {
 	font-family: var(--vscode-font-family);
 	font-size: var(--vscode-font-size, 13px);
+	line-height: 1.4;
 	color: var(--vscode-foreground);
 	background: var(--vscode-editor-background);
 	margin: 0;
-	padding: 0 var(--gap-xl) var(--gap-xl);
+	padding: 0 var(--gap-xl) 28px;
 }
-/* Шапка: название, чипы, иконки управления. */
+[hidden] { display: none !important; }
+svg { display: block; }
+/* Шапка: название + состояние сайдкара слева, бюджет и управление запуском справа. */
 header {
 	display: flex;
 	align-items: center;
 	gap: var(--gap-lg);
-	padding: var(--gap-lg) 0;
-	border-bottom: 1px solid var(--vscode-panel-border);
+	padding: 14px 0 10px;
+	background: var(--vscode-editor-background);
 	flex-wrap: wrap;
 }
-h1 { font-size: 15px; margin: 0; font-weight: 600; }
-.spacer { flex: 1 1 auto; }
-.chip {
-	font-size: 11px;
-	padding: 1px 8px;
-	border-radius: 9px;
-	background: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
-	white-space: nowrap;
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-mark {
+	width: 28px; height: 28px; border-radius: 7px; flex: 0 0 auto;
+	display: inline-flex; align-items: center; justify-content: center;
+	background: var(--vscode-button-background); color: var(--vscode-button-foreground);
 }
-.chip.ready { background: var(--vscode-charts-green); color: var(--vscode-editor-background); }
-.chip.starting { background: var(--vscode-charts-yellow); color: var(--vscode-editor-background); }
-.chip.error { background: var(--vscode-charts-red); color: var(--vscode-editor-background); }
-.chip.off { background: var(--vscode-button-secondaryBackground); color: var(--vscode-descriptionForeground); }
+.brand-mark svg { width: 16px; height: 16px; }
+.brand-text { display: flex; flex-direction: column; min-width: 0; }
+h1 { font-size: 14px; margin: 0; font-weight: 600; white-space: nowrap; }
+.spacer { flex: 1 1 auto; }
+/* Состояние сайдкара: точка + подпись, без кричащей заливки. */
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.chip::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: 0 0 auto; }
+.chip.ready::before { background: var(--c-ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-ok) 22%, transparent); }
+.chip.starting::before { background: var(--c-warn); animation: pulse 1.2s ease-in-out infinite; }
+.chip.error { color: var(--c-err); }
+.chip.error::before { background: var(--c-err); }
+@keyframes pulse { 50% { opacity: .35; } }
+@keyframes spin { to { transform: rotate(360deg); } }
 /* Бюджетный чип с полоской расхода. */
-.budget-chip { display: flex; flex-direction: column; gap: 3px; min-width: 200px; }
-.budget-chip .btext { font-size: 11px; color: var(--vscode-descriptionForeground); white-space: nowrap; }
-.budget-chip .bbar { height: 3px; border-radius: 2px; background: var(--vscode-button-secondaryBackground); overflow: hidden; }
-.budget-chip .bbar > span { display: block; height: 100%; background: var(--vscode-charts-green); }
-.budget-chip.warn .bbar > span { background: var(--vscode-charts-yellow); }
-.budget-chip.err .bbar > span { background: var(--vscode-charts-red); }
+.budget-chip { display: flex; flex-direction: column; gap: 4px; min-width: 190px; }
+.budget-chip .btext { font-size: 11px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.budget-chip .bbar { height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--vscode-foreground) 12%, transparent); overflow: hidden; }
+.budget-chip .bbar > span { display: block; height: 100%; border-radius: 2px; background: var(--c-ok); transition: width .3s ease; }
+.budget-chip.warn .bbar > span { background: var(--c-warn); }
+.budget-chip.err .bbar > span { background: var(--c-err); }
+.controls { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .icon-btn {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 26px;
-	height: 26px;
-	border: 1px solid var(--vscode-panel-border);
-	border-radius: var(--radius);
-	background: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
+	width: 30px;
+	height: 28px;
+	border: none;
+	border-radius: 0;
+	background: transparent;
+	color: var(--vscode-foreground);
 	cursor: pointer;
 	padding: 0;
 }
-.icon-btn:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-secondaryBackground)); }
-.icon-btn:disabled { opacity: .4; cursor: default; }
-.icon-btn svg { width: 14px; height: 14px; fill: currentColor; display: block; }
-.icon-btn.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-color: transparent; }
+.controls .icon-btn + .icon-btn { border-left: 1px solid var(--border); }
+.icon-btn:hover:not(:disabled) { background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, .15)); }
+.icon-btn:disabled { opacity: .35; cursor: default; }
+.icon-btn svg { width: 14px; height: 14px; fill: currentColor; }
+#btnStop:not(:disabled) { color: var(--c-err); }
+/* Баннер о сайдкаре: причина ошибки видна сразу, а не только в подсказке бейджа. */
+.banner {
+	display: flex; align-items: flex-start; gap: 10px;
+	padding: 10px 12px; margin: 4px 0 var(--gap);
+	border: 1px solid var(--border); border-left: 3px solid var(--c-warn);
+	border-radius: var(--radius); background: var(--surface);
+}
+.banner.error { border-left-color: var(--c-err); }
+.banner .banner-body { flex: 1 1 auto; min-width: 0; }
+.banner .banner-title { font-weight: 600; }
+.banner .banner-text { font-size: 12px; color: var(--muted); margin-top: 2px; word-break: break-word; }
+.banner .banner-text code { font-family: var(--mono); font-size: 11px; }
 /* Навигация по вкладкам. */
-nav { display: flex; gap: 2px; margin: var(--gap-lg) 0; border-bottom: 1px solid var(--vscode-panel-border); }
+nav { display: flex; gap: 4px; margin: 0 0 var(--gap-xl); border-bottom: 1px solid var(--border); }
 nav button {
 	background: transparent;
 	border: none;
 	border-bottom: 2px solid transparent;
-	color: var(--vscode-descriptionForeground);
-	padding: 6px 12px;
+	border-radius: 0;
+	color: var(--muted);
+	padding: 7px 10px;
+	margin-bottom: -1px;
 	cursor: pointer;
 	font-size: 13px;
 }
 nav button:hover { color: var(--vscode-foreground); }
-nav button.active { color: var(--vscode-foreground); border-bottom-color: var(--vscode-focusBorder, var(--vscode-foreground)); }
+nav button.active { color: var(--vscode-foreground); border-bottom-color: var(--vscode-panelTitle-activeBorder, var(--vscode-focusBorder)); }
 section { display: none; }
-section.active { display: block; }
-h2 { font-size: 13px; margin: var(--gap-xl) 0 var(--gap); font-weight: 600; }
-h3 { font-size: 11px; margin: var(--gap-lg) 0 4px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--vscode-descriptionForeground); }
+section.active { display: block; animation: fade .15s ease-out; }
+@keyframes fade { from { opacity: 0; transform: translateY(2px); } }
+h2 { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 22px 0 var(--gap); font-weight: 600; }
+h2 .count { font-size: 11px; font-weight: 500; color: var(--muted); padding: 0 6px; border-radius: 8px; background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent); }
+h3 { font-size: 12px; margin: var(--gap-lg) 0 4px; font-weight: 600; color: var(--muted); }
 .row { display: flex; gap: var(--gap); margin: var(--gap) 0; align-items: center; flex-wrap: wrap; }
-.muted { color: var(--vscode-descriptionForeground); font-size: 12px; }
+.muted { color: var(--muted); font-size: 12px; }
 textarea {
 	width: 100%;
 	min-height: 68px;
 	background: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
-	border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
-	border-radius: var(--radius);
+	border: 1px solid var(--vscode-input-border, var(--border));
+	border-radius: var(--radius-sm);
 	padding: var(--gap);
 	font-family: inherit;
+	font-size: inherit;
 	resize: vertical;
 }
 input[type="text"], input[type="number"], select {
 	background: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
-	border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
-	border-radius: var(--radius);
-	padding: 3px 6px;
+	border: 1px solid var(--vscode-input-border, var(--border));
+	border-radius: var(--radius-sm);
+	padding: 4px 7px;
 	font-family: inherit;
+	font-size: 12px;
+	min-height: 26px;
 }
-button { font-family: inherit; border-radius: var(--radius); cursor: pointer; }
-button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 6px 14px; }
+select { background: var(--vscode-dropdown-background, var(--vscode-input-background)); color: var(--vscode-dropdown-foreground, var(--vscode-input-foreground)); border-color: var(--vscode-dropdown-border, var(--border)); }
+input:focus, select:focus, textarea:focus, button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+button { font-family: inherit; font-size: 12px; border-radius: var(--radius-sm); cursor: pointer; }
+button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: 1px solid transparent; padding: 5px 14px; font-weight: 500; }
 button.primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
-button.ghost { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; padding: 5px 10px; }
+button.ghost { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: 1px solid transparent; padding: 5px 11px; }
 button.ghost:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-secondaryBackground)); }
 button.tiny { background: transparent; color: var(--vscode-textLink-foreground); border: none; padding: 2px 4px; font-size: 11px; }
 button.tiny:hover:not(:disabled) { text-decoration: underline; }
 button:disabled { opacity: .5; cursor: default; }
-/* Переключатель источника задачи. */
-.seg { display: inline-flex; border: 1px solid var(--vscode-panel-border); border-radius: var(--radius); overflow: hidden; }
-.seg button { background: transparent; color: var(--vscode-descriptionForeground); border: none; padding: 4px 10px; font-size: 12px; }
+.kbd { font-family: var(--mono); font-size: 10px; padding: 1px 5px; border-radius: 3px; border: 1px solid var(--border); color: var(--muted); }
+/* Композер задачи: поле и панель действий в одной рамке. */
+.composer {
+	border: 1px solid var(--vscode-input-border, var(--border));
+	border-radius: var(--radius);
+	background: var(--vscode-input-background);
+	transition: border-color .15s;
+}
+.composer:focus-within { border-color: var(--vscode-focusBorder); }
+.composer textarea { border: none; background: transparent; min-height: 76px; padding: 12px 12px 6px; outline: none; display: block; }
+.composer textarea:focus { outline: none; }
+.composer-bar { display: flex; align-items: center; gap: var(--gap); padding: 6px 8px 8px; flex-wrap: wrap; }
+.composer-bar .defaults { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.composer-bar .defaults span { font-size: 11px; color: var(--muted); padding: 1px 7px; border-radius: 9px; background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent); white-space: nowrap; }
+.composer-bar .start-hint { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
+/* Переключатель источника задачи и сегменты тиров. */
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: var(--vscode-editor-background); }
+.seg button { background: transparent; color: var(--muted); border: none; border-radius: 0; padding: 3px 10px; font-size: 12px; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button:hover:not(.active) { color: var(--vscode-foreground); }
 .seg button.active { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.last-task { margin-top: var(--gap); }
+/* Полоса состояния запуска. */
+.runbar {
+	display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 14px; align-items: center;
+	margin-top: var(--gap-xl); padding: 10px 12px;
+	border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+}
+.runbar .run-facts { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.runbar .run-facts b { color: var(--vscode-foreground); font-weight: 600; }
+.runbar .run-progress { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent); overflow: hidden; display: flex; }
+.runbar .run-progress > span { display: block; height: 100%; transition: width .3s ease; }
+.runbar .run-progress .p-done { background: var(--c-ok); }
+.runbar .run-progress .p-err { background: var(--c-err); }
+.runbar .run-progress .p-run { background: var(--c-run); opacity: .7; }
+.runbar .run-summary { grid-column: 1 / -1; font-size: 12px; }
+.status-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 9px 2px 7px; border-radius: 10px; background: color-mix(in srgb, currentColor 14%, transparent); white-space: nowrap; }
+.status-pill .si { width: 13px; height: 13px; }
+.status-pill.running { color: var(--c-run); }
+.status-pill.done { color: var(--c-ok); }
+.status-pill.error { color: var(--c-err); }
+.status-pill.cancelled, .status-pill.idle { color: var(--muted); }
+/* Иконки статусов: SVG в currentColor, крутится только «работает». */
+.si { width: 14px; height: 14px; flex: 0 0 auto; display: inline-flex; }
+.si svg { width: 100%; height: 100%; }
+.si.running svg { animation: spin 1s linear infinite; }
+.st { display: inline-flex; align-items: center; justify-content: center; }
+.st.done { color: var(--c-ok); }
+.st.running { color: var(--c-run); }
+.st.error { color: var(--c-err); }
+.st.needs_human, .st.waiting-approval { color: var(--c-warn); }
+.st.skipped, .st.idle { color: var(--muted); }
+/* Живые агенты запуска. */
+.agents { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: var(--gap); }
+.agent {
+	position: relative; display: flex; flex-direction: column; gap: 6px;
+	padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+	background: var(--surface); min-width: 0; cursor: pointer; text-align: left; color: inherit; font-size: 12px;
+}
+.agent:hover { border-color: color-mix(in srgb, var(--vscode-focusBorder) 60%, var(--border)); }
+.agent.selected { border-color: var(--vscode-focusBorder); }
+.agent.running { border-color: color-mix(in srgb, var(--c-run) 55%, var(--border)); }
+.agent.waiting-approval, .agent.needs_human { border-color: color-mix(in srgb, var(--c-warn) 60%, var(--border)); }
+.agent.error { border-color: color-mix(in srgb, var(--c-err) 55%, var(--border)); }
+.agent.skipped, .agent.idle { opacity: .8; }
+.agent-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.avatar {
+	width: 24px; height: 24px; border-radius: 6px; flex: 0 0 auto;
+	display: inline-flex; align-items: center; justify-content: center;
+	font-size: 11px; font-weight: 700; color: var(--vscode-editor-background);
+}
+.avatar.supervisor { background: var(--c-llm); }
+.avatar.coder { background: var(--c-run); }
+.avatar.tester { background: var(--c-ok); }
+.avatar.security-auditor { background: var(--c-err); }
+.avatar.reviewer { background: var(--c-warn); }
+.avatar.other { background: var(--muted); }
+.agent-name { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.agent-name b { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-name span { font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-state { display: flex; align-items: center; justify-content: flex-start; gap: 6px; font-size: 11px; }
+.agent-state .label { font-weight: 500; }
+.agent-note { color: var(--muted); font-size: 11px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+.agent-note.err-text { color: var(--c-err); }
+.agent-meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.agent-meta .dot-sep::before { content: '·'; }
 /* План как список-DAG. */
-.plan { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 320px); gap: var(--gap-lg); align-items: start; }
-.plan-list { border: 1px solid var(--vscode-panel-border); border-radius: var(--radius); }
+.plan { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); gap: var(--gap-lg); align-items: start; }
+@media (max-width: 720px) { .plan { grid-template-columns: minmax(0, 1fr); } }
+.plan-list { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .plan-row {
 	display: grid;
 	grid-template-columns: 16px minmax(0, 1fr) auto;
-	gap: var(--gap);
+	gap: 10px;
 	align-items: center;
-	padding: 6px var(--gap);
-	border-bottom: 1px solid var(--vscode-panel-border);
+	padding: 8px 12px;
+	border: none;
+	border-bottom: 1px solid var(--border);
+	border-radius: 0;
 	cursor: pointer;
 	text-align: left;
 	background: transparent;
-	border-left: 2px solid transparent;
 	width: 100%;
 	color: inherit;
+	font-size: 13px;
 }
 .plan-row:last-child { border-bottom: none; }
-.plan-row:hover { background: var(--vscode-list-hoverBackground, var(--vscode-editorWidget-background)); }
-.plan-row.selected { background: var(--vscode-list-activeSelectionBackground, var(--vscode-editorWidget-background)); color: var(--vscode-list-activeSelectionForeground, inherit); }
-.plan-row .st { text-align: center; font-size: 12px; }
-.st.done { color: var(--vscode-charts-green); }
-.st.running { color: var(--vscode-charts-blue, var(--vscode-focusBorder)); }
-.st.error { color: var(--vscode-charts-red); }
-.st.needs_human, .st.waiting-approval { color: var(--vscode-charts-yellow); }
-.st.skipped { color: var(--vscode-descriptionForeground); }
-.st.idle { color: var(--vscode-descriptionForeground); }
+.plan-row:hover { background: var(--vscode-list-hoverBackground, var(--surface)); }
+.plan-row.selected { background: var(--vscode-list-inactiveSelectionBackground, var(--surface)); box-shadow: inset 2px 0 0 var(--vscode-focusBorder); }
 .plan-row .goal { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.plan-row .meta { display: flex; gap: 6px; align-items: center; color: var(--vscode-descriptionForeground); font-size: 11px; white-space: nowrap; }
-.indent { display: inline-block; width: 14px; }
+.plan-row .goal .dep { display: inline-block; width: 8px; height: 8px; margin: 0 6px 3px 0; border-left: 1px solid var(--muted); border-bottom: 1px solid var(--muted); border-bottom-left-radius: 2px; opacity: .7; }
+.plan-row .meta { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* Тир-бейдж: цвета из темы. */
-.tier { font-size: 10px; padding: 0 5px; border-radius: 3px; border: 1px solid currentColor; }
-.tier.low { color: var(--vscode-charts-green); }
-.tier.mid { color: var(--vscode-charts-yellow); }
-.tier.high { color: var(--vscode-charts-red); }
+.tier { font-size: 10px; font-weight: 600; letter-spacing: .03em; padding: 0 5px; border-radius: 3px; line-height: 16px; color: var(--muted); background: color-mix(in srgb, currentColor 14%, transparent); }
+.tier.low { color: var(--c-ok); }
+.tier.mid { color: var(--c-warn); }
+.tier.high { color: var(--c-err); }
 /* Панель детали ноды. */
-.detail { border: 1px solid var(--vscode-panel-border); border-radius: var(--radius); padding: var(--gap-lg); }
-.detail pre { margin: var(--gap) 0 0; }
+.detail { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; background: var(--surface); position: sticky; top: 8px; }
+.detail .detail-head { display: flex; align-items: center; gap: 8px; }
+.detail .detail-head .card-title { flex: 1 1 auto; min-width: 0; }
+.detail .detail-id { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.detail h3:first-of-type { margin-top: 10px; }
+.detail pre { margin: 4px 0 0; }
+.detail .row { margin-top: var(--gap-lg); }
+.detail-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 8px; text-align: center; }
+.detail-empty svg { width: 22px; height: 22px; opacity: .5; }
 pre {
 	background: var(--vscode-textCodeBlock-background);
-	border-radius: var(--radius);
-	padding: var(--gap-lg);
+	border-radius: var(--radius-sm);
+	padding: 10px 12px;
 	overflow: auto;
+	font-family: var(--mono);
 	font-size: 12px;
 	max-height: 300px;
 	white-space: pre-wrap;
 	word-break: break-word;
+	margin: 0;
 }
 /* Блок «Ждёт тебя». */
-.waiting { border: 1px solid var(--vscode-charts-yellow); border-radius: var(--radius); padding: var(--gap-lg); margin: var(--gap-lg) 0; }
-.waiting .title { font-weight: 600; margin-bottom: var(--gap); }
+.waiting { border: 1px solid color-mix(in srgb, var(--c-warn) 55%, var(--border)); border-left: 3px solid var(--c-warn); border-radius: var(--radius); padding: 12px 14px; margin: 0 0 var(--gap-lg); background: color-mix(in srgb, var(--c-warn) 7%, var(--vscode-editor-background)); }
+.waiting .title { display: flex; align-items: center; gap: 8px; font-weight: 600; margin-bottom: var(--gap); color: var(--vscode-foreground); }
+.waiting .title .si { color: var(--c-warn); }
 .waiting .body { font-size: 12px; white-space: pre-wrap; margin-bottom: var(--gap); }
+.waiting .approval + .approval { margin-top: var(--gap-lg); padding-top: var(--gap-lg); border-top: 1px solid var(--border); }
+.waiting .approval-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 12px; margin-bottom: 6px; }
+.waiting .approval-head code { font-family: var(--mono); font-weight: 600; }
+.waiting .approval-head .muted { font-size: 11px; }
+.waiting .row { margin-bottom: 0; }
+.waiting input[type="text"] { width: 100%; margin-bottom: 8px; }
+.waiting.patch { border-color: color-mix(in srgb, var(--c-ok) 55%, var(--border)); border-left-color: var(--c-ok); background: color-mix(in srgb, var(--c-ok) 6%, var(--vscode-editor-background)); }
+.waiting.patch .title .si { color: var(--c-ok); }
 /* Таймлайн чекпоинтов. */
-.timeline { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: var(--gap-lg); padding: var(--gap) 0; }
+.timeline { position: relative; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 2px; }
+.timeline.has-dots::before { content: ''; position: absolute; left: 6px; right: 6px; top: 50%; height: 1px; background: var(--border); }
 .dot {
+	position: relative;
 	width: 12px;
 	height: 12px;
 	border-radius: 50%;
-	border: 1px solid var(--vscode-panel-border);
-	background: var(--vscode-button-secondaryBackground);
+	border: 2px solid var(--vscode-editor-background);
+	box-shadow: 0 0 0 1px var(--muted);
+	background: var(--vscode-editor-background);
 	cursor: pointer;
 	padding: 0;
 }
-.dot:hover { background: var(--vscode-focusBorder, var(--vscode-button-background)); }
+.dot:last-child { background: var(--vscode-focusBorder); box-shadow: 0 0 0 1px var(--vscode-focusBorder); }
+.dot:hover { background: var(--vscode-focusBorder); transform: scale(1.2); }
 .dot:disabled { opacity: .5; }
 /* Пустое состояние с примерами. */
-.empty { padding: var(--gap-xl); border: 1px dashed var(--vscode-panel-border); border-radius: var(--radius); }
-.empty .examples { display: flex; gap: var(--gap); flex-wrap: wrap; margin-top: var(--gap-lg); }
+.empty { margin-top: var(--gap-lg); padding: 14px 16px; border: 1px dashed var(--border); border-radius: var(--radius); }
+.empty .examples { display: flex; gap: var(--gap); flex-wrap: wrap; margin-top: var(--gap); }
 .example {
-	border: 1px solid var(--vscode-panel-border);
-	border-radius: 12px;
+	display: inline-flex; align-items: center; gap: 6px;
+	border: 1px solid var(--border);
+	border-radius: 14px;
 	background: transparent;
-	color: var(--vscode-textLink-foreground);
-	padding: 4px 10px;
+	color: var(--vscode-foreground);
+	padding: 4px 11px;
 	font-size: 12px;
 }
-.example:hover { background: var(--vscode-list-hoverBackground, var(--vscode-editorWidget-background)); }
+.example::before { content: '↗'; color: var(--vscode-textLink-foreground); }
+.example:hover { background: var(--vscode-list-hoverBackground, var(--surface)); border-color: var(--vscode-focusBorder); }
 /* Канбан доски. */
-.board { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--gap-lg); align-items: start; }
-.column { border: 1px solid var(--vscode-panel-border); border-radius: var(--radius); padding: var(--gap); }
-.col-head { display: flex; justify-content: space-between; font-size: 11px; color: var(--vscode-descriptionForeground); margin-bottom: var(--gap); text-transform: uppercase; letter-spacing: .04em; }
+.board { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--gap-lg); align-items: start; margin-top: var(--gap-lg); }
+.column { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; background: var(--surface); }
+.col-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; margin-bottom: var(--gap); }
+.col-head span + span { font-size: 11px; font-weight: 500; color: var(--muted); padding: 0 6px; border-radius: 8px; background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent); }
 .col-body { display: flex; flex-direction: column; gap: var(--gap); }
-.card { border: 1px solid var(--vscode-panel-border); border-radius: var(--radius); padding: var(--gap); background: var(--vscode-editorWidget-background); }
+.card { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; background: var(--vscode-editor-background); }
 .card .card-title { font-weight: 600; font-size: 12px; word-break: break-word; }
-.card .card-meta { font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 4px; }
+.card .card-meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.card .card-meta:empty { display: none; }
 .card .card-acts { margin-top: 6px; display: flex; gap: 6px; }
 /* Своя задача на доске: поле тянется, колонка и кнопка — по содержимому. */
 .add-task { display: flex; gap: var(--gap); align-items: center; flex-wrap: wrap; margin: var(--gap) 0; }
 .add-task input { flex: 1 1 160px; min-width: 120px; }
 .add-task select { flex: 0 0 auto; }
-/* Сводка по тирам: чипы с рамкой — иначе значения сливаются в одну строку. */
-.tier-chips { display: flex; gap: var(--gap); align-items: center; flex-wrap: wrap; }
-.tier-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 1px 8px; border-radius: 9px; border: 1px solid var(--vscode-panel-border); }
-.tier-chip.warn { border-color: var(--vscode-charts-yellow); color: var(--vscode-charts-yellow); }
+/* Сводка по тирам. */
+.tier-chips { display: flex; gap: var(--gap); align-items: center; flex-wrap: wrap; margin: var(--gap) 0 var(--gap-lg); }
+.tier-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 2px 9px; border-radius: 10px; border: 1px solid var(--border); }
+.tier-chip.warn { border-color: var(--c-warn); color: var(--c-warn); }
 /* Таблицы (модели, бюджет). */
-table { border-collapse: collapse; width: 100%; font-size: 12px; }
-th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--vscode-panel-border); vertical-align: middle; }
-th { color: var(--vscode-descriptionForeground); font-weight: 600; }
-.pill { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 9px; }
-.pill.ok, .pill.done { background: var(--vscode-charts-green); color: var(--vscode-editor-background); }
-.pill.slow, .pill.cooldown, .pill.unknown, .pill.checking { background: var(--vscode-charts-yellow); color: var(--vscode-editor-background); }
-.pill.dead, .pill.error { background: var(--vscode-charts-red); color: var(--vscode-editor-background); }
-.pill.excluded, .pill.skipped { background: var(--vscode-button-secondaryBackground); color: var(--vscode-descriptionForeground); }
-.warn-text { color: var(--vscode-charts-yellow); }
-.err-text { color: var(--vscode-charts-red); }
-.ok-text { color: var(--vscode-charts-green); }
-/* Водопад спанов. */
-.wf { margin-top: var(--gap-lg); }
-.wf-row { display: grid; grid-template-columns: 180px minmax(0, 1fr) 130px; gap: var(--gap); align-items: center; padding: 3px 0; font-size: 12px; border-bottom: 1px solid var(--vscode-panel-border); }
-.wf-row .wf-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wf-row .wf-bar { background: var(--vscode-button-secondaryBackground); border-radius: var(--radius); height: 12px; overflow: hidden; }
-.wf-row .wf-bar > span { display: block; height: 100%; background: var(--vscode-charts-blue, var(--vscode-button-background)); }
-.wf-row.llm .wf-bar > span { background: var(--vscode-charts-purple, var(--vscode-button-background)); }
-.wf-row.err .wf-bar > span { background: var(--vscode-charts-red); }
-.wf-row .wf-meta { color: var(--vscode-descriptionForeground); text-align: right; white-space: nowrap; }
-.toplist { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--gap-lg); margin-top: var(--gap-lg); }
-.toplist .card h4 { margin: 0 0 6px; font-size: 11px; color: var(--vscode-descriptionForeground); font-weight: 600; text-transform: uppercase; }
-.toplist .row-item { display: flex; justify-content: space-between; gap: var(--gap); font-size: 12px; padding: 2px 0; }
+table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 12px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: var(--vscode-list-hoverBackground, transparent); }
+th { color: var(--muted); font-weight: 600; font-size: 11px; background: var(--surface); }
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 1px 8px; border-radius: 9px; color: var(--muted); background: color-mix(in srgb, currentColor 14%, transparent); white-space: nowrap; }
+.pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pill.ok, .pill.done { color: var(--c-ok); }
+.pill.slow, .pill.cooldown, .pill.unknown, .pill.checking { color: var(--c-warn); }
+.pill.dead, .pill.error { color: var(--c-err); }
+.pill.excluded, .pill.skipped { color: var(--muted); }
+.warn-text { color: var(--c-warn); }
+.err-text { color: var(--c-err); }
+.ok-text { color: var(--c-ok); }
+/* Водопад спанов: полоса стоит там, где спан шёл во времени запуска. */
+.trace-legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: var(--gap-xl); }
+.trace-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+/* Строки — subgrid общей сетки: колонка метрик одной ширины, и оси всех полос совпадают. */
+.wf { margin-top: var(--gap); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: grid; grid-template-columns: minmax(110px, 220px) minmax(120px, 1fr) max-content; }
+.wf:empty { display: none; }
+.wf-row { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; column-gap: 12px; align-items: center; padding: 6px 12px; font-size: 12px; border-bottom: 1px solid var(--border); }
+.wf-row:last-child { border-bottom: none; }
+.wf-row:hover { background: var(--vscode-list-hoverBackground, transparent); }
+.wf-row .wf-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.wf-row .wf-name .n { overflow: hidden; text-overflow: ellipsis; }
+.wf-row.llm .wf-name { padding-left: 14px; color: var(--muted); }
+.wf-row .wf-bar { position: relative; background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent); border-radius: 3px; height: 10px; }
+.wf-row .wf-bar > span { position: absolute; top: 0; bottom: 0; min-width: 3px; border-radius: 3px; background: var(--c-run); }
+.wf-row.llm .wf-bar > span { background: var(--c-llm); }
+.wf-row.err .wf-bar > span { background: var(--c-err); }
+.wf-row .wf-meta { color: var(--muted); text-align: right; white-space: nowrap; font-size: 11px; font-variant-numeric: tabular-nums; }
+.toplist { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--gap-lg); }
+.toplist .card { background: var(--surface); padding: 12px 14px; }
+.toplist .card h4 { margin: 0 0 8px; font-size: 12px; font-weight: 600; }
+.toplist .row-item { display: flex; justify-content: space-between; gap: var(--gap); font-size: 12px; padding: 4px 0; border-top: 1px solid var(--border); }
+.toplist .row-item span:first-child { font-family: var(--mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toplist .row-item .muted { font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* Журнал. */
-.log-tools { display: flex; gap: var(--gap); align-items: center; flex-wrap: wrap; margin-bottom: var(--gap); }
-/* Подпись стоит вплотную к своему списку, между группами фильтров — воздух. */
-.log-tools { gap: var(--gap-xl); }
-.log-tools .filter { display: inline-flex; align-items: center; gap: 4px; }
+.log-tools { display: flex; gap: var(--gap-xl); align-items: center; flex-wrap: wrap; margin-bottom: var(--gap); }
+.log-tools .filter { display: inline-flex; align-items: center; gap: 6px; }
 .log-box {
-	font-family: var(--vscode-editor-font-family, monospace);
+	font-family: var(--mono);
 	font-size: var(--vscode-editor-font-size, 12px);
 	background: var(--vscode-textCodeBlock-background);
+	border: 1px solid var(--border);
 	border-radius: var(--radius);
-	padding: var(--gap-lg);
+	padding: 8px 0;
 	overflow: auto;
-	max-height: 60vh;
-	white-space: pre-wrap;
+	max-height: 62vh;
 	word-break: break-word;
 }
-.log-line { display: flex; gap: var(--gap); }
-.log-line .lvl { flex: 0 0 auto; }
-.log-line .node { flex: 0 0 auto; color: var(--vscode-descriptionForeground); }
-.log-line.info .lvl { color: var(--vscode-descriptionForeground); }
-.log-line.warn .lvl { color: var(--vscode-charts-yellow); }
-.log-line.error .lvl { color: var(--vscode-charts-red); }
+.log-box > .muted { padding: 4px 12px; }
+.log-line { display: grid; grid-template-columns: 60px 76px minmax(0, 1fr); gap: 10px; padding: 2px 12px; align-items: baseline; }
+.log-line.has-node { grid-template-columns: 60px 76px auto minmax(0, 1fr); }
+.log-line .lvl { justify-self: start; }
+.log-line:hover { background: var(--vscode-list-hoverBackground, transparent); }
+.log-line .ts { color: var(--muted); opacity: .8; font-size: 11px; }
+.log-line .lvl { font-size: 10px; font-weight: 700; padding: 0 5px; border-radius: 3px; line-height: 16px; text-transform: uppercase; color: var(--muted); background: color-mix(in srgb, currentColor 14%, transparent); }
+.log-line .node { color: var(--vscode-textLink-foreground); }
+.log-line.warn .lvl { color: var(--c-warn); }
+.log-line.error .lvl { color: var(--c-err); }
+.log-line.error .msg { color: var(--c-err); }
 /* Блок бюджета во вкладке Models. */
-.budget .bgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--gap-lg); }
-.budget .bcard { border: 1px solid var(--vscode-panel-border); border-radius: var(--radius); padding: var(--gap); }
-.budget .bcard .blabel { font-size: 12px; color: var(--vscode-descriptionForeground); }
-.budget .bcard .bvalue { margin-top: 2px; }
-.budget .bbar2 { height: 5px; border-radius: 3px; background: var(--vscode-button-secondaryBackground); margin-top: 6px; overflow: hidden; }
-.budget .bbar2 > span { display: block; height: 100%; background: var(--vscode-charts-green); }
-.budget .bbar2.warn > span { background: var(--vscode-charts-yellow); }
-.budget .bbar2.err > span { background: var(--vscode-charts-red); }
-.budget .bedit { border: 1px solid var(--vscode-panel-border); border-radius: var(--radius); padding: var(--gap-lg); margin-top: var(--gap); }
+.budget .bgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--gap-lg); margin-top: var(--gap); }
+.budget .bcard { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; background: var(--surface); }
+.budget .bcard .blabel { font-size: 11px; color: var(--muted); }
+.budget .bcard .bvalue { margin-top: 2px; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.budget .bbar2 { height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent); margin-top: 8px; overflow: hidden; }
+.budget .bbar2 > span { display: block; height: 100%; background: var(--c-ok); }
+.budget .bbar2.warn > span { background: var(--c-warn); }
+.budget .bbar2.err > span { background: var(--c-err); }
+.budget .bedit { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--gap-lg); margin-top: var(--gap); }
 .budget .bedit .brow { display: flex; gap: var(--gap-lg); flex-wrap: wrap; margin-top: 4px; align-items: flex-end; }
-.budget .bedit label { font-size: 11px; color: var(--vscode-descriptionForeground); display: flex; flex-direction: column; gap: 2px; }
+.budget .bedit label { font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
 .budget .bedit input { width: 110px; }
 .budget .bedit table input { width: 100px; }
 .budget .bedit .rule { display: grid; grid-template-columns: minmax(0, 1fr) 100px 100px auto; gap: 6px; align-items: center; margin-top: 4px; }
 .budget .bedit .rule input { width: 100%; }
-.budget .bedit .saved { color: var(--vscode-charts-green); }
-.budget .bedit .failed { color: var(--vscode-charts-red); }
-details.bedit-toggle { margin-top: var(--gap-lg); }
+.budget .bedit .saved { color: var(--c-ok); }
+.budget .bedit .failed { color: var(--c-err); }
+details.bedit-toggle { margin-top: var(--gap-xl); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
 details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
+@media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
 <header>
-	<h1 id="title">LangGraph Оркестратор</h1>
-	<span class="chip" id="sidecarBadge">—</span>
+	<div class="brand">
+		<span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 16 16"><path fill="currentColor" d="M3 1.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm10 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zM8 6.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm-5 5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm10 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/><path fill="none" stroke="currentColor" stroke-width="1.1" d="M4 3.8 7 7m2 0 3-3.2M7 9l-3 3.2m5-3.2 3 3.2"/></svg></span>
+		<div class="brand-text">
+			<h1 id="title">LangGraph Оркестратор</h1>
+			<span class="chip" id="sidecarBadge">—</span>
+		</div>
+	</div>
 	<button class="ghost" id="btnSidecarStart" hidden></button>
 	<span class="spacer"></span>
 	<div class="budget-chip" id="budgetChip" hidden>
 		<span class="btext" id="budgetText"></span>
 		<div class="bbar"><span id="budgetBar"></span></div>
 	</div>
-	<button class="icon-btn" id="btnPause" hidden></button>
-	<button class="icon-btn" id="btnResume" hidden></button>
-	<button class="icon-btn" id="btnStop" hidden></button>
+	<div class="controls">
+		<button class="icon-btn" id="btnPause" hidden></button>
+		<button class="icon-btn" id="btnResume" hidden></button>
+		<button class="icon-btn" id="btnStop" hidden></button>
+	</div>
 </header>
+<div id="sidecarBanner"></div>
 
 <nav>
 	<button data-tab="run" class="active" id="tabRun"></button>
@@ -306,22 +479,29 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 <section id="tab-run" class="active">
 	<div id="waitingHost"></div>
 	<div id="patchHost"></div>
-	<div class="row"><textarea id="taskInput"></textarea></div>
-	<div class="row">
-		<div class="seg" id="sourceSeg"></div>
-		<select id="boardSelect" hidden></select>
-		<button class="primary" id="btnStart"></button>
+	<div class="composer">
+		<textarea id="taskInput" rows="3"></textarea>
+		<div class="composer-bar">
+			<div class="seg" id="sourceSeg"></div>
+			<select id="boardSelect" hidden></select>
+			<span class="defaults" id="defaultsRow"></span>
+			<span class="spacer"></span>
+			<span class="start-hint" id="startHint"></span>
+			<button class="primary" id="btnStart"></button>
+		</div>
 	</div>
-	<div class="row" id="defaultsRow"></div>
-	<div id="lastTask" class="muted"></div>
-	<div id="runSummary" class="muted"></div>
+	<div id="lastTask" class="muted last-task"></div>
+	<div id="runEmpty"></div>
+	<div class="runbar" id="runBar" hidden></div>
+	<div id="runSummary" class="muted" hidden></div>
+	<h2 id="agentsTitle" hidden></h2>
+	<div class="agents" id="agentsHost"></div>
 	<h2 id="planTitle"></h2>
 	<div class="plan" id="planWrap">
 		<div class="plan-list" id="planList"></div>
 		<div class="detail" id="nodeDetail"></div>
 	</div>
-	<div id="runEmpty"></div>
-	<h3 id="timelineTitle"></h3>
+	<h2 id="timelineTitle"></h2>
 	<div class="timeline" id="timeline"></div>
 	<div class="muted" id="timelineHint"></div>
 </section>
@@ -452,7 +632,7 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 			sidecarStart: 'Запустить сайдкар',
 			statuses: {
 				idle: 'в очереди', running: 'работает', 'waiting-approval': 'ждёт подтверждения', done: 'готово',
-				error: 'ошибка', skipped: 'пропущено', needs_human: 'нужен человек',
+				error: 'ошибка', skipped: 'пропущено', needs_human: 'нужен человек', cancelled: 'отменён',
 				ok: 'жив', slow: 'медленный', cooldown: 'пауза', dead: 'мёртв', excluded: 'выключен', unknown: 'неизвестно', checking: 'проверка',
 			},
 			reasons: {
@@ -466,6 +646,13 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 			tiers: { high: 'HIGH', mid: 'MID', low: 'LOW' },
 			tierNames: { low: 'низкий', mid: 'средний', high: 'высокий' },
 			units: { ms: 'мс', sec: 'с', min: 'мин' },
+			agentsTitle: 'Агенты', startHint: 'запустить', runOf: 'из', runDone: 'готово',
+			subtaskForms: ['подзадача', 'подзадачи', 'подзадач'], dependsOn: 'после', approvalFrom: 'просит',
+			sidecarErrorTitle: 'Сайдкар не запустился', sidecarOffTitle: 'Сайдкар ещё не запущен',
+			sidecarOffHint: 'Он поднимется сам при первом запуске задачи — или запустите его сейчас.',
+			sidecarErrorHint: 'Без сайдкара граф не выполняется. Подробности — в панели «Вывод», канал «LangGraph Orchestrator».',
+			sidecarRetry: 'Запустить заново',
+			traceLegendNode: 'нода графа', traceLegendLlm: 'вызов модели', traceLegendErr: 'с ошибкой',
 		},
 		en: {
 			tabRun: 'Run', tabBoard: 'Board', tabModels: 'Models', tabTrace: 'Trace', tabLog: 'Log',
@@ -538,7 +725,7 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 			sidecarStart: 'Start sidecar',
 			statuses: {
 				idle: 'queued', running: 'running', 'waiting-approval': 'awaiting approval', done: 'done',
-				error: 'error', skipped: 'skipped', needs_human: 'needs a human',
+				error: 'error', skipped: 'skipped', needs_human: 'needs a human', cancelled: 'cancelled',
 				ok: 'alive', slow: 'slow', cooldown: 'cooldown', dead: 'dead', excluded: 'excluded', unknown: 'unknown', checking: 'checking',
 			},
 			reasons: {
@@ -552,12 +739,27 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 			tiers: { high: 'HIGH', mid: 'MID', low: 'LOW' },
 			tierNames: { low: 'low', mid: 'mid', high: 'high' },
 			units: { ms: 'ms', sec: 's', min: 'min' },
+			agentsTitle: 'Agents', startHint: 'to start', runOf: 'of', runDone: 'done',
+			subtaskForms: ['subtask', 'subtasks', 'subtasks'], dependsOn: 'after', approvalFrom: 'requested by',
+			sidecarErrorTitle: 'Sidecar failed to start', sidecarOffTitle: 'Sidecar is not running yet',
+			sidecarOffHint: 'It starts by itself with the first task — or start it now.',
+			sidecarErrorHint: 'The graph cannot run without the sidecar. Details are in the Output panel, “LangGraph Orchestrator” channel.',
+			sidecarRetry: 'Start again',
+			traceLegendNode: 'graph node', traceLegendLlm: 'model call', traceLegendErr: 'failed',
 		},
 	};
 
-	const STATUS_GLYPH = {
-		idle: '○', running: '◐', 'waiting-approval': '◔', done: '✓', error: '✕', skipped: '⊘', needs_human: '‼',
+	// Иконки статусов рисуются SVG в currentColor: символы «◐ ‼» разные шрифты рисуют по-разному.
+	const STATUS_ICON = {
+		idle: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>',
+		running: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-width="2"/><path d="M8 2.5a5.5 5.5 0 0 1 5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+		'waiting-approval': '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="currentColor" fill-opacity=".22"/><path d="M8 4.6v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="8" cy="11.2" r="1" fill="currentColor"/></svg>',
+		done: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="currentColor" fill-opacity=".22"/><path d="m5.1 8.2 2 2 3.9-4.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+		error: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="currentColor" fill-opacity=".22"/><path d="m5.7 5.7 4.6 4.6m0-4.6-4.6 4.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+		skipped: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="m4.3 11.7 7.4-7.4" stroke="currentColor" stroke-width="1.4"/></svg>',
 	};
+	STATUS_ICON.needs_human = STATUS_ICON['waiting-approval'];
+	STATUS_ICON.cancelled = STATUS_ICON.skipped;
 	const COLUMNS = [
 		{ key: 'todo', status: 'todo' },
 		{ key: 'doing', status: 'doing' },
@@ -567,7 +769,9 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 	const ICONS = {
 		pause: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3h2v10H5zM9 3h2v10H9z"/></svg>',
 		continue: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>',
-		stop: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8"/></svg>',
+		stop: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1"/></svg>',
+		pointer: '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M2 2.5h7v1.2H3.2v8.6H9v1.2H2zM6 7.4h5.6L9.4 5.2l.9-.9L14 8l-3.7 3.7-.9-.9 2.2-2.2H6z"/></svg>',
+		sidecar: '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1.5 14 5v6l-6 3.5L2 11V5zm0 1.4L3.2 5.7v4.6L8 13.1l4.8-2.8V5.7z"/></svg>',
 	};
 
 	// ---- единый reducer состояния webview (серверный снапшот + локальный UI) ----
@@ -652,6 +856,7 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 		return forms[2];
 	}
 	function statusTitle(status) { return T().statuses[status] || status; }
+	function statusIcon(status) { return el('span', { class: 'si ' + status, html: STATUS_ICON[status] || STATUS_ICON.idle }); }
 	function roleTitle(role) { return T().roles[role] || role; }
 	function tierTitle(tier) { return T().tiers[tier] || (tier ? tier.toUpperCase() : ''); }
 
@@ -761,7 +966,9 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 		badge.title = sidecar.error || '';
 		const startBtn = document.getElementById('btnSidecarStart');
 		startBtn.textContent = t.sidecarStart;
-		startBtn.hidden = sidecar.state === 'ready' || sidecar.state === 'starting';
+		// Кнопка в шапке нужна, только когда баннер ниже не показан (свёрнутое «off» без запуска).
+		startBtn.hidden = true;
+		renderSidecarBanner(t, sidecar, s);
 
 		const chip = document.getElementById('budgetChip');
 		const budget = s.budget || {};
@@ -801,6 +1008,24 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 		stopBtn.hidden = false;
 		stopBtn.disabled = !s.running;
 		stopBtn.setAttribute('aria-label', t.cancel);
+	}
+
+	/** Баннер: сайдкар в ошибке (с причиной) или ещё не поднят. Пока он работает — баннера нет. */
+	function renderSidecarBanner(t, sidecar, s) {
+		const host = document.getElementById('sidecarBanner');
+		clear(host);
+		if (sidecar.state === 'ready' || sidecar.state === 'starting') { return; }
+		const failed = sidecar.state === 'error';
+		const box = el('div', { class: 'banner' + (failed ? ' error' : '') });
+		box.append(el('span', { class: 'si ' + (failed ? 'error err-text' : 'idle'), html: failed ? STATUS_ICON.error : ICONS.sidecar }));
+		const body = el('div', { class: 'banner-body' });
+		body.append(el('div', { class: 'banner-title', text: failed ? t.sidecarErrorTitle : t.sidecarOffTitle }));
+		body.append(el('div', { class: 'banner-text', text: failed ? (sidecar.error ? sidecar.error + ' ' : '') + t.sidecarErrorHint : t.sidecarOffHint }));
+		box.append(body);
+		const start = el('button', { class: failed ? 'primary' : 'ghost', type: 'button', text: failed ? t.sidecarRetry : t.sidecarStart, onclick: () => invoke('sidecar.start', {}).catch(() => undefined) });
+		start.disabled = !!s.running;
+		box.append(start);
+		host.append(box);
 	}
 
 	function renderTabs() {
@@ -870,6 +1095,7 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 		const results = checkpoint.results || {};
 		const itemState = checkpoint.itemState || {};
 		const attempts = checkpoint.attempts || {};
+		const nodes = Array.isArray(s.nodes) ? s.nodes : [];
 
 		document.getElementById('taskInput').placeholder = t.taskPlaceholder;
 		if (document.activeElement !== document.getElementById('taskInput')) {
@@ -877,17 +1103,25 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 		}
 		renderSource(t);
 		document.getElementById('btnStart').textContent = t.start;
+		const hint = document.getElementById('startHint');
+		clear(hint);
+		hint.append(el('span', { class: 'kbd', text: 'Ctrl+Enter' }), el('span', { text: t.startHint }));
 		document.getElementById('lastTask').textContent = s.lastTask ? t.lastTask + s.lastTask : '';
 		document.getElementById('runSummary').textContent = s.run && s.run.summary ? t.runSummary + ': ' + s.run.summary : '';
 		renderDefaults(t, s);
+		renderRunBar(t, s, nodes);
+		renderAgents(t, nodes, s.trace || {});
 
 		const planTitle = document.getElementById('planTitle');
-		planTitle.textContent = t.planTitle;
+		clear(planTitle);
+		planTitle.append(el('span', { text: t.planTitle }));
+		if (plan.length) { planTitle.append(el('span', { class: 'count', text: String(plan.length) })); }
+		planTitle.hidden = plan.length === 0;
 		const detail = document.getElementById('nodeDetail');
 		clear(detail);
 		if (plan.length === 0) {
 			document.getElementById('planWrap').hidden = true;
-			renderEmptyRun(t, s);
+			renderEmptyRun(t, s, nodes);
 		} else {
 			document.getElementById('planWrap').hidden = false;
 			document.getElementById('runEmpty').hidden = true;
@@ -902,12 +1136,14 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 	function renderSource(t) {
 		const seg = document.getElementById('sourceSeg');
 		clear(seg);
+		const hasBoard = !!(state().team && state().team.available);
+		seg.hidden = !hasBoard;
 		for (const [key, label] of [['own', t.srcOwn], ['board', t.srcBoard]]) {
 			seg.append(el('button', { class: ui.source === key ? 'active' : '', text: label, type: 'button', onclick: () => dispatch({ type: 'source', payload: key }) }));
 		}
 		const boardSelect = document.getElementById('boardSelect');
 		const tasks = ((state().team || {}).tasks || []).filter(task => task.status === 'todo' || task.status === 'doing');
-		boardSelect.hidden = ui.source !== 'board';
+		boardSelect.hidden = ui.source !== 'board' || !hasBoard;
 		if (ui.source === 'board') {
 			clear(boardSelect);
 			boardSelect.append(el('option', { value: '', text: t.boardPlaceholder }));
@@ -922,18 +1158,99 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 		const row = document.getElementById('defaultsRow');
 		clear(row);
 		const defaults = s.runDefaults || {};
-		row.append(el('span', { class: 'muted', text: t.plannerLabel + ': ' + (defaults.planner || 'auto') + '(' + (defaults.plannerTier || 'high') + ')' }));
-		row.append(el('span', { class: 'muted', text: t.parallelLabel + ': ' + (defaults.maxParallel || 1) }));
+		row.append(el('span', { title: t.plannerLabel, text: t.plannerLabel + ': ' + (defaults.planner || t.plannerAuto) + ' · ' + tierTitle(defaults.plannerTier || 'high') }));
+		row.append(el('span', { title: t.parallelLabel, text: t.parallelLabel + ': ' + (defaults.maxParallel || 1) }));
 	}
 
-	function renderEmptyRun(t, s) {
+	/** Полоса запуска: статус, раунд, сколько подзадач, время и прогресс по нодам. */
+	function renderRunBar(t, s, nodes) {
+		const bar = document.getElementById('runBar');
+		clear(bar);
+		const run = s.run || {};
+		const active = run.status && run.status !== 'idle';
+		bar.hidden = !active && nodes.length === 0;
+		if (bar.hidden) { return; }
+		const status = run.status || 'idle';
+		const pill = el('span', { class: 'status-pill ' + status });
+		pill.append(statusIcon(status), el('span', { text: s.paused ? t.pause : statusTitle(status) }));
+		bar.append(pill);
+		const facts = el('div', { class: 'run-facts' });
+		const fact = (label, value) => { const node = el('span', {}); node.append(el('span', { text: label + ' ' }), el('b', { text: value })); facts.append(node); };
+		if (run.round) { fact(t.round, run.maxRounds ? run.round + ' ' + t.runOf + ' ' + run.maxRounds : String(run.round)); }
+		const planned = Math.max(Number(run.planned) || 0, nodes.filter(n => n.role !== 'supervisor').length);
+		if (planned) { fact(plural(planned, t.subtaskForms), String(planned)); }
+		const finished = nodes.filter(n => n.status === 'done').length;
+		if (nodes.length) { fact(t.runDone, finished + ' ' + t.runOf + ' ' + nodes.length); }
+		if (run.startedAt) { fact(t.time, fmtMs(Math.max(0, (run.finishedAt || Date.now()) - run.startedAt))); }
+		bar.append(facts, el('span', {}));
+		if (nodes.length) {
+			const progress = el('div', { class: 'run-progress' });
+			const part = (cls, count) => { if (count) { progress.append(el('span', { class: cls, style: 'width:' + (count / nodes.length * 100).toFixed(2) + '%' })); } };
+			part('p-done', finished);
+			part('p-err', nodes.filter(n => n.status === 'error').length);
+			part('p-run', nodes.filter(n => n.status === 'running' || n.status === 'waiting-approval').length);
+			bar.append(progress);
+		}
+		if (run.summary) { bar.append(el('div', { class: 'run-summary', text: t.runSummary + ': ' + run.summary })); }
+	}
+
+	/** Карточки агентов: кто сейчас работает, на какой модели, сколько и что делает. */
+	function renderAgents(t, nodes, trace) {
+		const title = document.getElementById('agentsTitle');
+		const host = document.getElementById('agentsHost');
+		clear(title);
+		clear(host);
+		title.hidden = nodes.length === 0;
+		host.hidden = nodes.length === 0;
+		if (nodes.length === 0) { return; }
+		title.append(el('span', { text: t.agentsTitle }));
+		const busy = nodes.filter(n => n.status === 'running' || n.status === 'waiting-approval').length;
+		title.append(el('span', { class: 'count', text: busy ? busy + ' / ' + nodes.length : String(nodes.length) }));
+		for (const node of nodes) {
+			const status = node.status || 'idle';
+			const role = node.role || String(node.id || '').split('#')[0];
+			const known = ['supervisor', 'coder', 'tester', 'security-auditor', 'reviewer'].includes(role);
+			const name = roleTitle(role) || node.id;
+			const card = el('button', {
+				class: 'agent ' + status + (ui.selectedNode === node.id ? ' selected' : ''),
+				type: 'button',
+				title: node.id,
+				onclick: () => dispatch({ type: 'selectNode', payload: node.id }),
+			});
+			const head = el('div', { class: 'agent-head' });
+			head.append(el('span', { class: 'avatar ' + (known ? role : 'other'), text: String(name).charAt(0).toUpperCase() }));
+			const label = el('div', { class: 'agent-name' });
+			label.append(el('b', { text: name }), el('span', { text: node.id }));
+			head.append(label);
+			if (node.tier) { head.append(el('span', { class: 'tier ' + node.tier, text: tierTitle(node.tier) })); }
+			card.append(head);
+			const line = el('div', { class: 'agent-state st ' + status });
+			line.append(statusIcon(status), el('span', { class: 'label', text: statusTitle(status) }));
+			card.append(line);
+			const note = node.error || node.note;
+			if (note) { card.append(el('div', { class: 'agent-note' + (node.error ? ' err-text' : ''), text: note })); }
+			const meta = el('div', { class: 'agent-meta' });
+			const model = nodeModel(node.id, trace) || node.keyName;
+			const bits = [model, duration(node), node.round ? t.round + ' ' + node.round : ''].filter(Boolean);
+			bits.forEach((bit, index) => {
+				if (index) { meta.append(el('span', { class: 'dot-sep' })); }
+				meta.append(el('span', { text: bit }));
+			});
+			if (bits.length) { card.append(meta); }
+			host.append(card);
+		}
+	}
+
+	function renderEmptyRun(t, s, nodes) {
 		const host = document.getElementById('runEmpty');
 		clear(host);
-		host.hidden = false;
+		// Пока идёт запуск, план ещё не записан в чекпоинт — карточек агентов достаточно.
+		host.hidden = nodes.length > 0;
+		if (host.hidden) { return; }
 		const box = el('div', { class: 'empty' });
 		box.append(el('div', { class: 'muted', text: t.planEmpty }));
 		const examples = el('div', { class: 'examples' });
-		box.append(el('div', { class: 'muted', text: t.runExamples, style: 'margin-top:12px' }));
+		box.append(el('div', { class: 'muted', text: t.runExamples, style: 'margin-top:10px' }));
 		for (const task of t.examples) {
 			examples.append(el('button', { class: 'example', type: 'button', text: task, onclick: () => nodeExample(task) }));
 		}
@@ -953,19 +1270,22 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 			if (tier) { meta.append(el('span', { class: 'tier ' + tier, text: tierTitle(tier) })); }
 			const model = nodeModel(item.id, trace);
 			if (model) { meta.append(el('span', { text: model })); }
-			if (result.tokens) { meta.append(el('span', { text: fmtNum(result.tokens) + ' ' + plural(result.tokens, t.tokenForms) })); }
+			if (result.tokens) { meta.append(el('span', { text: fmtTok(result.tokens) + ' ' + plural(result.tokens, t.tokenForms) })); }
 			const liveNode = (state().nodes || []).find(n => n.id === item.id);
 			const spent = liveNode ? duration(liveNode) : '';
 			if (spent) { meta.append(el('span', { text: spent })); }
 			if (attempts[item.id]) { meta.append(el('span', { text: t.retry + ' ' + attempts[item.id] })); }
-			const indent = (depth.get(item.id) || 0) * 14;
+			const indent = (depth.get(item.id) || 0) * 16;
+			const goal = el('span', { class: 'goal', title: item.goal || item.id, style: indent ? 'padding-left:' + indent + 'px' : '' });
+			if (indent) { goal.append(el('span', { class: 'dep' })); }
+			goal.append(el('span', { text: item.goal || item.id }));
 			const row = el('button', {
 				class: 'plan-row' + (ui.selectedNode === item.id ? ' selected' : ''),
 				type: 'button',
 				onclick: () => dispatch({ type: 'selectNode', payload: item.id }),
 			},
-				el('span', { class: 'st ' + status, text: STATUS_GLYPH[status] || '○', title: statusTitle(status) }),
-				el('span', { class: 'goal', text: item.goal || item.id, style: indent ? 'padding-left:' + indent + 'px' : '' }),
+				el('span', { class: 'st ' + status }, statusIcon(status)),
+				goal,
 				meta,
 			);
 			list.append(row);
@@ -977,14 +1297,24 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 		clear(detail);
 		const id = ui.selectedNode;
 		if (!id) {
-			detail.append(el('div', { class: 'muted', text: t.selectNodeHint }));
+			const empty = el('div', { class: 'detail-empty muted' });
+			empty.append(el('span', { html: ICONS.pointer }), el('span', { text: t.selectNodeHint }));
+			detail.append(empty);
 			return;
 		}
 		const item = plan.find(n => n.id === id) || { id, goal: id };
 		const result = results[id] || {};
-		detail.append(el('div', { class: 'card-title', text: (roleTitle(item.agent) || '') + ' · ' + id }));
+		const status = nodeStatus(id, results, checkpoint.itemState || {}, state().nodes);
+		const head = el('div', { class: 'detail-head' });
+		head.append(el('span', { class: 'st ' + status }, statusIcon(status)));
+		const name = el('div', { class: 'card-title' });
+		name.append(el('div', { text: roleTitle(item.agent) || statusTitle(status) }), el('div', { class: 'detail-id', text: id }));
+		head.append(name);
+		if (item.tier) { head.append(el('span', { class: 'tier ' + item.tier, text: tierTitle(item.tier) })); }
+		detail.append(head);
 		detail.append(el('h3', { text: t.nodeGoal }));
 		detail.append(el('div', { text: item.goal || '' }));
+		if (item.deps && item.deps.length) { detail.append(el('div', { class: 'muted', text: t.dependsOn + ': ' + item.deps.join(', ') })); }
 		detail.append(el('h3', { text: t.nodeSummary }));
 		detail.append(el('div', { text: result.summary || '—' }));
 		detail.append(el('h3', { text: t.nodeDiff }));
@@ -1001,34 +1331,45 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 			},
 		});
 		restart.disabled = !!(state().run && state().run.status === 'running');
-		acts.append(openDiff, restart);
+		acts.append(restart, openDiff);
 		detail.append(acts);
 	}
 
-	function approvalCard(t, nodeId) {
-		const approval = (state().approvals || []).find(a => a.nodeId === nodeId);
-		if (!approval) { return null; }
-		const pre = el('pre', { text: approval.toolName + '\n' + approval.preview });
+	/** Карточка подтверждения вызова инструмента: что вызывается, кем, и две кнопки. */
+	function approvalCard(t, approval) {
+		const node = (state().nodes || []).find(n => n.id === approval.nodeId);
+		const card = el('div', { class: 'approval' });
+		const head = el('div', { class: 'approval-head' });
+		head.append(el('code', { text: approval.toolName }));
+		if (approval.nodeId) { head.append(el('span', { class: 'muted', text: t.approvalFrom + ' ' + (node ? roleTitle(node.role) + ' · ' : '') + approval.nodeId })); }
+		card.append(head);
+		card.append(el('pre', { text: approval.preview || '' }));
 		const acts = el('div', { class: 'row' });
 		acts.append(
 			el('button', { class: 'primary', type: 'button', text: t.approve, onclick: () => invoke('approval.resolve', { id: approval.id, approved: true }).catch(() => undefined) }),
 			el('button', { class: 'ghost', type: 'button', text: t.reject, onclick: () => invoke('approval.resolve', { id: approval.id, approved: false }).catch(() => undefined) }),
 		);
-		return el('div', {}, pre, acts);
+		card.append(acts);
+		return card;
 	}
 
 	function renderWaiting(t, s) {
 		const host = document.getElementById('waitingHost');
 		clear(host);
 		const interrupt = s.interrupt;
-		const nodes = s.nodes || [];
-		const orphans = (s.approvals || []).filter(a => !nodes.some(n => n.id === a.nodeId));
-		if (!interrupt && orphans.length === 0) { return; }
+		// Раньше здесь показывались только «осиротевшие» подтверждения, а карточка для
+		// ноды нигде не рисовалась — запуск молча висел. Теперь видны все ожидающие.
+		const approvals = s.approvals || [];
+		if (!interrupt && approvals.length === 0) { return; }
 		const box = el('div', { class: 'waiting' });
-		box.append(el('div', { class: 'title', text: t.waitingTitle }));
+		const title = el('div', { class: 'title' });
+		title.append(el('span', { class: 'si', html: STATUS_ICON['waiting-approval'] }), el('span', { text: t.waitingTitle }));
+		if (approvals.length + (interrupt ? 1 : 0) > 1) { title.append(el('span', { class: 'muted', text: String(approvals.length + (interrupt ? 1 : 0)) })); }
+		box.append(title);
 		if (interrupt) {
-			box.append(el('div', { class: 'body', text: interrupt.title || (interrupt.node ? interrupt.node + ' — ' + (interrupt.role || '') : '') }));
-			const note = el('input', { type: 'text', placeholder: t.notePlaceholder, style: 'width:100%;margin-bottom:8px' });
+			const card = el('div', { class: 'approval' });
+			card.append(el('div', { class: 'body', text: interrupt.title || (interrupt.node ? interrupt.node + ' — ' + (interrupt.role || '') : '') }));
+			const note = el('input', { type: 'text', placeholder: t.notePlaceholder });
 			const acts = el('div', { class: 'row' });
 			const resolve = approved => invoke('interrupt.resolve', { approved, note: note.value || undefined }).catch(() => undefined);
 			acts.append(
@@ -1036,19 +1377,10 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 				el('button', { class: 'ghost', type: 'button', text: t.reject, onclick: () => resolve(false) }),
 				el('button', { class: 'tiny', type: 'button', text: t.reply, onclick: () => resolve(true) }),
 			);
-			box.append(note, acts);
-		}
-		for (const approval of orphans) {
-			const card = el('div', {});
-			card.append(el('pre', { text: approval.toolName + ' (#' + approval.id + ')\n' + approval.preview }));
-			const acts = el('div', { class: 'row' });
-			acts.append(
-				el('button', { class: 'primary', type: 'button', text: t.approve, onclick: () => invoke('approval.resolve', { id: approval.id, approved: true }).catch(() => undefined) }),
-				el('button', { class: 'ghost', type: 'button', text: t.reject, onclick: () => invoke('approval.resolve', { id: approval.id, approved: false }).catch(() => undefined) }),
-			);
-			card.append(acts);
+			card.append(note, acts);
 			box.append(card);
 		}
+		for (const approval of approvals) { box.append(approvalCard(t, approval)); }
 		host.append(box);
 	}
 
@@ -1058,9 +1390,12 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 		const patch = s.patch;
 		if (!patch) { return; }
 		const files = Array.isArray(patch.files) ? patch.files : [];
-		const box = el('div', { class: 'waiting' });
-		box.append(el('div', { class: 'title', text: t.patchReady }));
-		box.append(el('div', { class: 'body', text: files.length ? files.length + ' ' + plural(files.length, t.fileForms) + '\n' + (patch.stat || '') : t.patchEmpty }));
+		const box = el('div', { class: 'waiting patch' });
+		const title = el('div', { class: 'title' });
+		title.append(el('span', { class: 'si', html: STATUS_ICON.done }), el('span', { text: t.patchReady }));
+		if (files.length) { title.append(el('span', { class: 'muted', text: files.length + ' ' + plural(files.length, t.fileForms) })); }
+		box.append(title);
+		box.append(files.length ? el('pre', { text: patch.stat || files.join('\n') }) : el('div', { class: 'body', text: t.patchEmpty }));
 		const acts = el('div', { class: 'row' });
 		const apply = el('button', {
 			class: 'primary', type: 'button', text: t.patchApply,
@@ -1072,7 +1407,7 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 		apply.disabled = files.length === 0;
 		const openDiff = el('button', { class: 'ghost', type: 'button', text: t.patchOpen, onclick: () => invoke('patch.openDiff', {}).catch(() => undefined) });
 		openDiff.disabled = files.length === 0;
-		acts.append(apply, el('button', { class: 'ghost', type: 'button', text: t.patchReject, onclick: () => invoke('patch.reject', {}).catch(() => undefined) }), openDiff);
+		acts.append(apply, openDiff, el('button', { class: 'ghost', type: 'button', text: t.patchReject, onclick: () => invoke('patch.reject', {}).catch(() => undefined) }));
 		box.append(acts);
 		host.append(box);
 	}
@@ -1085,6 +1420,7 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 		document.getElementById('timelineHint').textContent = t.timelineHint;
 		const box = document.getElementById('timeline');
 		clear(box);
+		box.className = 'timeline' + (historyEntries.length > 1 ? ' has-dots' : '');
 		if (historyEntries.length === 0) {
 			box.append(el('span', { class: 'muted', text: t.timelineEmpty }));
 		}
@@ -1325,27 +1661,49 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 		const t = T();
 		const trace = state().trace || { spans: [], summary: { byTime: [], byCost: [], totalSpans: 0 } };
 		const spans = trace.spans || [];
-		document.getElementById('traceHint').textContent = spans.length ? t.traceWaterfall + ' · ' + spans.length + ' ' + plural(spans.length, t.spanForms) : t.traceEmpty;
+		const hint = document.getElementById('traceHint');
+		clear(hint);
+		hint.className = spans.length ? 'trace-legend muted' : 'muted';
+		if (spans.length) {
+			hint.append(el('b', { text: t.traceWaterfall + ' · ' + spans.length + ' ' + plural(spans.length, t.spanForms) }));
+			for (const [color, label] of [['--c-run', t.traceLegendNode], ['--c-llm', t.traceLegendLlm], ['--c-err', t.traceLegendErr]]) {
+				const item = el('span', {});
+				item.append(el('i', { style: 'background:var(' + color + ')' }), el('span', { text: label }));
+				hint.append(item);
+			}
+		} else {
+			hint.textContent = t.traceEmpty;
+		}
 		const waterfall = document.getElementById('traceWaterfall');
 		clear(waterfall);
-		const max = spans.reduce((acc, sp) => Math.max(acc, Number(sp.durationMs) || 0), 0) || 1;
+		// Полоса стоит на оси времени запуска: видно, что шло параллельно, а что ждало.
+		const starts = spans.map(sp => Number(sp.startedAt) || 0).filter(Boolean);
+		const origin = starts.length ? Math.min(...starts) : 0;
+		const end = spans.reduce((acc, sp) => Math.max(acc, (Number(sp.startedAt) || origin) + (Number(sp.durationMs) || 0)), origin);
+		const range = Math.max(1, end - origin);
 		for (const span of spans) {
 			const failed = span.status && span.status !== 'ok' ? ' err' : '';
 			const row = el('div', { class: 'wf-row ' + (span.kind === 'llm' ? 'llm' : '') + failed });
 			// Тир — машинное обозначение и показывается как бейдж (HIGH), а не сырым полем данных.
-			row.append(el('div', { class: 'wf-name', text: (span.kind === 'llm' ? 'llm · ' : '') + (span.node || span.name) + (span.tier ? ' [' + tierTitle(span.tier) + ']' : '') }));
+			const name = el('div', { class: 'wf-name', title: (span.node || span.name) + (span.model ? ' · ' + span.model : '') });
+			name.append(el('span', { class: 'n', text: (span.kind === 'llm' ? (span.model || 'llm') : (span.node || span.name)) }));
+			if (span.tier) { name.append(el('span', { class: 'tier ' + span.tier, text: tierTitle(span.tier) })); }
+			row.append(name);
 			const bar = el('div', { class: 'wf-bar' });
-			bar.append(el('span', { style: 'width:' + Math.max(2, Math.round((Number(span.durationMs) || 0) / max * 100)) + '%' }));
+			const left = origin && span.startedAt ? (Number(span.startedAt) - origin) / range * 100 : 0;
+			const width = Math.max(0.5, (Number(span.durationMs) || 0) / range * 100);
+			bar.append(el('span', { style: 'left:' + left.toFixed(2) + '%;width:' + Math.min(width, 100 - left).toFixed(2) + '%' }));
 			row.append(bar);
 			const parts = [fmtMs(span.durationMs)];
 			if (span.cost) { parts.push('$' + Number(span.cost).toFixed(4)); }
-			if (span.tokensIn || span.tokensOut) { parts.push((Number(span.tokensIn) || 0) + '/' + (Number(span.tokensOut) || 0)); }
+			if (span.tokensIn || span.tokensOut) { parts.push(fmtTok(span.tokensIn) + '→' + fmtTok(span.tokensOut)); }
 			if (span.retries) { parts.push(span.retries + ' ' + plural(span.retries, t.retryForms)); }
 			row.append(el('div', { class: 'wf-meta', text: parts.join(' · ') }));
 			waterfall.append(row);
 		}
 		const tops = document.getElementById('traceTops');
 		clear(tops);
+		tops.hidden = !spans.length;
 		const summary = trace.summary || {};
 		for (const [title, list] of [[t.traceByTime, summary.byTime || []], [t.traceByCost, summary.byCost || []]]) {
 			const card = el('div', { class: 'card' });
@@ -1353,7 +1711,7 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 			for (const item of list) {
 				const row = el('div', { class: 'row-item' });
 				row.append(el('span', { text: item.node }));
-				row.append(el('span', { class: 'muted', text: fmtMs(item.durationMs) + ' · $' + Number(item.cost || 0).toFixed(4) + ' · ' + (item.tokens || 0) + ' tok' }));
+				row.append(el('span', { class: 'muted', text: fmtMs(item.durationMs) + ' · $' + Number(item.cost || 0).toFixed(4) + ' · ' + fmtTok(item.tokens || 0) + ' tok' }));
 				card.append(row);
 			}
 			tops.append(card);
@@ -1391,10 +1749,11 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 			return;
 		}
 		for (const entry of filtered) {
-			const line = el('div', { class: 'log-line ' + entry.level });
-			line.append(el('span', { class: 'lvl', text: '[' + (entry.level === 'error' ? 'E' : entry.level === 'warn' ? 'W' : 'I') + ']' }));
+			const line = el('div', { class: 'log-line ' + entry.level + (entry.node ? ' has-node' : '') });
+			line.append(el('span', { class: 'ts', text: fmtClock(entry.ts) }));
+			line.append(el('span', { class: 'lvl', text: t.levels[entry.level] || entry.level }));
 			if (entry.node) { line.append(el('span', { class: 'node', text: entry.node })); }
-			line.append(el('span', { text: entry.message }));
+			line.append(el('span', { class: 'msg', text: entry.message }));
 			box.append(line);
 		}
 		if (ui.logPinned) { box.scrollTop = box.scrollHeight; }
@@ -1406,6 +1765,12 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 			return s.logs.map(e => ({ ts: e.ts, level: e.level || 'info', node: e.node, message: s0(e.message) }));
 		}
 		return (s.log || []).map(line => ({ level: 'info', message: s0(line) }));
+	}
+	function fmtClock(ts) {
+		if (!ts) { return '--:--:--'; }
+		const d = new Date(ts);
+		const pad = n => String(n).padStart(2, '0');
+		return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
 	}
 	function s0(value) { return value == null ? '' : String(value); }
 
@@ -1686,6 +2051,10 @@ details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 
 		button.addEventListener('click', () => dispatch({ type: 'tab', payload: button.dataset.tab }));
 	}
 	document.getElementById('taskInput').addEventListener('input', event => { ui.task = event.target.value; });
+	// Ctrl/Cmd+Enter в поле задачи — то же, что кнопка «Запустить».
+	document.getElementById('taskInput').addEventListener('keydown', event => {
+		if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); document.getElementById('btnStart').click(); }
+	});
 	document.getElementById('boardSelect').addEventListener('change', event => dispatch({ type: 'boardTask', payload: event.target.value }));
 	document.getElementById('btnStart').addEventListener('click', () => {
 		const task = ui.source === 'board' && ui.boardTaskId ? null : ui.task.trim();

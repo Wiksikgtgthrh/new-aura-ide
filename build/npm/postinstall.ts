@@ -238,11 +238,33 @@ async function runWithConcurrency(tasks: (() => Promise<void>)[], concurrency: n
 	}
 }
 
+/**
+ * LangGraph-оркестратор запускает сайдкар из dist/sidecar.cjs — бандла, который
+ * собирается из extensions/langgraph-orchestrator/sidecar (его зависимости ставятся
+ * выше вместе с остальными dirs). Без этого шага оркестратор после чистой установки
+ * не стартует. Ошибка сборки не валит установку: панель сама покажет, чего не хватает.
+ */
+function bundleOrchestratorSidecar() {
+	const extDir = path.join(root, 'extensions', 'langgraph-orchestrator');
+	const script = path.join(extDir, 'build', 'compile-sidecar.mjs');
+	if (!fs.existsSync(script)) {
+		return;
+	}
+	try {
+		child_process.execFileSync(process.execPath, [script], { cwd: extDir, stdio: 'inherit' });
+	} catch (err) {
+		log('extensions/langgraph-orchestrator', `WARNING: sidecar bundle failed (${err instanceof Error ? err.message : err}); run \`npm run compile-sidecar\` there manually`);
+	}
+}
+
 async function main() {
 	await ensureElectronTypes();
 
 	if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
 		log('.', 'All dependencies up to date, skipping postinstall.');
+		if (!fs.existsSync(path.join(root, 'extensions', 'langgraph-orchestrator', 'dist', 'sidecar.cjs'))) {
+			bundleOrchestratorSidecar();
+		}
 		child_process.execSync('git config pull.rebase merges');
 		child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
 		return;
@@ -315,6 +337,8 @@ async function main() {
 	const concurrency = Math.min(os.cpus().length, 8);
 	log('.', `Running ${parallelTasks.length} npm installs with concurrency ${concurrency}...`);
 	await runWithConcurrency(parallelTasks, concurrency);
+
+	bundleOrchestratorSidecar();
 
 	child_process.execSync('git config pull.rebase merges');
 	child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
