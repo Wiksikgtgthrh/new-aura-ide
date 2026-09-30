@@ -5,7 +5,7 @@
 
 import { existsSync } from 'fs';
 import path from 'path';
-import { spawnSync } from 'child_process';
+import { spawnSync, type SpawnSyncOptionsWithStringEncoding } from 'child_process';
 import { dirs } from './dirs.ts';
 
 interface PendingScript {
@@ -43,11 +43,18 @@ function parsePendingScripts(output: string): PendingScript[] {
 }
 
 function checkDirectory(directory: string): CheckResult {
-	const result = spawnSync(npm, ['approve-scripts', '--allow-scripts-pending'], {
+	const args = ['approve-scripts', '--allow-scripts-pending'];
+	const opts: SpawnSyncOptionsWithStringEncoding = {
 		cwd: directory,
 		encoding: 'utf8',
 		env: { ...process.env, npm_config_loglevel: 'error' }
-	});
+	};
+	// npm is a .cmd shim on Windows: spawning it without a shell fails with EINVAL.
+	// Pass the whole command as a string (not command + args) to stay clear of the
+	// DEP0190 shell-plus-args deprecation.
+	const result = process.platform === 'win32'
+		? spawnSync(`${npm} ${args.join(' ')}`, { ...opts, shell: true })
+		: spawnSync(npm, args, opts);
 	if (result.error) {
 		throw new Error(`Failed to run npm approve-scripts in ${path.relative(root, directory) || '.'}: ${result.error.message}`);
 	}
