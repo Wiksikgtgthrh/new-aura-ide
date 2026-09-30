@@ -10,7 +10,9 @@ import { basename } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { BoardSnapshot, DeviceAuthorization, KeyGroup, Session, TaskStatus, TeamActivityEvent, TeamApiKey, TeamSummary, TeamTask, Tokens } from '../types';
+import { AdminOverview, AdminTeamRow, AdminUserRow, AgggAgentBundle, BoardSnapshot, DeviceAuthorization, GatedFeature, KeyGroup, Session, TaskStatus, TeamActivityEvent, TeamApiKey, TeamSummary, TeamTask, TeamRole, Tokens } from '../types';
+import { contentTypeHeader } from './headers';
+import { fileNameFromDisposition } from './disposition';
 
 interface ApiErrorBody { error?: string; message?: string; }
 
@@ -53,7 +55,7 @@ export class AuraApiClient implements vscode.Disposable {
 		try {
 			response = await fetch(`${this.baseUrl}${path}`, {
 				...init,
-				headers: { ...(init.body instanceof FormData ? {} : { 'content-type': 'application/json' }), ...(token ? { authorization: `Bearer ${token}` } : {}), ...init.headers }
+				headers: { ...contentTypeHeader(init.body), ...(token ? { authorization: `Bearer ${token}` } : {}), ...init.headers }
 			});
 		} catch (error) {
 			// «fetch failed» = сервер не отвечает. Пробуем поднять локальный и повторяем один раз.
@@ -69,7 +71,9 @@ export class AuraApiClient implements vscode.Disposable {
 			const body = await response.json().catch(() => ({})) as ApiErrorBody;
 			throw new Error(body.message ?? body.error ?? `HTTP ${response.status}`);
 		}
-		return response.status === 204 ? undefined as T : await response.json() as T;
+		if (response.status === 204) { return undefined as T; }
+		const text = await response.text();
+		return (text ? JSON.parse(text) : undefined) as T;
 	}
 
 	/** Локальный сервер не отвечает — пробуем поднять его скриптом start-local.mjs. */
@@ -152,27 +156,60 @@ export class AuraApiClient implements vscode.Disposable {
 		this.socket?.close();
 	}
 
-	async downloadArchive(teamId: string, archiveId: string, retry = true): Promise<Uint8Array> {
+	/** Скачивание архива: отдаём и байты, и имя файла из заголовка — иначе диалог сохранения
+	 *  предлагал имя проекта без расширения, а серверный RFC 5987-заголовок игнорировался. */
+	async downloadArchive(teamId: string, archiveId: string, retry = true): Promise<{ bytes: Uint8Array; filename: string }> {
 		const token = await this.context.secrets.get('auraTeam.accessToken');
 		const response = await fetch(`${this.baseUrl}/v1/teams/${teamId}/archives/${archiveId}`, { headers: token ? { authorization: `Bearer ${token}` } : {} });
 		if (response.status === 401 && retry && await this.refreshTokens()) { return this.downloadArchive(teamId, archiveId, false); }
 		if (!response.ok) { throw new Error(`HTTP ${response.status}`); }
-		return new Uint8Array(await response.arrayBuffer());
+		const filename = fileNameFromDisposition(response.headers.get('content-disposition'), 'archive.zip');
+		return { bytes: new Uint8Array(await response.arrayBuffer()), filename };
 	}
 
 	getSession(): Promise<Session> { return this.request('/v1/me'); }
+
+	/* ---------- Админ-панель: закрытые возможности ---------- */
+
+	adminFeatures(): Promise<{ features: GatedFeature[]; roles: TeamRole[]; admins: AdminOverview['admins'] }> { return this.request('/v1/admin/features'); }
+
+	adminDirectory(q = ''): Promise<{ users: AdminUserRow[]; teams: AdminTeamRow[]; features: GatedFeature[]; roles: TeamRole[] }> { return this.request(`/v1/admin/directory?q=${encodeURIComponent(q)}`); }
+
+	adminGrants(): Promise<{ account: AdminOverview['account']; team: AdminOverview['team'] }> { return this.request('/v1/admin/grants'); }
+
+	/** Погасить одноразовый код администратора. */
+	adminRedeem(code: string): Promise<{ admin: boolean; features: string[] }> { return this.request('/v1/admin/redeem', { method: 'POST', body: JSON.stringify({ code }) }); }
+
+	/** Выдать или отозвать право аккаунту либо команде (команда — с порогом роли). */
+	adminGrant(input: { feature: string; kind: 'account' | 'team'; targetId: string; minRole?: TeamRole; note?: string; revoke?: boolean }): Promise<{ ok: boolean }> {
+		return this.request('/v1/admin/grants', { method: 'POST', body: JSON.stringify(input) });
+	}
+
+	adminSetAdmin(email: string, revoke = false): Promise<{ ok: boolean; admin: boolean; email: string }> {
+		return this.request('/v1/admin/admins', { method: 'POST', body: JSON.stringify({ email, revoke }) });
+	}
+
+	/** Внешнее ядро AGGG 5.2: отдаётся сервером только при выданном праве. */
+	agggAgent(): Promise<AgggAgentBundle> { return this.request('/v1/aggg/agent'); }
 	getBoard(teamId: string): Promise<BoardSnapshot> { return this.request(`/v1/teams/${teamId}/board`); }
 	getActivity(teamId: string, limit = 12): Promise<TeamActivityEvent[]> { return this.request(`/v1/teams/${teamId}/activity?limit=${limit}`); }
+	/** Удалить событие из ленты команды: сервер разрешает только owner/maintainer. */
+	deleteActivity(teamId: string, eventId: number): Promise<void> { return this.request(`/v1/teams/${teamId}/activity/${eventId}`, { method: 'DELETE' }); }
 	getSummary(teamId: string): Promise<TeamSummary> { return this.request(`/v1/teams/${teamId}/summary`); }
 	createTeam(name: string): Promise<void> { return this.request('/v1/teams', { method: 'POST', body: JSON.stringify({ name }) }); }
 	joinTeam(code: string): Promise<void> { return this.request('/v1/invites/accept', { method: 'POST', body: JSON.stringify({ code }) }); }
-	createInvite(teamId: string): Promise<{ code: string; expiresAt?: string }> { return this.request(`/v1/teams/${teamId}/invites`, { method: 'POST', body: '{}' }); }
-	getCurrentInvite(teamId: string): Promise<{ code: string | null; expiresAt?: string | null }> { return this.request(`/v1/teams/${teamId}/invite`); }
+	/** role — с какой ролью вступят по коду (по умолчанию dev; maintainer выдаёт только владелец). */
+	createInvite(teamId: string, role?: TeamRole): Promise<{ code: string; expiresAt?: string; role?: TeamRole }> { return this.request(`/v1/teams/${teamId}/invites`, { method: 'POST', body: JSON.stringify(role ? { role } : {}) }); }
+	getCurrentInvite(teamId: string): Promise<{ code: string | null; expiresAt?: string | null; role?: TeamRole | null }> { return this.request(`/v1/teams/${teamId}/invite`); }
 	revokeInvite(teamId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/invite`, { method: 'DELETE' }); }
+	/** Персональное приглашение: роль по умолчанию dev. */
+	sendInvite(teamId: string, userId: string, role?: TeamRole): Promise<{ ok: boolean }> { return this.request(`/v1/teams/${teamId}/invites/send`, { method: 'POST', body: JSON.stringify(role ? { userId, role } : { userId }) }); }
 	directory(teamId: string, q = ''): Promise<Array<{ id: string; displayName: string; email: string | null; inTeam: number }>> { return this.request(`/v1/teams/${teamId}/directory?q=${encodeURIComponent(q)}`); }
 	reorderTasks(teamId: string, status: TaskStatus, orderedIds: string[]): Promise<void> { return this.request(`/v1/teams/${teamId}/tasks/reorder`, { method: 'POST', body: JSON.stringify({ status, orderedIds }) }); }
 	deleteTask(teamId: string, taskId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/tasks/${taskId}`, { method: 'DELETE' }); }
 	restoreTask(teamId: string, taskId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/tasks/${taskId}/restore`, { method: 'PATCH', body: '{}' }); }
+	/** Корзина: мягко удалённые задачи команды (для восстановления из канбана). */
+	listDeletedTasks(teamId: string): Promise<Array<{ id: string; title: string; status: TaskStatus; deletedAt: string }>> { return this.request(`/v1/teams/${teamId}/tasks/trash`); }
 	listArchives(teamId: string): Promise<Array<{ id: string; projectId?: string; projectName?: string; bytes: number; createdAt: string; expiresAt: string; createdBy?: string }>> { return this.request(`/v1/teams/${teamId}/archives`); }
 	deleteArchive(teamId: string, archiveId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/archives/${archiveId}`, { method: 'DELETE' }); }
 	changeRole(teamId: string, memberId: string, role: string): Promise<void> { return this.request(`/v1/teams/${teamId}/members/${memberId}`, { method: 'PATCH', body: JSON.stringify({ role }) }); }
@@ -180,12 +217,15 @@ export class AuraApiClient implements vscode.Disposable {
 	fetchLimits(teamId: string): Promise<{ archiveMaxBytes: number; archiveTtlDays: number; proxyRequestsPerDay: number }> { return this.request(`/v1/teams/${teamId}/limits`); }
 	checkAllKeys(teamId: string): Promise<Array<{ keyId: string; ok: boolean; status: number; pingMs: number }>> { return this.request(`/v1/teams/${teamId}/keys/check`, { method: 'POST', body: '{}' }); }
 	listProviders(teamId: string): Promise<Array<{ id: string; name: string; origin: string; builtin: boolean }>> { return this.request(`/v1/teams/${teamId}/providers`); }
+	/** Регистрация openai-совместимого шлюза: нужна при импорте ключей со своим baseUrl. */
+	createProvider(teamId: string, draft: { name: string; origin: string; authScheme: 'bearer'; allowedPaths: Array<{ method: string; path: string }>; probePath?: string }): Promise<{ id: string }> { return this.request(`/v1/teams/${teamId}/providers`, { method: 'POST', body: JSON.stringify(draft) }); }
 	fetchUsage(teamId: string): Promise<{ limitPerUserPerDay: number; usedToday: number; remainingToday: number; perDay: Array<{ day: string; requests: number }>; perUser: Array<{ userId: string; name: string; requests: number }>; perKey: Array<{ keyId: string; label: string; provider: string; requests: number }> }> { return this.request(`/v1/teams/${teamId}/usage`); }
 	createProject(teamId: string, name: string, gitUrl: string, defaultBranch: string): Promise<void> { return this.request(`/v1/teams/${teamId}/projects`, { method: 'POST', body: JSON.stringify({ name, gitUrl, defaultBranch }) }); }
 	createTask(teamId: string, title: string, status: TaskStatus = 'todo', assigneeId?: string): Promise<TeamTask> { return this.request(`/v1/teams/${teamId}/tasks`, { method: 'POST', body: JSON.stringify({ title, status, ...(assigneeId ? { assigneeId } : {}) }) }); }
 	storeApiKey(teamId: string, provider: string, value: string, accessRole: string, label: string, priority: number, groupId?: string): Promise<void> { return this.request(`/v1/teams/${teamId}/keys`, { method: 'POST', body: JSON.stringify({ provider, value, accessRole, label, priority, groupId }) }); }
 	listApiKeys(teamId: string): Promise<TeamApiKey[]> { return this.request(`/v1/teams/${teamId}/keys`); }
 	disableApiKey(teamId: string, keyId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/keys/${keyId}`, { method: 'DELETE' }); }
+	enableApiKey(teamId: string, keyId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/keys/${keyId}/enable`, { method: 'POST', body: '{}' }); }
 	deleteApiKey(teamId: string, keyId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/keys/${keyId}/remove`, { method: 'DELETE' }); }
 	updateApiKey(teamId: string, keyId: string, changes: { label?: string; accessRole?: string; priority?: number; groupId?: string | null }): Promise<void> { return this.request(`/v1/teams/${teamId}/keys/${keyId}`, { method: 'PATCH', body: JSON.stringify(changes) }); }
 	listKeyGroups(teamId: string): Promise<KeyGroup[]> { return this.request(`/v1/teams/${teamId}/key-groups`); }
@@ -222,7 +262,10 @@ export class AuraApiClient implements vscode.Disposable {
 		return this.request(`/v1/teams/${teamId}/archives?${qs}`, {
 			method: 'POST',
 			body: webBody,
-			duplex: 'half'
+			duplex: 'half',
+			// Multipart собирается вручную, поэтому boundary объявляем сами: без него
+			// сервер разбирал поток как JSON.
+			headers: { 'content-type': `multipart/form-data; boundary=${boundary}` }
 		} as unknown as RequestInit);
 	}
 	createProxyToken(teamId: string, provider: string, model: string): Promise<{ id: string; token: string }> { return this.request(`/v1/teams/${teamId}/proxy-tokens`, { method: 'POST', body: JSON.stringify({ provider, model }) }); }
@@ -232,8 +275,11 @@ export class AuraApiClient implements vscode.Disposable {
 	taskHistory(teamId: string, taskId: string): Promise<Array<{ action: string; details: Record<string, unknown>; createdAt: string; userName: string }>> { return this.request(`/v1/teams/${teamId}/tasks/${taskId}/history`); }
 	getServerUrl(): string { return this.baseUrl; }
 	transferProject(teamId: string, projectId: string, ownerMemberId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/projects/${projectId}`, { method: 'PATCH', body: JSON.stringify({ ownerMemberId }) }); }
-	updateTask(teamId: string, taskId: string, changes: { status?: TaskStatus; position?: number; assigneeId?: string | null; title?: string; description?: string; dueAt?: string }): Promise<TeamTask> {
-		return this.request(`/v1/teams/${teamId}/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(changes) });
+	updateTask(teamId: string, taskId: string, changes: { status?: TaskStatus; position?: number; assigneeId?: string | null; title?: string; description?: string; dueAt?: string | null }): Promise<TeamTask> {
+		// dueAt: undefined = «не менять», null = «очистить дедлайн» — важно для quick actions.
+		const body: Record<string, unknown> = { ...changes };
+		if (changes.dueAt === undefined) { delete body.dueAt; }
+		return this.request(`/v1/teams/${teamId}/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(body) });
 	}
 
 	connect(teamId: string): void {

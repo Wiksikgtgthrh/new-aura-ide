@@ -7,26 +7,49 @@ import * as vscode from 'vscode';
 
 export const GITHUB_TOKEN_KEY = 'auraTeam.githubToken';
 
-interface GithubRepo {
-	full_name: string;
-	private: boolean;
-	default_branch: string;
-	html_url: string;
-	updated_at: string;
+/** Права, которые нужны клонированию, push и созданию репозиториев. */
+const GITHUB_SCOPES = ['repo', 'read:user'];
+
+/**
+ * Вход в GitHub.
+ *
+ * Раньше это было поле для вставки personal access token — главный барьер на входе:
+ * надо было знать, где взять токен, выбрать scope и не промахнуться при вставке.
+ * Теперь сначала пробуем штатный провайдер авторизации IDE (вход через браузер),
+ * и только если его в сборке нет — падаем на прежний ввод токена.
+ */
+export async function connectGitHub(context: vscode.ExtensionContext): Promise<{ login: string; via: 'browser' | 'token' }> {
+	const session = await getGithubSession(true);
+	if (session) {
+		await context.secrets.store(GITHUB_TOKEN_KEY, session.accessToken);
+		return { login: session.account.label, via: 'browser' };
+	}
+	return { login: await pasteToken(context), via: 'token' };
 }
 
-export async function connectGitHub(context: vscode.ExtensionContext): Promise<void> {
+/** Сессия провайдера 'github'. createIfNone открывает браузерный вход при первом вызове. */
+async function getGithubSession(createIfNone: boolean): Promise<vscode.AuthenticationSession | undefined> {
+	try {
+		return await vscode.authentication.getSession('github', GITHUB_SCOPES, { createIfNone, silent: !createIfNone });
+	} catch {
+		// Провайдера может не быть в сборке (или пользователь закрыл окно входа).
+		return undefined;
+	}
+}
+
+/** Запасной путь: вставка токена вручную, если провайдер недоступен. */
+async function pasteToken(context: vscode.ExtensionContext): Promise<string> {
 	const existing = await context.secrets.get(GITHUB_TOKEN_KEY);
 	const token = await vscode.window.showInputBox({
 		title: vscode.l10n.t('GitHub access token'),
 		prompt: existing
 			? vscode.l10n.t('A token is already saved — paste a new one to replace it.')
-			: vscode.l10n.t('Paste a personal access token with the "repo" scope. Create one at github.com/settings/tokens'),
+			: vscode.l10n.t('Browser sign-in is unavailable here. Paste a personal access token with the "repo" scope.'),
 		password: true,
 		ignoreFocusOut: true,
 		placeHolder: 'ghp_… / github_pat_…'
 	});
-	if (!token) { return; }
+	if (!token) { throw new Error(vscode.l10n.t('GitHub sign-in was cancelled.')); }
 	const trimmed = token.trim();
 	// Проверяем токен сразу, чтобы не молча падать потом на клонировании.
 	const check = await fetch('https://api.github.com/user', {
@@ -35,7 +58,17 @@ export async function connectGitHub(context: vscode.ExtensionContext): Promise<v
 	if (!check.ok) {
 		throw new Error(vscode.l10n.t('GitHub rejected this token (HTTP {0}). Check the token and the "repo" scope.', check.status));
 	}
+	const user = await check.json() as { login?: string };
 	await context.secrets.store(GITHUB_TOKEN_KEY, trimmed);
+	return user.login ?? 'github';
+}
+
+interface GithubRepo {
+	full_name: string;
+	private: boolean;
+	default_branch: string;
+	html_url: string;
+	updated_at: string;
 }
 
 export async function disconnectGitHub(context: vscode.ExtensionContext): Promise<void> {

@@ -1,0 +1,1748 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-__NONCE__'; img-src data:; font-src data:;">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LangGraph Оркестратор</title>
+<style>
+:root {
+	--gap: 8px;
+	--gap-lg: 12px;
+	--gap-xl: 16px;
+	--radius: 4px;
+}
+* { box-sizing: border-box; }
+body {
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size, 13px);
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+	margin: 0;
+	padding: 0 var(--gap-xl) var(--gap-xl);
+}
+/* Шапка: название, чипы, иконки управления. */
+header {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-lg);
+	padding: var(--gap-lg) 0;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	flex-wrap: wrap;
+}
+h1 { font-size: 15px; margin: 0; font-weight: 600; }
+.spacer { flex: 1 1 auto; }
+.chip {
+	font-size: 11px;
+	padding: 1px 8px;
+	border-radius: 9px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	white-space: nowrap;
+}
+.chip.ready { background: var(--vscode-charts-green); color: var(--vscode-editor-background); }
+.chip.starting { background: var(--vscode-charts-yellow); color: var(--vscode-editor-background); }
+.chip.error { background: var(--vscode-charts-red); color: var(--vscode-editor-background); }
+.chip.off { background: var(--vscode-button-secondaryBackground); color: var(--vscode-descriptionForeground); }
+/* Бюджетный чип с полоской расхода. */
+.budget-chip { display: flex; flex-direction: column; gap: 3px; min-width: 200px; }
+.budget-chip .btext { font-size: 11px; color: var(--vscode-descriptionForeground); white-space: nowrap; }
+.budget-chip .bbar { height: 3px; border-radius: 2px; background: var(--vscode-button-secondaryBackground); overflow: hidden; }
+.budget-chip .bbar > span { display: block; height: 100%; background: var(--vscode-charts-green); }
+.budget-chip.warn .bbar > span { background: var(--vscode-charts-yellow); }
+.budget-chip.err .bbar > span { background: var(--vscode-charts-red); }
+.icon-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: var(--radius);
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	cursor: pointer;
+	padding: 0;
+}
+.icon-btn:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-secondaryBackground)); }
+.icon-btn:disabled { opacity: .4; cursor: default; }
+.icon-btn svg { width: 14px; height: 14px; fill: currentColor; display: block; }
+.icon-btn.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-color: transparent; }
+/* Навигация по вкладкам. */
+nav { display: flex; gap: 2px; margin: var(--gap-lg) 0; border-bottom: 1px solid var(--vscode-panel-border); }
+nav button {
+	background: transparent;
+	border: none;
+	border-bottom: 2px solid transparent;
+	color: var(--vscode-descriptionForeground);
+	padding: 6px 12px;
+	cursor: pointer;
+	font-size: 13px;
+}
+nav button:hover { color: var(--vscode-foreground); }
+nav button.active { color: var(--vscode-foreground); border-bottom-color: var(--vscode-focusBorder, var(--vscode-foreground)); }
+section { display: none; }
+section.active { display: block; }
+h2 { font-size: 13px; margin: var(--gap-xl) 0 var(--gap); font-weight: 600; }
+h3 { font-size: 11px; margin: var(--gap-lg) 0 4px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--vscode-descriptionForeground); }
+.row { display: flex; gap: var(--gap); margin: var(--gap) 0; align-items: center; flex-wrap: wrap; }
+.muted { color: var(--vscode-descriptionForeground); font-size: 12px; }
+textarea {
+	width: 100%;
+	min-height: 68px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+	border-radius: var(--radius);
+	padding: var(--gap);
+	font-family: inherit;
+	resize: vertical;
+}
+input[type="text"], input[type="number"], select {
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+	border-radius: var(--radius);
+	padding: 3px 6px;
+	font-family: inherit;
+}
+button { font-family: inherit; border-radius: var(--radius); cursor: pointer; }
+button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 6px 14px; }
+button.primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
+button.ghost { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; padding: 5px 10px; }
+button.ghost:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-secondaryBackground)); }
+button.tiny { background: transparent; color: var(--vscode-textLink-foreground); border: none; padding: 2px 4px; font-size: 11px; }
+button.tiny:hover:not(:disabled) { text-decoration: underline; }
+button:disabled { opacity: .5; cursor: default; }
+/* Переключатель источника задачи. */
+.seg { display: inline-flex; border: 1px solid var(--vscode-panel-border); border-radius: var(--radius); overflow: hidden; }
+.seg button { background: transparent; color: var(--vscode-descriptionForeground); border: none; padding: 4px 10px; font-size: 12px; }
+.seg button.active { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+/* План как список-DAG. */
+.plan { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 320px); gap: var(--gap-lg); align-items: start; }
+.plan-list { border: 1px solid var(--vscode-panel-border); border-radius: var(--radius); }
+.plan-row {
+	display: grid;
+	grid-template-columns: 16px minmax(0, 1fr) auto;
+	gap: var(--gap);
+	align-items: center;
+	padding: 6px var(--gap);
+	border-bottom: 1px solid var(--vscode-panel-border);
+	cursor: pointer;
+	text-align: left;
+	background: transparent;
+	border-left: 2px solid transparent;
+	width: 100%;
+	color: inherit;
+}
+.plan-row:last-child { border-bottom: none; }
+.plan-row:hover { background: var(--vscode-list-hoverBackground, var(--vscode-editorWidget-background)); }
+.plan-row.selected { background: var(--vscode-list-activeSelectionBackground, var(--vscode-editorWidget-background)); color: var(--vscode-list-activeSelectionForeground, inherit); }
+.plan-row .st { text-align: center; font-size: 12px; }
+.st.done { color: var(--vscode-charts-green); }
+.st.running { color: var(--vscode-charts-blue, var(--vscode-focusBorder)); }
+.st.error { color: var(--vscode-charts-red); }
+.st.needs_human, .st.waiting-approval { color: var(--vscode-charts-yellow); }
+.st.skipped { color: var(--vscode-descriptionForeground); }
+.st.idle { color: var(--vscode-descriptionForeground); }
+.plan-row .goal { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-row .meta { display: flex; gap: 6px; align-items: center; color: var(--vscode-descriptionForeground); font-size: 11px; white-space: nowrap; }
+.indent { display: inline-block; width: 14px; }
+/* Тир-бейдж: цвета из темы. */
+.tier { font-size: 10px; padding: 0 5px; border-radius: 3px; border: 1px solid currentColor; }
+.tier.low { color: var(--vscode-charts-green); }
+.tier.mid { color: var(--vscode-charts-yellow); }
+.tier.high { color: var(--vscode-charts-red); }
+/* Панель детали ноды. */
+.detail { border: 1px solid var(--vscode-panel-border); border-radius: var(--radius); padding: var(--gap-lg); }
+.detail pre { margin: var(--gap) 0 0; }
+pre {
+	background: var(--vscode-textCodeBlock-background);
+	border-radius: var(--radius);
+	padding: var(--gap-lg);
+	overflow: auto;
+	font-size: 12px;
+	max-height: 300px;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+/* Блок «Ждёт тебя». */
+.waiting { border: 1px solid var(--vscode-charts-yellow); border-radius: var(--radius); padding: var(--gap-lg); margin: var(--gap-lg) 0; }
+.waiting .title { font-weight: 600; margin-bottom: var(--gap); }
+.waiting .body { font-size: 12px; white-space: pre-wrap; margin-bottom: var(--gap); }
+/* Таймлайн чекпоинтов. */
+.timeline { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: var(--gap-lg); padding: var(--gap) 0; }
+.dot {
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	border: 1px solid var(--vscode-panel-border);
+	background: var(--vscode-button-secondaryBackground);
+	cursor: pointer;
+	padding: 0;
+}
+.dot:hover { background: var(--vscode-focusBorder, var(--vscode-button-background)); }
+.dot:disabled { opacity: .5; }
+/* Пустое состояние с примерами. */
+.empty { padding: var(--gap-xl); border: 1px dashed var(--vscode-panel-border); border-radius: var(--radius); }
+.empty .examples { display: flex; gap: var(--gap); flex-wrap: wrap; margin-top: var(--gap-lg); }
+.example {
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 12px;
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	padding: 4px 10px;
+	font-size: 12px;
+}
+.example:hover { background: var(--vscode-list-hoverBackground, var(--vscode-editorWidget-background)); }
+/* Канбан доски. */
+.board { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--gap-lg); align-items: start; }
+.column { border: 1px solid var(--vscode-panel-border); border-radius: var(--radius); padding: var(--gap); }
+.col-head { display: flex; justify-content: space-between; font-size: 11px; color: var(--vscode-descriptionForeground); margin-bottom: var(--gap); text-transform: uppercase; letter-spacing: .04em; }
+.col-body { display: flex; flex-direction: column; gap: var(--gap); }
+.card { border: 1px solid var(--vscode-panel-border); border-radius: var(--radius); padding: var(--gap); background: var(--vscode-editorWidget-background); }
+.card .card-title { font-weight: 600; font-size: 12px; word-break: break-word; }
+.card .card-meta { font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 4px; }
+.card .card-acts { margin-top: 6px; display: flex; gap: 6px; }
+/* Своя задача на доске: поле тянется, колонка и кнопка — по содержимому. */
+.add-task { display: flex; gap: var(--gap); align-items: center; flex-wrap: wrap; margin: var(--gap) 0; }
+.add-task input { flex: 1 1 160px; min-width: 120px; }
+.add-task select { flex: 0 0 auto; }
+/* Сводка по тирам: чипы с рамкой — иначе значения сливаются в одну строку. */
+.tier-chips { display: flex; gap: var(--gap); align-items: center; flex-wrap: wrap; }
+.tier-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 1px 8px; border-radius: 9px; border: 1px solid var(--vscode-panel-border); }
+.tier-chip.warn { border-color: var(--vscode-charts-yellow); color: var(--vscode-charts-yellow); }
+/* Таблицы (модели, бюджет). */
+table { border-collapse: collapse; width: 100%; font-size: 12px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--vscode-panel-border); vertical-align: middle; }
+th { color: var(--vscode-descriptionForeground); font-weight: 600; }
+.pill { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 9px; }
+.pill.ok, .pill.done { background: var(--vscode-charts-green); color: var(--vscode-editor-background); }
+.pill.slow, .pill.cooldown, .pill.unknown, .pill.checking { background: var(--vscode-charts-yellow); color: var(--vscode-editor-background); }
+.pill.dead, .pill.error { background: var(--vscode-charts-red); color: var(--vscode-editor-background); }
+.pill.excluded, .pill.skipped { background: var(--vscode-button-secondaryBackground); color: var(--vscode-descriptionForeground); }
+.warn-text { color: var(--vscode-charts-yellow); }
+.err-text { color: var(--vscode-charts-red); }
+.ok-text { color: var(--vscode-charts-green); }
+/* Водопад спанов. */
+.wf { margin-top: var(--gap-lg); }
+.wf-row { display: grid; grid-template-columns: 180px minmax(0, 1fr) 130px; gap: var(--gap); align-items: center; padding: 3px 0; font-size: 12px; border-bottom: 1px solid var(--vscode-panel-border); }
+.wf-row .wf-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wf-row .wf-bar { background: var(--vscode-button-secondaryBackground); border-radius: var(--radius); height: 12px; overflow: hidden; }
+.wf-row .wf-bar > span { display: block; height: 100%; background: var(--vscode-charts-blue, var(--vscode-button-background)); }
+.wf-row.llm .wf-bar > span { background: var(--vscode-charts-purple, var(--vscode-button-background)); }
+.wf-row.err .wf-bar > span { background: var(--vscode-charts-red); }
+.wf-row .wf-meta { color: var(--vscode-descriptionForeground); text-align: right; white-space: nowrap; }
+.toplist { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--gap-lg); margin-top: var(--gap-lg); }
+.toplist .card h4 { margin: 0 0 6px; font-size: 11px; color: var(--vscode-descriptionForeground); font-weight: 600; text-transform: uppercase; }
+.toplist .row-item { display: flex; justify-content: space-between; gap: var(--gap); font-size: 12px; padding: 2px 0; }
+/* Журнал. */
+.log-tools { display: flex; gap: var(--gap); align-items: center; flex-wrap: wrap; margin-bottom: var(--gap); }
+/* Подпись стоит вплотную к своему списку, между группами фильтров — воздух. */
+.log-tools { gap: var(--gap-xl); }
+.log-tools .filter { display: inline-flex; align-items: center; gap: 4px; }
+.log-box {
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: var(--vscode-editor-font-size, 12px);
+	background: var(--vscode-textCodeBlock-background);
+	border-radius: var(--radius);
+	padding: var(--gap-lg);
+	overflow: auto;
+	max-height: 60vh;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+.log-line { display: flex; gap: var(--gap); }
+.log-line .lvl { flex: 0 0 auto; }
+.log-line .node { flex: 0 0 auto; color: var(--vscode-descriptionForeground); }
+.log-line.info .lvl { color: var(--vscode-descriptionForeground); }
+.log-line.warn .lvl { color: var(--vscode-charts-yellow); }
+.log-line.error .lvl { color: var(--vscode-charts-red); }
+/* Блок бюджета во вкладке Models. */
+.budget .bgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--gap-lg); }
+.budget .bcard { border: 1px solid var(--vscode-panel-border); border-radius: var(--radius); padding: var(--gap); }
+.budget .bcard .blabel { font-size: 12px; color: var(--vscode-descriptionForeground); }
+.budget .bcard .bvalue { margin-top: 2px; }
+.budget .bbar2 { height: 5px; border-radius: 3px; background: var(--vscode-button-secondaryBackground); margin-top: 6px; overflow: hidden; }
+.budget .bbar2 > span { display: block; height: 100%; background: var(--vscode-charts-green); }
+.budget .bbar2.warn > span { background: var(--vscode-charts-yellow); }
+.budget .bbar2.err > span { background: var(--vscode-charts-red); }
+.budget .bedit { border: 1px solid var(--vscode-panel-border); border-radius: var(--radius); padding: var(--gap-lg); margin-top: var(--gap); }
+.budget .bedit .brow { display: flex; gap: var(--gap-lg); flex-wrap: wrap; margin-top: 4px; align-items: flex-end; }
+.budget .bedit label { font-size: 11px; color: var(--vscode-descriptionForeground); display: flex; flex-direction: column; gap: 2px; }
+.budget .bedit input { width: 110px; }
+.budget .bedit table input { width: 100px; }
+.budget .bedit .rule { display: grid; grid-template-columns: minmax(0, 1fr) 100px 100px auto; gap: 6px; align-items: center; margin-top: 4px; }
+.budget .bedit .rule input { width: 100%; }
+.budget .bedit .saved { color: var(--vscode-charts-green); }
+.budget .bedit .failed { color: var(--vscode-charts-red); }
+details.bedit-toggle { margin-top: var(--gap-lg); }
+details.bedit-toggle > summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+	<h1 id="title">LangGraph Оркестратор</h1>
+	<span class="chip" id="sidecarBadge">—</span>
+	<button class="ghost" id="btnSidecarStart" hidden></button>
+	<span class="spacer"></span>
+	<div class="budget-chip" id="budgetChip" hidden>
+		<span class="btext" id="budgetText"></span>
+		<div class="bbar"><span id="budgetBar"></span></div>
+	</div>
+	<button class="icon-btn" id="btnPause" hidden></button>
+	<button class="icon-btn" id="btnResume" hidden></button>
+	<button class="icon-btn" id="btnStop" hidden></button>
+</header>
+
+<nav>
+	<button data-tab="run" class="active" id="tabRun"></button>
+	<button data-tab="board" id="tabBoard" hidden></button>
+	<button data-tab="models" id="tabModels"></button>
+	<button data-tab="trace" id="tabTrace"></button>
+	<button data-tab="log" id="tabLog"></button>
+</nav>
+
+<section id="tab-run" class="active">
+	<div id="waitingHost"></div>
+	<div id="patchHost"></div>
+	<div class="row"><textarea id="taskInput"></textarea></div>
+	<div class="row">
+		<div class="seg" id="sourceSeg"></div>
+		<select id="boardSelect" hidden></select>
+		<button class="primary" id="btnStart"></button>
+	</div>
+	<div class="row" id="defaultsRow"></div>
+	<div id="lastTask" class="muted"></div>
+	<div id="runSummary" class="muted"></div>
+	<h2 id="planTitle"></h2>
+	<div class="plan" id="planWrap">
+		<div class="plan-list" id="planList"></div>
+		<div class="detail" id="nodeDetail"></div>
+	</div>
+	<div id="runEmpty"></div>
+	<h3 id="timelineTitle"></h3>
+	<div class="timeline" id="timeline"></div>
+	<div class="muted" id="timelineHint"></div>
+</section>
+
+<section id="tab-board">
+	<div class="row">
+		<button class="ghost" id="btnTeamRefresh"></button>
+		<span class="muted" id="teamHint"></span>
+	</div>
+	<div class="add-task" id="addTaskRow" hidden>
+		<input type="text" id="newTaskTitle" maxlength="140">
+		<select id="newTaskStatus"></select>
+		<button class="primary" id="btnAddTask"></button>
+	</div>
+	<div class="muted" id="addTaskNote"></div>
+	<div id="teamBoard"></div>
+</section>
+
+<section id="tab-models">
+	<div class="row">
+		<button class="ghost" id="btnRefreshKeys"></button>
+		<button class="ghost" id="btnCheckKeys"></button>
+		<select id="keySourceFilter"></select>
+		<span class="muted" id="keysHint"></span>
+	</div>
+	<div id="modelsSummary"></div>
+	<table>
+		<thead><tr>
+			<th id="thName"></th><th id="thSource"></th><th id="thTier"></th><th id="thStatus"></th>
+			<th id="thPing"></th><th id="thUsed"></th><th id="thActions"></th>
+		</tr></thead>
+		<tbody id="modelsBody"></tbody>
+	</table>
+	<details class="bedit-toggle" id="budgetDetails">
+		<summary id="budgetSummary"></summary>
+		<div class="budget" id="budgetBlock"></div>
+	</details>
+</section>
+
+<section id="tab-trace">
+	<div class="toplist" id="traceTops"></div>
+	<div class="muted" id="traceHint"></div>
+	<div class="wf" id="traceWaterfall"></div>
+</section>
+
+<section id="tab-log">
+	<div class="log-tools">
+		<span class="filter"><label class="muted" id="logLevelLabel"></label><select id="logLevelFilter"></select></span>
+		<span class="filter"><label class="muted" id="logNodeLabel"></label><select id="logNodeFilter"></select></span>
+		<button class="ghost" id="btnLogPin"></button>
+	</div>
+	<div class="log-box" id="logBox"></div>
+</section>
+
+<script nonce="__NONCE__">
+(function () {
+	const vscode = acquireVsCodeApi();
+	const DICTS = {
+		ru: {
+			tabRun: 'Запуск', tabBoard: 'Доска', tabModels: 'Модели', tabTrace: 'Трасса', tabLog: 'Журнал',
+			title: 'LangGraph Оркестратор',
+			taskPlaceholder: 'Опишите задачу для оркестра. Например: добавь страницу настроек, покрой тестами и проверь на уязвимости',
+			srcOwn: 'Своя задача', srcBoard: 'С доски', boardPlaceholder: 'Задача с доски',
+			start: 'Запустить', pause: 'Пауза', resume: 'Продолжить', cancel: 'Остановить',
+			plannerLabel: 'Планнер', parallelLabel: 'Макс. параллель', plannerAuto: 'auto',
+			waitingTitle: 'Ждёт тебя', approve: 'Принять', reject: 'Отклонить', reply: 'Ответить',
+			notePlaceholder: 'Заметка (необязательно)', noApprovals: 'Нет ожидающих подтверждений',
+			planTitle: 'План', planEmpty: 'План появится после старта — супервизор разложит задачу на подзадачи.',
+			selectNodeHint: 'Выбери ноду слева, чтобы увидеть цель, итог и diff.',
+			nodeGoal: 'Цель', nodeSummary: 'Итог', nodeDiff: 'diff --stat',
+			nodeOpenDiff: 'Открыть diff', nodeRestart: 'Перезапустить', nodeNoDiff: 'Правок нет.',
+			restartSent: 'перезапуск отправлен', restartFailed: 'перезапуск не удался',
+			runExamples: 'Попробуйте пример:',
+			examples: [
+				'Добавь страницу настроек и покрой её тестами',
+				'Проверь доступ к секретам и убери утечки',
+				'Почини падающие тесты в модуле авторизации',
+			],
+			lastTask: 'Последняя задача: ',
+			runSummary: 'Итог запуска',
+			timeline: 'Чекпоинты', timelineHint: 'Точка — шаг запуска. Клик — откат к нему или ручная правка состояния.',
+			timelineEmpty: 'История появится после первого запуска.',
+			rewind: 'Откатиться сюда', patch: 'Править state…',
+			patchPrompt: 'JSON-патч состояния, например: {"summary": "правка руками"}', patchInvalid: 'Не JSON. Попробуйте ещё раз.',
+			patchReady: 'Финальный патч', patchApply: 'Применить', patchReject: 'Отклонить', patchOpen: 'Открыть diff',
+			fileForms: ['файл', 'файла', 'файлов'], patchEmpty: 'Патч пуст — правок нет.',
+			patchConflict: 'Конфликт при применении — файлы:', patchApplied: 'Патч применён', patchRejected: 'Патч отклонён',
+			round: 'раунд', retry: 'ретрай', tier: 'Тир', model: 'Модель',
+			// Формы для склонения после числа: 1 токен, 2 токена, 5 токенов.
+			tokenForms: ['токен', 'токена', 'токенов'], time: 'время',
+			status: 'Статус', name: 'Название', source: 'Источник', ping: 'Пинг', usedToday: 'За запуск', actions: 'Действия',
+			srcPersonal: 'личный', srcTeam: 'командный', srcAll: 'Все источники',
+			modelsSummary: 'Модели по тирам', liveForms: ['живой', 'живых', 'живых'], modelsEmptyTier: 'пусто — запуск упадёт в этот тир',
+			check: 'Проверить', checkAll: 'Проверить все', refresh: 'Обновить', exclude: 'Вывести', include: 'Вернуть',
+			noKeys: 'Ключи не найдены. Добавьте ключи в панели API Keys или подключите командные.',
+			keysHint: 'Тир правится прямо в таблице; пинг и статус приходят из ядра API Keys и командного банка.',
+			boardEmpty: 'На доске команды нет задач. Добавьте свою — она встанет в выбранную колонку.', teamUnavailable: 'Плагин Aura Team не установлен — доска недоступна.',
+			teamRefresh: 'Обновить доску', sendToAgents: 'Отдать агентам',
+			newTaskPh: 'Своя задача для доски', addTask: 'Добавить задачу', taskColumn: 'Колонка',
+			taskAdded: 'задача добавлена', taskAddFailed: 'не удалось добавить задачу', taskAddOffline: 'Aura Team недоступен — задача не создана',
+			taskTitleNeeded: 'введите название задачи',
+			teamHint: 'Задача идёт отдельным потоком: повторный запуск продолжает уже начатый.',
+			teamRow: 'командный банк',
+			colTodo: 'В очереди', colDoing: 'В работе', colReview: 'На ревью', colDone: 'Готово',
+			traceWaterfall: 'Водопад спанов', traceEmpty: 'Спаны появятся после запуска.',
+			traceByTime: 'Топ нод по времени', traceByCost: 'Топ нод по деньгам',
+			spanForms: ['спан', 'спана', 'спанов'], retryForms: ['ретрай', 'ретрая', 'ретраев'],
+			logLevelLabel: 'Уровень', logNodeLabel: 'Нода', logAll: 'Все', logPin: 'Закрепить', logUnpin: 'Открепить',
+			logEmpty: 'Журнал пуст.', levels: { info: 'инфо', warn: 'предупр.', error: 'ошибка' },
+			budgetRunTokens: 'Токены запуска', budgetRunCost: 'Стоимость запуска',
+			budgetNodeTokens: 'Токены ноды', budgetNodeCost: 'Стоимость ноды', budgetNoLimit: 'без лимита',
+			budgetByModel: 'Расход по моделям', budgetNoSpend: 'Пока нет расхода.',
+			budgetTeamTitle: 'Команда', budgetTeamUnavailable: 'Aura Team не отдаёт траты по людям.',
+			budgetTeamTotal: 'всего', budgetRequestsShort: 'запр.',
+			budgetCacheTitle: 'Кэш инструментов', budgetCacheClear: 'Очистить кэш', entryForms: ['запись', 'записи', 'записей'], budgetCacheCleared: 'кэш очищен',
+			budgetEditTitle: 'Лимиты и цены', budgetLimits: 'Лимиты запуска и ноды',
+			budgetPrices: 'Цены за 1M токенов', budgetModelRules: 'Переопределения по моделям',
+			budgetAddModel: 'Добавить модель', budgetSave: 'Сохранить', budgetSaved: 'сохранено',
+			budgetSaveError: 'не сохранилось', budgetNextRun: 'применится к следующему запуску',
+			budgetRemove: 'Удалить', budgetRuleMatch: 'Модель (подстрока)', budgetIn: 'Вход, $', budgetOut: 'Выход, $',
+			budgetProfiles: 'Профили бюджета', budgetProfileApply: 'Применить', budgetProfileSaveAs: 'Сохранить как…',
+			budgetProfileName: 'Имя профиля', budgetProfileSaved: 'профиль сохранён', budgetProfileApplied: 'профиль применён',
+			budgetProfileRemoved: 'профиль удалён', budgetProfileBuiltin: 'встроенный',
+			budgetDetails: 'Бюджет: лимиты, цены, профили, кэш',
+			profiles: { economy: 'Экономный', normal: 'Обычный', max: 'Максимум' },
+			colCalls: 'вызовов',
+			sidecarOff: 'сайдкар: не запущен', sidecarStarting: 'сайдкар: запускается', sidecarReady: 'сайдкар: готов', sidecarError: 'сайдкар: ошибка',
+			sidecarStart: 'Запустить сайдкар',
+			statuses: {
+				idle: 'в очереди', running: 'работает', 'waiting-approval': 'ждёт подтверждения', done: 'готово',
+				error: 'ошибка', skipped: 'пропущено', needs_human: 'нужен человек',
+				ok: 'жив', slow: 'медленный', cooldown: 'пауза', dead: 'мёртв', excluded: 'выключен', unknown: 'неизвестно', checking: 'проверка',
+			},
+			reasons: {
+				latency: 'ядро вывело ключ из автовыбора: медленные первые токены',
+				ping: 'ядро вывело ключ из автовыбора: медленный пинг',
+				checking: 'идёт проверка ключа', excluded: 'выключен вами в панели', cooldown: 'ключ в паузе',
+				disabled: 'ключ выключен в командном банке',
+				notSelectable: 'только сведения командного банка — напрямую ключ не используется',
+			},
+			roles: { supervisor: 'Супервизор', coder: 'Кодер', tester: 'Тестировщик', 'security-auditor': 'Аудит безопасности', reviewer: 'Ревьюер' },
+			tiers: { high: 'HIGH', mid: 'MID', low: 'LOW' },
+			tierNames: { low: 'низкий', mid: 'средний', high: 'высокий' },
+			units: { ms: 'мс', sec: 'с', min: 'мин' },
+		},
+		en: {
+			tabRun: 'Run', tabBoard: 'Board', tabModels: 'Models', tabTrace: 'Trace', tabLog: 'Log',
+			title: 'LangGraph Orchestrator',
+			taskPlaceholder: 'Describe the task for the orchestra. E.g.: add a settings page, cover it with tests and audit for vulnerabilities',
+			srcOwn: 'Own task', srcBoard: 'From board', boardPlaceholder: 'Board task',
+			start: 'Start', pause: 'Pause', resume: 'Resume', cancel: 'Stop',
+			plannerLabel: 'Planner', parallelLabel: 'Max parallel', plannerAuto: 'auto',
+			waitingTitle: 'Waiting for you', approve: 'Approve', reject: 'Reject', reply: 'Reply',
+			notePlaceholder: 'Note (optional)', noApprovals: 'No pending approvals',
+			planTitle: 'Plan', planEmpty: 'The plan appears after start — the supervisor splits the task into subtasks.',
+			selectNodeHint: 'Pick a node on the left to see its goal, summary and diff.',
+			nodeGoal: 'Goal', nodeSummary: 'Summary', nodeDiff: 'diff --stat',
+			nodeOpenDiff: 'Open diff', nodeRestart: 'Restart', nodeNoDiff: 'No changes.',
+			restartSent: 'restart sent', restartFailed: 'restart failed',
+			runExamples: 'Try an example:',
+			examples: [
+				'Add a settings page and cover it with tests',
+				'Audit secret handling and remove leaks',
+				'Fix the failing tests in the auth module',
+			],
+			lastTask: 'Last task: ',
+			runSummary: 'Run summary',
+			timeline: 'Checkpoints', timelineHint: 'A dot is a run step. Click to rewind there or patch the state.',
+			timelineEmpty: 'History appears after the first run.',
+			rewind: 'Rewind here', patch: 'Patch state…',
+			patchPrompt: 'State JSON patch, e.g.: {"summary": "hand edit"}', patchInvalid: 'Not JSON. Try again.',
+			patchReady: 'Final patch', patchApply: 'Apply', patchReject: 'Reject', patchOpen: 'Open diff',
+			fileForms: ['file', 'files', 'files'], patchEmpty: 'Patch is empty — no changes.',
+			patchConflict: 'Apply conflict — files:', patchApplied: 'Patch applied', patchRejected: 'Patch rejected',
+			round: 'round', retry: 'retry', tier: 'Tier', model: 'Model',
+			tokenForms: ['token', 'tokens', 'tokens'], time: 'time',
+			status: 'Status', name: 'Name', source: 'Source', ping: 'Ping', usedToday: 'Used today', actions: 'Actions',
+			srcPersonal: 'personal', srcTeam: 'team', srcAll: 'All sources',
+			modelsSummary: 'Models by tier', liveForms: ['alive', 'alive', 'alive'], modelsEmptyTier: 'empty — a run would fall back into this tier',
+			check: 'Check', checkAll: 'Check all', refresh: 'Refresh', exclude: 'Exclude', include: 'Include',
+			noKeys: 'No keys found. Add keys in the API Keys panel or connect team keys.',
+			keysHint: 'The tier is edited right in the table; ping and status come from the API Keys core and the team bank.',
+			boardEmpty: 'No tasks on the team board. Add your own — it lands in the selected column.', teamUnavailable: 'The Aura Team extension is not installed — the board is unavailable.',
+			teamRefresh: 'Refresh board', sendToAgents: 'Send to agents',
+			newTaskPh: 'Your own board task', addTask: 'Add task', taskColumn: 'Column',
+			taskAdded: 'task added', taskAddFailed: 'could not add the task', taskAddOffline: 'Aura Team is unavailable — the task was not created',
+			taskTitleNeeded: 'enter a task title',
+			teamHint: 'A task runs in its own thread: starting it again continues the existing run.',
+			teamRow: 'team bank',
+			colTodo: 'Queued', colDoing: 'In progress', colReview: 'In review', colDone: 'Done',
+			traceWaterfall: 'Span waterfall', traceEmpty: 'Spans appear after a run.',
+			traceByTime: 'Top nodes by time', traceByCost: 'Top nodes by money',
+			spanForms: ['span', 'spans', 'spans'], retryForms: ['retry', 'retries', 'retries'],
+			logLevelLabel: 'Level', logNodeLabel: 'Node', logAll: 'All', logPin: 'Pin', logUnpin: 'Unpin',
+			logEmpty: 'The log is empty.', levels: { info: 'info', warn: 'warn', error: 'error' },
+			budgetRunTokens: 'Run tokens', budgetRunCost: 'Run cost',
+			budgetNodeTokens: 'Node tokens', budgetNodeCost: 'Node cost', budgetNoLimit: 'no limit',
+			budgetByModel: 'Spend by model', budgetNoSpend: 'No spend yet.',
+			budgetTeamTitle: 'Team', budgetTeamUnavailable: 'Aura Team does not expose per-person usage.',
+			budgetTeamTotal: 'total', budgetRequestsShort: 'req.',
+			budgetCacheTitle: 'Tool cache', budgetCacheClear: 'Clear cache', entryForms: ['entry', 'entries', 'entries'], budgetCacheCleared: 'cache cleared',
+			budgetEditTitle: 'Limits & prices', budgetLimits: 'Run and node limits',
+			budgetPrices: 'Prices per 1M tokens', budgetModelRules: 'Per-model overrides',
+			budgetAddModel: 'Add model', budgetSave: 'Save', budgetSaved: 'saved',
+			budgetSaveError: 'not saved', budgetNextRun: 'applies to the next run',
+			budgetRemove: 'Remove', budgetRuleMatch: 'Model (substring)', budgetIn: 'Input, $', budgetOut: 'Output, $',
+			budgetProfiles: 'Budget profiles', budgetProfileApply: 'Apply', budgetProfileSaveAs: 'Save as…',
+			budgetProfileName: 'Profile name', budgetProfileSaved: 'profile saved', budgetProfileApplied: 'profile applied',
+			budgetProfileRemoved: 'profile removed', budgetProfileBuiltin: 'built-in',
+			budgetDetails: 'Budget: limits, prices, profiles, cache',
+			profiles: { economy: 'Economy', normal: 'Standard', max: 'Max' },
+			colCalls: 'calls',
+			sidecarOff: 'sidecar: not running', sidecarStarting: 'sidecar: starting', sidecarReady: 'sidecar: ready', sidecarError: 'sidecar: error',
+			sidecarStart: 'Start sidecar',
+			statuses: {
+				idle: 'queued', running: 'running', 'waiting-approval': 'awaiting approval', done: 'done',
+				error: 'error', skipped: 'skipped', needs_human: 'needs a human',
+				ok: 'alive', slow: 'slow', cooldown: 'cooldown', dead: 'dead', excluded: 'excluded', unknown: 'unknown', checking: 'checking',
+			},
+			reasons: {
+				latency: 'the core excluded the key: slow first tokens',
+				ping: 'the core excluded the key: slow ping',
+				checking: 'key check is running', excluded: 'excluded by you in the panel', cooldown: 'key is cooling down',
+				disabled: 'key is disabled in the team bank',
+				notSelectable: 'team bank info only — the key itself is not used here',
+			},
+			roles: { supervisor: 'Supervisor', coder: 'Coder', tester: 'Tester', 'security-auditor': 'Security auditor', reviewer: 'Reviewer' },
+			tiers: { high: 'HIGH', mid: 'MID', low: 'LOW' },
+			tierNames: { low: 'low', mid: 'mid', high: 'high' },
+			units: { ms: 'ms', sec: 's', min: 'min' },
+		},
+	};
+
+	const STATUS_GLYPH = {
+		idle: '○', running: '◐', 'waiting-approval': '◔', done: '✓', error: '✕', skipped: '⊘', needs_human: '‼',
+	};
+	const COLUMNS = [
+		{ key: 'todo', status: 'todo' },
+		{ key: 'doing', status: 'doing' },
+		{ key: 'review', status: 'review' },
+		{ key: 'done', status: 'done' },
+	];
+	const ICONS = {
+		pause: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3h2v10H5zM9 3h2v10H9z"/></svg>',
+		continue: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>',
+		stop: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8"/></svg>',
+	};
+
+	// ---- единый reducer состояния webview (серверный снапшот + локальный UI) ----
+	const DEFAULT_UI = {
+		server: null,
+		tab: 'run',
+		task: '',
+		source: 'own',
+		boardTaskId: '',
+		selectedNode: null,
+		logLevel: 'all',
+		logNode: 'all',
+		logPinned: true,
+	};
+	let ui = loadUi();
+
+	function loadUi() {
+		let saved = null;
+		try { saved = vscode.getState ? vscode.getState() : null; } catch { saved = null; }
+		return saved ? { ...DEFAULT_UI, ...saved, server: null } : { ...DEFAULT_UI };
+	}
+
+	function reduce(current, action) {
+		switch (action.type) {
+			case 'server':
+				return { ...current, server: action.payload };
+			case 'tab':
+				return { ...current, tab: action.payload };
+			case 'task':
+				return { ...current, task: action.payload };
+			case 'source':
+				return { ...current, source: action.payload };
+			case 'boardTask':
+				return { ...current, boardTaskId: action.payload };
+			case 'selectNode':
+				return { ...current, selectedNode: action.payload };
+			case 'logLevel':
+				return { ...current, logLevel: action.payload };
+			case 'logNode':
+				return { ...current, logNode: action.payload };
+			case 'togglePin':
+				return { ...current, logPinned: !current.logPinned };
+			default:
+				return current;
+		}
+	}
+
+	// Состояние прилетает пачками (спан, событие графа, строка лога), а render()
+	// перерисовывает все семь секций целиком: 30 сообщений в секунду — это 30 полных
+	// перерисовок. Схлопываем их в один кадр: важно только последнее состояние,
+	// предыдущие всё равно перекрыты. Действия самого пользователя (вкладка, фильтр)
+	// рисуются сразу — отзывчивость интерфейса важнее экономии.
+	let renderQueued = false;
+	function scheduleRender() {
+		if (renderQueued) { return; }
+		if (typeof window.requestAnimationFrame !== 'function') { render(); return; }
+		renderQueued = true;
+		window.requestAnimationFrame(() => { renderQueued = false; render(); });
+	}
+
+	function dispatch(action) {
+		ui = reduce(ui, action);
+		try { if (vscode.setState) { vscode.setState(ui); } } catch { /* стенд предпросмотра */ }
+		if (action.type === 'server') { scheduleRender(); return; }
+		render();
+	}
+
+	function state() { return ui.server || {}; }
+	function lang() {
+		const forced = state().uiLanguage;
+		if (forced === 'ru' || forced === 'en') { return forced; }
+		return (navigator.language || 'en').toLowerCase().startsWith('ru') ? 'ru' : 'en';
+	}
+	function T() { return DICTS[lang()]; }
+	/** Русские формы после числа: 1 токен, 2 токена, 5 токенов. */
+	function plural(count, forms) {
+		const n = Math.abs(Number(count) || 0) % 100;
+		const last = n % 10;
+		if (n > 10 && n < 20) { return forms[2]; }
+		if (last === 1) { return forms[0]; }
+		if (last >= 2 && last <= 4) { return forms[1]; }
+		return forms[2];
+	}
+	function statusTitle(status) { return T().statuses[status] || status; }
+	function roleTitle(role) { return T().roles[role] || role; }
+	function tierTitle(tier) { return T().tiers[tier] || (tier ? tier.toUpperCase() : ''); }
+
+	// ---- сообщения в расширение: типизированные {type, payload} ----
+	let nextId = 1;
+	const pending = new Map();
+
+	function invoke(command, args) {
+		return new Promise((resolve, reject) => {
+			const id = nextId++;
+			pending.set(id, { resolve, reject });
+			vscode.postMessage({ type: 'invoke', payload: { command, args: args || {}, id } });
+			setTimeout(() => {
+				if (pending.has(id)) {
+					pending.delete(id);
+					reject(new Error('invoke timeout'));
+				}
+			}, 60000);
+		});
+	}
+
+	// ---- построение DOM: текст всегда через textContent, данные не идут в innerHTML ----
+	function el(tag, props, ...kids) {
+		const node = document.createElement(tag);
+		if (props) {
+			for (const key of Object.keys(props)) {
+				const value = props[key];
+				if (value == null || value === false) { continue; }
+				if (key === 'class') { node.className = value; }
+				else if (key === 'text') { node.textContent = String(value); }
+				else if (key === 'html') { node.innerHTML = value; }
+				else if (key === 'dataset') { Object.assign(node.dataset, value); }
+				else if (key.startsWith('on') && typeof value === 'function') { node.addEventListener(key.slice(2), value); }
+				else { node[key] = value; }
+			}
+		}
+		append(node, kids);
+		return node;
+	}
+	function append(parent, kids) {
+		for (const kid of kids) {
+			if (kid == null || kid === false) { continue; }
+			parent.append(kid);
+		}
+	}
+	function clear(node) { while (node.firstChild) { node.removeChild(node.firstChild); } }
+	/**
+	 * Заполняет <select> парами value → подпись. Сами опции создаются один раз (иначе слетит
+	 * выбранное значение), а подписи переставляются на каждом рендере: первый рендер случается
+	 * до снапшота, когда язык ещё неизвестен, и застывшая подпись осталась бы навсегда.
+	 */
+	const selectOptions = new Map();
+	function fillSelect(select, entries) {
+		let options = selectOptions.get(select);
+		if (!options || options.length !== entries.length) {
+			clear(select);
+			options = entries.map(entry => el('option', { value: entry.value }));
+			for (const option of options) { select.append(option); }
+			selectOptions.set(select, options);
+		}
+		entries.forEach((entry, index) => { options[index].textContent = entry.text; });
+	}
+	function fmtNum(value) {
+		const n = Number(value) || 0;
+		return n.toLocaleString(lang() === 'ru' ? 'ru-RU' : 'en-US');
+	}
+	function fmtTok(value) {
+		const n = Number(value) || 0;
+		if (n >= 1000000) { return (n / 1000000).toFixed(1) + 'M'; }
+		if (n >= 1000) { return (n / 1000).toFixed(1) + 'k'; }
+		return String(Math.round(n));
+	}
+	function fmtMs(ms) {
+		const value = Number(ms) || 0;
+		if (value >= 60000) { return Math.round(value / 60000) + T().units.min; }
+		if (value >= 1000) { return (value / 1000).toFixed(2) + T().units.sec; }
+		return value + T().units.ms;
+	}
+	function duration(node) {
+		const from = node.startedAt || node.finishedAt;
+		if (!from) { return ''; }
+		const to = node.finishedAt || Date.now();
+		return fmtMs(Math.max(0, to - from));
+	}
+	function keyTitle(key) {
+		const parts = [statusTitle(key.status)];
+		if (key.health) { parts.push('health: ' + key.health); }
+		if (key.excludedReason) { parts.push(T().reasons[key.excludedReason] || key.excludedReason); }
+		if (key.status === 'excluded') { parts.push(T().reasons.excluded); }
+		if (key.checking) { parts.push(T().reasons.checking); }
+		if (key.selectable === false) { parts.push(T().reasons.notSelectable); }
+		if (key.lastError) { parts.push(key.lastError); }
+		return parts.join(' · ');
+	}
+
+	// ---- шапка ----
+	function renderHeader() {
+		const s = state();
+		const t = T();
+		// Язык документа едет за словарём: <html lang="ru"> в разметке — только стартовое значение.
+		document.documentElement.lang = lang();
+		document.getElementById('title').textContent = t.title;
+		const sidecar = s.sidecar && s.sidecar.state ? s.sidecar : { state: s.sidecarAlive ? 'ready' : 'off' };
+		const badge = document.getElementById('sidecarBadge');
+		badge.className = 'chip ' + sidecar.state;
+		badge.textContent = t['sidecar' + sidecar.state.charAt(0).toUpperCase() + sidecar.state.slice(1)] || sidecar.state;
+		badge.title = sidecar.error || '';
+		const startBtn = document.getElementById('btnSidecarStart');
+		startBtn.textContent = t.sidecarStart;
+		startBtn.hidden = sidecar.state === 'ready' || sidecar.state === 'starting';
+
+		const chip = document.getElementById('budgetChip');
+		const budget = s.budget || {};
+		const limits = budget.limits || {};
+		const tokens = Number(budget.tokens) || 0;
+		const cost = Number(budget.cost) || 0;
+		chip.hidden = !s.budget;
+		if (s.budget) {
+			const tokPart = fmtTok(tokens) + ' / ' + (limits.runTokens > 0 ? fmtTok(limits.runTokens) + ' tok' : t.budgetNoLimit);
+			const costPart = '$' + cost.toFixed(2) + ' / ' + (limits.runCost > 0 ? '$' + Number(limits.runCost).toFixed(2) : t.budgetNoLimit);
+			document.getElementById('budgetText').textContent = tokPart + ' · ' + costPart;
+			const ratio = Math.max(
+				limits.runTokens > 0 ? tokens / limits.runTokens : 0,
+				limits.runCost > 0 ? cost / limits.runCost : 0,
+			);
+			const percent = Math.min(100, Math.round(ratio * 100));
+			chip.className = 'budget-chip' + (ratio >= 1 ? ' err' : ratio >= 0.75 ? ' warn' : '');
+			chip.hidden = false;
+			document.getElementById('budgetBar').style.width = Math.max(2, percent) + '%';
+		}
+
+		const pauseBtn = document.getElementById('btnPause');
+		pauseBtn.innerHTML = ICONS.pause;
+		pauseBtn.title = t.pause;
+		pauseBtn.hidden = false;
+		pauseBtn.disabled = !s.running || s.paused;
+		pauseBtn.setAttribute('aria-label', t.pause);
+		const resumeBtn = document.getElementById('btnResume');
+		resumeBtn.innerHTML = ICONS.continue;
+		resumeBtn.title = t.resume;
+		resumeBtn.hidden = false;
+		resumeBtn.disabled = !s.paused;
+		resumeBtn.setAttribute('aria-label', t.resume);
+		const stopBtn = document.getElementById('btnStop');
+		stopBtn.innerHTML = ICONS.stop;
+		stopBtn.title = t.cancel;
+		stopBtn.hidden = false;
+		stopBtn.disabled = !s.running;
+		stopBtn.setAttribute('aria-label', t.cancel);
+	}
+
+	function renderTabs() {
+		const t = T();
+		const runBtn = document.getElementById('tabRun');
+		runBtn.textContent = t.tabRun;
+		const boardBtn = document.getElementById('tabBoard');
+		boardBtn.textContent = t.tabBoard;
+		boardBtn.hidden = !(state().team && state().team.available);
+		document.getElementById('tabModels').textContent = t.tabModels;
+		document.getElementById('tabTrace').textContent = t.tabTrace;
+		document.getElementById('tabLog').textContent = t.tabLog;
+		// Скрытая вкладка (Board без Team) не может быть активной.
+		if (ui.tab === 'board' && !(state().team && state().team.available)) { ui.tab = 'run'; }
+		for (const key of ['run', 'board', 'models', 'trace', 'log']) {
+			const btn = document.getElementById('tab' + key.charAt(0).toUpperCase() + key.slice(1));
+			btn.classList.toggle ? btn.classList.toggle('active', ui.tab === key) : undefined;
+			const section = document.getElementById('tab-' + key);
+			section.classList.toggle ? section.classList.toggle('active', ui.tab === key) : undefined;
+		}
+	}
+
+	// ---- Run ----
+	function planDepth(nodes) {
+		const byId = new Map(nodes.map(n => [n.id, n]));
+		const depth = new Map();
+		const visit = (id, seen) => {
+			if (depth.has(id)) { return depth.get(id); }
+			if (seen.has(id)) { return 0; }
+			seen.add(id);
+			const node = byId.get(id);
+			const deps = (node && node.deps) || [];
+			const value = deps.length ? 1 + Math.max(...deps.map(dep => visit(dep, seen))) : 0;
+			depth.set(id, value);
+			return value;
+		};
+		for (const node of nodes) { visit(node.id, new Set()); }
+		return depth;
+	}
+	function nodeStatus(id, results, itemState, live) {
+		const liveNode = (live || []).find(n => n.id === id);
+		if (liveNode && liveNode.status) { return liveNode.status; }
+		const result = results[id];
+		if (result && result.status) {
+			const map = { ok: 'done', failed: 'error', needs_human: 'needs_human', denied: 'error', skipped: 'skipped' };
+			return map[result.status] || result.status;
+		}
+		const item = itemState[id];
+		if (item === 'done') { return 'done'; }
+		if (item === 'failed') { return 'error'; }
+		if (item === 'needs_human') { return 'needs_human'; }
+		if (item === 'skipped' || item === 'denied') { return 'skipped'; }
+		if (item === 'dispatched' || item === 'queued') { return 'running'; }
+		return 'idle';
+	}
+	function nodeModel(id, trace) {
+		const span = (trace.spans || []).find(sp => sp.kind === 'llm' && sp.node === id && sp.model);
+		return span ? span.model : ((state().nodes || []).find(n => n.id === id) || {}).keyName || '';
+	}
+	function nodeExample(task) { dispatch({ type: 'task', payload: task }); }
+
+	function renderRun() {
+		const t = T();
+		const s = state();
+		const checkpoint = s.lastCheckpoint || {};
+		const plan = Array.isArray(checkpoint.plan) ? checkpoint.plan : [];
+		const results = checkpoint.results || {};
+		const itemState = checkpoint.itemState || {};
+		const attempts = checkpoint.attempts || {};
+
+		document.getElementById('taskInput').placeholder = t.taskPlaceholder;
+		if (document.activeElement !== document.getElementById('taskInput')) {
+			document.getElementById('taskInput').value = ui.task;
+		}
+		renderSource(t);
+		document.getElementById('btnStart').textContent = t.start;
+		document.getElementById('lastTask').textContent = s.lastTask ? t.lastTask + s.lastTask : '';
+		document.getElementById('runSummary').textContent = s.run && s.run.summary ? t.runSummary + ': ' + s.run.summary : '';
+		renderDefaults(t, s);
+
+		const planTitle = document.getElementById('planTitle');
+		planTitle.textContent = t.planTitle;
+		const detail = document.getElementById('nodeDetail');
+		clear(detail);
+		if (plan.length === 0) {
+			document.getElementById('planWrap').hidden = true;
+			renderEmptyRun(t, s);
+		} else {
+			document.getElementById('planWrap').hidden = false;
+			document.getElementById('runEmpty').hidden = true;
+			renderPlan(t, plan, results, itemState, attempts, s.trace || {});
+			renderNodeDetail(t, plan, results, checkpoint, s.trace || {});
+		}
+		renderWaiting(t, s);
+		renderPatch(t, s);
+		renderTimeline(t);
+	}
+
+	function renderSource(t) {
+		const seg = document.getElementById('sourceSeg');
+		clear(seg);
+		for (const [key, label] of [['own', t.srcOwn], ['board', t.srcBoard]]) {
+			seg.append(el('button', { class: ui.source === key ? 'active' : '', text: label, type: 'button', onclick: () => dispatch({ type: 'source', payload: key }) }));
+		}
+		const boardSelect = document.getElementById('boardSelect');
+		const tasks = ((state().team || {}).tasks || []).filter(task => task.status === 'todo' || task.status === 'doing');
+		boardSelect.hidden = ui.source !== 'board';
+		if (ui.source === 'board') {
+			clear(boardSelect);
+			boardSelect.append(el('option', { value: '', text: t.boardPlaceholder }));
+			for (const task of tasks) {
+				boardSelect.append(el('option', { value: task.id, text: task.title }));
+			}
+			boardSelect.value = ui.boardTaskId;
+		}
+	}
+
+	function renderDefaults(t, s) {
+		const row = document.getElementById('defaultsRow');
+		clear(row);
+		const defaults = s.runDefaults || {};
+		row.append(el('span', { class: 'muted', text: t.plannerLabel + ': ' + (defaults.planner || 'auto') + '(' + (defaults.plannerTier || 'high') + ')' }));
+		row.append(el('span', { class: 'muted', text: t.parallelLabel + ': ' + (defaults.maxParallel || 1) }));
+	}
+
+	function renderEmptyRun(t, s) {
+		const host = document.getElementById('runEmpty');
+		clear(host);
+		host.hidden = false;
+		const box = el('div', { class: 'empty' });
+		box.append(el('div', { class: 'muted', text: t.planEmpty }));
+		const examples = el('div', { class: 'examples' });
+		box.append(el('div', { class: 'muted', text: t.runExamples, style: 'margin-top:12px' }));
+		for (const task of t.examples) {
+			examples.append(el('button', { class: 'example', type: 'button', text: task, onclick: () => nodeExample(task) }));
+		}
+		box.append(examples);
+		host.append(box);
+	}
+
+	function renderPlan(t, plan, results, itemState, attempts, trace) {
+		const list = document.getElementById('planList');
+		clear(list);
+		const depth = planDepth(plan);
+		for (const item of plan) {
+			const status = nodeStatus(item.id, results, itemState, state().nodes);
+			const result = results[item.id] || {};
+			const meta = el('span', { class: 'meta' });
+			const tier = item.tier || '';
+			if (tier) { meta.append(el('span', { class: 'tier ' + tier, text: tierTitle(tier) })); }
+			const model = nodeModel(item.id, trace);
+			if (model) { meta.append(el('span', { text: model })); }
+			if (result.tokens) { meta.append(el('span', { text: fmtNum(result.tokens) + ' ' + plural(result.tokens, t.tokenForms) })); }
+			const liveNode = (state().nodes || []).find(n => n.id === item.id);
+			const spent = liveNode ? duration(liveNode) : '';
+			if (spent) { meta.append(el('span', { text: spent })); }
+			if (attempts[item.id]) { meta.append(el('span', { text: t.retry + ' ' + attempts[item.id] })); }
+			const indent = (depth.get(item.id) || 0) * 14;
+			const row = el('button', {
+				class: 'plan-row' + (ui.selectedNode === item.id ? ' selected' : ''),
+				type: 'button',
+				onclick: () => dispatch({ type: 'selectNode', payload: item.id }),
+			},
+				el('span', { class: 'st ' + status, text: STATUS_GLYPH[status] || '○', title: statusTitle(status) }),
+				el('span', { class: 'goal', text: item.goal || item.id, style: indent ? 'padding-left:' + indent + 'px' : '' }),
+				meta,
+			);
+			list.append(row);
+		}
+	}
+
+	function renderNodeDetail(t, plan, results, checkpoint, trace) {
+		const detail = document.getElementById('nodeDetail');
+		clear(detail);
+		const id = ui.selectedNode;
+		if (!id) {
+			detail.append(el('div', { class: 'muted', text: t.selectNodeHint }));
+			return;
+		}
+		const item = plan.find(n => n.id === id) || { id, goal: id };
+		const result = results[id] || {};
+		detail.append(el('div', { class: 'card-title', text: (roleTitle(item.agent) || '') + ' · ' + id }));
+		detail.append(el('h3', { text: t.nodeGoal }));
+		detail.append(el('div', { text: item.goal || '' }));
+		detail.append(el('h3', { text: t.nodeSummary }));
+		detail.append(el('div', { text: result.summary || '—' }));
+		detail.append(el('h3', { text: t.nodeDiff }));
+		detail.append(el('pre', { text: result.diff_stat || t.nodeNoDiff }));
+		const acts = el('div', { class: 'row' });
+		const openDiff = el('button', { class: 'ghost', type: 'button', text: t.nodeOpenDiff, onclick: () => invoke('node.openDiff', { nodeId: id }).catch(() => undefined) });
+		openDiff.disabled = !result.branch;
+		const restart = el('button', {
+			class: 'primary', type: 'button', text: t.nodeRestart,
+			onclick: () => {
+				invoke('node.restart', { nodeId: id }).then(res => {
+					if (res && res.ok === false) { window.alert(t.restartFailed + ': ' + (res.error || '')); }
+				}).catch(err => window.alert(t.restartFailed + ': ' + String(err && err.message || err)));
+			},
+		});
+		restart.disabled = !!(state().run && state().run.status === 'running');
+		acts.append(openDiff, restart);
+		detail.append(acts);
+	}
+
+	function approvalCard(t, nodeId) {
+		const approval = (state().approvals || []).find(a => a.nodeId === nodeId);
+		if (!approval) { return null; }
+		const pre = el('pre', { text: approval.toolName + '\n' + approval.preview });
+		const acts = el('div', { class: 'row' });
+		acts.append(
+			el('button', { class: 'primary', type: 'button', text: t.approve, onclick: () => invoke('approval.resolve', { id: approval.id, approved: true }).catch(() => undefined) }),
+			el('button', { class: 'ghost', type: 'button', text: t.reject, onclick: () => invoke('approval.resolve', { id: approval.id, approved: false }).catch(() => undefined) }),
+		);
+		return el('div', {}, pre, acts);
+	}
+
+	function renderWaiting(t, s) {
+		const host = document.getElementById('waitingHost');
+		clear(host);
+		const interrupt = s.interrupt;
+		const nodes = s.nodes || [];
+		const orphans = (s.approvals || []).filter(a => !nodes.some(n => n.id === a.nodeId));
+		if (!interrupt && orphans.length === 0) { return; }
+		const box = el('div', { class: 'waiting' });
+		box.append(el('div', { class: 'title', text: t.waitingTitle }));
+		if (interrupt) {
+			box.append(el('div', { class: 'body', text: interrupt.title || (interrupt.node ? interrupt.node + ' — ' + (interrupt.role || '') : '') }));
+			const note = el('input', { type: 'text', placeholder: t.notePlaceholder, style: 'width:100%;margin-bottom:8px' });
+			const acts = el('div', { class: 'row' });
+			const resolve = approved => invoke('interrupt.resolve', { approved, note: note.value || undefined }).catch(() => undefined);
+			acts.append(
+				el('button', { class: 'primary', type: 'button', text: t.approve, onclick: () => resolve(true) }),
+				el('button', { class: 'ghost', type: 'button', text: t.reject, onclick: () => resolve(false) }),
+				el('button', { class: 'tiny', type: 'button', text: t.reply, onclick: () => resolve(true) }),
+			);
+			box.append(note, acts);
+		}
+		for (const approval of orphans) {
+			const card = el('div', {});
+			card.append(el('pre', { text: approval.toolName + ' (#' + approval.id + ')\n' + approval.preview }));
+			const acts = el('div', { class: 'row' });
+			acts.append(
+				el('button', { class: 'primary', type: 'button', text: t.approve, onclick: () => invoke('approval.resolve', { id: approval.id, approved: true }).catch(() => undefined) }),
+				el('button', { class: 'ghost', type: 'button', text: t.reject, onclick: () => invoke('approval.resolve', { id: approval.id, approved: false }).catch(() => undefined) }),
+			);
+			card.append(acts);
+			box.append(card);
+		}
+		host.append(box);
+	}
+
+	function renderPatch(t, s) {
+		const host = document.getElementById('patchHost');
+		clear(host);
+		const patch = s.patch;
+		if (!patch) { return; }
+		const files = Array.isArray(patch.files) ? patch.files : [];
+		const box = el('div', { class: 'waiting' });
+		box.append(el('div', { class: 'title', text: t.patchReady }));
+		box.append(el('div', { class: 'body', text: files.length ? files.length + ' ' + plural(files.length, t.fileForms) + '\n' + (patch.stat || '') : t.patchEmpty }));
+		const acts = el('div', { class: 'row' });
+		const apply = el('button', {
+			class: 'primary', type: 'button', text: t.patchApply,
+			onclick: () => invoke('patch.apply', {}).then(res => {
+				if (res && res.ok === false) { window.alert((res.conflicts ? t.patchConflict + '\n' + res.conflicts.join('\n') : res.error) || ''); }
+				else if (res && res.ok) { window.alert(t.patchApplied); }
+			}).catch(() => undefined),
+		});
+		apply.disabled = files.length === 0;
+		const openDiff = el('button', { class: 'ghost', type: 'button', text: t.patchOpen, onclick: () => invoke('patch.openDiff', {}).catch(() => undefined) });
+		openDiff.disabled = files.length === 0;
+		acts.append(apply, el('button', { class: 'ghost', type: 'button', text: t.patchReject, onclick: () => invoke('patch.reject', {}).catch(() => undefined) }), openDiff);
+		box.append(acts);
+		host.append(box);
+	}
+
+	// История чекпоинтов грузится по требованию; рендер читает уже загруженное.
+	let historyEntries = [];
+	let historyLoaded = false;
+	function renderTimeline(t) {
+		document.getElementById('timelineTitle').textContent = t.timeline;
+		document.getElementById('timelineHint').textContent = t.timelineHint;
+		const box = document.getElementById('timeline');
+		clear(box);
+		if (historyEntries.length === 0) {
+			box.append(el('span', { class: 'muted', text: t.timelineEmpty }));
+		}
+		for (const entry of historyEntries) {
+			const dot = el('button', {
+				class: 'dot', type: 'button',
+				title: '#' + (entry.step != null ? entry.step : '?') + (entry.next && entry.next.length ? ' → ' + entry.next.join(',') : '') + ' · ' + (entry.resultsCount || 0),
+				onclick: () => pickCheckpoint(t, entry),
+			});
+			box.append(dot);
+		}
+	}
+	function pickCheckpoint(t, entry) {
+		const action = window.prompt(t.timeline + ' #' + (entry.step != null ? entry.step : '?') + '\n' + t.rewind + ' / ' + t.patch, 'rewind');
+		if (action === null) { return; }
+		if (action.trim().toLowerCase() === 'patch') {
+			const raw = window.prompt(t.patchPrompt);
+			if (!raw) { return; }
+			let patch;
+			try { patch = JSON.parse(raw); } catch { window.alert(t.patchInvalid); return; }
+			invoke('graph.patchState', { checkpointId: entry.checkpointId, patch }).then(loadHistory).catch(() => undefined);
+			return;
+		}
+		invoke('graph.rewind', { checkpointId: entry.checkpointId }).then(loadHistory).catch(() => undefined);
+	}
+	function loadHistory() {
+		return invoke('graph.history', { limit: 20 }).then(result => {
+			historyEntries = (result && result.entries) || [];
+			historyLoaded = true;
+			renderTimeline(T());
+		}).catch(() => undefined);
+	}
+
+	// ---- Board ----
+	/** Подпись колонки: одна и та же в канбане, в сводке и в списке формы новой задачи. */
+	function columnLabel(t, column) {
+		return { todo: t.colTodo, doing: t.colDoing, review: t.colReview, done: t.colDone }[column.key];
+	}
+
+	function renderBoardTab() {
+		const t = T();
+		document.getElementById('btnTeamRefresh').textContent = t.teamRefresh;
+		document.getElementById('teamHint').textContent = t.teamHint;
+		const team = state().team || { available: false, tasks: [] };
+		// Свою задачу заводим прямо здесь: пока Team недоступен, форма скрыта.
+		const form = document.getElementById('addTaskRow');
+		form.hidden = !team.available;
+		const titleInput = document.getElementById('newTaskTitle');
+		titleInput.placeholder = t.newTaskPh;
+		titleInput.title = t.newTaskPh;
+		document.getElementById('btnAddTask').textContent = t.addTask;
+		const statusSelect = document.getElementById('newTaskStatus');
+		statusSelect.title = t.taskColumn;
+		statusSelect.setAttribute('aria-label', t.taskColumn);
+		fillSelect(statusSelect, COLUMNS.map(column => ({ value: column.status, text: columnLabel(t, column) })));
+		const host = document.getElementById('teamBoard');
+		clear(host);
+		if (!team.available) {
+			host.append(el('div', { class: 'muted', text: t.teamUnavailable }));
+			return;
+		}
+		const tasks = team.tasks || [];
+		if (tasks.length === 0) {
+			host.append(el('div', { class: 'muted', text: t.boardEmpty }));
+			return;
+		}
+		const board = el('div', { class: 'board' });
+		for (const column of COLUMNS) {
+			const items = tasks.filter(task => task.status === column.status);
+			const col = el('div', { class: 'column' });
+			const head = el('div', { class: 'col-head' });
+			head.append(el('span', { text: columnLabel(t, column) }), el('span', { text: String(items.length) }));
+			col.append(head);
+			const body = el('div', { class: 'col-body' });
+			for (const task of items) {
+				const card = el('div', { class: 'card' });
+				card.append(el('div', { class: 'card-title', text: task.title }));
+				card.append(el('div', { class: 'card-meta', text: task.assigneeName ? task.assigneeName : '' }));
+				const acts = el('div', { class: 'card-acts' });
+				const run = el('button', { class: 'tiny', type: 'button', text: t.sendToAgents, onclick: () => invoke('team.runTask', { taskId: task.id }).catch(() => undefined) });
+				run.disabled = task.status === 'done';
+				acts.append(run);
+				card.append(acts);
+				body.append(card);
+			}
+			col.append(body);
+			board.append(col);
+		}
+		host.append(board);
+	}
+
+	/**
+	 * Своя задача на доске: уходит в Aura Team (POST /tasks), доска перечитывается
+	 * ответом хоста. Поле чистим только при успехе — иначе текст не терялся бы.
+	 */
+	function addBoardTask() {
+		const t = T();
+		const input = document.getElementById('newTaskTitle');
+		const note = document.getElementById('addTaskNote');
+		const button = document.getElementById('btnAddTask');
+		const title = String(input.value || '').trim();
+		if (!title) {
+			note.className = 'muted';
+			note.textContent = t.taskTitleNeeded;
+			return;
+		}
+		button.disabled = true;
+		note.className = 'muted';
+		note.textContent = '';
+		invoke('team.createTask', { title, status: document.getElementById('newTaskStatus').value || 'todo' })
+			.then(result => {
+				const ok = !result || result.ok !== false;
+				if (ok) { input.value = ''; }
+				note.className = ok ? 'ok-text' : 'err-text';
+				note.textContent = ok ? t.taskAdded : (result && result.reason === 'unavailable' ? t.taskAddOffline : t.taskAddFailed);
+			})
+			.catch(() => { note.className = 'err-text'; note.textContent = t.taskAddFailed; })
+			.finally(() => { button.disabled = false; });
+	}
+
+	// ---- Models ----
+	let keySourceFilter = 'all';
+	function renderModels() {
+		const t = T();
+		document.getElementById('btnRefreshKeys').textContent = t.refresh;
+		document.getElementById('btnCheckKeys').textContent = t.checkAll;
+		document.getElementById('keysHint').textContent = t.keysHint;
+		document.getElementById('thName').textContent = t.name;
+		document.getElementById('thSource').textContent = t.source;
+		document.getElementById('thTier').textContent = t.tier;
+		document.getElementById('thStatus').textContent = t.status;
+		document.getElementById('thPing').textContent = t.ping;
+		document.getElementById('thUsed').textContent = t.usedToday;
+		document.getElementById('thActions').textContent = t.actions;
+		const sourceFilter = document.getElementById('keySourceFilter');
+		fillSelect(sourceFilter, [
+			{ value: 'all', text: t.srcAll },
+			{ value: 'personal', text: t.srcPersonal },
+			{ value: 'team', text: t.srcTeam },
+		]);
+		sourceFilter.value = keySourceFilter;
+
+		const models = catalogModels();
+		renderModelsSummary(t, models);
+		const body = document.getElementById('modelsBody');
+		clear(body);
+		const filtered = keySourceFilter === 'all' ? models : models.filter(m => m.source === keySourceFilter);
+		if (filtered.length === 0) {
+			const tr = el('tr', {});
+			tr.append(el('td', { class: 'muted', text: t.noKeys, colSpan: '7' }));
+			body.append(tr);
+		}
+		for (const m of filtered) {
+			const tr = el('tr', {});
+			tr.append(el('td', { text: m.displayName || m.model || m.id }));
+			tr.append(el('td', { text: m.source === 'team' ? t.srcTeam : t.srcPersonal }));
+			tr.append(el('td', {}, segmentedTier(t, m)));
+			const status = el('td', {});
+			status.append(el('span', { class: 'pill ' + m.status, text: statusTitle(m.status), title: keyTitle(m) }));
+			tr.append(status);
+			tr.append(el('td', { text: m.pingMs != null ? Math.round(m.pingMs) + t.units.ms : '—' }));
+			tr.append(el('td', { text: usedToday(m, state().budget) }));
+			tr.append(el('td', {}, modelActions(t, m)));
+			body.append(tr);
+		}
+		renderBudgetBlock();
+	}
+
+	/** Каталог моделей: host отдаёт models; на старом снимке строим его из keys. */
+	function catalogModels() {
+		const s = state();
+		if (Array.isArray(s.models) && s.models.length) { return s.models; }
+		return (s.keys || []).map(k => ({
+			id: (k.source === 'team' ? 'team:' : 'personal:') + k.id,
+			keyId: k.id,
+			displayName: k.name,
+			model: k.model || '',
+			source: k.source === 'team' ? 'team' : 'personal',
+			tier: k.tier,
+			status: k.status,
+			selectable: k.selectable !== false,
+			pingMs: k.pingMs,
+			activeCalls: k.activeCalls || 0,
+			health: k.health,
+			excludedReason: k.excludedReason,
+			checking: k.checking,
+			lastError: k.lastError,
+		}));
+	}
+
+	function renderModelsSummary(t, models) {
+		const host = document.getElementById('modelsSummary');
+		clear(host);
+		// Каждый тир — отдельный чип: без рамки значения сливались в одну строку текста.
+		const row = el('div', { class: 'tier-chips' });
+		row.append(el('span', { class: 'muted', text: t.modelsSummary + ':' }));
+		for (const tier of ['low', 'mid', 'high']) {
+			const live = models.filter(m => m.tier === tier && m.selectable && (m.status === 'ok' || m.status === 'unknown')).length;
+			const chip = el('span', { class: 'tier-chip' + (live === 0 ? ' warn' : ''), title: tierTitle(tier) });
+			chip.append(el('span', { class: 'muted', text: t.tierNames[tier] }));
+			chip.append(el('span', { text: live + ' ' + plural(live, t.liveForms) + (live === 0 ? ' ⚠' : '') }));
+			row.append(chip);
+		}
+		host.append(row);
+	}
+
+	function segmentedTier(t, model) {
+		const seg = el('div', { class: 'seg' });
+		for (const tier of ['low', 'mid', 'high']) {
+			seg.append(el('button', {
+				class: model.tier === tier ? 'active' : '', type: 'button', text: t.tiers[tier],
+				onclick: () => invoke('keys.setTier', { keyId: model.keyId, tier }).catch(() => undefined),
+			}));
+		}
+		return seg;
+	}
+
+	function usedToday(model, budget) {
+		const rows = (budget && budget.perModel) || [];
+		const row = rows.find(item => item.model && model.model && item.model === model.model)
+			|| rows.find(item => item.model && model.displayName && item.model === model.displayName);
+		if (!row) { return '—'; }
+		return String(row.calls || 0) + ' · ' + fmtTok(row.tokens || 0);
+	}
+
+	function modelActions(t, model) {
+		const box = el('div', { class: 'row', style: 'margin:0' });
+		if (model.selectable !== false) {
+			box.append(el('button', { class: 'tiny', type: 'button', text: t.check, onclick: () => invoke('keys.check', { keyId: model.keyId }).catch(() => undefined) }));
+			const excluded = model.status === 'excluded';
+			box.append(el('button', { class: 'tiny', type: 'button', text: excluded ? t.include : t.exclude, onclick: () => invoke('keys.setExcluded', { keyId: model.keyId, excluded: !excluded }).catch(() => undefined) }));
+		}
+		return box;
+	}
+
+	// ---- Trace ----
+	function renderTrace() {
+		const t = T();
+		const trace = state().trace || { spans: [], summary: { byTime: [], byCost: [], totalSpans: 0 } };
+		const spans = trace.spans || [];
+		document.getElementById('traceHint').textContent = spans.length ? t.traceWaterfall + ' · ' + spans.length + ' ' + plural(spans.length, t.spanForms) : t.traceEmpty;
+		const waterfall = document.getElementById('traceWaterfall');
+		clear(waterfall);
+		const max = spans.reduce((acc, sp) => Math.max(acc, Number(sp.durationMs) || 0), 0) || 1;
+		for (const span of spans) {
+			const failed = span.status && span.status !== 'ok' ? ' err' : '';
+			const row = el('div', { class: 'wf-row ' + (span.kind === 'llm' ? 'llm' : '') + failed });
+			// Тир — машинное обозначение и показывается как бейдж (HIGH), а не сырым полем данных.
+			row.append(el('div', { class: 'wf-name', text: (span.kind === 'llm' ? 'llm · ' : '') + (span.node || span.name) + (span.tier ? ' [' + tierTitle(span.tier) + ']' : '') }));
+			const bar = el('div', { class: 'wf-bar' });
+			bar.append(el('span', { style: 'width:' + Math.max(2, Math.round((Number(span.durationMs) || 0) / max * 100)) + '%' }));
+			row.append(bar);
+			const parts = [fmtMs(span.durationMs)];
+			if (span.cost) { parts.push('$' + Number(span.cost).toFixed(4)); }
+			if (span.tokensIn || span.tokensOut) { parts.push((Number(span.tokensIn) || 0) + '/' + (Number(span.tokensOut) || 0)); }
+			if (span.retries) { parts.push(span.retries + ' ' + plural(span.retries, t.retryForms)); }
+			row.append(el('div', { class: 'wf-meta', text: parts.join(' · ') }));
+			waterfall.append(row);
+		}
+		const tops = document.getElementById('traceTops');
+		clear(tops);
+		const summary = trace.summary || {};
+		for (const [title, list] of [[t.traceByTime, summary.byTime || []], [t.traceByCost, summary.byCost || []]]) {
+			const card = el('div', { class: 'card' });
+			card.append(el('h4', { text: title }));
+			for (const item of list) {
+				const row = el('div', { class: 'row-item' });
+				row.append(el('span', { text: item.node }));
+				row.append(el('span', { class: 'muted', text: fmtMs(item.durationMs) + ' · $' + Number(item.cost || 0).toFixed(4) + ' · ' + (item.tokens || 0) + ' tok' }));
+				card.append(row);
+			}
+			tops.append(card);
+		}
+	}
+
+	// ---- Log ----
+	function renderLog() {
+		const t = T();
+		const s = state();
+		const entries = logEntries(s);
+		document.getElementById('logLevelLabel').textContent = t.logLevelLabel;
+		document.getElementById('logNodeLabel').textContent = t.logNodeLabel;
+		const levelFilter = document.getElementById('logLevelFilter');
+		fillSelect(levelFilter, [
+			{ value: 'all', text: t.logAll },
+			...['info', 'warn', 'error'].map(level => ({ value: level, text: t.levels[level] })),
+		]);
+		levelFilter.value = ui.logLevel;
+		const nodeFilter = document.getElementById('logNodeFilter');
+		clear(nodeFilter);
+		nodeFilter.append(el('option', { value: 'all', text: t.logAll }));
+		for (const node of [...new Set(entries.map(e => e.node).filter(Boolean))].sort()) {
+			nodeFilter.append(el('option', { value: node, text: node }));
+		}
+		nodeFilter.value = ui.logNode;
+		const pin = document.getElementById('btnLogPin');
+		pin.textContent = ui.logPinned ? t.logUnpin : t.logPin;
+
+		const box = document.getElementById('logBox');
+		const filtered = entries.filter(e => (ui.logLevel === 'all' || e.level === ui.logLevel) && (ui.logNode === 'all' || e.node === ui.logNode));
+		clear(box);
+		if (filtered.length === 0) {
+			box.append(el('div', { class: 'muted', text: t.logEmpty }));
+			return;
+		}
+		for (const entry of filtered) {
+			const line = el('div', { class: 'log-line ' + entry.level });
+			line.append(el('span', { class: 'lvl', text: '[' + (entry.level === 'error' ? 'E' : entry.level === 'warn' ? 'W' : 'I') + ']' }));
+			if (entry.node) { line.append(el('span', { class: 'node', text: entry.node })); }
+			line.append(el('span', { text: entry.message }));
+			box.append(line);
+		}
+		if (ui.logPinned) { box.scrollTop = box.scrollHeight; }
+	}
+
+	/** Структурный лог из host; старые плоские строки превращаем на месте. */
+	function logEntries(s) {
+		if (Array.isArray(s.logs) && s.logs.length) {
+			return s.logs.map(e => ({ ts: e.ts, level: e.level || 'info', node: e.node, message: s0(e.message) }));
+		}
+		return (s.log || []).map(line => ({ level: 'info', message: s0(line) }));
+	}
+	function s0(value) { return value == null ? '' : String(value); }
+
+	// ---- бюджет (вкладка Models) ----
+	function renderBudgetBlock() {
+		const t = T();
+		document.getElementById('budgetSummary').textContent = t.budgetDetails;
+		const block = document.getElementById('budgetBlock');
+		clear(block);
+		const budget = state().budget;
+		if (!budget) { return; }
+		const limits = budget.limits || {};
+		const tokens = Number(budget.tokens) || 0;
+		const cost = Number(budget.cost) || 0;
+		const grid = el('div', { class: 'bgrid' });
+		grid.append(budgetCard(t.budgetRunTokens, tokens, limits.runTokens, v => v.toLocaleString(), t));
+		grid.append(budgetCard(t.budgetRunCost, cost, limits.runCost, v => '$' + v.toFixed(4), t));
+		block.append(grid);
+		block.append(budgetEditor());
+		block.append(el('h3', { text: t.budgetByModel }));
+		const models = budget.perModel || [];
+		if (models.length === 0) { block.append(el('div', { class: 'muted', text: t.budgetNoSpend })); }
+		else {
+			const table = el('table', {});
+			const head = el('tr', {});
+			for (const title of [t.model, t.tier, t.budgetRunTokens, t.budgetRunCost, t.colCalls]) { head.append(el('th', { text: title })); }
+			table.append(head);
+			for (const item of models) {
+				const row = el('tr', {});
+				row.append(el('td', { text: item.model || '(unknown)' }));
+				row.append(el('td', { text: tierTitle(item.tier) }));
+				row.append(el('td', { text: fmtNum(item.tokens || 0) }));
+				row.append(el('td', { text: '$' + Number(item.cost || 0).toFixed(4) }));
+				row.append(el('td', { text: String(item.calls || 0) }));
+				table.append(row);
+			}
+			block.append(table);
+		}
+		block.append(el('h3', { text: t.budgetTeamTitle }));
+		const team = budget.team || {};
+		if (!team.available || !(team.perUser || []).length) { block.append(el('div', { class: 'muted', text: t.budgetTeamUnavailable })); }
+		else {
+			const table = el('table', {});
+			const head = el('tr', {});
+			head.append(el('th', { text: t.name }), el('th', { text: t.budgetRequestsShort }));
+			table.append(head);
+			for (const item of team.perUser) {
+				const row = el('tr', {});
+				row.append(el('td', { text: item.name || item.userId || '' }), el('td', { text: String(item.requests || 0) }));
+				table.append(row);
+			}
+			const total = el('tr', {});
+			total.append(el('td', { text: t.budgetTeamTotal }), el('td', { text: String(team.totalRequests || 0) }));
+			table.append(total);
+			block.append(table);
+		}
+		block.append(el('h3', { text: t.budgetCacheTitle }));
+		const cacheRow = el('div', { class: 'row' });
+		const stats = el('span', { class: 'muted', id: 'cacheStats' });
+		cacheRow.append(el('button', {
+			class: 'ghost', type: 'button', text: t.budgetCacheClear,
+			onclick: () => invoke('toolCache.clear', {}).then(() => { stats.textContent = t.budgetCacheCleared; loadCacheStats(true); }).catch(() => undefined),
+		}), stats);
+		block.append(cacheRow);
+		loadCacheStats(false);
+	}
+
+	function budgetCard(label, used, limit, fmt, t) {
+		const card = el('div', { class: 'bcard' });
+		card.append(el('div', { class: 'blabel', text: label }));
+		card.append(el('div', { class: 'bvalue', text: limit > 0 ? fmt(used) + ' / ' + fmt(limit) : fmt(used) + ' · ' + t.budgetNoLimit }));
+		if (limit > 0) {
+			const percent = Math.min(100, Math.round(used / limit * 100));
+			const bar = el('div', { class: 'bbar2' + (percent >= 100 ? ' err' : percent >= 75 ? ' warn' : '') });
+			bar.append(el('span', { style: 'width:' + Math.max(2, percent) + '%' }));
+			card.append(bar);
+		}
+		return card;
+	}
+
+	let budgetEditorEl = null;
+	function budgetEditor() {
+		if (!budgetEditorEl) { budgetEditorEl = buildBudgetEditor(T()); }
+		return budgetEditorEl;
+	}
+	function numberField(labelText, value, step) {
+		const input = el('input', { type: 'number', min: '0', step: String(step), value: String(Number(value) || 0) });
+		if (!labelText) { return { label: input, input }; }
+		const label = el('label', { text: labelText });
+		label.append(input);
+		return { label, input };
+	}
+	function numberValue(input) {
+		const value = Number(String(input.value).replace(',', '.'));
+		return Number.isFinite(value) && value > 0 ? value : 0;
+	}
+	function buildBudgetEditor(t) {
+		const budget = state().budget || {};
+		const limits = budget.limits || {};
+		const prices = budget.prices || {};
+		const wrap = el('div', { class: 'bedit' });
+		wrap.append(el('h3', { text: t.budgetEditTitle }));
+		const hint = el('span', { class: 'muted' });
+		const setHint = (text, cls) => { hint.className = 'muted' + (cls ? ' ' + cls : ''); hint.textContent = text || ''; };
+
+		wrap.append(el('h3', { text: t.budgetProfiles }));
+		const profilesRow = el('div', { class: 'brow' });
+		const profileSelect = el('select', {});
+		const profileApply = el('button', { class: 'ghost', type: 'button', text: t.budgetProfileApply });
+		const profileName = el('input', { type: 'text', placeholder: t.budgetProfileName });
+		const profileSaveAs = el('button', { class: 'ghost', type: 'button', text: t.budgetProfileSaveAs });
+		const profileRemove = el('button', { class: 'ghost', type: 'button', text: t.budgetRemove });
+		profilesRow.append(profileSelect, profileApply, profileName, profileSaveAs, profileRemove);
+		wrap.append(profilesRow);
+
+		function refreshProfiles(profiles, active) {
+			clear(profileSelect);
+			for (const item of profiles || []) {
+				const option = el('option', { value: item.name, text: (t.profiles && t.profiles[item.name]) || item.name, title: item.builtin ? t.budgetProfileBuiltin : item.name });
+				profileSelect.append(option);
+			}
+			profileSelect.value = active || '';
+			const current = (profiles || []).find(item => item.name === profileSelect.value);
+			profileRemove.disabled = !current || current.builtin;
+		}
+		function applyProfileValues(profile) {
+			const values = profile.limits || {};
+			limitFields.runTokens.input.value = String(Number(values.runTokens) || 0);
+			limitFields.runCost.input.value = String(Number(values.runCost) || 0);
+			limitFields.nodeTokens.input.value = String(Number(values.nodeTokens) || 0);
+			limitFields.nodeCost.input.value = String(Number(values.nodeCost) || 0);
+			const priceValues = profile.prices || {};
+			for (const tier of ['high', 'mid', 'low']) {
+				priceFields[tier].input.value = String(Number((priceValues[tier] || {}).input) || 0);
+				priceFields[tier].output.value = String(Number((priceValues[tier] || {}).output) || 0);
+			}
+			clear(rules);
+			for (const rule of profile.modelPrices || []) { rules.append(budgetRuleRow(t, rule)); }
+		}
+		profileApply.addEventListener('click', () => {
+			const name = profileSelect.value;
+			if (!name) { return; }
+			setHint('');
+			invoke('budget.profile.apply', { name }).then(result => {
+				if (!result || !result.ok) { setHint((result && result.error) || t.budgetSaveError, 'failed'); return; }
+				if (result.profile) { applyProfileValues(result.profile); }
+				refreshProfiles(result.profiles, result.active);
+				setHint(t.budgetProfileApplied + ' · ' + t.budgetNextRun, 'saved');
+			}).catch(() => setHint(t.budgetSaveError, 'failed'));
+		});
+		profileSaveAs.addEventListener('click', () => {
+			const name = profileName.value.trim();
+			if (!name) { setHint(t.budgetProfileName, 'failed'); return; }
+			setHint('');
+			invoke('budget.profile.save', { name }).then(result => {
+				if (!result || !result.ok) { setHint((result && result.error) || t.budgetSaveError, 'failed'); return; }
+				refreshProfiles(result.profiles, result.active);
+				setHint(t.budgetProfileSaved, 'saved');
+			}).catch(() => setHint(t.budgetSaveError, 'failed'));
+		});
+		profileRemove.addEventListener('click', () => {
+			const name = profileSelect.value;
+			if (!name) { return; }
+			setHint('');
+			invoke('budget.profile.remove', { name }).then(result => {
+				if (!result || !result.ok) { setHint((result && result.error) || t.budgetSaveError, 'failed'); return; }
+				refreshProfiles(result.profiles, result.active);
+				setHint(t.budgetProfileRemoved, 'saved');
+			}).catch(() => setHint(t.budgetSaveError, 'failed'));
+		});
+
+		wrap.append(el('h3', { text: t.budgetLimits }));
+		const limitRow = el('div', { class: 'brow' });
+		const limitFields = {
+			runTokens: numberField(t.budgetRunTokens, limits.runTokens, 1000),
+			runCost: numberField(t.budgetRunCost, limits.runCost, 0.1),
+			nodeTokens: numberField(t.budgetNodeTokens, limits.nodeTokens, 1000),
+			nodeCost: numberField(t.budgetNodeCost, limits.nodeCost, 0.1),
+		};
+		limitFields.runTokens.input.name = 'runTokens';
+		limitFields.runCost.input.name = 'runCost';
+		limitFields.nodeTokens.input.name = 'nodeTokens';
+		limitFields.nodeCost.input.name = 'nodeCost';
+		for (const field of Object.values(limitFields)) { limitRow.append(field.label); }
+		wrap.append(limitRow);
+
+		wrap.append(el('h3', { text: t.budgetPrices }));
+		const priceTable = el('table', {});
+		const priceHead = el('tr', {});
+		for (const heading of [t.tier, t.budgetIn, t.budgetOut]) { priceHead.append(el('th', { text: heading })); }
+		priceTable.append(priceHead);
+		const priceFields = {};
+		for (const tier of ['high', 'mid', 'low']) {
+			const row = el('tr', {});
+			row.append(el('td', { text: tierTitle(tier) }));
+			const inField = numberField('', (prices[tier] || {}).input, 0.1);
+			const outField = numberField('', (prices[tier] || {}).output, 0.1);
+			const inCell = el('td', {}); inCell.append(inField.input);
+			const outCell = el('td', {}); outCell.append(outField.input);
+			row.append(inCell, outCell);
+			priceTable.append(row);
+			priceFields[tier] = { input: inField.input, output: outField.input };
+		}
+		wrap.append(priceTable);
+
+		wrap.append(el('h3', { text: t.budgetModelRules }));
+		const rules = el('div', {});
+		wrap.append(rules);
+		for (const rule of budget.modelPrices || []) { rules.append(budgetRuleRow(t, rule)); }
+		wrap.append(el('button', { class: 'ghost', type: 'button', text: t.budgetAddModel, onclick: () => rules.append(budgetRuleRow(t, null)) }));
+
+		const saveRow = el('div', { class: 'row' });
+		saveRow.append(el('button', {
+			class: 'primary', type: 'button', text: t.budgetSave,
+			onclick: () => {
+				const limitValues = {
+					runTokens: numberValue(limitFields.runTokens.input),
+					runCost: numberValue(limitFields.runCost.input),
+					nodeTokens: numberValue(limitFields.nodeTokens.input),
+					nodeCost: numberValue(limitFields.nodeCost.input),
+				};
+				const priceValues = {};
+				for (const tier of ['high', 'mid', 'low']) {
+					priceValues[tier] = { input: numberValue(priceFields[tier].input), output: numberValue(priceFields[tier].output) };
+				}
+				const modelPrices = [...rules.children].map(row => row.ruleValue()).filter(rule => rule.match !== '');
+				setHint('');
+				invoke('budget.update', { limits: limitValues, prices: priceValues, modelPrices }).then(() => {
+					setHint(t.budgetSaved + ' · ' + t.budgetNextRun, 'saved');
+				}).catch(() => setHint(t.budgetSaveError, 'failed'));
+			},
+		}), hint);
+		wrap.append(saveRow);
+		refreshProfiles(budget.profiles, budget.activeProfile);
+		return wrap;
+	}
+
+	function budgetRuleRow(t, rule) {
+		const row = el('div', { class: 'rule' });
+		const match = el('input', { type: 'text', placeholder: t.budgetRuleMatch, value: (rule && rule.match) || '' });
+		const inField = numberField('', (rule && rule.input) || 0, 0.1);
+		const outField = numberField('', (rule && rule.output) || 0, 0.1);
+		const remove = el('button', { class: 'tiny', type: 'button', text: t.budgetRemove, onclick: () => row.remove() });
+		row.append(match, inField.input, outField.input, remove);
+		row.ruleValue = () => ({ match: match.value.trim().toLowerCase(), input: numberValue(inField.input), output: numberValue(outField.input) });
+		return row;
+	}
+
+	let cacheStatsAt = 0;
+	function loadCacheStats(force) {
+		const now = Date.now();
+		if (!force && now - cacheStatsAt < 3000) { return; }
+		cacheStatsAt = now;
+		invoke('toolCache.stats', {}).then(result => {
+			const stats = document.getElementById('cacheStats');
+			if (stats) {
+				const entries = (result && result.entries) || 0;
+				stats.textContent = entries + ' ' + plural(entries, T().entryForms);
+			}
+		}).catch(() => undefined);
+	}
+
+	// ---- общий рендер ----
+	function render() {
+		if (!state()) { return; }
+		renderHeader();
+		renderTabs();
+		renderRun();
+		renderBoardTab();
+		renderModels();
+		renderTrace();
+		renderLog();
+		if (!historyLoaded) { void loadHistory(); } else if (ui.tab === 'run') { /* уже загружено */ }
+	}
+
+	// ---- события DOM ----
+	for (const button of document.querySelectorAll('nav button')) {
+		button.addEventListener('click', () => dispatch({ type: 'tab', payload: button.dataset.tab }));
+	}
+	document.getElementById('taskInput').addEventListener('input', event => { ui.task = event.target.value; });
+	document.getElementById('boardSelect').addEventListener('change', event => dispatch({ type: 'boardTask', payload: event.target.value }));
+	document.getElementById('btnStart').addEventListener('click', () => {
+		const task = ui.source === 'board' && ui.boardTaskId ? null : ui.task.trim();
+		if (ui.source === 'board' && ui.boardTaskId) { invoke('team.runTask', { taskId: ui.boardTaskId }).catch(() => undefined); return; }
+		if (task) { invoke('startTask', { task }).catch(() => undefined); }
+	});
+	document.getElementById('btnSidecarStart').addEventListener('click', () => invoke('sidecar.start', {}).catch(() => undefined));
+	document.getElementById('btnPause').addEventListener('click', () => invoke('pause', {}).catch(() => undefined));
+	document.getElementById('btnResume').addEventListener('click', () => invoke('resume', {}).catch(() => undefined));
+	document.getElementById('btnStop').addEventListener('click', () => invoke('cancel', {}).catch(() => undefined));
+	document.getElementById('btnRefreshKeys').addEventListener('click', () => invoke('keys.refresh', {}).catch(() => undefined));
+	document.getElementById('btnCheckKeys').addEventListener('click', () => invoke('keys.checkAll', {}).catch(() => undefined));
+	document.getElementById('keySourceFilter').addEventListener('change', event => { keySourceFilter = event.target.value; renderModels(); });
+	document.getElementById('btnTeamRefresh').addEventListener('click', () => invoke('team.refresh', {}).catch(() => undefined));
+	document.getElementById('btnAddTask').addEventListener('click', () => addBoardTask());
+	// Enter в поле задачи создаёт её же: иначе пришлось бы тянуться к кнопке.
+	document.getElementById('newTaskTitle').addEventListener('keydown', event => {
+		if (event.key === 'Enter') { event.preventDefault(); addBoardTask(); }
+	});
+	document.getElementById('logLevelFilter').addEventListener('change', event => dispatch({ type: 'logLevel', payload: event.target.value }));
+	document.getElementById('logNodeFilter').addEventListener('change', event => dispatch({ type: 'logNode', payload: event.target.value }));
+	document.getElementById('btnLogPin').addEventListener('click', () => dispatch({ type: 'togglePin' }));
+
+	// F6/F7/F8 — пауза/продолжение/остановка. Дублируют биндинги VS Code
+	// на случай, когда фокус во webview и команда сюда не дошла.
+	window.addEventListener('keydown', event => {
+		const command = { F6: 'pause', F7: 'resume', F8: 'cancel' }[event.key];
+		if (!command) { return; }
+		event.preventDefault();
+		const s = state();
+		if (command === 'pause' && (!s.running || s.paused)) { return; }
+		if (command === 'resume' && !s.paused) { return; }
+		if (command === 'cancel' && !s.running) { return; }
+		invoke(command, {}).catch(() => undefined);
+	});
+
+	window.addEventListener('message', event => {
+		const message = event.data || {};
+		if (message.type === 'response') {
+			const payload = message.payload || {};
+			const entry = pending.get(payload.id);
+			if (entry) {
+				pending.delete(payload.id);
+				if (payload.ok) { entry.resolve(payload.result); }
+				else { entry.reject(new Error(payload.error || 'error')); }
+			}
+		} else if (message.type === 'state') {
+			dispatch({ type: 'server', payload: message.payload });
+		} else if (message.type === 'tab') {
+			// Просьба из команды палитры: открыть конкретную вкладку.
+			dispatch({ type: 'tab', payload: String(message.payload || 'run') });
+		}
+	});
+
+	dispatch({ type: 'server', payload: state() });
+	vscode.postMessage({ type: 'ready' });
+})();
+</script>
+</body>
+</html>

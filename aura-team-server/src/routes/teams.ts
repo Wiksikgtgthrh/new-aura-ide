@@ -6,7 +6,7 @@
 import type { FastifyInstance } from 'fastify';
 import { mapAccessError, requireRole, userId } from '../access.js';
 import { config } from '../config.js';
-import { audit, database } from '../database.js';
+import { audit, database, entitlementsOf, isAdmin } from '../database.js';
 import { broadcast } from '../realtime.js';
 import { onlineUserIds } from '../realtime.js';
 import { digest, id, token } from '../security.js';
@@ -16,7 +16,17 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		const user = await userId(request);
 		const profile = database.prepare('SELECT id,email,display_name AS displayName FROM users WHERE id=?').get(user);
 		const teams = database.prepare('SELECT t.id,t.name,m.role FROM teams t JOIN memberships m ON m.team_id=t.id WHERE m.user_id=? ORDER BY t.name').all(user);
-		return { user: profile, teams };
+		// Возможности аккаунта едут вместе с сессией: клиент не делает отдельный запрос
+		// при каждом входе, а версия AGGG 5.2 закрыта до выдачи права. Права приходят
+		// и от команд (source: 'team'), поэтому подпись интерфейса их различает.
+		// admin — признак, что показывать админ-раздел; выдавать права он всё равно не даёт.
+		return { user: profile, teams, entitlements: entitlementsOf(user), admin: isAdmin(user) };
+	});
+
+	// Отдельный маршрут — чтобы право можно было перепроверить без перезапуска входа.
+	app.get('/v1/me/entitlements', async request => {
+		const user = await userId(request);
+		return { features: entitlementsOf(user).map(item => item.feature), entitlements: entitlementsOf(user) };
 	});
 
 	app.post<{ Body: { name?: string } }>('/v1/teams', async (request, reply) => {
@@ -37,28 +47,35 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 	app.get<{ Params: { teamId: string } }>('/v1/teams/:teamId/invite', async request => {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
-		const existing = database.prepare("SELECT id, code_hash, expires_at FROM invites WHERE team_id=? AND used_at IS NULL AND expires_at>? ORDER BY created_at DESC LIMIT 1").get(request.params.teamId, new Date().toISOString()) as { id: string; code_hash: string; expires_at: string } | undefined;
+		const existing = database.prepare("SELECT id, code_hash, expires_at, role FROM invites WHERE team_id=? AND used_at IS NULL AND expires_at>? ORDER BY created_at DESC LIMIT 1").get(request.params.teamId, new Date().toISOString()) as { id: string; code_hash: string; expires_at: string; role: string } | undefined;
 		if (existing) {
 			const reveal = database.prepare("SELECT value FROM invite_reveals WHERE invite_id=?").get(existing.id) as { value: string } | undefined;
-			if (reveal) { return { code: reveal.value, expiresAt: existing.expires_at, canRevoke: true }; }
+			// Роль едет вместе с кодом: панель показывает, с какой ролью вступят по этому коду.
+			if (reveal) { return { code: reveal.value, expiresAt: existing.expires_at, role: existing.role, canRevoke: true }; }
 		}
-		return { code: null, expiresAt: null, canRevoke: true };
+		return { code: null, expiresAt: null, role: null, canRevoke: true };
 	});
 
-	app.post<{ Params: { teamId: string } }>('/v1/teams/:teamId/invites', async (request, reply) => {
+	app.post<{ Params: { teamId: string }; Body: { role?: string } }>('/v1/teams/:teamId/invites', async (request, reply) => {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		const role = resolveInviteRole(request.body?.role, user, request.params.teamId);
+		if ('error' in role) { return reply.code(role.status).send({ message: role.error }); }
 		const code = token(9).slice(0, 12).toUpperCase();
 		const inviteId = id();
 		const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString();
 		database.transaction(() => {
-			database.prepare("INSERT INTO invites(id,team_id,code_hash,role,expires_at,created_by) VALUES(?,?,?,'dev',?,?)")
-				.run(inviteId, request.params.teamId, digest(code), expiresAt, user);
+			// Новый код гасит предыдущий: иначе старый инвайт оставался рабочим и «Новый код» ничего не менял.
+			const now = new Date().toISOString();
+			database.prepare('UPDATE invites SET used_at=?, used_by=? WHERE team_id=? AND used_at IS NULL AND expires_at>?').run(now, user, request.params.teamId, now);
+			database.prepare('DELETE FROM invite_reveals WHERE team_id=?').run(request.params.teamId);
+			database.prepare("INSERT INTO invites(id,team_id,code_hash,role,expires_at,created_by,created_at) VALUES(?,?,?,?,?,?,?)")
+				.run(inviteId, request.params.teamId, digest(code), role.role, expiresAt, user, new Date().toISOString());
 			// Храним открытым текстом только текущий код, чтобы GET /invite мог его вернуть.
 			database.prepare('INSERT OR REPLACE INTO invite_reveals(invite_id,team_id,value) VALUES(?,?,?)').run(inviteId, request.params.teamId, code);
-			audit(user, 'invite.create', request.params.teamId, 'invite');
+			audit(user, 'invite.create', request.params.teamId, 'invite', inviteId, { role: role.role });
 		})();
-		return reply.code(201).send({ code, expiresAt });
+		return reply.code(201).send({ code, expiresAt, role: role.role });
 	});
 
 	// Пересоздать код: старый инвайт отзывается и перестаёт работать.
@@ -121,7 +138,10 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 
 	app.patch<{ Params: { teamId: string; memberId: string }; Body: { role?: string } }>('/v1/teams/:teamId/members/:memberId', async (request, reply) => {
 		const user = await userId(request);
-		try { requireRole(user, request.params.teamId, 'owner'); } catch (error) { mapAccessError(error); }
+		// Роли меняет владелец команды (или админ платформы).
+		if (!isAdmin(user)) {
+			try { requireRole(user, request.params.teamId, 'owner'); } catch (error) { mapAccessError(error); }
+		}
 		if (!['maintainer', 'dev', 'viewer'].includes(request.body.role ?? '')) { return reply.badRequest('Invalid role; ownership transfer is a separate operation'); }
 		const result = database.prepare("UPDATE memberships SET role=? WHERE user_id=? AND team_id=? AND role!='owner'").run(request.body.role, request.params.memberId, request.params.teamId);
 		if (result.changes !== 1) { return reply.notFound(); }
@@ -138,13 +158,37 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		const target = database.prepare('SELECT role FROM memberships WHERE user_id=? AND team_id=?').get(request.params.memberId, request.params.teamId) as { role: string } | undefined;
 		if (!target) { return reply.notFound(); }
 		if (request.params.memberId === user) { return reply.badRequest('Use leave to remove yourself'); }
-		try { requireRole(user, request.params.teamId, target.role === 'maintainer' ? 'owner' : 'maintainer'); } catch (error) { mapAccessError(error); }
 		if (target.role === 'owner') { return reply.badRequest('Ownership transfer is a separate operation'); }
+		// Админ платформы может убрать участника из любой команды; остальным нужна роль в команде.
+		if (!isAdmin(user)) {
+			try { requireRole(user, request.params.teamId, target.role === 'maintainer' ? 'owner' : 'maintainer'); } catch (error) { mapAccessError(error); }
+		}
 		const result = database.prepare('DELETE FROM memberships WHERE user_id=? AND team_id=?').run(request.params.memberId, request.params.teamId);
 		if (result.changes !== 1) { return reply.notFound(); }
 		audit(user, 'membership.remove', request.params.teamId, 'user', request.params.memberId, { role: target.role });
 		broadcast(request.params.teamId, 'membership.changed');
 		return reply.code(204).send();
+	});
+
+	// Персональное приглашение: maintainer+ добавляет пользователя из каталога сразу в команду.
+	// (Код приглашения остаётся для онбординга вне круга знакомых; здесь — точечное добавление.)
+	app.post<{ Params: { teamId: string }; Body: { userId?: string; role?: string } }>('/v1/teams/:teamId/invites/send', async (request, reply) => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		const targetId = request.body.userId;
+		if (!targetId) { return reply.badRequest('userId is required'); }
+		const role = resolveInviteRole(request.body?.role, user, request.params.teamId);
+		if ('error' in role) { return reply.code(role.status).send({ message: role.error }); }
+		const exists = database.prepare('SELECT id FROM users WHERE id=?').get(targetId);
+		if (!exists) { return reply.notFound(); }
+		const already = database.prepare('SELECT role FROM memberships WHERE user_id=? AND team_id=?').get(targetId, request.params.teamId);
+		if (already) { return reply.conflict('User is already a member'); }
+		database.transaction(() => {
+			database.prepare('INSERT INTO memberships(user_id,team_id,role) VALUES(?,?,?)').run(targetId, request.params.teamId, role.role);
+			audit(user, 'member.add', request.params.teamId, 'user', targetId, { role: role.role });
+		})();
+		broadcast(request.params.teamId, 'membership.changed');
+		return reply.code(201).send({ ok: true });
 	});
 
 	// Лимиты команды: клиент валидирует размер архива до отправки и честно показывает срок хранения.
@@ -211,9 +255,12 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		try { requireRole(user, request.params.teamId, 'dev'); } catch (error) { mapAccessError(error); }
 		const { status, orderedIds } = request.body ?? {};
 		if (!status || !['todo', 'doing', 'review', 'done'].includes(status) || !Array.isArray(orderedIds) || orderedIds.length === 0) { return reply.badRequest('status and orderedIds are required'); }
+		// Почему подготовка вынесена из транзакции: database.prepare() компилирует SQL заново.
+		// Внутри forEach на 250 задачах это 250 компиляций одного и того же запроса.
+		const statement = database.prepare("UPDATE tasks SET status=@status, position=@pos, updated_at=@now WHERE id=@id AND team_id=@team AND deleted_at IS NULL");
 		const reorder = database.transaction((ids: string[]) => {
-			ids.forEach((id, index) => database.prepare("UPDATE tasks SET status=@status, position=@pos, updated_at=@now WHERE id=@id AND team_id=@team AND deleted_at IS NULL")
-				.run({ status, pos: index, now: new Date().toISOString(), id, team: request.params.teamId }));
+			const now = new Date().toISOString();
+			ids.forEach((id, index) => statement.run({ status, pos: index, now, id, team: request.params.teamId }));
 		});
 		reorder(orderedIds);
 		audit(user, 'task.reorder', request.params.teamId, 'task', orderedIds[0], { status, count: orderedIds.length });
@@ -236,6 +283,13 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		return { ok: true };
 	});
 
+	// Корзина: мягко удалённые задачи (для восстановления из канбана).
+	app.get<{ Params: { teamId: string } }>('/v1/teams/:teamId/tasks/trash', async request => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
+		return database.prepare("SELECT id,title,status,deleted_at AS deletedAt FROM tasks WHERE team_id=? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT 100").all(request.params.teamId);
+	});
+
 	// Восстановление мягко удалённой задачи («Отменить» после удаления).
 	app.patch<{ Params: { teamId: string; taskId: string } }>('/v1/teams/:teamId/tasks/:taskId/restore', async (request, reply) => {
 		const user = await userId(request);
@@ -252,20 +306,34 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
 		const limit = Math.min(Math.max(Number(request.query.limit ?? 20) || 20, 1), 100);
 		const events = database.prepare(`
-			SELECT a.action, a.target_type AS targetType, a.target_id AS targetId, a.details, a.created_at AS createdAt,
+			SELECT a.id, a.action, a.target_type AS targetType, a.target_id AS targetId, a.details, a.created_at AS createdAt,
 				u.id AS userId, u.display_name AS userName,
 				t.title AS taskTitle
 			FROM audit_log a
 			JOIN users u ON u.id = a.user_id
 			LEFT JOIN tasks t ON a.target_type = 'task' AND t.id = a.target_id
 			WHERE a.team_id = ?
-			ORDER BY a.id DESC LIMIT ?
-		`).all(request.params.teamId, limit) as Array<{ action: string; targetType?: string; targetId?: string; details: string; createdAt: string; userId: string; userName: string; taskTitle?: string }>;
+			ORDER BY a.created_at DESC, a.id DESC LIMIT ?
+		`).all(request.params.teamId, limit) as Array<{ id: number; action: string; targetType?: string; targetId?: string; details: string; createdAt: string; userId: string; userName: string; taskTitle?: string }>;
 		let details: Record<string, unknown> = {};
 		return events.map(event => {
 			try { details = JSON.parse(event.details ?? '{}'); } catch { details = {}; }
-			return { action: event.action, targetType: event.targetType, targetId: event.targetId, details, createdAt: event.createdAt, userId: event.userId, userName: event.userName, taskTitle: event.taskTitle };
+			return { id: event.id, action: event.action, targetType: event.targetType, targetId: event.targetId, details, createdAt: event.createdAt, userId: event.userId, userName: event.userName, taskTitle: event.taskTitle };
 		});
+	});
+
+	// Удаление события из ленты: owner/maintainer (обычный участник может только скрыть у себя).
+	app.delete<{ Params: { teamId: string; eventId: string } }>('/v1/teams/:teamId/activity/:eventId', async (request, reply) => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		const eventId = Number(request.params.eventId);
+		if (!Number.isSafeInteger(eventId) || eventId <= 0) { return reply.badRequest('Invalid event id'); }
+		const result = database.prepare('DELETE FROM audit_log WHERE id=? AND team_id=?').run(eventId, request.params.teamId);
+		if (result.changes !== 1) { return reply.notFound(); }
+		// Удаление события само попадает в аудит: кто и что убрал — видно всем.
+		audit(user, 'activity.delete', request.params.teamId, 'activity', String(eventId));
+		broadcast(request.params.teamId, 'activity.changed');
+		return { ok: true };
 	});
 
 	app.get<{ Params: { teamId: string }; Querystring: { limit?: string } }>('/v1/teams/:teamId/summary', async request => {
@@ -319,6 +387,21 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 		audit(user, 'task.commit_link', request.params.teamId, 'task', task.id, { commitHash: request.body.commitHash });
 		return reply.code(201).send({ taskId: task.id });
 	});
+}
+
+/**
+ * Роль, с которой приглашённый вступит в команду.
+ * По умолчанию dev; совладельца может позвать только владелец (передача владения — отдельная операция).
+ */
+function resolveInviteRole(value: unknown, user: string, teamId: string): { role: string } | { error: string; status: number } {
+	if (value === undefined || value === null || value === '') { return { role: 'dev' }; }
+	if (typeof value !== 'string' || !['maintainer', 'dev', 'viewer'].includes(value)) {
+		return { error: 'Invite role must be one of: maintainer, dev, viewer', status: 400 };
+	}
+	if (value === 'maintainer') {
+		try { requireRole(user, teamId, 'owner'); } catch { return { error: 'Only the team owner can invite a maintainer', status: 403 }; }
+	}
+	return { role: value };
 }
 
 function isMember(userId: string, teamId: string): boolean {

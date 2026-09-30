@@ -96,11 +96,13 @@ export class AuraTeamPanelProvider implements vscode.CustomReadonlyEditorProvide
 
 	/**
 	 * Переиспользование уже открытой вкладки: вместо открытия нового URI (новой копии
-	 * «Team») переключаем существующий webview на нужный раздел сообщением.
+	 * «Team») переключаем существующий webview на нужный раздел сообщением
+	 * и вытаскиваем вкладку на передний план — иначе переход случался «за кадром».
 	 */
 	navigate(view: string, filter?: Record<string, string>): boolean {
 		if (this.panels.size === 0) { return false; }
 		for (const panel of this.panels) {
+			panel.reveal();
 			void panel.webview.postMessage({ type: 'navigate', view, filter });
 		}
 		return true;

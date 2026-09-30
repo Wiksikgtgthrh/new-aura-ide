@@ -39,6 +39,64 @@ export async function keyRoutes(app: FastifyInstance): Promise<void> {
 			ping_ms AS pingMs,last_ok AS ok,last_checked_at AS lastCheckedAt,disabled_at AS disabledAt,created_at AS createdAt FROM api_keys WHERE team_id=? ORDER BY provider,priority,created_at`).all(request.params.teamId);
 	});
 
+	// Группы ключей: клиент давно зовёт эти маршруты, но на сервере их не было —
+	// список всегда приходил 404, и группы жили только в демо-режиме.
+	app.get<{ Params: { teamId: string } }>('/v1/teams/:teamId/key-groups', async request => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
+		return database.prepare(`SELECT g.id, g.name, g.priority, g.created_at AS createdAt,
+			(SELECT COUNT(*) FROM api_keys k WHERE k.group_id = g.id AND k.disabled_at IS NULL) AS keyCount
+			FROM key_groups g WHERE g.team_id=? ORDER BY g.priority, g.name`).all(request.params.teamId);
+	});
+
+	app.post<{ Params: { teamId: string }; Body: { name?: string; priority?: number } }>('/v1/teams/:teamId/key-groups', async (request, reply) => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		const name = request.body.name?.trim().slice(0, 60);
+		if (!name) { return reply.badRequest('Group name is required'); }
+		const priority = Number.isInteger(request.body.priority) && request.body.priority! >= 0 && request.body.priority! <= 1000 ? request.body.priority! : 1;
+		const duplicate = database.prepare('SELECT id FROM key_groups WHERE team_id=? AND name=?').get(request.params.teamId, name) as { id: string } | undefined;
+		if (duplicate) { return reply.conflict('Group with this name already exists'); }
+		const groupId = id();
+		database.prepare('INSERT INTO key_groups(id,team_id,name,priority,created_at) VALUES(?,?,?,?,?)')
+			.run(groupId, request.params.teamId, name, priority, new Date().toISOString());
+		audit(user, 'key_group.create', request.params.teamId, 'key_group', groupId, { name, priority });
+		return reply.code(201).send({ id: groupId, name, priority });
+	});
+
+	app.patch<{ Params: { teamId: string; groupId: string }; Body: { name?: string; priority?: number } }>('/v1/teams/:teamId/key-groups/:groupId', async (request, reply) => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		const group = database.prepare('SELECT id FROM key_groups WHERE id=? AND team_id=?').get(request.params.groupId, request.params.teamId) as { id: string } | undefined;
+		if (!group) { return reply.notFound(); }
+		const updates: Record<string, unknown> = {};
+		if (typeof request.body.name === 'string' && request.body.name.trim()) { updates.name = request.body.name.trim().slice(0, 60); }
+		if (request.body.priority !== undefined) {
+			if (!Number.isInteger(request.body.priority) || request.body.priority < 0 || request.body.priority > 1000) { return reply.badRequest('Invalid priority'); }
+			updates.priority = request.body.priority;
+		}
+		const fields = Object.keys(updates);
+		if (fields.length === 0) { return reply.badRequest('Nothing to update'); }
+		const setSql = fields.map(f => `${f}=@${f}`).join(',');
+		database.prepare(`UPDATE key_groups SET ${setSql} WHERE id=@id AND team_id=@team`).run({ ...updates, id: request.params.groupId, team: request.params.teamId });
+		audit(user, 'key_group.update', request.params.teamId, 'key_group', request.params.groupId, updates);
+		return { ok: true };
+	});
+
+	// Удаление группы: ключи не теряем — они просто остаются без группы.
+	app.delete<{ Params: { teamId: string; groupId: string } }>('/v1/teams/:teamId/key-groups/:groupId', async (request, reply) => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		const group = database.prepare('SELECT id FROM key_groups WHERE id=? AND team_id=?').get(request.params.groupId, request.params.teamId) as { id: string } | undefined;
+		if (!group) { return reply.notFound(); }
+		database.transaction(() => {
+			database.prepare('UPDATE api_keys SET group_id=NULL WHERE group_id=? AND team_id=?').run(request.params.groupId, request.params.teamId);
+			database.prepare('DELETE FROM key_groups WHERE id=? AND team_id=?').run(request.params.groupId, request.params.teamId);
+		})();
+		audit(user, 'key_group.delete', request.params.teamId, 'key_group', request.params.groupId);
+		return { ok: true };
+	});
+
 	// Пинг ключа: проба здоровья конкретного провайдера (у каждого своя), замер времени ответа.
 	app.post<{ Params: { teamId: string; keyId: string } }>('/v1/teams/:teamId/keys/:keyId/ping', async (request, reply) => {
 		const user = await userId(request);
@@ -78,6 +136,10 @@ export async function keyRoutes(app: FastifyInstance): Promise<void> {
 		const priority = Number.isInteger(request.body.priority) && request.body.priority! >= 0 && request.body.priority! <= 1000 ? request.body.priority! : 100;
 		const label = request.body.label?.trim().slice(0, 80) || `${provider} key`;
 		const groupId = typeof request.body.groupId === 'string' && request.body.groupId.trim() ? request.body.groupId.trim() : null;
+		// Чужая группа превратила бы ключ в сироту — проверяем принадлежность команде.
+		if (groupId && !database.prepare('SELECT 1 FROM key_groups WHERE id=? AND team_id=?').get(groupId, request.params.teamId)) {
+			return reply.badRequest('Unknown key group');
+		}
 		const keyHint = maskKey(request.body.value);
 		const keyId = id();
 		database.prepare('INSERT INTO api_keys(id,team_id,owner_id,provider,encrypted_value,access_role,label,key_hint,priority,group_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
@@ -102,7 +164,13 @@ export async function keyRoutes(app: FastifyInstance): Promise<void> {
 			if (!Number.isInteger(request.body.priority) || request.body.priority < 0 || request.body.priority > 1000) { return reply.badRequest('Invalid priority'); }
 			updates.priority = request.body.priority;
 		}
-		if (request.body.groupId !== undefined) { updates.group_id = request.body.groupId === null ? null : String(request.body.groupId); }
+		if (request.body.groupId !== undefined) {
+			const nextGroup = request.body.groupId === null ? null : String(request.body.groupId);
+			if (nextGroup && !database.prepare('SELECT 1 FROM key_groups WHERE id=? AND team_id=?').get(nextGroup, request.params.teamId)) {
+				return reply.badRequest('Unknown key group');
+			}
+			updates.group_id = nextGroup;
+		}
 		const fields = Object.keys(updates);
 		if (fields.length === 0) { return reply.badRequest('Nothing to update'); }
 		const setSql = fields.map(f => `${f}=@${f}`).join(',');
@@ -128,6 +196,16 @@ export async function keyRoutes(app: FastifyInstance): Promise<void> {
 		const result = database.prepare('UPDATE api_keys SET disabled_at=? WHERE id=? AND team_id=? AND disabled_at IS NULL').run(new Date().toISOString(), request.params.keyId, request.params.teamId);
 		if (result.changes !== 1) { return reply.notFound(); }
 		audit(user, 'api_key.disable', request.params.teamId, 'api_key', request.params.keyId);
+		return reply.code(204).send();
+	});
+
+	// Включение ранее отключённого ключа (снимает disabled_at).
+	app.post<{ Params: { teamId: string; keyId: string } }>('/v1/teams/:teamId/keys/:keyId/enable', async (request, reply) => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		const result = database.prepare('UPDATE api_keys SET disabled_at=NULL WHERE id=? AND team_id=? AND disabled_at IS NOT NULL').run(request.params.keyId, request.params.teamId);
+		if (result.changes !== 1) { return reply.notFound(); }
+		audit(user, 'api_key.enable', request.params.teamId, 'api_key', request.params.keyId);
 		return reply.code(204).send();
 	});
 

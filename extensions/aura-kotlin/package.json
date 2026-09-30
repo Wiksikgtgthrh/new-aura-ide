@@ -7,7 +7,7 @@
 	"license": "MIT",
 	"engines": { "vscode": "*" },
 	"main": "./out/extension.js",
-	"activationEvents": ["onLanguage:kotlin", "onCommand:auraKotlin.checkToolchain", "onCommand:auraKotlin.compileFile", "onCommand:auraKotlin.androidDoctor", "onCommand:auraKotlin.android.logcat", "onCommand:auraKotlin.restartLsp", "onCommand:auraKotlin.installLsp", "onCommand:auraKotlin.debugFile", "onDebug", "onDebugAdapterDynamicConfiguration:kotlin", "workspaceContains:build.gradle", "workspaceContains:build.gradle.kts", "workspaceContains:gradlew"],
+	"activationEvents": ["onLanguage:kotlin", "onView:auraKotlin.androidView", "onCommand:auraKotlin.checkToolchain", "onCommand:auraKotlin.compileFile", "onCommand:auraKotlin.androidDoctor", "onCommand:auraKotlin.newProject", "onCommand:auraKotlin.newFile", "onCommand:auraKotlin.restartLsp", "onCommand:auraKotlin.installLsp", "onCommand:auraKotlin.debugFile", "onCommand:auraKotlin.gradle.sync", "onCommand:auraKotlin.gradle.build", "onCommand:auraKotlin.gradle.clean", "onCommand:auraKotlin.gradle.test", "onCommand:auraKotlin.gradle.release", "onCommand:auraKotlin.gradle.runTask", "onCommand:auraKotlin.syncDependencies", "onCommand:auraKotlin.showClasspath", "onCommand:auraKotlin.android.devices", "onCommand:auraKotlin.android.pickDevice", "onCommand:auraKotlin.android.installApk", "onCommand:auraKotlin.android.logcat", "onCommand:auraKotlin.android.logcatFilter", "onCommand:auraKotlin.android.logcatStop", "onCommand:auraKotlin.android.startEmulator", "onCommand:auraKotlin.android.startAvd", "onCommand:auraKotlin.android.stopEmulator", "onCommand:auraKotlin.android.createAvd", "onCommand:auraKotlin.android.runAndDebug", "onCommand:auraKotlin.android.deviceScreen", "onCommand:auraKotlin.refreshAndroidView", "onDebug", "onDebugAdapterDynamicConfiguration:kotlin", "workspaceContains:build.gradle", "workspaceContains:build.gradle.kts", "workspaceContains:gradlew", "onLanguage:java", "onCommand:auraKotlin.java.restartLsp", "onCommand:auraKotlin.java.organizeImports", "onCommand:auraKotlin.java.installLsp", "onCommand:auraKotlin.java.downloadSources"],
 	"categories": ["Programming Languages", "Other"],
 	"l10n": "./l10n",
 	"contributes": {
@@ -28,19 +28,66 @@
 			"auraKotlin-android": [{
 				"id": "auraKotlin.androidView",
 				"name": "Android",
-				"icon": "media/android.svg"
+				"icon": "media/android.svg",
+				"when": "auraPlugin.aura-kotlin.enabled == true"
 			}]
 		},
 		"menus": {
 			"view/title": [{
+				"command": "auraKotlin.newProject",
+				"when": "view == auraKotlin.androidView",
+				"group": "navigation@1"
+			}, {
+				"command": "auraKotlin.newFile",
+				"when": "view == auraKotlin.androidView",
+				"group": "navigation@2"
+			}, {
+				"command": "auraKotlin.android.createAvd",
+				"when": "view == auraKotlin.androidView",
+				"group": "navigation@3"
+			}, {
+				"command": "auraKotlin.android.logcat",
+				"when": "view == auraKotlin.androidView",
+				"group": "navigation@4"
+			}, {
 				"command": "auraKotlin.refreshAndroidView",
 				"when": "view == auraKotlin.androidView",
-				"group": "navigation"
+				"group": "navigation@5"
+			}],
+			"view/item/context": [{
+				"command": "auraKotlin.android.startAvd",
+				"when": "view == auraKotlin.androidView && viewItem == avd",
+				"group": "inline@1"
+			}, {
+				"command": "auraKotlin.android.deviceScreen",
+				"when": "view == auraKotlin.androidView && viewItem == avdRunning",
+				"group": "inline@1"
+			}, {
+				"command": "auraKotlin.android.stopEmulator",
+				"when": "view == auraKotlin.androidView && viewItem == avdRunning",
+				"group": "inline@2"
+			}, {
+				"command": "auraKotlin.android.deviceScreen",
+				"when": "view == auraKotlin.androidView && viewItem == device",
+				"group": "inline@1"
+			}, {
+				"command": "auraKotlin.android.logcat",
+				"when": "view == auraKotlin.androidView && viewItem == device",
+				"group": "inline@2"
+			}],
+			"editor/context": [{
+				"command": "auraKotlin.java.organizeImports",
+				"when": "editorLangId == java",
+				"group": "1_modification@11"
+			}, {
+				"command": "auraKotlin.java.restartLsp",
+				"when": "editorLangId == java",
+				"group": "z_commands@1"
 			}]
 		},
 		"viewsWelcome": [{
 			"view": "auraKotlin.androidView",
-			"contents": "No Gradle/Maven project in the workspace. Open an Android project folder or create one with the command 'Kotlin: New Kotlin/Android Project'."
+			"contents": "В workspace нет Gradle/Maven-проекта. Откройте папку проекта или создайте новый прямо здесь:\n[$(add) Новый проект Kotlin/Java/Android](command:auraKotlin.newProject)\n[$(new-file) Новый файл Kotlin/Android](command:auraKotlin.newFile)\n[$(vm) Создать эмулятор (AVD)](command:auraKotlin.android.createAvd)"
 		}],
 		"configuration": {
 			"title": "%configuration.title%",
@@ -48,14 +95,17 @@
 				"auraKotlin.compilerPath": { "type": "string", "default": "kotlinc", "description": "%configuration.compilerPath%" },
 				"auraKotlin.androidSdkPath": { "type": "string", "default": "", "description": "%configuration.androidSdkPath%" },
 				"auraKotlin.javaPath": { "type": "string", "default": "java", "description": "%configuration.javaPath%" },
-				"auraKotlin.kotlinLspPath": { "type": "string", "default": "kotlin-language-server", "description": "Explicit path or command for the Kotlin Language Server. Leave default to use the bundled/downloaded server automatically (downloaded on first use, ~83 MB, needs JDK 11+)." }
+				"auraKotlin.kotlinLspPath": { "type": "string", "default": "kotlin-language-server", "description": "Explicit path or command for the Kotlin Language Server. Leave default to use the bundled/downloaded server automatically (downloaded on first use, ~83 MB, needs JDK 11+)." },
+				"auraKotlin.javaLspPath": { "type": "string", "default": "", "description": "%configuration.javaLspPath%" },
+				"auraKotlin.java.downloadSources": { "type": "boolean", "default": true, "description": "%configuration.javaDownloadSources%" }
 			}
 		},
 		"commands": [
 			{ "command": "auraKotlin.checkToolchain", "title": "%command.checkToolchain%", "category": "Kotlin" },
 			{ "command": "auraKotlin.compileFile", "title": "%command.compileFile%", "category": "Kotlin" },
 			{ "command": "auraKotlin.androidDoctor", "title": "%command.androidDoctor%", "category": "Kotlin" },
-			{ "command": "auraKotlin.newProject", "title": "%command.newProject%", "category": "Kotlin" },
+			{ "command": "auraKotlin.newProject", "title": "%command.newProject%", "icon": "$(add)", "category": "Kotlin" },
+			{ "command": "auraKotlin.newFile", "title": "%command.newFile%", "icon": "$(new-file)", "category": "Kotlin" },
 			{ "command": "auraKotlin.restartLsp", "title": "%command.restartLsp%", "category": "Kotlin" },
 			{ "command": "auraKotlin.installLsp", "title": "%command.installLsp%", "category": "Kotlin" },
 			{ "command": "auraKotlin.debugFile", "title": "%command.debugFile%", "category": "Kotlin" },
@@ -68,14 +118,20 @@
 			{ "command": "auraKotlin.android.devices", "title": "%command.android.devices%", "category": "Android" },
 			{ "command": "auraKotlin.android.pickDevice", "title": "%command.android.pickDevice%", "category": "Android" },
 			{ "command": "auraKotlin.android.installApk", "title": "%command.android.installApk%", "category": "Android" },
-			{ "command": "auraKotlin.android.logcat", "title": "%command.android.logcat%", "category": "Android" },
+			{ "command": "auraKotlin.android.logcat", "title": "%command.android.logcat%", "icon": "$(output)", "category": "Android" },
 			{ "command": "auraKotlin.android.logcatFilter", "title": "%command.android.logcatFilter%", "category": "Android" },
 			{ "command": "auraKotlin.android.logcatStop", "title": "%command.android.logcatStop%", "category": "Android" },
 			{ "command": "auraKotlin.android.startEmulator", "title": "%command.android.startEmulator%", "category": "Android" },
+			{ "command": "auraKotlin.android.startAvd", "title": "%command.android.startAvd%", "icon": "$(play)", "category": "Android" },
 			{ "command": "auraKotlin.android.stopEmulator", "title": "%command.android.stopEmulator%", "category": "Android" },
-			{ "command": "auraKotlin.android.createAvd", "title": "%command.android.createAvd%", "category": "Android" },
+			{ "command": "auraKotlin.android.createAvd", "title": "%command.android.createAvd%", "icon": "$(vm)", "category": "Android" },
+			{ "command": "auraKotlin.android.deviceScreen", "title": "%command.android.deviceScreen%", "icon": "$(device-mobile)", "category": "Android" },
 			{ "command": "auraKotlin.android.runAndDebug", "title": "%command.android.runAndDebug%", "category": "Android" },
-			{ "command": "auraKotlin.refreshAndroidView", "title": "%command.refreshAndroidView%", "icon": "$(refresh)", "category": "Android" }
+			{ "command": "auraKotlin.refreshAndroidView", "title": "%command.refreshAndroidView%", "icon": "$(refresh)", "category": "Android" },
+			{ "command": "auraKotlin.java.restartLsp", "title": "%command.javaRestartLsp%", "category": "Java" },
+			{ "command": "auraKotlin.java.organizeImports", "title": "%command.javaOrganizeImports%", "category": "Java" },
+			{ "command": "auraKotlin.java.installLsp", "title": "%command.javaInstallLsp%", "category": "Java" },
+			{ "command": "auraKotlin.java.downloadSources", "title": "%command.javaDownloadSources%", "category": "Aura Kotlin" }
 		],
 		"problemMatchers": [{
 			"name": "aura-kotlinc",
@@ -107,7 +163,7 @@
 		"debuggers": [{
 			"type": "kotlin",
 			"label": "Kotlin (Aura)",
-			"languages": ["kotlin"],
+			"languages": ["kotlin", "java"],
 			"configurationAttributes": {
 				"launch": {
 					"required": [],

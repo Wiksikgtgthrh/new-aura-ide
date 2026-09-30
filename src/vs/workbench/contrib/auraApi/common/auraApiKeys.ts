@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Aura API — менеджер API-ключей: хранение, проверка пинга/ошибок,
+ *  API Keys — менеджер API-ключей: хранение, проверка пинга/ошибок,
  *  эвристика подлинности модели и безопасности ответов.
  *--------------------------------------------------------------------------------------------*/
 
@@ -19,6 +19,8 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import {
 	parseKeysBulk, detectProvider, defaultBaseUrl, secretFingerprint,
 	classifyHttpStatus, cooldownMsForStatus, modelAuthenticityPercent,
+	routerLimits, nextLatencyUpdate, slowThresholdMs, pushLatencySample, medianLatency, bestMedianLatency,
+	SLOW_STREAK_LIMIT, LATENCY_WINDOW,
 	type AuraProvider, type IAuraApiGroup, type AuraHealthStatus,
 } from './auraApiModel.js';
 
@@ -41,6 +43,8 @@ export interface IAuraApiKey {
 	weight?: number;
 	/** Этап 2: fingerprint секрета для дедупликации повторной вставки (сам секрет не хранится) */
 	secretFingerprint?: string;
+	/** Выключенный ключ (enabled === false) не выбирается для запросов никогда. По умолчанию — включён. */
+	enabled?: boolean;
 }
 
 export interface IAuraApiKeyStatus {
@@ -57,11 +61,61 @@ export interface IAuraApiKeyStatus {
 	securityPct?: number | null;
 	securityNotes?: string[];
 	excludedHighPing?: boolean;
+	/** Живой замер: сколько ждали первый токен в последнем ответе чата */
+	latencyMs?: number;
+	/** Окно последних замеров первого токена: из него берётся медиана для маршрутизации */
+	latencySamples?: number[];
+	/** Сколько подряд ответов были медленными (первый токен позже порога) */
+	slowStreak?: number;
+	/** Почему ключ вне автовыбора: проверка ключа (ping) или живые ответы (latency) */
+	excludedReason?: 'ping' | 'latency';
+}
+
+/**
+ * Статус ключа для внешних потребителей (оркестратор): id + метаданные, без секретов.
+ * Контракт команды `apiKeys.exportStatuses`; зеркальная форма — CoreKeyStatus
+ * в extensions/langgraph-orchestrator/src/keys/status.ts. Поля обязаны совпадать.
+ */
+export interface IAuraApiKeyStatusExport {
+	id: string;
+	checking: boolean;
+	health?: AuraHealthStatus;
+	cooldownUntil?: number;
+	lastChecked?: number;
+	pingMs?: number;
+	ok?: boolean;
+	error?: string;
+	authenticityPct?: number | null;
+	securityPct?: number | null;
+	excludedHighPing?: boolean;
+	latencyMs?: number;
+	excludedReason?: 'ping' | 'latency';
+}
+
+/** Секретов в статусе нет по построению — отдаём только метаданные живости. */
+export function exportKeyStatus(id: string, status: IAuraApiKeyStatus): IAuraApiKeyStatusExport {
+	return {
+		id,
+		checking: status.checking === true,
+		health: status.health,
+		cooldownUntil: status.cooldownUntil,
+		lastChecked: status.lastChecked,
+		pingMs: status.pingMs,
+		ok: status.ok,
+		error: status.error,
+		authenticityPct: status.authenticityPct ?? null,
+		securityPct: status.securityPct ?? null,
+		excludedHighPing: status.excludedHighPing,
+		latencyMs: status.latencyMs,
+		excludedReason: status.excludedReason,
+	};
 }
 
 export interface IAuraApiKeysService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void>;
+	/** Сменился активный ключ для чата (selectForChat) — потребители инвалидируют клиент/кэш. */
+	readonly onDidChangeActiveKey: Event<string>;
 	getKeys(): IAuraApiKey[];
 	getSecretKeyRef(id: string): string;
 	addKey(input: Omit<IAuraApiKey, 'id' | 'createdAt'>, secret: string): Promise<IAuraApiKey>;
@@ -69,6 +123,8 @@ export interface IAuraApiKeysService {
 	removeKey(id: string): Promise<void>;
 	updateKey(id: string, patch: Partial<IAuraApiKey>): Promise<void>;
 	getSecret(id: string): Promise<string | undefined>;
+	/** Заменить секрет ключа (и его fingerprint) в SecretStorage. */
+	setSecret(id: string, secret: string): Promise<void>;
 	getStatus(id: string): IAuraApiKeyStatus;
 	checkKey(id: string): Promise<IAuraApiKeyStatus>;
 	checkAll(): Promise<void>;
@@ -95,6 +151,21 @@ export interface IAuraApiKeysService {
 	resolveKeyForModel(modelId?: string): IAuraApiKey | undefined;
 	/** Маска секрета для UI (sk-…ABCD). Сам секрет из хранилища не читается. */
 	maskedSecretLabel(id: string): string;
+	/**
+	 * Итог запроса чата по ключу: 401 — ключ недействителен (cooldown до ручной перепроверки),
+	 * 429 — лимит исчерпан (cooldown), 5xx — сервер недоступен (короткий cooldown).
+	 */
+	reportChatRequestResult(keyId: string, httpStatus: number): void;
+	/**
+	 * Сетевой сбой по конкретному ключу (запрос не дошёл / соединение оборвалось):
+	 * ключ уходит в короткий cooldown, чтобы следующий запрос начался с другого ключа.
+	 */
+	reportChatNetworkFailure(keyId: string, reason: string): void;
+	/**
+	 * Живой замер ответа: сколько ждали первый токен. Два медленных ответа подряд выводят
+	 * ключ из автовыбора, быстрый — возвращают: пинг-зонд `/models` такую модель не видит.
+	 */
+	reportChatLatency(keyId: string, firstTokenMs: number): void;
 }
 
 /** Справочник популярных моделей для подсказок при добавлении ключей. */
@@ -106,13 +177,24 @@ export const POPULAR_MODELS: readonly string[] = [
 	'llama-3.3-70b', 'qwen-2.5-72b', 'mistral-large',
 ];
 
-const STORAGE_KEYS = 'auraApi.keys';
-const STORAGE_SELECTED = 'auraApi.chat.selectedKeyId';
-const SECRET_PREFIX = 'auraApi.key.';
+const STORAGE_KEYS = 'apiKeys.keys';
+const STORAGE_SELECTED = 'apiKeys.chat.selectedKeyId';
+const SECRET_PREFIX = 'apiKeys.key.';
 const HIGH_PING_MS = 3000;
-const STORAGE_GROUPS = 'auraApi.groups';
+const STORAGE_GROUPS = 'apiKeys.groups';
+/**
+ * Прежние ключи хранилища и секретов (брендинг «auraApi»). Ключи и группы читаются как fallback,
+ * а секреты ключей переносятся в новые refs: иначе после переименования пользователь потерял бы
+ * настроенные ключи и пароли к ним.
+ */
+const LEGACY_STORAGE_KEYS = 'auraApi.keys';
+const LEGACY_STORAGE_GROUPS = 'auraApi.groups';
+const LEGACY_STORAGE_SELECTED = 'auraApi.chat.selectedKeyId';
+const LEGACY_SECRET_PREFIX = 'auraApi.key.';
 const RATE_LIMIT_BACKOFF_MS = 5_000;
 const QUEUE_PARALLEL = 5;
+/** Сетевой сбой — звено, а не приговор: короткий cooldown, затем ключ снова доступен. */
+const NETWORK_FAILURE_COOLDOWN_MS = 30_000;
 
 /** Эвристика «вредоносности» ответа модели: ищем подозрительные паттерны команд. */
 const MALICIOUS_PATTERNS: Array<{ re: RegExp; note: string }> = [
@@ -129,6 +211,8 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
+	private readonly _onDidChangeActiveKey = this._register(new Emitter<string>());
+	readonly onDidChangeActiveKey = this._onDidChangeActiveKey.event;
 
 	private keys: IAuraApiKey[] = [];
 	private groups: IAuraApiGroup[] = [];
@@ -149,19 +233,46 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 
 	private load(): void {
 		try {
-			const raw = this.storageService.get(STORAGE_KEYS, StorageScope.APPLICATION, '[]');
-			this.keys = JSON.parse(raw) as IAuraApiKey[];
+			this.keys = JSON.parse(this.readMigrated(STORAGE_KEYS, LEGACY_STORAGE_KEYS, '[]')) as IAuraApiKey[];
 		} catch {
 			this.keys = [];
 		}
 		try {
-			const rawG = this.storageService.get(STORAGE_GROUPS, StorageScope.APPLICATION, '[]');
-			this.groups = JSON.parse(rawG) as IAuraApiGroup[];
+			this.groups = JSON.parse(this.readMigrated(STORAGE_GROUPS, LEGACY_STORAGE_GROUPS, '[]')) as IAuraApiGroup[];
 		} catch {
 			this.groups = [];
 		}
 		if (this.groups.length === 0) {
 			this.groups = [{ id: 'default', name: 'По умолчанию', priority: 0 }];
+		}
+		// Секреты переносим фоном: SecretStorage синхронно не читается, а окно ждать не должно.
+		void this.migrateSecrets();
+	}
+
+	/** Значение из нового ключа хранилища; если его ещё нет — из прежнего (миграция без потерь). */
+	private readMigrated(key: string, legacyKey: string, fallback: string): string {
+		const current = this.storageService.get(key, StorageScope.APPLICATION);
+		if (current !== undefined) {
+			return current;
+		}
+		return this.storageService.get(legacyKey, StorageScope.APPLICATION) ?? fallback;
+	}
+
+	/** Перенести секреты ключей на новые refs; прежние не удаляем — понижение версии останется рабочим. */
+	private async migrateSecrets(): Promise<void> {
+		try {
+			for (const key of this.keys) {
+				const current = await this.secretStorage.get(this.getSecretKeyRef(key.id));
+				if (current !== undefined) {
+					continue;
+				}
+				const legacy = await this.secretStorage.get(LEGACY_SECRET_PREFIX + key.id);
+				if (legacy !== undefined) {
+					await this.secretStorage.set(this.getSecretKeyRef(key.id), legacy);
+				}
+			}
+		} catch (e) {
+			this.logService.warn('[APIKeys] перенос секретов на новые refs не удался', e);
 		}
 	}
 
@@ -250,6 +361,11 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 
 	async getSecret(id: string): Promise<string | undefined> {
 		return this.secretStorage.get(this.getSecretKeyRef(id));
+	}
+
+	async setSecret(id: string, secret: string): Promise<void> {
+		await this.secretStorage.set(this.getSecretKeyRef(id), secret);
+		await this.updateKey(id, { secretFingerprint: secretFingerprint(secret) });
 	}
 
 	getStatus(id: string): IAuraApiKeyStatus {
@@ -391,6 +507,7 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 				checking: false, lastChecked: Date.now(), pingMs: ping.ms, ok: true,
 				authenticityPct, securityPct, securityNotes,
 				excludedHighPing,
+				excludedReason: excludedHighPing ? 'ping' : undefined,
 				health: 'ok', cooldownUntil: undefined,
 				error: excludedHighPing ? `Высокий пинг (${ping.ms} мс > ${HIGH_PING_MS} мс) — ключ исключён из использования` : undefined,
 			});
@@ -408,6 +525,7 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 
 	bestKey(): IAuraApiKey | undefined {
 		const healthy = this.keys.filter(k => {
+			if (k.enabled === false) { return false; }
 			const s = this.getStatus(k.id);
 			return s.ok === true && !s.excludedHighPing;
 		});
@@ -415,8 +533,26 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 		const weight = (p: AuraApiKeyPriority) => p === 'high' ? 0 : p === 'medium' ? 1 : 2;
 		return healthy.sort((a, b) =>
 			weight(a.priority) - weight(b.priority) ||
-			(this.getStatus(a.id).pingMs ?? 99999) - (this.getStatus(b.id).pingMs ?? 99999)
+			this.speedMs(a.id) - this.speedMs(b.id)
 		)[0];
+	}
+
+	/**
+	 * Скорость ключа для сортировки: живой замер первого токена точнее пинга из проверки
+	 * `/models` (fast /models и ленивая генерация — разные вещи).
+	 */
+	private speedMs(id: string): number {
+		const s = this.getStatus(id);
+		// Медиана живых замеров — точнее последнего ответа (холодный старт, разовый всплеск).
+		return medianLatency(s.latencySamples) ?? s.latencyMs ?? s.pingMs ?? 99999;
+	}
+
+	/**
+	 * Лучший ключ для сравнения: самая быстрая медиана среди ключей, кроме самого кандидата.
+	 * Если замеров ни у кого нет — undefined, и порог останется стартовым.
+	 */
+	private bestMedianExcept(keyId: string): number | undefined {
+		return bestMedianLatency(this.keys.filter(k => k.id !== keyId).map(k => this.getStatus(k.id).latencySamples));
 	}
 
 	async smartImport(baseUrl: string, model: string, keysText: string, group?: string, priority: AuraApiKeyPriority = 'medium'): Promise<{ added: number; skipped: number }> {
@@ -613,6 +749,7 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 	resolveKeyForModel(modelId?: string): IAuraApiKey | undefined {
 		const now = Date.now();
 		const eligible = (k: IAuraApiKey): boolean => {
+			if (k.enabled === false) { return false; }
 			const st = this.getStatus(k.id);
 			if (st.cooldownUntil !== undefined && st.cooldownUntil > now) { return false; }
 			if (st.health === 'unauthorized' || st.health === 'forbidden') { return false; }
@@ -623,7 +760,7 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 		for (const group of this.getGroups()) {
 			const pool = this.keys.filter(k => eligible(k) && (this.groups.find(g => g.name === k.group)?.id ?? this.groups[0].id) === group.id);
 			if (pool.length === 0) { continue; }
-			pool.sort((a, b) => (b.weight ?? 1) - (a.weight ?? 1) || (this.getStatus(a.id).pingMs ?? 99999) - (this.getStatus(b.id).pingMs ?? 99999));
+			pool.sort((a, b) => (b.weight ?? 1) - (a.weight ?? 1) || this.speedMs(a.id) - this.speedMs(b.id));
 			return pool[0];
 		}
 		return undefined;
@@ -641,14 +778,85 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 		const key = this.keys.find(k => k.id === id);
 		if (!key) { return; }
 		// Мост в чат: активный эндпоинт пишется в настройки, откуда его смогут читать провайдеры моделей.
-		await this.configurationService.updateValue('auraApi.chat.baseUrl', key.baseUrl);
-		await this.configurationService.updateValue('auraApi.chat.model', key.model);
+		await this.configurationService.updateValue('apiKeys.chat.baseUrl', key.baseUrl);
+		await this.configurationService.updateValue('apiKeys.chat.model', key.model);
 		this.storageService.store(STORAGE_SELECTED, id, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		this._onDidChange.fire();
+		this._onDidChangeActiveKey.fire(id);
+	}
+
+	reportChatRequestResult(keyId: string, httpStatus: number): void {
+		if (!this.keys.some(k => k.id === keyId)) { return; }
+		if (httpStatus === 401) {
+			// Ключ недействителен — исключаем из автовыбора до ручной перепроверки.
+			this.setStatus(keyId, { health: 'unauthorized', ok: false, cooldownUntil: Number.POSITIVE_INFINITY, error: 'Ключ недействителен (HTTP 401)' });
+		} else if (httpStatus === 429) {
+			this.setStatus(keyId, { health: 'ratelimited', ok: false, cooldownUntil: Date.now() + cooldownMsForStatus(429), error: 'Лимит исчерпан (HTTP 429)' });
+		} else if (httpStatus >= 500) {
+			this.setStatus(keyId, { health: 'down', cooldownUntil: Date.now() + cooldownMsForStatus(httpStatus), error: `Сервер недоступен (HTTP ${httpStatus})` });
+		}
+	}
+
+	reportChatNetworkFailure(keyId: string, reason: string): void {
+		if (!this.keys.some(k => k.id === keyId)) {
+			return;
+		}
+		// Не помечаем ключ как «мёртвый»: связь могла пропасть у всей сети. Короткий cooldown
+		// уводит запрос на другой ключ, а после его истечения ключ снова участвует в выборе.
+		this.setStatus(keyId, {
+			health: 'down',
+			ok: false,
+			cooldownUntil: Date.now() + NETWORK_FAILURE_COOLDOWN_MS,
+			error: `Сеть: ${reason}`,
+		});
+	}
+
+	reportChatLatency(keyId: string, firstTokenMs: number): void {
+		if (!this.keys.some(k => k.id === keyId)) {
+			return;
+		}
+		const limits = routerLimits(key => this.configurationService.getValue(key));
+		if (!(limits.slowFirstTokenMs > 0)) {
+			return; // наблюдение выключено настройкой: не трогаем статус и не шумим событиями
+		}
+		const status = this.getStatus(keyId);
+		const previousStreak = status.slowStreak ?? 0;
+		const samples = pushLatencySample(status.latencySamples, firstTokenMs);
+		// Порог адаптивный: сравниваем с лучшим ключом, а не с фиксированными миллисекундами.
+		const bestMedianMs = this.bestMedianExcept(keyId);
+		const thresholdMs = slowThresholdMs(bestMedianMs, limits);
+		const update = nextLatencyUpdate(previousStreak, firstTokenMs, thresholdMs, status.excludedReason);
+		// Замену ищем только среди живых и не исключённых: единственный рабочий ключ не выкидываем.
+		const hasReplacement = this.keys.some(k => k.id !== keyId
+			&& k.enabled !== false
+			&& this.getStatus(k.id).ok === true
+			&& !this.getStatus(k.id).excludedHighPing);
+		// Ничего значимого не меняется — не дёргаем списки моделей чата на каждый запрос.
+		const windowFull = (status.latencySamples?.length ?? 0) >= LATENCY_WINDOW;
+		if (update.slowStreak === 0 && previousStreak === 0 && !update.clearExclusion && windowFull && status.latencyMs === firstTokenMs) {
+			return;
+		}
+		const exclude = update.exclude && hasReplacement;
+		this.setStatus(keyId, {
+			latencyMs: firstTokenMs,
+			latencySamples: samples,
+			// Без замены серия не доходит до порога исключения: ключ остаётся в автовыборе,
+			// а как только живая замена появится — следующий медленный ответ его выведет.
+			slowStreak: exclude ? update.slowStreak : Math.min(update.slowStreak, SLOW_STREAK_LIMIT - 1),
+			...(exclude
+				? {
+					excludedHighPing: true,
+					excludedReason: 'latency' as const,
+					error: `Медленные ответы (первый токен ${firstTokenMs} мс > ${thresholdMs} мс, лучший ключ ${bestMedianMs ?? '?'} мс, ${update.slowStreak}/${SLOW_STREAK_LIMIT}) — ключ исключён из автовыбора`,
+				}
+				: update.clearExclusion
+					? { excludedHighPing: false, excludedReason: undefined, error: undefined }
+					: {}),
+		});
 	}
 
 	getSelectedKeyId(): string | undefined {
-		return this.storageService.get(STORAGE_SELECTED, StorageScope.APPLICATION) || undefined;
+		return this.readMigrated(STORAGE_SELECTED, LEGACY_STORAGE_SELECTED, '') || undefined;
 	}
 }
 

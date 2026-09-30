@@ -212,5 +212,9 @@
 		".github/skills/.local": true,
 		".agents/skills/.local": true,
 		".claude/skills/.local": true,
-	}
+	},
+	// --- Aura IDE dev-профиль: каталог внешнего агента AGGG (в коде не хардкодится).
+	// Пусто — ядро 5.2 приходит с сервера Team по праву аккаунта (команда auraTeam.agggAgent);
+	// непустой путь перебивает эту поставку, поэтому локальный каталог здесь не прописываем. ---
+	"aggg.externalAgentPath": "",
 }

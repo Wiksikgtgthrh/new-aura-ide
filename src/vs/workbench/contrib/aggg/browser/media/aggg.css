@@ -1,0 +1,80 @@
+/*---------------------------------------------------------------------------------------------
+ *  AGGG — панель плагина и индикатор в статус-баре.
+ *  Токены движения — из auraTokens.css (--dur-2: 160ms, --ease-out).
+ *--------------------------------------------------------------------------------------------*/
+
+.aggg-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 4px 0;
+	font-size: 13px;
+}
+
+.aggg-panel-desc {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+}
+
+.aggg-version-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.aggg-version-label {
+	color: var(--vscode-foreground);
+	flex: none;
+}
+
+.aggg-version-row .monaco-select-box {
+	flex: 1;
+	min-width: 0;
+}
+
+.aggg-version-warn {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 12%, transparent);
+	color: var(--vscode-editorWarning-foreground, #cca700);
+	font-size: 12px;
+}
+
+.aggg-version-warn-text {
+	flex: 1;
+}
+
+.aggg-version-pick {
+	flex: none;
+	padding: 2px 10px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 6px;
+	background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
+	color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.aggg-version-pick:hover {
+	background: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground));
+}
+
+/* Кроссфейд текста индикатора AGGG при смене версии/состояния (160ms). */
+.statusbar-item.aggg-xfade .statusbar-item-label {
+	animation: aggg-status-xfade 160ms cubic-bezier(.2, 0, 0, 1);
+}
+
+@keyframes aggg-status-xfade {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.statusbar-item.aggg-xfade .statusbar-item-label {
+		animation-duration: 1ms;
+	}
+}

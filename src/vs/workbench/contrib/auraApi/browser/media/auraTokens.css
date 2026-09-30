@@ -1,0 +1,48 @@
+/* auraTokens.css — единый источник правды для всех Aura-модулей.
+   Никаких магических чисел в других файлах. */
+
+.aura {
+	/* Spacing scale (4px base) */
+	--sp-1: 4px;
+	--sp-2: 8px;
+	--sp-3: 12px;
+	--sp-4: 16px;
+	--sp-5: 24px;
+	--sp-6: 32px;
+
+	/* Radii */
+	--r-ctl: 6px;   /* controls: inputs, buttons, badges */
+	--r-box: 10px;  /* containers: cards, forms, panels */
+
+	/* Motion */
+	--dur: 120ms;
+	--ease: cubic-bezier(.2, 0, 0, 1);
+	--dur-1: 90ms;
+	--dur-2: 160ms;
+	--dur-3: 240ms;
+	--dur-4: 320ms;
+	--ease-out: cubic-bezier(.2, 0, 0, 1);
+
+	/* Semantic colors (VS Code tokens only) */
+	--aura-line: var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 14%, transparent));
+	--aura-surface: var(--vscode-editorWidget-background);
+	--aura-surface-alt: var(--vscode-editor-background);
+	--aura-fg: var(--vscode-foreground);
+	--aura-fg-muted: var(--vscode-descriptionForeground);
+	--aura-focus: var(--vscode-focusBorder);
+	--aura-ok: var(--vscode-charts-green, #4ec9b0);
+	--aura-warn: var(--vscode-editorWarning-foreground, #cca700);
+	--aura-err: var(--vscode-errorForeground, #f48771);
+	--aura-info: var(--vscode-charts-blue, #3794ff);
+}
+
+/* Reduced motion: все длительности схлопываются в 1ms, функциональность сохраняется. */
+@media (prefers-reduced-motion: reduce) {
+	.aura {
+		--dur: 1ms;
+		--dur-1: 1ms;
+		--dur-2: 1ms;
+		--dur-3: 1ms;
+		--dur-4: 1ms;
+	}
+}

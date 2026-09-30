@@ -29,15 +29,13 @@ export async function archiveRoutes(app: FastifyInstance): Promise<void> {
 		`).all(request.params.teamId, new Date().toISOString()) as unknown[]);
 	});
 
-	// Удаление архива: файл с диска + строка из БД (dev+, только свои либо maintainer+).
+	// Удаление архива: только owner/maintainer — авторство файла права не даёт
+	// («удалять должен уметь только владелец / админ»).
 	app.delete<{ Params: { teamId: string; archiveId: string } }>('/v1/teams/:teamId/archives/:archiveId', async (request, reply) => {
 		const user = await userId(request);
-		try { requireRole(user, request.params.teamId, 'dev'); } catch (error) { mapAccessError(error); }
+		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
 		const row = database.prepare('SELECT id, path, created_by FROM archives WHERE id=? AND team_id=?').get(request.params.archiveId, request.params.teamId) as { id: string; path: string; created_by: string } | undefined;
 		if (!row) { return reply.notFound(); }
-		if (row.created_by !== user) {
-			try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
-		}
 		rmSync(row.path, { force: true });
 		database.prepare('DELETE FROM archives WHERE id=?').run(row.id);
 		audit(user, 'archive.delete', request.params.teamId, 'archive', row.id);
@@ -50,7 +48,10 @@ export async function archiveRoutes(app: FastifyInstance): Promise<void> {
 		try { requireRole(user, request.params.teamId, 'dev'); } catch (error) { mapAccessError(error); }
 		const part = await request.file({ limits: { fileSize: config.archiveMaxBytes, files: 1 } });
 		if (!part || !part.filename) { return reply.badRequest('A file with a name is required'); }
-		// Любой тип файла: имя сохраняем как есть (санитизация — только безопасные символы).
+		// Только архивы zip/rar: остальное принималось молча, а потом не открывалось
+		// («скачивание некорректно») — проверяем расширение до записи на диск.
+		if (!isArchiveName(part.filename)) { return reply.badRequest('Only .zip and .rar archives are accepted'); }
+		// Имя сохраняем как есть (санитизация — только безопасные символы).
 		const safeName = part.filename.replace(/[^\w.\- ()]/g, '_').slice(0, 120) || 'archive';
 		const archiveId = id();
 		// Загрузка в существующий проект (новая версия) — иначе создаём новый проект.
@@ -91,8 +92,29 @@ export async function archiveRoutes(app: FastifyInstance): Promise<void> {
 		if (!row) { return reply.notFound(); }
 		const storedName = row.path.split(/[\\/]/).pop() ?? 'archive';
 		const originalName = storedName.includes('__') ? storedName.slice(storedName.indexOf('__') + 2) : storedName;
-		return reply.header('content-disposition', `attachment; filename="${encodeURIComponent(originalName)}"`).type('application/octet-stream').send(createReadStream(row.path));
+		// RFC 5987: кириллица и пробелы в имени раньше ехали в filename как %D0%BF…,
+		// и браузер сохранял файл с процентными символами в имени.
+		return reply
+			.header('content-disposition', `attachment; filename="${asciiFallbackName(originalName)}"; filename*=UTF-8''${encodeURIComponent(originalName)}`)
+			.type(archiveContentType(originalName))
+			.send(createReadStream(row.path));
 	});
+}
+
+/** Принимаем только архивы: .zip и .rar (регистр не важен). */
+export function isArchiveName(name: string): boolean {
+	return /\.(zip|rar)$/i.test(String(name ?? '').trim());
+}
+
+/** ASCII-имя для старых клиентов: не-ASCII и «опасные» символы заменяем на «_». */
+export function asciiFallbackName(name: string): string {
+	const ascii = String(name ?? '').replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_').trim();
+	return ascii || 'archive';
+}
+
+/** Тип содержимого по расширению — клиент видит настоящий архив, а не octet-stream. */
+export function archiveContentType(name: string): string {
+	return /\.rar$/i.test(String(name ?? '')) ? 'application/vnd.rar' : 'application/zip';
 }
 
 export function cleanupArchives(): number {

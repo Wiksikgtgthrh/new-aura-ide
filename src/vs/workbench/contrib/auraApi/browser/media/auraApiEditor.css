@@ -1,42 +1,684 @@
-.aura-api-editor { display: flex; flex-direction: column; height: 100%; padding: 18px 22px 26px; box-sizing: border-box; gap: 14px; overflow-y: auto; background: radial-gradient(circle at 90% 0%, color-mix(in srgb, var(--vscode-button-background) 12%, transparent), transparent 35%), var(--vscode-editor-background); animation: auraApiFade .3s ease both; }
-@keyframes auraApiFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.aura-api-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px; border: 1px solid var(--vscode-widget-border, transparent); border-radius: 12px; background: color-mix(in srgb, var(--vscode-editorWidget-background) 65%, transparent); box-shadow: 0 10px 28px color-mix(in srgb, var(--vscode-widget-shadow, #000) 18%, transparent); }
-.aura-api-btn { padding: 7px 13px; border: 1px solid color-mix(in srgb, var(--vscode-button-background) 45%, transparent); border-radius: 8px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; font-size: 12px; font-weight: 600; transition: transform .16s ease, background .16s ease, box-shadow .16s ease; }
-.aura-api-btn:hover { background: var(--vscode-button-hoverBackground); transform: translateY(-1px); box-shadow: 0 5px 14px color-mix(in srgb, var(--vscode-button-background) 28%, transparent); }
-.aura-api-btn-small { padding: 2px 8px; margin-right: 4px; border: none; border-radius: 3px; background: var(--vscode-button-secondaryBackground, var(--vscode-input-background)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); cursor: pointer; font-size: 11px; }
-.aura-api-group-filter { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-.aura-api-select { background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border, transparent); border-radius: 3px; padding: 2px 6px; }
-.aura-api-table-wrap { flex: 1; overflow: auto; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: 12px; background: color-mix(in srgb, var(--vscode-editorWidget-background) 34%, transparent); }
-.aura-api-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.aura-api-table th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--vscode-panel-border); color: var(--vscode-descriptionForeground); position: sticky; top: 0; background: var(--vscode-editor-background); }
-.aura-api-table td { padding: 9px 10px; border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); vertical-align: top; transition: background .16s ease; }
-.aura-api-row { animation: auraApiRow .24s ease both; }
-.aura-api-row:hover td { background: color-mix(in srgb, var(--vscode-list-hoverBackground) 72%, transparent); }
-@keyframes auraApiRow { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-.aura-api-url { font-family: monospace; font-size: 11px; }
-.aura-api-key { font-family: var(--monaco-monospace-font); white-space: nowrap; color: var(--vscode-descriptionForeground); }
-.aura-api-ok { color: var(--vscode-charts-green, #4ec9b0); }
-.aura-api-err { color: var(--vscode-errorForeground, #f48771); }
-.aura-api-warn { color: var(--vscode-editorWarning-foreground, #cca700); }
-.aura-api-empty { text-align: center; color: var(--vscode-descriptionForeground); padding: 24px; }
-.aura-api-form { border: 1px solid var(--vscode-panel-border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; max-width: 680px; background: color-mix(in srgb, var(--vscode-editorWidget-background) 65%, transparent); box-shadow: 0 10px 28px color-mix(in srgb, var(--vscode-widget-shadow, #000) 18%, transparent); animation: auraApiForm .22s ease both; }
-@keyframes auraApiForm { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
-.aura-api-field { display: flex; flex-direction: column; gap: 4px; }
-.aura-api-input { padding: 4px 8px; border: 1px solid var(--vscode-input-border, transparent); border-radius: 4px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); }
-.aura-api-bulk { width: 100%; box-sizing: border-box; padding: 6px; border: 1px solid var(--vscode-input-border, transparent); border-radius: 4px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); font-family: monospace; }
-.aura-api-hint { font-size: 12px; color: var(--vscode-descriptionForeground); margin: 0; }
-.aura-api-form-buttons { display: flex; gap: 8px; }
-.aura-api-launcher { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
-.aura-api-chat-keys { display: flex; flex-direction: column; gap: 6px; padding: 8px; overflow: auto; }
-.aura-api-chat-key { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; padding: 7px 8px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: 4px; transition: border-color .15s ease, background .15s ease, transform .1s ease; }
-.aura-api-chat-key:hover { background: var(--vscode-list-hoverBackground); border-color: var(--vscode-focusBorder); }
-.aura-api-chat-key:active { transform: scale(.985); }
-.aura-api-chat-key.active { border-color: var(--vscode-focusBorder); background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
-.aura-api-chat-key.active::after { content: '✓'; justify-self: end; color: var(--vscode-focusBorder); font-weight: 600; }
-.aura-api-chat-empty { display: flex; flex-direction: column; gap: 8px; align-items: center; padding: 16px 8px; color: var(--vscode-descriptionForeground); }
-.aura-api-chat-empty-open { padding: 4px 14px; border-radius: 4px; border: 1px solid var(--vscode-focusBorder); background: transparent; color: var(--vscode-focusBorder); cursor: pointer; transition: background .15s ease, color .15s ease; }
-.aura-api-chat-empty-open:hover { background: var(--vscode-focusBorder); color: var(--vscode-editor-background); }
-.aura-api-chat-key-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.aura-api-chat-key code { color: var(--vscode-descriptionForeground); }
-.aura-api-chat-key small { grid-column: 1 / -1; color: var(--vscode-descriptionForeground); }
-.aura-api-chat-empty { padding: 12px; color: var(--vscode-descriptionForeground); }
+/* API Keys Editor — карточный layout, микро-анимации, нативные VS Code токены.
+   Все отступы/радиусы/длительности через auraTokens.css (класс .aura на корне). */
+
+@import './auraTokens.css';
+
+/* ---- Layout ---- */
+.aura-api-editor {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: var(--sp-5) var(--sp-5) var(--sp-4);
+	box-sizing: border-box;
+	gap: var(--sp-4);
+	overflow-y: auto;
+	background: var(--aura-surface-alt);
+}
+
+/* Контентная колонка: читаемая ширина, центрирование на широких окнах */
+.aura-api-editor > * {
+	width: 100%;
+	max-width: 1080px;
+	margin-inline: auto;
+	box-sizing: border-box;
+}
+
+.aura-api-editor > .aura-api-table-wrap {
+	flex: 1;
+	min-height: 160px;
+}
+
+/* ---- Section header ---- */
+.aura-api-header {
+	display: flex;
+	align-items: center;
+	gap: var(--sp-2);
+	margin: 0;
+	font-size: 18px;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	color: var(--aura-fg);
+}
+
+.aura-api-header .count {
+	min-width: 20px;
+	height: 20px;
+	padding: 0 var(--sp-2);
+	box-sizing: border-box;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	color: var(--aura-fg);
+	background: color-mix(in srgb, var(--aura-focus) 18%, transparent);
+	transition: background var(--dur-2) var(--ease-out);
+}
+
+/* ---- Toolbar ---- */
+.aura-api-toolbar {
+	display: flex;
+	gap: var(--sp-2);
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+/* ---- Buttons ---- */
+.aura-api-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--sp-1);
+	padding: 0 var(--sp-3);
+	height: 30px;
+	border: 1px solid var(--aura-line);
+	border-radius: var(--r-ctl);
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 500;
+	white-space: nowrap;
+	transition:
+		background var(--dur-2) var(--ease-out),
+		border-color var(--dur-2) var(--ease-out),
+		color var(--dur-2) var(--ease-out),
+		transform var(--dur-1) var(--ease-out),
+		box-shadow var(--dur-2) var(--ease-out);
+}
+
+.aura-api-btn:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+	transform: translateY(-1px);
+	box-shadow: 0 2px 6px color-mix(in srgb, #000 20%, transparent);
+}
+
+.aura-api-btn:active {
+	transform: translateY(0) scale(0.97);
+	box-shadow: none;
+	transition-duration: var(--dur-1);
+}
+
+.aura-api-btn:focus-visible {
+	outline: 1px solid var(--aura-focus);
+	outline-offset: 2px;
+}
+
+.aura-api-btn.primary {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: transparent;
+	box-shadow: 0 1px 3px color-mix(in srgb, #000 30%, transparent);
+}
+
+.aura-api-btn.primary:hover {
+	background: var(--vscode-button-hoverBackground);
+	box-shadow: 0 3px 8px color-mix(in srgb, #000 35%, transparent);
+}
+
+.aura-api-btn.small {
+	height: 22px;
+	padding: 0 6px;
+	font-size: 11px;
+	font-weight: 400;
+	border: none;
+	background: transparent;
+	color: var(--aura-fg-muted);
+	box-shadow: none;
+}
+
+.aura-api-btn.small:hover {
+	background: var(--vscode-list-hoverBackground);
+	color: var(--aura-fg);
+	transform: none;
+	box-shadow: none;
+}
+
+.aura-api-btn.small:active {
+	transform: scale(0.96);
+}
+
+.aura-api-btn.small.danger:hover {
+	color: var(--aura-err);
+	background: color-mix(in srgb, var(--aura-err) 12%, transparent);
+}
+
+/* ---- Group filter ---- */
+.aura-api-group-filter {
+	display: flex;
+	align-items: center;
+	gap: var(--sp-2);
+	margin-left: auto;
+	font-size: 12px;
+	color: var(--aura-fg-muted);
+}
+
+.aura-api-select {
+	height: 26px;
+	padding: 0 var(--sp-2);
+	border: 1px solid var(--aura-line);
+	border-radius: var(--r-ctl);
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+	font-size: 12px;
+	cursor: pointer;
+	transition:
+		border-color var(--dur-2) var(--ease-out),
+		box-shadow var(--dur-2) var(--ease-out);
+}
+
+.aura-api-select:hover {
+	border-color: var(--aura-focus);
+}
+
+.aura-api-select:focus-visible {
+	outline: none;
+	border-color: var(--aura-focus);
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--aura-focus) 30%, transparent);
+}
+
+/* ---- Table card ---- */
+.aura-api-table-wrap {
+	overflow: auto;
+	border: 1px solid var(--aura-line);
+	border-radius: var(--r-box);
+	background: var(--aura-surface);
+	box-shadow: 0 2px 10px color-mix(in srgb, #000 18%, transparent);
+}
+
+.aura-api-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 12px;
+	table-layout: fixed;
+}
+
+.aura-api-table th {
+	text-align: left;
+	padding: var(--sp-2) var(--sp-3);
+	border-bottom: 1px solid var(--aura-line);
+	color: var(--aura-fg-muted);
+	font-weight: 600;
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	position: sticky;
+	top: 0;
+	background: var(--aura-surface);
+	z-index: 1;
+}
+
+.aura-api-table td {
+	padding: var(--sp-2) var(--sp-3);
+	border-bottom: 1px solid color-mix(in srgb, var(--aura-line) 55%, transparent);
+	vertical-align: middle;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	transition: background-color var(--dur-2) var(--ease-out);
+}
+
+.aura-api-table tr:last-child td {
+	border-bottom: none;
+}
+
+/* Column widths: имя резиновое, действия — фикс, чтобы 4 кнопки всегда влезали */
+.aura-api-table .col-name { width: auto; }
+.aura-api-table .col-model { width: 15%; }
+.aura-api-table .col-status { width: 130px; }
+.aura-api-table .col-ping { width: 80px; text-align: right; font-variant-numeric: tabular-nums; }
+.aura-api-table .col-group { width: 12%; }
+.aura-api-table .col-actions { width: 264px; }
+
+.aura-api-table th.col-ping,
+.aura-api-table th.col-actions {
+	text-align: left;
+}
+
+/* Row hover / selection */
+.aura-api-row:hover td {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.aura-api-row.selected td {
+	background: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.aura-api-row.selected td:first-child {
+	box-shadow: inset 3px 0 0 var(--aura-focus);
+}
+
+/* Monospace cells */
+.aura-api-table td.mono {
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	color: var(--aura-fg-muted);
+}
+
+/* Empty state */
+.aura-api-empty {
+	text-align: center;
+	color: var(--aura-fg-muted);
+	padding: var(--sp-6) var(--sp-4) !important;
+	font-size: 13px;
+	line-height: 1.6;
+}
+
+/* ---- Status badge ---- */
+.aura-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sp-1);
+	height: 20px;
+	padding: 0 var(--sp-2);
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 500;
+	line-height: 1;
+	background: color-mix(in srgb, currentColor 12%, transparent);
+	white-space: nowrap;
+	transition: background var(--dur-2) var(--ease-out);
+}
+
+.aura-badge::before {
+	content: '';
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: currentColor;
+	flex-shrink: 0;
+}
+
+.aura-badge.ok    { color: var(--aura-ok); }
+.aura-badge.warn  { color: var(--aura-warn); }
+.aura-badge.error { color: var(--aura-err); }
+.aura-badge.info  { color: var(--aura-info); }
+.aura-badge.neutral { color: var(--aura-fg-muted); }
+
+/* Пульс точки во время проверки */
+.aura-badge.info::before {
+	animation: auraApiPulse 1.2s var(--ease-out) infinite;
+}
+
+@keyframes auraApiPulse {
+	0%, 100% { opacity: 1; transform: scale(1); }
+	50% { opacity: 0.35; transform: scale(0.7); }
+}
+
+/* ---- Form (add / bulk import / edit) ---- */
+.aura-api-form {
+	border: 1px solid var(--aura-line);
+	border-radius: var(--r-box);
+	padding: var(--sp-4);
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-3);
+	max-width: 1080px;
+	background: var(--aura-surface);
+	box-shadow: 0 4px 16px color-mix(in srgb, #000 22%, transparent);
+	animation: auraApiFormIn var(--dur-3) var(--ease-out);
+}
+
+@keyframes auraApiFormIn {
+	from { opacity: 0; transform: translateY(-8px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+.aura-api-form h3 {
+	margin: 0;
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.aura-api-field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-1);
+}
+
+.aura-api-field label {
+	font-size: 12px;
+	color: var(--aura-fg-muted);
+}
+
+.aura-api-input {
+	height: 30px;
+	padding: 0 var(--sp-2);
+	border: 1px solid var(--aura-line);
+	border-radius: var(--r-ctl);
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-size: 12px;
+	transition:
+		border-color var(--dur-2) var(--ease-out),
+		box-shadow var(--dur-2) var(--ease-out);
+}
+
+.aura-api-input:hover {
+	border-color: color-mix(in srgb, var(--aura-focus) 60%, var(--aura-line));
+}
+
+.aura-api-input:focus {
+	border-color: var(--aura-focus);
+	outline: none;
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--aura-focus) 30%, transparent);
+}
+
+.aura-api-bulk {
+	width: 100%;
+	box-sizing: border-box;
+	padding: var(--sp-2);
+	border: 1px solid var(--aura-line);
+	border-radius: var(--r-ctl);
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	line-height: 1.5;
+	resize: vertical;
+	transition:
+		border-color var(--dur-2) var(--ease-out),
+		box-shadow var(--dur-2) var(--ease-out);
+}
+
+.aura-api-bulk:focus {
+	border-color: var(--aura-focus);
+	outline: none;
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--aura-focus) 30%, transparent);
+}
+
+.aura-api-hint {
+	font-size: 12px;
+	color: var(--aura-fg-muted);
+	margin: 0;
+	line-height: 1.5;
+}
+
+.aura-api-form-buttons {
+	display: flex;
+	gap: var(--sp-2);
+	margin-top: var(--sp-1);
+}
+
+/* ---- Actions cell ---- */
+.aura-api-actions {
+	display: flex;
+	gap: 2px;
+	white-space: nowrap;
+}
+
+/* Кнопки действий не должны обрезаться, даже если колонка чуть уже */
+.aura-api-table td.aura-api-actions {
+	overflow: visible;
+	text-overflow: clip;
+}
+
+/* Действия проявляются при наведении на строку — меньше визуального шума */
+.aura-api-actions .aura-api-btn.small {
+	opacity: 0.55;
+	transition:
+		opacity var(--dur-2) var(--ease-out),
+		background var(--dur-2) var(--ease-out),
+		color var(--dur-2) var(--ease-out),
+		transform var(--dur-1) var(--ease-out);
+}
+
+.aura-api-row:hover .aura-api-actions .aura-api-btn.small,
+.aura-api-row.selected .aura-api-actions .aura-api-btn.small,
+.aura-api-actions .aura-api-btn.small:focus-visible {
+	opacity: 1;
+}
+
+/* ---- Detail row (expandable) ---- */
+.aura-api-detail td {
+	padding: var(--sp-3) var(--sp-3) var(--sp-4);
+	white-space: normal;
+	background: color-mix(in srgb, var(--aura-surface) 70%, var(--aura-surface-alt));
+	border-bottom: 1px solid var(--aura-line);
+}
+
+.aura-api-detail td.animate-in > * {
+	animation: auraApiDetailIn var(--dur-3) var(--ease-out);
+}
+
+@keyframes auraApiDetailIn {
+	from { opacity: 0; transform: translateY(-6px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+.aura-api-detail-grid,
+.aura-api-settings-meta {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--sp-2) var(--sp-4);
+	font-size: 12px;
+}
+
+/* Каждое поле — неделимая пара «метка: значение» */
+.aura-api-detail-grid .field,
+.aura-api-settings-meta .field {
+	display: flex;
+	gap: 6px;
+	min-width: 0;
+}
+
+.aura-api-detail-grid .label,
+.aura-api-settings-meta .label {
+	color: var(--aura-fg-muted);
+	flex: none;
+}
+
+.aura-api-detail-grid .value,
+.aura-api-settings-meta .value {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+/* ---- Шестерёнка настроек: иконка-кнопка у правого края строки ---- */
+.aura-api-actions .aura-api-btn.small.gear {
+	margin-left: auto;
+	width: 22px;
+	padding: 0;
+	border-radius: var(--r-ctl);
+	font-size: 13px;
+	color: var(--aura-fg-muted);
+}
+
+.aura-api-actions .aura-api-btn.small.gear:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--aura-focus);
+}
+
+.aura-api-btn.gear .codicon {
+	transition: transform var(--dur-4) var(--ease-out);
+}
+
+.aura-api-btn.gear:hover .codicon {
+	transform: rotate(120deg);
+}
+
+/* ---- Панель настроек ключа (по шестерёнке) ---- */
+.aura-api-settings {
+	max-width: 720px;
+}
+
+.aura-api-settings-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--sp-3);
+}
+
+.aura-api-settings-head h3 {
+	margin: 0;
+	font-size: 14px;
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.aura-api-settings-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: var(--sp-3) var(--sp-4);
+}
+
+.aura-api-settings-grid .span-2 {
+	grid-column: 1 / -1;
+}
+
+.aura-api-secret-row {
+	display: flex;
+	gap: var(--sp-1);
+}
+
+.aura-api-secret-row .aura-api-input {
+	flex: 1;
+	font-family: var(--monaco-monospace-font);
+}
+
+.aura-api-secret-row .aura-api-btn {
+	flex: none;
+	height: 30px;
+}
+
+.aura-api-check {
+	display: flex;
+	align-items: center;
+	gap: var(--sp-2);
+	font-size: 12px;
+	color: var(--aura-fg);
+	cursor: pointer;
+}
+
+.aura-api-check input {
+	width: 14px;
+	height: 14px;
+	margin: 0;
+	accent-color: var(--vscode-button-background);
+	cursor: pointer;
+}
+
+.aura-api-settings-meta {
+	padding-top: var(--sp-3);
+	border-top: 1px solid var(--aura-line);
+}
+
+/* ---- Launcher sidebar keys ---- */
+.aura-api-launcher {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-2);
+	padding: var(--sp-3);
+}
+
+.aura-api-chat-keys {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-1);
+	padding: var(--sp-2);
+	overflow: auto;
+}
+
+.aura-api-chat-key {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 2px var(--sp-2);
+	padding: var(--sp-2);
+	border: 1px solid var(--aura-line);
+	border-radius: var(--r-ctl);
+	cursor: pointer;
+	transition:
+		border-color var(--dur-2) var(--ease-out),
+		background var(--dur-2) var(--ease-out),
+		transform var(--dur-1) var(--ease-out);
+}
+
+.aura-api-chat-key:hover {
+	background: var(--vscode-list-hoverBackground);
+	border-color: var(--aura-focus);
+	transform: translateX(2px);
+}
+
+.aura-api-chat-key:active {
+	transform: translateX(0) scale(0.99);
+}
+
+.aura-api-chat-key.active {
+	border-color: var(--aura-focus);
+	background: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+	box-shadow: inset 2px 0 0 var(--aura-focus);
+}
+
+.aura-api-chat-key.active::after {
+	content: '✓';
+	justify-self: end;
+	color: var(--aura-focus);
+	font-weight: 600;
+}
+
+.aura-api-chat-key-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.aura-api-chat-key code {
+	color: var(--aura-fg-muted);
+}
+
+.aura-api-chat-key small {
+	grid-column: 1 / -1;
+	color: var(--aura-fg-muted);
+}
+
+.aura-api-chat-empty {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-2);
+	align-items: center;
+	padding: var(--sp-4) var(--sp-2);
+	color: var(--aura-fg-muted);
+}
+
+.aura-api-chat-empty-open {
+	padding: var(--sp-1) var(--sp-3);
+	border-radius: var(--r-ctl);
+	border: 1px solid var(--aura-focus);
+	background: transparent;
+	color: var(--aura-focus);
+	cursor: pointer;
+	font-size: 12px;
+	transition:
+		background var(--dur-2) var(--ease-out),
+		color var(--dur-2) var(--ease-out),
+		transform var(--dur-1) var(--ease-out);
+}
+
+.aura-api-chat-empty-open:hover {
+	background: var(--aura-focus);
+	color: var(--aura-surface-alt);
+}
+
+.aura-api-chat-empty-open:active {
+	transform: scale(0.97);
+}
+
+/* ---- Reduced motion: только мгновенные состояния, без keyframes ---- */
+@media (prefers-reduced-motion: reduce) {
+	.aura-api-form,
+	.aura-api-detail td.animate-in > * {
+		animation: none;
+	}
+
+	.aura-badge.info::before {
+		animation: none;
+	}
+}

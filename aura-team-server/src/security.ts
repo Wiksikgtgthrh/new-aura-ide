@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import { config } from './config.js';
 
@@ -11,6 +11,13 @@ const jwtKey = new TextEncoder().encode(config.jwtSecret);
 export const id = (): string => randomUUID();
 export const token = (bytes = 32): string => randomBytes(bytes).toString('base64url');
 export const digest = (value: string): string => createHash('sha256').update(value).digest('hex');
+
+/**
+ * Хэш коротких секретов (коды администратора, коды инвайтов): не простой sha256,
+ * а HMAC с серверным ключом — украденная база без AURA_JWT_SECRET бесполезна,
+ * перебрать короткий код по словарю не получится.
+ */
+export const secretDigest = (value: string): string => createHmac('sha256', config.jwtSecret).update(value).digest('hex');
 
 export async function accessToken(userId: string): Promise<string> {
 	return new SignJWT({ sub: userId, type: 'access' }).setProtectedHeader({ alg: 'HS256' }).setIssuedAt().setExpirationTime('15m').sign(jwtKey);

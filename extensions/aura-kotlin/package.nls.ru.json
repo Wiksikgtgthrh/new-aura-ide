@@ -9,6 +9,7 @@
 	"command.compileFile": "Скомпилировать файл Kotlin",
 	"command.androidDoctor": "Проверить Android SDK",
 	"command.newProject": "Новый проект Kotlin/Android",
+	"command.newFile": "Новый файл Kotlin/Android",
 	"command.restartLsp": "Перезапустить Language Server",
 	"command.installLsp": "Установить Kotlin Language Server",
 	"command.debugFile": "Отладить файл Kotlin",
@@ -25,8 +26,16 @@
 	"command.android.logcatFilter": "Фильтровать logcat по приложению",
 	"command.android.logcatStop": "Остановить поток logcat",
 	"command.android.startEmulator": "Запустить эмулятор…",
+	"command.android.startAvd": "Запустить этот эмулятор",
 	"command.android.stopEmulator": "Остановить эмулятор",
 	"command.android.createAvd": "Создать AVD…",
+	"command.android.deviceScreen": "Экран устройства",
 	"command.android.runAndDebug": "Запустить Android-приложение (F5)",
-	"command.refreshAndroidView": "Обновить панель Android"
+	"command.refreshAndroidView": "Обновить панель Android",
+	"command.javaRestartLsp": "Перезапустить Java Language Server",
+	"command.javaOrganizeImports": "Упорядочить импорты (Java)",
+	"command.javaInstallLsp": "Установить Java Language Server",
+	"configuration.javaLspPath": "Путь к своей установке Eclipse JDT Language Server (jdtls). Пусто — использовать комплектный или скачанный сервер.",
+	"command.javaDownloadSources": "Скачать исходники для android.jar и библиотек",
+	"configuration.javaDownloadSources": "Скачивать и подключать исходники платформы Android и библиотек, чтобы работали переход к определению и подсказки внутри android.jar и androidx."
 }

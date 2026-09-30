@@ -6,14 +6,11 @@
  *-------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { tr } from './l10n';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { findGradleCommand } from './gradle';
-
-const execFileAsync = promisify(execFile);
+import { findGradleCommand, execTool } from './gradle';
 
 const BUILD_FILES = ['build.gradle', 'build.gradle.kts', 'pom.xml'];
 const SETTINGS_FILES = ['settings.gradle', 'settings.gradle.kts'];
@@ -106,15 +103,15 @@ export class ClasspathSync implements vscode.Disposable {
 		context.subscriptions.push(this.watcher);
 
 		context.subscriptions.push(vscode.commands.registerCommand('auraKotlin.showClasspath', () => this.show()));
-		context.subscriptions.push(vscode.commands.registerCommand('auraKotlin.syncDependencies', () => { this.invalidateCache(); return this.sync(vscode.l10n.t('manual sync')); }));
+		context.subscriptions.push(vscode.commands.registerCommand('auraKotlin.syncDependencies', () => { this.invalidateCache(); return this.sync(tr('manual sync')); }));
 
-		void this.sync(vscode.l10n.t('startup'));
+		void this.sync(tr('startup'));
 	}
 
 	/** Дебаунс пересборки при изменении build-файлов. */
 	private scheduleSync(): void {
 		if (this.debounce) { clearTimeout(this.debounce); }
-		this.debounce = setTimeout(() => void this.sync(vscode.l10n.t('build file changed')), 1000);
+		this.debounce = setTimeout(() => void this.sync(tr('build file changed')), 1000);
 	}
 
 	/** Асинхронно пересобрать classpath (дедупликация одновременных запусков). */
@@ -142,7 +139,7 @@ export class ClasspathSync implements vscode.Disposable {
 			let result: ClasspathResult;
 			try {
 				result = await this.classpathViaGradle(root, modules);
-				if (result.jars.length === 0) { throw new Error(vscode.l10n.t('Gradle returned no jars')); }
+				if (result.jars.length === 0) { throw new Error(tr('Gradle returned no jars')); }
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				this.output.appendLine(`[classpath] Gradle unavailable/failed → parser fallback: ${message}`);
@@ -207,7 +204,7 @@ export class ClasspathSync implements vscode.Disposable {
 
 	private async classpathViaGradle(root: string, modules: Array<{ dir: string; buildFile: string; gradle: boolean }>): Promise<ClasspathResult> {
 		const gradle = await findGradleCommand(root);
-		if (!gradle) { throw new Error(vscode.l10n.t('gradlew or gradle not found')); }
+		if (!gradle) { throw new Error(tr('gradlew or gradle not found')); }
 		const initScript = writeInitScript();
 		this.output.appendLine(`[classpath] running ${gradle.command} ${gradle.args.join(' ')} -I ${initScript} auraClasspath …`);
 
@@ -216,7 +213,9 @@ export class ClasspathSync implements vscode.Disposable {
 		statusbar.show();
 
 		try {
-			const { stdout } = await execFileAsync(gradle.command, [...gradle.args, '-q', '-I', initScript, 'auraClasspath'], {
+			// execTool: на Windows gradlew.bat нельзя запустить через execFile напрямую
+			// (spawn EINVAL) — из-за этого classpath из Gradle на Windows не работал вовсе.
+			const { stdout } = await execTool(gradle.command, [...gradle.args, '-q', '-I', initScript, 'auraClasspath'], {
 				cwd: root,
 				timeout: 5 * 60_000,
 				maxBuffer: 64 * 1024 * 1024,
@@ -274,20 +273,20 @@ export class ClasspathSync implements vscode.Disposable {
 		if (!this.current.source) { this.statusbar.hide(); return; }
 		const missing = this.current.unresolved.length;
 		this.statusbar.text = missing ? `$(library) ${this.current.jars.length} jars ⚠ ${missing}` : `$(library) ${this.current.jars.length} jars`;
-		this.statusbar.tooltip = new vscode.MarkdownString(`${this.current.source}: ${this.current.jars.length} ${vscode.l10n.t('dependencies resolved')}${missing ? `, ${missing} ${vscode.l10n.t('not in local caches')}` : ''}`);
+		this.statusbar.tooltip = new vscode.MarkdownString(`${this.current.source}: ${this.current.jars.length} ${tr('dependencies resolved')}${missing ? `, ${missing} ${tr('not in local caches')}` : ''}`);
 		this.statusbar.show();
 	}
 
 	private show(): void {
 		if (!this.current.source) {
-			void vscode.window.showInformationMessage(vscode.l10n.t('No Gradle or Maven build file in the workspace root.'), { modal: true });
+			void vscode.window.showInformationMessage(tr('No Gradle or Maven build file in the workspace root.'), { modal: true });
 			return;
 		}
 		const list = this.current.jars.length
 			? this.current.jars.map(jar => `• ${path.basename(jar)}`).join('\n')
-			: vscode.l10n.t('No jars resolved yet.');
+			: tr('No jars resolved yet.');
 		const missing = this.current.unresolved.length
-			? '\n\n' + vscode.l10n.t('Not found in local caches:') + '\n' + this.current.unresolved.map(dep => `• ${dep.group}:${dep.artifact}:${dep.version}`).join('\n')
+			? '\n\n' + tr('Not found in local caches:') + '\n' + this.current.unresolved.map(dep => `• ${dep.group}:${dep.artifact}:${dep.version}`).join('\n')
 			: '';
 		void vscode.window.showInformationMessage(`${this.current.source}\n\n${list}${missing}`, { modal: true });
 	}
@@ -319,7 +318,7 @@ export function discoverModules(root: string): Array<{ dir: string; buildFile: s
 	if (settings) {
 		const includes = parseSettingsIncludes(readText(settings) ?? '');
 		if (includes.length) {
-			const allowed = new Set([root, ...includes.map(rel => path.resolve(root, rel.replace(/:/g, '/')))]);
+			const allowed = new Set([path.resolve(root), ...includes.map(rel => path.resolve(root, rel.replace(/^:/, '').replace(/:/g, '/')))]);
 			return found.filter(module => allowed.has(path.resolve(module.dir)));
 		}
 	}
@@ -514,7 +513,7 @@ export function writeInitScript(): string {
 allprojects {
     tasks.register('auraClasspath') {
         doLast {
-            def names = ['runtimeClasspath', 'compileClasspath', 'runtime', 'compile', 'implementation']
+            def names = ['debugRuntimeClasspath', 'runtimeClasspath', 'debugCompileClasspath', 'compileClasspath', 'runtime', 'compile', 'implementation']
             def cfg = null
             for (n in names) {
                 def c = configurations.findByName(n)
@@ -572,7 +571,7 @@ export function parseGradleClasspathOutput(stdout: string, modules: Array<{ dir:
 			}
 			continue;
 		}
-		if (currentDir && /\.jar$/i.test(line) && fs.existsSync(line)) {
+		if (currentDir && /\.(jar|aar)$/i.test(line) && fs.existsSync(line)) {
 			jarsByDir.get(currentDir)!.push(line);
 		}
 	}

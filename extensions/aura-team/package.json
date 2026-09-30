@@ -20,12 +20,16 @@
 		"onCommand:auraTeam.push",
 		"onCommand:auraTeam.pull",
 		"onCommand:auraTeam.checkout",
-		"onView:auraTeam.home"
+		"onView:auraTeam.home",
+		"onCommand:auraTeam.invite.open",
+		"onCommand:auraTeam.hasEntitlement",
+		"onCommand:auraTeam.agggAgent"
 	],
 	"main": "./out/extension",
 	"scripts": {
 		"compile": "gulp compile-extension:aura-team",
-		"watch": "gulp watch-extension:aura-team"
+		"watch": "gulp watch-extension:aura-team",
+		"test": "node test/run-all.mjs"
 	},
 	"contributes": {
 		"configuration": {
@@ -80,9 +84,9 @@
 				},
 				"auraTeam.uiLanguage": {
 					"type": "string",
-					"enum": ["ru", "en", "auto"],
-					"enumDescriptions": ["Русский", "English", "Язык интерфейса IDE"],
-					"default": "ru",
+					"enum": ["auto", "ru", "en"],
+					"enumDescriptions": ["Aura language switch (aura.language), otherwise the IDE language", "Русский", "English"],
+					"default": "auto",
 					"description": "%configuration.uiLanguage%"
 				}
 			}
@@ -98,7 +102,7 @@
 		},
 		"views": {
 			"auraTeam": [
-				{ "id": "auraTeam.home", "name": "%view.home%", "type": "webview" }
+				{ "id": "auraTeam.home", "name": "%view.home%", "type": "webview", "when": "auraPlugin.aura-team.enabled == true" }
 			]
 		},
 		"customEditors": [
@@ -112,42 +116,43 @@
 			}
 		],
 		"commands": [
-			{ "command": "auraTeam.open", "title": "%command.open%", "category": "Team", "icon": "$(project)" },
-			{ "command": "auraTeam.openProfile", "title": "%command.openProfile%", "category": "Team", "icon": "$(account)" },
-			{ "command": "auraTeam.signIn", "title": "%command.signIn%", "category": "Team" },
-			{ "command": "auraTeam.signOut", "title": "%command.signOut%", "category": "Team" },
-			{ "command": "auraTeam.changePassword", "title": "%command.changePassword%", "category": "Team" },
-			{ "command": "auraTeam.selectTeam", "title": "%command.selectTeam%", "category": "Team" },
-			{ "command": "auraTeam.connectGitHub", "title": "%command.connectGitHub%", "category": "Team" },
-			{ "command": "auraTeam.connectAuraApi", "title": "%command.connectAuraApi%", "category": "Team" },
-			{ "command": "auraTeam.refresh", "title": "%command.refresh%", "category": "Team" },
-			{ "command": "auraTeam.createTeam", "title": "%command.createTeam%", "category": "Team" },
-			{ "command": "auraTeam.joinTeam", "title": "%command.joinTeam%", "category": "Team" },
-			{ "command": "auraTeam.createInvite", "title": "%command.createInvite%", "category": "Team" },
-			{ "command": "auraTeam.changeRole", "title": "%command.changeRole%", "category": "Team" },
-			{ "command": "auraTeam.createProject", "title": "%command.createProject%", "category": "Team" },
-			{ "command": "auraTeam.createTask", "title": "%command.createTask%", "category": "Team" },
-			{ "command": "auraTeam.storeApiKey", "title": "%command.storeApiKey%", "category": "Team" },
-			{ "command": "auraTeam.disableApiKey", "title": "%command.disableApiKey%", "category": "Team" },
-			{ "command": "auraTeam.uploadArchive", "title": "%command.uploadArchive%", "category": "Team" },
-			{ "command": "auraTeam.downloadArchive", "title": "%command.downloadArchive%", "category": "Team" },
-			{ "command": "auraTeam.openBoard", "title": "%command.openBoard%", "category": "Team", "icon": "$(project)" },
-			{ "command": "auraTeam.toggleSimpleMode", "title": "%command.toggleSimpleMode%", "category": "Team", "icon": "$(settings-gear)" },
-			{ "command": "auraTeam.getProject", "title": "%command.getProject%", "category": "Team", "icon": "$(repo-clone)" },
-			{ "command": "auraTeam.saveWork", "title": "%command.saveWork%", "category": "Team", "icon": "$(cloud-upload)" },
-			{ "command": "auraTeam.updateProject", "title": "%command.updateProject%", "category": "Team", "icon": "$(sync)" },
-			{ "command": "auraTeam.undoChanges", "title": "%command.undoChanges%", "category": "Team" },
-			{ "command": "auraTeam.revertLastCommit", "title": "%command.revertLastCommit%", "category": "Team" },
-			{ "command": "auraTeam.restoreFile", "title": "%command.restoreFile%", "category": "Team" },
-			{ "command": "auraTeam.relink", "title": "%command.relink%", "category": "Team" },
-			{ "command": "auraTeam.history", "title": "%command.history%", "category": "Team" },
-			{ "command": "auraTeam.commitAll", "title": "%command.commitAll%", "category": "Team", "icon": "$(check)" },
-			{ "command": "auraTeam.push", "title": "%command.push%", "category": "Team", "icon": "$(cloud-upload)" },
-			{ "command": "auraTeam.pull", "title": "%command.pull%", "category": "Team", "icon": "$(cloud-download)" },
-			{ "command": "auraTeam.checkout", "title": "%command.checkout%", "category": "Team", "icon": "$(git-branch)" },
-			{ "command": "auraTeam.getState", "title": "%command.getState%", "category": "Team" },
-			{ "command": "auraTeam.syncNow", "title": "Sync Now", "category": "Team", "icon": "$(sync)" },
-			{ "command": "auraTeam.toggleAutoPush", "title": "Toggle Auto-Push", "category": "Team" }
+			{ "command": "auraTeam.open", "title": "%command.open%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(project)" },
+			{ "command": "auraTeam.openProfile", "title": "%command.openProfile%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(account)" },
+			{ "command": "auraTeam.signIn", "title": "%command.signIn%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.signOut", "title": "%command.signOut%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.changePassword", "title": "%command.changePassword%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.selectTeam", "title": "%command.selectTeam%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.connectGitHub", "title": "%command.connectGitHub%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.connectAuraApi", "title": "%command.connectAuraApi%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.refresh", "title": "%command.refresh%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.createTeam", "title": "%command.createTeam%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.joinTeam", "title": "%command.joinTeam%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.createInvite", "title": "%command.createInvite%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.changeRole", "title": "%command.changeRole%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.createProject", "title": "%command.createProject%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.createTask", "title": "%command.createTask%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.storeApiKey", "title": "%command.storeApiKey%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.disableApiKey", "title": "%command.disableApiKey%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.uploadArchive", "title": "%command.uploadArchive%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.downloadArchive", "title": "%command.downloadArchive%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.openBoard", "title": "%command.openBoard%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(project)" },
+			{ "command": "auraTeam.toggleSimpleMode", "title": "%command.toggleSimpleMode%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(settings-gear)" },
+			{ "command": "auraTeam.getProject", "title": "%command.getProject%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(repo-clone)" },
+			{ "command": "auraTeam.saveWork", "title": "%command.saveWork%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(cloud-upload)" },
+			{ "command": "auraTeam.updateProject", "title": "%command.updateProject%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(sync)" },
+			{ "command": "auraTeam.undoChanges", "title": "%command.undoChanges%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.revertLastCommit", "title": "%command.revertLastCommit%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.restoreFile", "title": "%command.restoreFile%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.relink", "title": "%command.relink%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.history", "title": "%command.history%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.commitAll", "title": "%command.commitAll%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(check)" },
+			{ "command": "auraTeam.push", "title": "%command.push%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(cloud-upload)" },
+			{ "command": "auraTeam.pull", "title": "%command.pull%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(cloud-download)" },
+			{ "command": "auraTeam.checkout", "title": "%command.checkout%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(git-branch)" },
+			{ "command": "auraTeam.getState", "title": "%command.getState%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+			{ "command": "auraTeam.invite.open", "title": "Пригласить в команду", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(person-add)" },
+			{ "command": "auraTeam.syncNow", "title": "Sync Now", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(sync)" },
+			{ "command": "auraTeam.toggleAutoPush", "title": "Toggle Auto-Push", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" }
 		],
 		"menus": {
 			"commandPalette": [

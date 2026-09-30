@@ -6,16 +6,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { spawn, execFile, ChildProcess } from 'node:child_process';
-import { promisify } from 'node:util';
+import { tr } from './l10n';
+import { spawn, ChildProcess } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { JdwpConnection, EventKind, StepSize, StepDepth, Tag, JdwpFrame, JdwpLocation } from './jdwp';
 import { ClasspathSync } from './classpath';
 import { AndroidPanel } from './android';
-import { findGradleCommand } from './gradle';
-
-const execFileAsync = promisify(execFile);
+import { findGradleCommand, needsShell, execTool } from './gradle';
 
 const DEBUG_TYPE = 'kotlin';
 
@@ -52,7 +50,8 @@ async function compileToJar(programPath: string, classpath: string[]): Promise<s
 	if (classpath.length) { args.push('-classpath', classpath.join(process.platform === 'win32' ? ';' : ':')); }
 	args.push('-include-runtime', '-d', jar);
 	return new Promise((resolve, reject) => {
-		const proc = spawn(compiler, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+		// kotlinc на Windows — это kotlinc.bat: без shell spawn падает с EINVAL.
+		const proc = spawn(compiler, args, { stdio: ['ignore', 'ignore', 'pipe'], shell: needsShell(compiler) });
 		let stderr = '';
 		proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
 		proc.on('exit', code => code === 0 && fs.existsSync(jar) ? resolve(jar) : reject(new Error(stderr || `kotlinc exited with ${code}`)));
@@ -304,6 +303,10 @@ export class KotlinDebugAdapter implements vscode.DebugAdapter {
 		const pid = await this.waitForPid(panel, device, pkg, 15_000);
 		if (!pid) { throw new Error(`Process ${pkg} did not appear on ${device} (is android:debuggable set?)`); }
 
+		// Открытый logcat сразу перецепляем на это приложение: логи своего приложения видны
+		// без ручного выбора пакета в фильтре.
+		void panel.attachLogcatTo(device, pkg);
+
 		// 4. adb forward tcp:N → jdwp:PID и подключение.
 		this.port = args.port ?? 5071 + Math.floor(Math.random() * 400);
 		await panel.forwardJdwp(device, this.port, pid);
@@ -551,6 +554,38 @@ export class KotlinDebugAdapter implements vscode.DebugAdapter {
 	}
 }
 
+/**
+ * Android-проект: AGP в build-файле или AndroidManifest.xml в модуле. Обход до трёх
+ * уровней вглубь — модули бывают не только `app` (`:feature:login`, `:core`).
+ */
+function isAndroidProject(root?: string): boolean {
+	if (!root) { return false; }
+	let level = [root];
+	for (let depth = 0; depth < 3 && level.length; depth++) {
+		const next: string[] = [];
+		for (const dir of level) {
+			for (const build of ['build.gradle', 'build.gradle.kts']) {
+				try {
+					const file = path.join(dir, build);
+					if (fs.existsSync(file) && /com\.android\.(application|library)/.test(fs.readFileSync(file, 'utf8'))) { return true; }
+				} catch { /* файл недоступен — пропускаем */ }
+			}
+			if (fs.existsSync(path.join(dir, 'src', 'main', 'AndroidManifest.xml'))) { return true; }
+			let entries: fs.Dirent[] = [];
+			try {
+				entries = fs.readdirSync(dir, { withFileTypes: true });
+			} catch { /* нет доступа */ }
+			for (const entry of entries) {
+				if (entry.isDirectory() && !entry.name.startsWith('.') && !['build', 'gradle', 'node_modules', 'src', 'out', 'bin'].includes(entry.name)) {
+					next.push(path.join(dir, entry.name));
+				}
+			}
+		}
+		level = next;
+	}
+	return false;
+}
+
 /** Регистрация отладчика: factory возвращает inline-адаптер. */
 export function registerKotlinDebugger(context: vscode.ExtensionContext, classpathSync: ClasspathSync, androidPanel?: AndroidPanel): void {
 	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory(DEBUG_TYPE, {
@@ -559,9 +594,18 @@ export function registerKotlinDebugger(context: vscode.ExtensionContext, classpa
 
 	// Run Android App по F5: собирает assembleDebug, ставит на устройство, запускает и цепляет отладчик.
 	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider(DEBUG_TYPE, {
+		// Готовая конфигурация для launch.json: без неё F5 упирался в пустой выбор окружения.
+		provideDebugConfigurations(folder?: vscode.WorkspaceFolder): vscode.DebugConfiguration[] {
+			if (!isAndroidProject(folder?.uri.fsPath)) { return []; }
+			return [{ type: DEBUG_TYPE, request: 'launch', name: 'Run Android App' }];
+		},
 		async resolveDebugConfiguration(folder: vscode.WorkspaceFolder | undefined, config: vscode.DebugConfiguration): Promise<vscode.DebugConfiguration | undefined> {
-			const isAndroid = !!config.apk || !!config.applicationId || (folder && fs.existsSync(path.join(folder.uri.fsPath, 'gradlew')));
+			// Android определяем по манифесту/AGP, а не по наличию gradlew: раньше F5
+			// на обычном Kotlin/JVM-проекте с wrapper'ом пытался собрать APK.
+			const isAndroid = !!config.apk || !!config.applicationId || isAndroidProject(folder?.uri.fsPath);
 			if (!isAndroid) { return config; }
+			// Запуск одиночного файла/класса не должен превращаться в сборку APK.
+			if (config.program || config.mainClass) { return config; }
 			let apk = config.apk;
 			if (!apk) {
 				apk = await buildDebugApk();
@@ -578,7 +622,7 @@ export function registerKotlinDebugger(context: vscode.ExtensionContext, classpa
 	context.subscriptions.push(vscode.commands.registerCommand('auraKotlin.debugFile', async () => {
 		const editor = vscode.window.activeTextEditor;
 		if (!editor || editor.document.languageId !== 'kotlin') {
-			void vscode.window.showWarningMessage(vscode.l10n.t('Open a Kotlin file first.'));
+			void vscode.window.showWarningMessage(tr('Open a Kotlin file first.'));
 			return;
 		}
 		await vscode.debug.startDebugging(undefined, {
@@ -607,23 +651,23 @@ async function buildDebugApk(): Promise<string | undefined> {
 	if (!root) { return undefined; }
 	const gradle = await findGradleCommand(root);
 	if (!gradle) {
-		void vscode.window.showErrorMessage(vscode.l10n.t('gradlew not found in the project and system gradle is not installed.'));
+		void vscode.window.showErrorMessage(tr('gradlew not found in the project and system gradle is not installed.'));
 		return undefined;
 	}
-	return vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Building APK (gradle assembleDebug)…'), cancellable: false }, async () => {
+	return vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: tr('Building APK (gradle assembleDebug)…'), cancellable: false }, async () => {
 		try {
-			await execFileAsync(gradle.command, [...gradle.args, 'assembleDebug'], { cwd: root, timeout: 10 * 60_000, maxBuffer: 64 * 1024 * 1024 });
+			await execTool(gradle.command, [...gradle.args, 'assembleDebug'], { cwd: root, timeout: 10 * 60_000, maxBuffer: 64 * 1024 * 1024 });
 			const candidates = [
 				path.join(root, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'),
 				path.join(root, 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'),
 			];
 			const apk = candidates.find(file => fs.existsSync(file));
 			if (!apk) {
-				void vscode.window.showErrorMessage(vscode.l10n.t('Build succeeded, but no APK found in build/outputs/apk/debug.'));
+				void vscode.window.showErrorMessage(tr('Build succeeded, but no APK found in build/outputs/apk/debug.'));
 			}
 			return apk;
 		} catch (error) {
-			void vscode.window.showErrorMessage(vscode.l10n.t('Gradle build failed: {0}', error instanceof Error ? error.message.split(/\r?\n/)[0] : String(error)));
+			void vscode.window.showErrorMessage(tr('Gradle build failed: {0}', error instanceof Error ? error.message.split(/\r?\n/)[0] : String(error)));
 			return undefined;
 		}
 	});

@@ -19,6 +19,7 @@ import ansiColors from 'ansi-colors';
 import * as jsoncParser from 'jsonc-parser';
 import { getProductionDependencies } from './dependencies.ts';
 import { type IExtensionDefinition, getExtensionStream } from './builtInExtensions.ts';
+import { pipeStreams } from './resilientSync.ts';
 import { fetchUrls, fetchGithub } from './fetch.ts';
 import { createTsgoStream, spawnTsgo } from './tsgo.ts';
 import watcher from './watch/index.ts';
@@ -236,20 +237,21 @@ export function fromMarketplace(serviceUrl: string, { name: extensionName, versi
 
 	const packageJsonFilter = filter('package.json', { restore: true });
 
-	return fetchUrls('', {
+	return pipeStreams(fetchUrls('', {
 		base: url,
 		nodeFetchOptions: {
 			headers: baseHeaders
 		},
 		checksumSha256: sha256
-	})
+	}))
 		.pipe(vinylZip.src())
 		.pipe(filter('extension/**'))
 		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
 		.pipe(packageJsonFilter)
 		.pipe(buffer())
 		.pipe(jsonEditor({ __metadata: metadata }))
-		.pipe(packageJsonFilter.restore);
+		.pipe(packageJsonFilter.restore)
+		.done();
 }
 
 export function fromVsix(vsixPath: string, { name: extensionName, version, sha256, metadata }: IExtensionDefinition): Stream {
@@ -257,7 +259,7 @@ export function fromVsix(vsixPath: string, { name: extensionName, version, sha25
 
 	const packageJsonFilter = filter('package.json', { restore: true });
 
-	return gulp.src(vsixPath)
+	return pipeStreams(gulp.src(vsixPath))
 		.pipe(buffer())
 		.pipe(es.mapSync((f: File) => {
 			const hash = crypto.createHash('sha256');
@@ -274,7 +276,8 @@ export function fromVsix(vsixPath: string, { name: extensionName, version, sha25
 		.pipe(packageJsonFilter)
 		.pipe(buffer())
 		.pipe(jsonEditor({ __metadata: metadata }))
-		.pipe(packageJsonFilter.restore);
+		.pipe(packageJsonFilter.restore)
+		.done();
 }
 
 
@@ -288,14 +291,14 @@ export function fromGithub({ name, version, repo, sha256, metadata }: IExtension
 
 	const packageJsonFilter = filter('package.json', { restore: true });
 
-	return fetchGithub(new URL(repo).pathname, {
+	return pipeStreams(fetchGithub(new URL(repo).pathname, {
 		version,
 		name: asset ? asset.assetName : name => name.endsWith('.vsix'),
 		// The checksum is tied to a specific version; when resolving the latest release the
 		// downloaded asset differs, so it cannot be validated against the pinned checksum.
 		checksumSha256: latest ? undefined : (asset ? asset.sha256 : sha256),
 		latest
-	})
+	}))
 		.pipe(buffer())
 		.pipe(vinylZip.src())
 		.pipe(filter('extension/**'))
@@ -303,7 +306,8 @@ export function fromGithub({ name, version, repo, sha256, metadata }: IExtension
 		.pipe(packageJsonFilter)
 		.pipe(buffer())
 		.pipe(jsonEditor({ __metadata: metadata }))
-		.pipe(packageJsonFilter.restore);
+		.pipe(packageJsonFilter.restore)
+		.done();
 }
 
 /**

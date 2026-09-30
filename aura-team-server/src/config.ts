@@ -25,9 +25,21 @@ export const config = {
 	dataDir: resolve(process.env.AURA_DATA_DIR ?? './data'),
 	jwtSecret,
 	masterKey: process.env.AURA_MASTER_KEY,
-	archiveMaxBytes: integer('AURA_ARCHIVE_MAX_BYTES', 50 * 1024 * 1024),
+	// Архивы проектов: до 1 ГиБ на файл (раньше 50 МиБ — большие сборки не проходили).
+	archiveMaxBytes: integer('AURA_ARCHIVE_MAX_BYTES', 1024 * 1024 * 1024),
 	archiveTtlDays: integer('AURA_ARCHIVE_TTL_DAYS', 7),
+	/** Задачи в корзине (мягко удалённые) старше этого срока удаляются физически. */
+	trashTtlDays: integer('AURA_TRASH_TTL_DAYS', 30),
 	proxyRequestsPerDay: integer('AURA_PROXY_REQUESTS_PER_DAY', 500),
+	// Код администратора: при старте сервер сеет его хэш (код сгорает после
+	// первого погашения). В продакшене дефолт не работает специально: литерал из
+	// репозитория — не секрет, любой читатель репозитория мог бы погасить его первым.
+	// На живом сервере задайте AURA_ADMIN_CODE в окружении и погасьте код сразу
+	// либо выдайте админку из CLI: npm run grant -- --email <почта> --admin.
+	adminCode: process.env.AURA_ADMIN_CODE ?? (process.env.NODE_ENV === 'production' ? '' : 'AUR-L2SY6CAL'),
+	// Каталог внешнего ядра AGGG 5.2 на сервере: файл отдаётся только по праву,
+	// поэтому лицензия проверяется на сервере, а не патчем клиента.
+	agggCorePath: process.env.AURA_AGGG_CORE_PATH,
 	smtp: process.env.AURA_SMTP_HOST ? {
 		host: process.env.AURA_SMTP_HOST,
 		port: integer('AURA_SMTP_PORT', 587),

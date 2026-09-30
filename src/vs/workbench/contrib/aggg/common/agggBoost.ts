@@ -7,6 +7,14 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 
 export const AGGG_ENABLED_SETTING = 'aggg.enabled';
 export const AGGG_PROJECT_BOOST_SETTING = 'aggg.projectBoost';
+export const AGGG_VERSION_SETTING = 'aggg.version';
+export const AGGG_EXTERNAL_AGENT_PATH_SETTING = 'aggg.externalAgentPath';
+
+export type AgggVersion = '2.0.0' | '5.2';
+
+export function normalizeAgggVersion(value: unknown): AgggVersion {
+	return value === '5.2' ? '5.2' : '2.0.0';
+}
 
 /** Ядро правил AGGG2.0 (harness/core.txt), инжектится первым системным сообщением. */
 export const AGGG_BOOST_PROMPT = `# AGGG2.0-прошивка — ядро правил (вставляется плагином в системный промпт на каждый ход)
@@ -63,3 +71,10 @@ export function agggBoostActive(configurationService: IConfigurationService): bo
 	}
 	return configurationService.getValue<boolean>(AGGG_PROJECT_BOOST_SETTING) === true;
 }
+
+/**
+ * Текущее ядро буста. Для версии 2.0.0 — встроенный AGGG_BOOST_PROMPT;
+ * при выборе внешнего агента 5.2 контрибуция перезаписывает `current`
+ * содержимым harness/core.txt из aggg.externalAgentPath («перезапуск ядра»).
+ */
+export const agggBoostPrompt: { current: string } = { current: AGGG_BOOST_PROMPT };

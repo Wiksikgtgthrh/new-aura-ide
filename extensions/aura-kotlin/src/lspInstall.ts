@@ -11,6 +11,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { tr } from './l10n';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as fs from 'node:fs';
@@ -29,14 +30,10 @@ const MIN_JAVA_MAJOR = 11;
 const DECLINED_KEY = 'auraKotlin.lspOfferDeclined';
 const LSP_DIR_NAME = `server-${SERVER_VERSION}`;
 
-/** Способ запуска найденного/установленного сервера. */
-export interface ServerLaunch {
-	/** java (или полный путь) либо команда сервера из PATH/настройки. */
-	command: string;
-	args: string[];
-	/** Откуда взят сервер — для лога и статус-бара. */
-	source: 'setting' | 'bundled' | 'downloaded' | 'path';
-}
+import { ServerLaunch } from './lspClient';
+
+// Тип живёт в lspClient (там же, где обобщённый клиент), здесь — реэкспорт для совместимости.
+export type { ServerLaunch };
 
 /** Где лежит распакованный сервер: каталог с lib/*.jar. */
 function serverLibDir(context: vscode.ExtensionContext, kind: 'bundled' | 'downloaded'): string | undefined {
@@ -61,10 +58,13 @@ export async function resolveServer(context: vscode.ExtensionContext): Promise<S
 	}
 
 	// 2/3. Комплект поставки или автоскачивание — запускаем java -cp "lib/*".
+	// Серверу нужна JDK 11+: старая java из PATH (например Java 8) роняла его молча.
+	const jdk = await findJdk();
 	for (const kind of ['bundled', 'downloaded'] as const) {
 		const lib = serverLibDir(context, kind);
 		if (lib) {
-			return { command: javaPath(), args: ['-cp', path.join(lib, '*'), SERVER_MAIN_CLASS], source: kind };
+			if (!jdk) { notifyNoJdk(); return undefined; }
+			return { command: jdk.command, args: ['-cp', path.join(lib, '*'), SERVER_MAIN_CLASS], source: kind };
 		}
 	}
 
@@ -109,6 +109,81 @@ export async function checkJava(): Promise<{ ok: boolean; version?: number }> {
 	return { ok: version !== undefined && version >= MIN_JAVA_MAJOR, version };
 }
 
+/** Известные каталоги JDK: избавляет от ручной настройки, когда PATH указывает на старую Java. */
+function jdkCandidates(): string[] {
+	const exe = process.platform === 'win32' ? 'java.exe' : 'java';
+	const candidates: string[] = [];
+	const pushHome = (home: string): void => {
+		const bin = path.join(home, 'bin', exe);
+		if (fs.existsSync(bin)) { candidates.push(bin); }
+	};
+	if (process.env.JAVA_HOME) { pushHome(process.env.JAVA_HOME); }
+	const roots: string[] = [];
+	if (process.platform === 'win32') {
+		roots.push(
+			path.join(os.homedir(), 'AppData', 'Local', 'Programs'),
+			'C:\Program Files\Java',
+			'C:\Program Files\Microsoft',
+			'C:\Program Files\Eclipse Adoptium',
+			'C:\Program Files\Amazon Corretto',
+			'C:\Program Files\Android\Android Studio\jbr',
+		);
+	} else if (process.platform === 'darwin') {
+		roots.push('/Library/Java/JavaVirtualMachines', path.join(os.homedir(), 'Library', 'Java', 'JavaVirtualMachines'));
+	} else {
+		roots.push('/usr/lib/jvm', '/usr/java');
+	}
+	roots.push(path.join(os.homedir(), '.jdks'));
+	for (const root of roots) {
+		try {
+			// Сам root может быть JDK (jbr из Android Studio) — проверяем напрямую.
+			pushHome(root);
+			for (const entry of fs.readdirSync(root)) {
+				const dir = path.join(root, entry);
+				if (!fs.statSync(dir).isDirectory()) { continue; }
+				if (process.platform === 'darwin') { pushHome(path.join(dir, 'Contents', 'Home')); continue; }
+				pushHome(dir);
+			}
+		} catch { /* каталога нет — пропускаем */ }
+	}
+	return candidates;
+}
+
+/**
+ * Java 11+ для сервера. Явная настройка auraKotlin.javaPath используется как есть;
+ * иначе ищем по известным каталогам самую свежую подходящую, PATH — последним шансом.
+ */
+export async function findJdk(): Promise<{ command: string; version: number } | undefined> {
+	const configured = javaPath();
+	if (configured !== 'java') {
+		const version = await javaMajorVersion(configured);
+		return version !== undefined ? { command: configured, version } : undefined;
+	}
+	const seen = new Set<string>();
+	const found: Array<{ command: string; version: number }> = [];
+	for (const candidate of jdkCandidates()) {
+		if (seen.has(candidate)) { continue; }
+		seen.add(candidate);
+		const version = await javaMajorVersion(candidate);
+		if (version !== undefined && version >= MIN_JAVA_MAJOR) { found.push({ command: candidate, version }); }
+	}
+	if (found.length) {
+		// Сервер 1.3.13 проверен на LTS-линейке 11–21; слишком новые JDK (22+) — только если других нет.
+		found.sort((a, b) => (Number(a.version > 21) - Number(b.version > 21)) || (b.version - a.version));
+		return found[0];
+	}
+	const pathVersion = await javaMajorVersion('java');
+	return pathVersion !== undefined && pathVersion >= MIN_JAVA_MAJOR ? { command: 'java', version: pathVersion } : undefined;
+}
+
+let noJdkNotified = false;
+/** Сообщение про JDK 11+ — один раз за сессию, чтобы не спамить при ретраях запуска. */
+function notifyNoJdk(): void {
+	if (noJdkNotified) { return; }
+	noJdkNotified = true;
+	void vscode.window.showErrorMessage(tr('Kotlin Language Server needs JDK {0}+, but no suitable Java was found (PATH points to an older one). Install a JDK 11+ or set auraKotlin.javaPath to it — for example, the JBR bundled with Android Studio.', String(MIN_JAVA_MAJOR)));
+}
+
 /**
  * Скачивает и распаковывает сервер в globalStorage (один раз на версию).
  * Возвращает каталог lib или undefined при неудаче.
@@ -118,8 +193,8 @@ export async function installServer(context: vscode.ExtensionContext): Promise<s
 	if (!java.ok) {
 		void vscode.window.showErrorMessage(
 			java.version === undefined
-				? vscode.l10n.t('Java not found — the Kotlin Language Server needs JDK {0}+. Set auraKotlin.javaPath to a JDK (e.g. the one bundled with Android Studio).', String(MIN_JAVA_MAJOR))
-				: vscode.l10n.t('Java {0} is too old — the Kotlin Language Server needs JDK {1}+. Set auraKotlin.javaPath to a newer JDK.', String(java.version), String(MIN_JAVA_MAJOR)),
+				? tr('Java not found — the Kotlin Language Server needs JDK {0}+. Set auraKotlin.javaPath to a JDK (e.g. the one bundled with Android Studio).', String(MIN_JAVA_MAJOR))
+				: tr('Java {0} is too old — the Kotlin Language Server needs JDK {1}+. Set auraKotlin.javaPath to a newer JDK.', String(java.version), String(MIN_JAVA_MAJOR)),
 		);
 		return undefined;
 	}
@@ -127,7 +202,7 @@ export async function installServer(context: vscode.ExtensionContext): Promise<s
 	if (serverLibDir(context, 'downloaded')) { return path.join(destBase, LSP_DIR_NAME, 'lib'); }
 
 	return vscode.window.withProgress(
-		{ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Downloading Kotlin Language Server ({0}, ~83 MB)…', SERVER_VERSION), cancellable: false },
+		{ location: vscode.ProgressLocation.Notification, title: tr('Downloading Kotlin Language Server ({0}, ~83 MB)…', SERVER_VERSION), cancellable: false },
 		async () => {
 			try {
 				fs.mkdirSync(destBase, { recursive: true });
@@ -147,7 +222,7 @@ export async function installServer(context: vscode.ExtensionContext): Promise<s
 				return fs.existsSync(lib) ? lib : undefined;
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
-				vscode.window.showErrorMessage(vscode.l10n.t('Kotlin Language Server download failed: {0}', message));
+				vscode.window.showErrorMessage(tr('Kotlin Language Server download failed: {0}', message));
 				return undefined;
 			}
 		},
@@ -191,22 +266,22 @@ export async function extractZip(zip: string, destDir: string): Promise<void> {
 			if (fs.readdirSync(destDir).length > 0) { return; }
 		} catch { /* пробуем следующий способ */ }
 	}
-	throw new Error(vscode.l10n.t('no zip extractor available (tar/unzip/PowerShell)'));
+	throw new Error(tr('no zip extractor available (tar/unzip/PowerShell)'));
 }
 
 /** Предложение скачать сервер (показывается один раз; запоминаем отказ). */
 export async function offerServerInstall(context: vscode.ExtensionContext): Promise<ServerLaunch | undefined> {
 	if (context.globalState.get<boolean>(DECLINED_KEY)) { return undefined; }
-	const download = vscode.l10n.t('Download (~83 MB)');
-	const later = vscode.l10n.t('Not now');
+	const download = tr('Download (~83 MB)');
+	const later = tr('Not now');
 	const pick = await vscode.window.showInformationMessage(
-		vscode.l10n.t('Kotlin Language Server is not installed. Download it automatically to enable completion, diagnostics and rename for .kt? (Requires JDK {0}+.)', String(MIN_JAVA_MAJOR)),
+		tr('Kotlin Language Server is not installed. Download it automatically to enable completion, diagnostics and rename for .kt? (Requires JDK {0}+.)', String(MIN_JAVA_MAJOR)),
 		download, later,
 	);
 	if (pick === download) {
 		const lib = await installServer(context);
 		if (lib) {
-			vscode.window.showInformationMessage(vscode.l10n.t('Kotlin Language Server {0} installed.', SERVER_VERSION));
+			vscode.window.showInformationMessage(tr('Kotlin Language Server {0} installed.', SERVER_VERSION));
 			return { command: javaPath(), args: ['-cp', path.join(lib, '*'), SERVER_MAIN_CLASS], source: 'downloaded' };
 		}
 		return undefined;

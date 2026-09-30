@@ -10,8 +10,10 @@ import sensible from '@fastify/sensible';
 import websocket from '@fastify/websocket';
 import { mapAccessError, requireRole } from './access.js';
 import { config } from './config.js';
-import { database } from './database.js';
+import { cleanupDeletedTasks, database, seedAdminCode } from './database.js';
 import { addClient, startHeartbeat } from './realtime.js';
+import { adminRoutes } from './routes/admin.js';
+import { agggRoutes } from './routes/aggg.js';
 import { archiveRoutes, cleanupArchives } from './routes/archives.js';
 import { authRoutes } from './routes/auth.js';
 import { keyRoutes } from './routes/keys.js';
@@ -20,6 +22,20 @@ import { digest, token } from './security.js';
 
 export async function createServer() {
 	const app = Fastify({ logger: true, bodyLimit: 2 * 1024 * 1024 });
+	// Пустое тело с content-type: application/json — не ошибка, а «нет данных»: так уходят
+	// запросы без нагрузки (DELETE задачи, снятие ключа), и старые сборки клиента.
+	// Дефолтный парсер Fastify отвечал на это 400 FST_ERR_CTP_EMPTY_JSON_BODY
+	// («Body cannot be empty when content-type is set to 'application/json'»), из-за чего
+	// удаление не доходило до обработчика и задача оставалась на доске.
+	// Непустое тело по-прежнему разбирает штатный парсер Fastify — со защитой от
+	// prototype pollution: свой JSON.parse здесь был бы шагом назад по безопасности.
+	const parseJson = app.getDefaultJsonParser('error', 'error');
+	app.removeContentTypeParser('application/json');
+	app.addContentTypeParser('application/json', { parseAs: 'string' }, (request, body, done) => {
+		const raw = typeof body === 'string' ? body : body.toString('utf8');
+		if (raw.trim() === '') { done(null, {}); return; }
+		parseJson(request, raw, done);
+	});
 	await app.register(sensible);
 	await app.register(rateLimit, { global: false });
 	await app.register(multipart, { limits: { fileSize: config.archiveMaxBytes, files: 1 } });
@@ -28,6 +44,11 @@ export async function createServer() {
 	await app.register(teamRoutes);
 	await app.register(keyRoutes);
 	await app.register(archiveRoutes);
+	await app.register(adminRoutes);
+	await app.register(agggRoutes);
+	// Код администратора сеем хэшем: один раз и до погашения. Уже использованный
+	// код повторно не появляется, а значение кода в базе не хранится вовсе.
+	seedAdminCode(config.adminCode, 'bootstrap from AURA_ADMIN_CODE');
 	app.get('/health', async () => ({ ok: true }));
 
 	if (process.env.AURA_DEBUG_ADMIN === 'true') {
@@ -66,6 +87,8 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
 	const app = await createServer();
 	cleanupArchives();
 	setInterval(cleanupArchives, 60 * 60_000).unref();
+	cleanupDeletedTasks(); // очистить корзину сразу при старте (накопилось за время простоя)
+	setInterval(cleanupDeletedTasks, 6 * 60 * 60_000).unref(); // затем раз в 6 часов
 	setInterval(() => database.prepare('DELETE FROM device_codes WHERE expires_at<=?').run(new Date().toISOString()), 60 * 60_000).unref();
 	startHeartbeat();
 	await app.listen({ host: config.host, port: config.port });

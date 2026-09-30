@@ -5,17 +5,24 @@
 
 import * as vscode from 'vscode';
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { AuraApiClient } from './api/client';
 import { connectGitHub, createGithubRepo, disconnectGitHub, hasGitHubToken, listGithubRepos, pickAndCloneGithubRepo } from './auth/github';
+import { matchTeamProvider, mapAuraPriority, providerDraftFrom, importLabelOf, summarizeImport, type AuraApiKey, type AuraApiKeyExport, type ImportOutcome } from './keys/importMapping';
 import { GitService } from './git/service';
+import { branchNameForTask, taskRefInMessage } from './git/branchName';
+import { AdminOverview, TeamRole } from './types';
 import { TeamSyncService } from './git/teamSync';
 import { ProfileManager } from './profile';
-import { AuraState, BoardSnapshot, KeyGroup, Profile, Project, Session, TaskStatus, TeamActivityEvent, TeamApiKey, TeamSummary } from './types';
+import { AuraState, BoardSnapshot, KeyGroup, Profile, Project, Session, TaskStatus, TeamActivityEvent, TeamApiKey, TeamSummary, TeamTask } from './types';
+import { AuraTeamPublicApi, PUBLIC_API_VERSION, TeamTaskChanges } from './publicApi';
 import { AuraTeamPanelProvider } from './webview/panelProvider';
+import { ARCHIVE_FILTERS, humanBytes, isArchiveName, suggestedArchiveName } from './archives/rules';
 
 const PANEL_VIEW_TYPE = 'auraTeam.panel';
+/** Логин GitHub в globalState: подпись аккаунта в панели Git. */
+const GITHUB_LOGIN_KEY = 'auraTeam.githubLogin';
 const PANEL_SCHEME = 'aura-team';
 
 /**
@@ -56,7 +63,7 @@ async function autoStartLocalServer(context: vscode.ExtensionContext, output: vs
 	output.appendLine('[server] local server did not start within 10s');
 }
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+export async function activate(context: vscode.ExtensionContext): Promise<AuraTeamPublicApi> {
 	const output = vscode.window.createOutputChannel('Team');
 	// Локальный сервер поднимаем до первого запроса API (не блокируя активацию дольше 10с).
 	void autoStartLocalServer(context, output);
@@ -79,12 +86,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	const state: { session?: Session; board?: BoardSnapshot; teamId?: string; keys?: TeamApiKey[]; keyGroups?: KeyGroup[]; demo?: boolean; activity?: TeamActivityEvent[]; summary?: TeamSummary } = {};
 	const provider = new AuraTeamPanelProvider(context.extensionUri);
+	// Публичное событие доски: другие расширения (оркестратор) следят за задачами,
+	// не опрашивая сервер. Живёт в context.subscriptions — гасится вместе с расширением.
+	const boardEmitter = new vscode.EventEmitter<BoardSnapshot | undefined>();
+	context.subscriptions.push(boardEmitter);
+	// Есть ли в окне оркестратор: команда регистрируется только активным оркестратором.
+	// По этому признаку доска показывает кнопку «Отдать агентам».
+	const orchestratorAvailable = async (): Promise<boolean> => {
+		try { return (await vscode.commands.getCommands(true)).includes('orchestrator.runTeamTask'); } catch { return false; }
+	};
 
 	const demoMode = (): boolean => vscode.workspace.getConfiguration('auraTeam').get<boolean>('demoMode', false);
-	// Язык UI Team: 'ru' по умолчанию; 'auto' — язык IDE.
+	// Язык UI Team: 'auto' — сначала общий переключатель aura.language (он один на всю
+	// IDE: маркет, панели плагинов), затем язык IDE. Явные 'ru'/'en' приоритетнее всего.
 	const uiLanguage = (): string => {
-		const setting = vscode.workspace.getConfiguration('auraTeam').get<string>('uiLanguage', 'ru');
-		return setting === 'auto' ? vscode.env.language : setting;
+		const setting = vscode.workspace.getConfiguration('auraTeam').get<string>('uiLanguage', 'auto');
+		if (setting === 'ru' || setting === 'en') { return setting; }
+		const aura = vscode.workspace.getConfiguration('aura').get<string>('language', 'auto');
+		return aura === 'ru' || aura === 'en' ? aura : vscode.env.language;
 	};
 	const simpleMode = (): boolean => vscode.workspace.getConfiguration('auraTeam').get<boolean>('simpleMode', true);
 	const serverUrl = (): string => vscode.workspace.getConfiguration('auraTeam').get<string>('serverUrl', 'https://auraide.xyz');
@@ -102,6 +121,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}));
 	};
 
+	// Права аккаунта выясняет не только Team, но и оболочка: AGGG спрашивает команду
+	// `auraTeam.hasEntitlement` перед загрузкой внешнего ядра 5.2. Команда обязана
+	// возвращать значение, поэтому регистрируем её напрямую, а не через register().
+	context.subscriptions.push(vscode.commands.registerCommand('auraTeam.hasEntitlement', async (feature?: string) => {
+		const wanted = String(feature ?? '').trim();
+		// Оболочка (AGGG) спрашивает право на старте — возможно, раньше, чем Team
+		// успел загрузить сессию. Тогда доступ к ядру 5.2 терялся из-за гонки:
+		// подтягиваем сессию прямо здесь, а не надеемся на порядок инициализации.
+		if (wanted.length > 0 && !state.session) {
+			await refresh().catch(() => undefined);
+		}
+		const granted = wanted.length > 0 && (state.session?.entitlements ?? []).some(item => item.feature === wanted);
+		return { granted };
+	}));
+
 	const demoSession = (profile: Profile): Session => ({
 		user: { id: 'demo-me', email: profile.email || 'demo@aura.local', displayName: profile.nickname || 'Demo User' },
 		teams: [{ id: 'demo', name: 'Aura Studio', role: 'owner' }]
@@ -110,6 +144,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// Демо-доска живёт между refresh-ами: иначе все правки (статус, удаление)
 	// терялись при следующем broadcast, и «выполнено/удалить» в сайдбаре не работали.
 	let demoBoardCache: BoardSnapshot | undefined;
+	// Логин GitHub, под которым подключён аккаунт: показываем в панели вместо безликого «подключено».
+	let githubLogin = context.globalState.get<string>(GITHUB_LOGIN_KEY);
+	// Кэш активного инвайт-кода для сайдбара и вкладки приглашения.
+	let currentInviteCode: string | null = null;
+	let currentInviteExpires: string | null = null;
+	/** Роль, с которой вступят по активному коду (сервер отдаёт её вместе с кодом). */
+	let currentInviteRole: TeamRole | null = null;
+	// Демо-корзина: удалённые в демо-режиме задачи (восстановление из канбана).
+	const demoTrash: TeamTask[] = [];
+	// Демо-каталог секции приглашения: поиск и отправка работают без сервера.
+	const demoDirectory = (): Array<{ id: string; displayName: string; email: string | null }> => ([
+		{ id: 'demo-1', displayName: 'Alex', email: 'alex@demo.dev' },
+		{ id: 'demo-2', displayName: 'Mia', email: 'mia@demo.dev' },
+		{ id: 'demo-3', displayName: 'Sam', email: 'sam@demo.dev' },
+		{ id: 'demo-4', displayName: 'Nina', email: 'nina@demo.dev' },
+		{ id: 'demo-5', displayName: 'Пётр Соколов', email: 'petr@demo.dev' }
+	]);
 
 	const demoBoard = (): BoardSnapshot => {
 		if (demoBoardCache) { return demoBoardCache; }
@@ -121,7 +172,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		],
 		projects: [{ id: 'p1', teamId: 'demo', name: 'Aura IDE', gitUrl: 'https://github.com/Wiksikgtgthrh/new-aura-ide', defaultBranch: 'main' }],
 		tasks: [
-			{ id: 'dt1', teamId: 'demo', title: 'Дизайн вкладки Aura Team', description: 'Новый UI с анимациями', status: 'doing', assigneeId: 'demo-me', assigneeName: 'Вы', position: 0, dueAt: new Date(Date.now() + 2 * 864e5).toISOString() },
+			{ id: 'dt1', teamId: 'demo', title: 'Дизайн вкладки Aura Team', description: 'Новый UI с анимациями\n- [x] Каркас экрана\n- [x] Токены движения\n- [ ] Карточки задач\n- [ ] Тесты\n- [ ] Релиз', status: 'doing', assigneeId: 'demo-me', assigneeName: 'Вы', position: 0, dueAt: new Date(Date.now() + 2 * 864e5).toISOString() },
 			{ id: 'dt2', teamId: 'demo', title: 'Банк API-ключей', description: 'Маскирование и роли', status: 'review', assigneeId: 'demo-1', assigneeName: 'Alex', position: 0 },
 			{ id: 'dt3', teamId: 'demo', title: 'Git-панель: ветки', description: 'Переключение веток из вкладки', status: 'todo', assigneeId: 'demo-2', assigneeName: 'Mia', position: 0 },
 			{ id: 'dt4', teamId: 'demo', title: 'Регистрация (mock)', description: 'Форма без сервера, чисто для вида', status: 'done', assigneeId: 'demo-me', assigneeName: 'Вы', position: 0 },
@@ -138,6 +189,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	// Кэш git-снапшота: buildState() вызывается часто (каждый broadcast), а git log — дорогой.
 	let gitCache: { at: number; value: Awaited<ReturnType<GitService['getSnapshot']>> } | undefined;
+	// Подзадачи живут markdown-чекбоксами в описании задачи, а /summary описаний не отдаёт:
+	// добираем прогресс из уже загруженной доски, чтобы сайдбар читался без открытия карточки.
+	const subtaskProgress = (description?: string): { done: number; total: number } | undefined => {
+		let done = 0, total = 0;
+		for (const line of String(description ?? '').split('\n')) {
+			const m = /^\s*[-*+]\s+\[( |x|X)\]\s*(.*)$/.exec(line);
+			if (!m) { continue; }
+			total++;
+			if (m[1].toLowerCase() === 'x') { done++; }
+		}
+		return total ? { done, total } : undefined;
+	};
+	const withSubtaskProgress = (summary?: TeamSummary): TeamSummary | undefined => {
+		if (!summary) { return summary; }
+		const byId = new Map((state.board?.tasks ?? []).map(task => [task.id, task.description ?? '']));
+		return { ...summary, myTasks: summary.myTasks.map(task => ({ ...task, subtasks: subtaskProgress(byId.get(task.id)) })) };
+	};
 	const buildState = async (): Promise<AuraState> => ({
 		profile: profiles.get(),
 		session: state.session,
@@ -147,21 +215,35 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		git: git ? ((gitCache && Date.now() - gitCache.at < 2000) ? gitCache.value : await gitSvc().getSnapshot().then(value => { gitCache = { at: Date.now(), value }; return value; }).catch(() => undefined)) : undefined,
 		activity: state.activity,
 		dismissedActivity: dismissedActivity(),
-		summary: state.summary,
-		demoMode: demoMode() && !state.session,
+		summary: withSubtaskProgress(state.summary),
+		// Демо активно и при живой демо-сессии (сервер не ответил на refresh): без этого
+		// флага webview слал правки канбана в несуществующий сервер и молча откатывал их.
+		demoMode: state.demo === true || (demoMode() && !state.session),
 		simpleMode: simpleMode(),
 		serverUrl: serverUrl(),
 		signedIn: !!state.session,
 		githubConnected: await hasGitHubToken(context),
+		githubAccount: githubLogin,
 		ideLanguage: vscode.env.language,
-		uiLanguage: uiLanguage()
+		uiLanguage: uiLanguage(),
+		orchestratorAvailable: await orchestratorAvailable()
 	});
 
 	const launcher = new AuraTeamLauncherViewProvider((view, filter) => openTab(view, filter), () => buildState(), (id, args) => handlerFor(id, args));
-	const broadcast = async (): Promise<void> => { const s = await buildState(); provider.broadcast(s); await launcher.push(); };
+	const broadcast = async (): Promise<void> => { const s = await buildState(); provider.broadcast(s); await launcher.push(); boardEmitter.fire(state.board); };
+
+	// Общий переключатель языка: смена aura.language перерисовывает панель Team сразу,
+	// без перезагрузки окна — маркет и панели не должны разъезжаться по языку.
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
+		if (e.affectsConfiguration('aura.language') || e.affectsConfiguration('auraTeam.uiLanguage')) {
+			void broadcast();
+		}
+	}));
 
 	// Скрытые события ленты: локальный globalState, максимум 500 id, чистим несуществующие.
 	const DISMISSED_KEY = 'auraTeam.dismissedActivity';
+	// Память об импорте из Aura API: id ключа плагина → что уже перенесено в команду.
+	const IMPORTED_AURA_KEYS = 'auraTeam.importedAuraKeys';
 	const dismissedActivity = (): string[] => context.globalState.get<string[]>(DISMISSED_KEY, []);
 	const evKey = (ev: { createdAt: string; action: string; userId: string }): string => `${ev.createdAt}|${ev.action}|${ev.userId}`;
 	const pruneDismissedActivity = (): void => {
@@ -174,6 +256,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	register('auraTeam.dismissActivity', async (key?: string) => {
 		const ids = dismissedActivity();
 		if (key && !ids.includes(key)) { await context.globalState.update(DISMISSED_KEY, [...ids.slice(-499), key]); }
+		// Скрытие локальное: перерисовываем из уже загруженного состояния, без похода на сервер.
+		await broadcast();
+	});
+	// Удаление события для всей команды: только owner/maintainer, с явным подтверждением.
+	register('auraTeam.deleteActivity', async (eventId?: number | string) => {
+		const id = Number(eventId);
+		if (!Number.isSafeInteger(id) || id <= 0) { return; }
+		const me = (state.summary?.members ?? []).find(member => member.id === state.session?.user.id)?.role ?? '';
+		if (me !== 'owner' && me !== 'maintainer') {
+			void vscode.window.showWarningMessage(vscode.l10n.t('Only the owner or a maintainer can delete activity.'));
+			return;
+		}
+		const deleteLabel = vscode.l10n.t('Delete');
+		const confirmed = await vscode.window.showWarningMessage(
+			vscode.l10n.t('Delete this activity entry for the whole team? This cannot be undone.'),
+			{ modal: true },
+			deleteLabel,
+		);
+		if (confirmed !== deleteLabel) { return; }
+		await api.deleteActivity(requireTeam(state), id);
 		await refresh();
 	});
 	register('auraTeam.undismissAllActivity', async () => {
@@ -217,6 +319,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		refreshing = doRefresh().finally(() => { refreshing = undefined; });
 		return refreshing;
 	};
+	/** Маскировать значение ключа: первые 3 символа + … + последние 4 символа. */
+	const maskKey = (value: string): string => {
+		if (!value || value.length < 8) { return value; }
+		return value.slice(0, 3) + '…' + value.slice(-4);
+	};
+
 	const doRefresh = async (): Promise<void> => {
 		const prevBoard = state.board;
 		const prevActivity = state.activity;
@@ -224,13 +332,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			state.session = await api.getSession();
 			state.demo = false;
 			state.teamId = state.teamId && state.session.teams.some(team => team.id === state.teamId) ? state.teamId : state.session.teams[0]?.id;
-			state.board = state.teamId ? await api.getBoard(state.teamId) : undefined;
-			state.keys = state.teamId ? await api.listApiKeys(state.teamId) : undefined;
-			state.keyGroups = state.teamId ? await api.listKeyGroups(state.teamId).catch(() => undefined) : undefined;
-			state.activity = state.teamId ? await api.getActivity(state.teamId).catch(() => undefined) : undefined;
+			// Пять независимых чтений — одним залпом. По очереди это пять сетевых кругов
+			// подряд: на удалённом сервере (40–60 мс на запрос) обновление доски ждало
+			// ~270 мс вместо ~100 мс. Последователен ровно один шаг — teamId выше.
+			// Ошибки ведут себя как раньше: getBoard и listApiKeys валят обновление
+			// (и включается демо-фолбэк), остальные три глотают сбой сами.
+			const teamId = state.teamId;
+			const [board, keys, keyGroups, activity, summary] = await Promise.all([
+				teamId ? api.getBoard(teamId) : undefined,
+				teamId ? api.listApiKeys(teamId).then(items => items.map(k => ({ ...k, keyHint: maskKey(k.keyHint) }))) : undefined,
+				teamId ? api.listKeyGroups(teamId).catch(() => undefined) : undefined,
+				teamId ? api.getActivity(teamId).catch(() => undefined) : undefined,
+				teamId ? api.getSummary(teamId).catch(() => undefined) : undefined
+			]);
+			state.board = board;
+			state.keys = keys;
+			state.keyGroups = keyGroups;
+			state.activity = activity;
+			state.summary = summary;
 			pruneDismissedActivity();
-			state.summary = state.teamId ? await api.getSummary(state.teamId).catch(() => undefined) : undefined;
-			if (state.teamId) { api.connect(state.teamId); }
+			if (teamId) { api.connect(teamId); }
 			notifyOnChanges(prevBoard, prevActivity);
 		} catch (error) {
 			state.session = undefined;
@@ -241,6 +362,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			state.summary = undefined;
 			state.demo = false;
 			output.appendLine(`[api] ${errorMessage(error)}`);
+
 			// Демо-режим: сервер недоступен, но профиль есть — показываем образец.
 			if (demoMode() && profiles.get().nickname) {
 				state.demo = true;
@@ -248,6 +370,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				state.teamId = 'demo';
 				state.board = demoBoard();
 				state.keys = demoKeys();
+				state.summary = {
+					members: state.board.members,
+					myTasks: state.board.tasks.filter(task => task.assigneeId === 'demo-me' && task.status !== 'done').map(task => ({ id: task.id, title: task.title, status: task.status, dueAt: task.dueAt })),
+					projects: state.board.projects
+				};
 			}
 		}
 		// Контекст для титулбара/меню: вошёл ли пользователь на сервере.
@@ -290,7 +417,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			supportsMultipleEditorsPerDocument: false
 		}),
 		vscode.workspace.registerTextDocumentContentProvider(PANEL_SCHEME, { provideTextDocumentContent: () => '' }),
-		vscode.window.registerWebviewViewProvider('auraTeam.home', launcher, { webviewOptions: { retainContextWhenHidden: true } }),
+		// Без retainContextWhenHidden: при переключении на другой раздел activity bar
+		// вебвью сайдбара выгружается полностью и не держит фоновую активность.
+		vscode.window.registerWebviewViewProvider('auraTeam.home', launcher),
 		vscode.commands.registerCommand('auraTeam.invoke', async (id: string, args: unknown[]) => handlerFor(id, args)),
 		vscode.commands.registerCommand('auraTeam.broadcast', () => broadcast()),
 		vscode.commands.registerCommand('auraTeam.open', () => openTab('team')),
@@ -299,9 +428,35 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	);
 
 	const handlerFor = async (id: string, args: unknown[]): Promise<unknown> => {
+		// Команда была зарегистрирована только как VS Code-команда, поэтому вызов из webview
+		// падал с «Unknown command» и молча гасился: панель не обновлялась после коммита.
+		if (id === 'auraTeam.getState') { return buildState(); }
 		// Демо-режим: правки задач применяем к кэшированной демо-доске, без сервера.
-		if (demoMode() && !state.session) {
+		// state.demo — живая демо-сессия (сервер не ответил); старое условие
+		// `!state.session` при ней не срабатывало, и команды улетали в API.
+		if (state.demo || (demoMode() && !state.session)) {
 			const board = demoBoard();
+			if (id === 'auraTeam.createTask' && typeof args[0] === 'string') {
+				const status = (['todo', 'doing', 'review', 'done'] as TaskStatus[]).includes(args[1] as TaskStatus) ? args[1] as TaskStatus : 'todo';
+				const task: TeamTask = {
+					id: 'dt' + Date.now(), teamId: 'demo', title: args[0], description: '', status,
+					position: board.tasks.filter(t => t.status === status).length,
+					assigneeId: 'demo-me', assigneeName: state.session?.user.displayName ?? undefined
+				};
+				board.tasks.push(task);
+				state.board = board;
+				await broadcast();
+				return task;
+			}
+			if (id === 'auraTeam.reorderTasks' && typeof args[0] === 'string' && Array.isArray(args[1])) {
+				(args[1] as string[]).forEach((taskId, index) => {
+					const task = board.tasks.find(t => t.id === taskId);
+					if (task) { task.status = args[0] as TaskStatus; task.position = index; }
+				});
+				state.board = board;
+				await broadcast();
+				return { ok: true };
+			}
 			if (id === 'auraTeam.updateTask' && typeof args[0] === 'string') {
 				const task = board.tasks.find(t => t.id === args[0]);
 				if (task) { Object.assign(task, ...(typeof args[1] === 'object' && args[1] !== null ? [args[1] as Record<string, unknown>] : [])); }
@@ -309,22 +464,49 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				return task;
 			}
 			if (id === 'auraTeam.deleteTask' && typeof args[0] === 'string') {
-				// Удаляем из кэша демо-доски (in place), чтобы refresh не вернул задачу.
+				// Мягкое удаление: убираем из доски, но держим в демо-корзине.
 				const index = board.tasks.findIndex(t => t.id === args[0]);
-				if (index !== -1) { board.tasks.splice(index, 1); }
+				if (index !== -1) {
+					const [removed] = board.tasks.splice(index, 1);
+					if (removed) { demoTrash.push(removed); }
+				}
 				state.board = board;
 				await broadcast();
 				return { ok: true };
 			}
 			if (id === 'auraTeam.restoreTask' && typeof args[0] === 'string') {
+				// Восстановление из демо-корзины обратно на доску.
+				const tIndex = demoTrash.findIndex(t => t.id === args[0]);
+				if (tIndex !== -1) {
+					const [restored] = demoTrash.splice(tIndex, 1);
+					if (restored) { board.tasks.push(restored); }
+					state.board = board;
+				}
 				await broadcast();
 				return { ok: true };
 			}
+			if (id === 'auraTeam.listDeletedTasks') {
+				return demoTrash.map(t => ({ id: t.id, title: t.title, status: t.status, deletedAt: new Date().toISOString() }));
+			}
+			if (id === 'auraTeam.sendInvite') { return { ok: true }; }
+			if (id === 'auraTeam.copyToClipboard' && typeof args[0] === 'string') { await vscode.env.clipboard.writeText(args[0]); return { ok: true }; }
+			if (id === 'auraTeam.currentInvite') { return { code: 'AURA-DEMO-CODE1', expiresAt: new Date(Date.now() + 3 * 864e5).toISOString() }; }
+			if (id === 'auraTeam.revokeInvite') { return { ok: true }; }
+			if (id === 'auraTeam.directory') {
+				// Демо-каталог: приглашение проверяется без сервера, присутствие берётся из демо-команды.
+				const inTeam = new Set((state.summary?.members ?? []).map(m => m.id));
+				const q = String(args[0] ?? '').trim().toLowerCase();
+				return demoDirectory()
+					.filter(p => !q || p.displayName.toLowerCase().includes(q) || String(p.email ?? '').toLowerCase().includes(q))
+					.map(p => ({ ...p, inTeam: inTeam.has(p.id) ? 1 : 0 }));
+			}
+			if (id === 'auraTeam.createInvite') { return { code: 'AURA-DEMO-CODE1', expiresAt: new Date(Date.now() + 3 * 864e5).toISOString() }; }
 		}
 		const handler = handlers.get(id);
 		if (!handler) { throw new Error(vscode.l10n.t('Unknown command: {0}', id)); }
 		return handler(...(args as never[]));
 	};
+
 
 	// ------------------------------------------------------------------
 	// Статус-бар: аватар профиля + быстрые действия
@@ -367,6 +549,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// ------------------------------------------------------------------
 	// Команды (хэндлеры)
 	// ------------------------------------------------------------------
+	// Пункт «Обновить» в палитре команд: перечитать состояние с сервера и разослать его
+	// во все представления. Команда была объявлена в package.json, но никем не
+	// зарегистрирована — из палитры она молча ничего не делала (ловит test/manifest.test.mjs).
+	register('auraTeam.refresh', async () => { await refresh(); await broadcast(); });
 	register('auraTeam.signIn', () => openTab('login'));
 	register('auraTeam.signUp', () => openTab('register'));
 	register('auraTeam.login', async (data?: { email?: string; password?: string }) => {
@@ -418,10 +604,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		await configuration.update('simpleMode', next, vscode.ConfigurationTarget.Global);
 		vscode.window.showInformationMessage(next ? vscode.l10n.t('Simple Git mode is enabled.') : vscode.l10n.t('Advanced Git mode is enabled.'));
 	});
-	register('auraTeam.connectGitHub', async () => { await connectGitHub(context); vscode.window.showInformationMessage(vscode.l10n.t('GitHub is connected.')); await refresh(); });
+	// Вход через браузер (провайдер авторизации IDE), а не вставкой токена.
+	register('auraTeam.connectGitHub', async () => {
+		const result = await connectGitHub(context);
+		githubLogin = result.login;
+		await context.globalState.update(GITHUB_LOGIN_KEY, result.login);
+		vscode.window.showInformationMessage(result.via === 'browser'
+			? vscode.l10n.t('GitHub connected as {0}.', result.login)
+			: vscode.l10n.t('GitHub is connected.'));
+		await refresh();
+		return result;
+	});
 	register('auraTeam.disconnectGitHub', async () => {
-		if (!await confirm(vscode.l10n.t('Forget the saved GitHub token? Push/pull to private repos will stop working.'))) { return; }
+		if (!await confirm(vscode.l10n.t('Disconnect GitHub? Push and pull to private repositories will stop working.'))) { return; }
 		await disconnectGitHub(context);
+		githubLogin = undefined;
+		await context.globalState.update(GITHUB_LOGIN_KEY, undefined);
 		vscode.window.showInformationMessage(vscode.l10n.t('GitHub disconnected.'));
 		await refresh();
 	}, false);
@@ -460,7 +658,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		const model = await requiredInput(vscode.l10n.t('Model ID'));
 		const credential = await api.createProxyToken(teamId, 'openai', model);
 		try {
-			await vscode.commands.executeCommand('auraApi.addTeamProxy', {
+			await vscode.commands.executeCommand('apiKeys.addTeamProxy', {
 				name: 'Team · OpenAI',
 				baseUrl: `${api.getServerUrl()}/v1/teams/${teamId}/proxy/openai/v1`,
 				model,
@@ -475,19 +673,63 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	});
 	register('auraTeam.createTeam', async (name?: string) => { const teamName = name ?? await requiredInput(vscode.l10n.t('Team name')); await api.createTeam(teamName); await refresh(); });
 	register('auraTeam.joinTeam', async (code?: string) => { const inviteCode = code ?? await requiredInput(vscode.l10n.t('Invite code')); await api.joinTeam(inviteCode); await refresh(); });
-	register('auraTeam.createInvite', async () => {
+	// role — с какой ролью вступят по коду: панель шлёт выбранную в селекторе (по умолчанию dev).
+	register('auraTeam.createInvite', async (role?: TeamRole) => {
 		const teamId = requireTeam(state);
-		const invite = await api.createInvite(teamId);
+		const invite = await api.createInvite(teamId, role);
+		currentInviteCode = invite.code;
+		currentInviteExpires = invite.expiresAt ?? null;
+		currentInviteRole = invite.role ?? role ?? 'dev';
 		await vscode.env.clipboard.writeText(invite.code);
 		vscode.window.showInformationMessage(vscode.l10n.t('Invite code {0} was copied.', invite.code));
 		return invite;
 	});
+	// Открыть секцию приглашения в сайдбаре: доступно и из палитры команд, и из дерева.
+	register('auraTeam.invite.open', async () => {
+		// Кода в кэше нет — подтягиваем активный с сервера, чтобы секция открылась сразу с кодом.
+		if (!state.demo && state.session && state.teamId && !currentInviteCode) {
+			try {
+				const invite = await api.getCurrentInvite(state.teamId);
+				currentInviteCode = invite?.code ?? null;
+				currentInviteExpires = invite?.expiresAt ?? null;
+				currentInviteRole = invite?.role ?? 'dev';
+			} catch { /* пустое состояние покажет кнопку создания кода */ }
+		}
+		// Приглашение живёт в сайдбаре: раскрываем секцию в панели, вкладку редактора не создаём.
+		await launcher.revealInvite({ code: state.demo ? 'AURA-DEMO-CODE1' : currentInviteCode, expiresAt: currentInviteExpires, role: currentInviteRole });
+	});
 	register('auraTeam.currentInvite', async () => {
 		const invite = await api.getCurrentInvite(requireTeam(state));
+		currentInviteCode = invite?.code ?? null;
+		currentInviteExpires = invite?.expiresAt ?? null;
+		currentInviteRole = invite?.role ?? null;
 		return invite;
 	});
+	// Персональное приглашение пользователя из каталога (сайдбар/вкладка приглашения):
+	// роль выбирает приглашающий — приглашённый попадает в команду сразу с ней.
+	register('auraTeam.sendInvite', async (userId?: string, role?: TeamRole) => {
+		if (!userId) { return; }
+		await api.sendInvite(requireTeam(state), String(userId), role);
+		await refresh();
+		return { ok: true };
+	});
+	// Копирование из webview (сайдбар/вкладка приглашения) — через основной процесс.
+	register('auraTeam.copyToClipboard', async (text?: string) => {
+		if (typeof text === 'string' && text) { await vscode.env.clipboard.writeText(text); }
+		return { ok: true };
+	});
 	register('auraTeam.revokeInvite', async () => {
+		// Отзыв рвёт уже розданные ссылки: спрашиваем подтверждение вне демо-режима.
+		if (!state.demo && !(await confirm(vscode.l10n.t('Revoke the current invite code? Existing links stop working.')))) {
+			return { ok: false, cancelled: true };
+		}
 		await api.revokeInvite(requireTeam(state));
+		/* Кэш кода тоже сбрасываем: иначе следующий push возвращал отозванный код в панель,
+		   и кнопка «Отозвать» выглядела неработающей. */
+		currentInviteCode = null;
+		currentInviteExpires = null;
+		currentInviteRole = null;
+		launcher.clearInvite();
 		vscode.window.showInformationMessage(vscode.l10n.t('Old invite code revoked.'));
 		return { ok: true };
 	});
@@ -507,6 +749,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		await api.restoreTask(requireTeam(state), String(taskId));
 		await refresh();
 	});
+	register('auraTeam.listDeletedTasks', async () => {
+		return api.listDeletedTasks(requireTeam(state));
+	});
 	register('auraTeam.changeRole', async (memberId?: string, role?: string) => {
 		const member = memberId ? state.board?.members.find(item => item.id === memberId) : undefined;
 		const target = member ?? await vscode.window.showQuickPick(state.board?.members.filter(item => item.role !== 'owner').map(item => ({ label: item.displayName, description: item.role, id: item.id })) ?? [], { placeHolder: vscode.l10n.t('Select a team member') });
@@ -522,9 +767,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		await refresh();
 		return created;
 	});
-	register('auraTeam.updateTask', async (taskId?: string, changes?: { status?: TaskStatus; position?: number; assigneeId?: string | null; title?: string; description?: string; dueAt?: string }) => {
+	register('auraTeam.updateTask', async (taskId?: string, changes?: { status?: TaskStatus; position?: number; assigneeId?: string | null; title?: string; description?: string; dueAt?: string | null }) => {
 		if (!taskId) { throw new Error(vscode.l10n.t('Task ID is required.')); }
-		const updated = await api.updateTask(requireTeam(state), taskId, { status: changes?.status, position: changes?.position, assigneeId: changes?.assigneeId, title: changes?.title, description: changes?.description, dueAt: changes?.dueAt });
+		const updated = await api.updateTask(requireTeam(state), taskId, { status: changes?.status, position: changes?.position, assigneeId: changes?.assigneeId, title: changes?.title, description: changes?.description, dueAt: changes?.dueAt ?? undefined });
 		await refresh();
 		return updated;
 	});
@@ -554,33 +799,136 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		await refresh();
 		return result;
 	}, false);
-	// Импорт ключей из встроенного плагина Aura API: ключи копируются в банк команды.
+	// Ключи из встроенного плагина Aura API: список для импорта + какие уже перенесены.
+	const importedAuraKeys = (): Record<string, { teamKeyId?: string; label?: string; at?: string }> => context.globalState.get(IMPORTED_AURA_KEYS, {});
+	const listAuraKeys = async (): Promise<AuraApiKey[]> => {
+		try {
+			const result = await vscode.commands.executeCommand('apiKeys.exportKeysList');
+			return Array.isArray(result) ? result as AuraApiKey[] : [];
+		} catch { return []; }
+	};
+	register('auraTeam.listAuraApiKeys', async () => listAuraKeys(), false);
+	register('auraTeam.auraApiImportState', async () => {
+		const keys = await listAuraKeys();
+		// Плагин ключей — это workbench-модуль, а не расширение: наличие проверяем по его командам.
+		const pluginInstalled = (await vscode.commands.getCommands(true)).includes('apiKeys.exportKeysList');
+		return {
+			// available=false — плагин ключей не установлен или в нём нет ключей: UI объяснит, что делать.
+			available: keys.length > 0,
+			pluginInstalled,
+			keys,
+			imported: importedAuraKeys(),
+		};
+	}, false);
+	// Импорт ключей из плагина API Keys: провайдер подбирается или регистрируется по baseUrl,
+	// что уже перенесено — помним, чтобы не плодить дубликаты.
 	register('auraTeam.importFromAuraApi', async (input?: { keys?: Array<{ id: string; label?: string; priority?: string; groupId?: string }> }) => {
 		const selected = input?.keys ?? [];
-		if (!selected.length) { return { imported: 0 }; }
+		if (!selected.length) { return { imported: 0, skipped: [], summary: '0/0' }; }
+		// Метаданные берём из свежего списка плагина, а не из payload webview: id — единственное, что доверяем.
+		const published = new Map((await listAuraKeys()).map(key => [key.id, key]));
 		const teamId = requireTeam(state);
-		let imported = 0;
-		for (const item of selected) {
+		const providers = await api.listProviders(teamId).catch(() => [] as Array<{ id: string; name: string; origin: string; builtin: boolean }>);
+		const outcome: ImportOutcome = { imported: 0, skipped: [] };
+		const remembered = importedAuraKeys();
+		for (const entry of selected) {
+			const source = published.get(entry.id);
+			const item: AuraApiKey = { id: entry.id, name: source?.name, baseUrl: source?.baseUrl, model: source?.model, priority: entry.priority ?? source?.priority };
+			const name = importLabelOf(item);
 			try {
-				const provider = await vscode.commands.executeCommand('auraApi.exportKey', item.id);
-				if (!provider || typeof provider !== 'object') { continue; }
-				const exportInfo = provider as { value?: string; provider?: string; baseUrl?: string; model?: string };
-				if (!exportInfo.value) { continue; }
-				const mapped = exportInfo.provider === 'anthropic' ? 'anthropic' : 'openai';
-				await api.storeApiKey(teamId, mapped, exportInfo.value, 'dev', item.label || exportInfo.model || 'Imported key', item.priority ? Number(item.priority) || 100 : 100, item.groupId);
-				imported++;
-			} catch { /* ключ недоступен — пропускаем */ }
+				const exported = await vscode.commands.executeCommand('apiKeys.exportKey', entry.id) as AuraApiKeyExport | undefined;
+				if (!exported?.value) { outcome.skipped.push({ name, reason: 'no-secret' }); continue; }
+				let provider = matchTeamProvider(providers, { provider: exported.provider, baseUrl: exported.baseUrl ?? item.baseUrl, name: item.name });
+				if (!provider && (exported.baseUrl ?? item.baseUrl)) {
+					// Свой шлюз: регистрируем провайдера команды и сразу импортируем ключ в него.
+					const draft = providerDraftFrom({ name: exported.model || item.name, baseUrl: exported.baseUrl ?? item.baseUrl });
+					const created = await api.createProvider(teamId, draft);
+					provider = { id: created.id, name: draft.name, origin: draft.origin, builtin: false };
+					providers.push({ id: created.id, name: draft.name, origin: draft.origin, builtin: false });
+				}
+				if (!provider) { outcome.skipped.push({ name, reason: 'no-provider', detail: exported.provider }); continue; }
+				const label = entry.label || name;
+				await api.storeApiKey(teamId, provider.id, exported.value, 'dev', label, mapAuraPriority(entry.priority ?? item.priority), entry.groupId);
+				outcome.imported++;
+				remembered[entry.id] = { label, at: new Date().toISOString() };
+			} catch (error) {
+				outcome.skipped.push({ name, reason: 'error', detail: errorMessage(error) });
+			}
 		}
+		await context.globalState.update(IMPORTED_AURA_KEYS, remembered);
 		await refresh();
-		return { imported };
+		return { ...outcome, summary: summarizeImport(outcome) };
 	}, false);
-	// Список ключей плагина Aura API для импорта в банк команды.
-	register('auraTeam.listAuraApiKeys', async () => {
-		try {
-			const result = await vscode.commands.executeCommand('auraApi.exportKeysList');
-			return Array.isArray(result) ? result : [];
-		} catch { return []; }
+	/* ------------------------------------------------------------------ */
+	/* Админ-панель и права на закрытые возможности                       */
+	/* ------------------------------------------------------------------ */
+	// Сервер сам решает, кто админ: интерфейс только не показывает раздел
+	// остальным. Поэтому все вызовы ниже возвращают одну и ту же форму,
+	// а отказ приходит как ошибка и показывается в тосте.
+	const adminOverview = async (): Promise<AdminOverview> => {
+		if (!state.session?.admin) { return { admin: false }; }
+		const [features, grants, directory] = await Promise.all([
+			api.adminFeatures(),
+			api.adminGrants(),
+			api.adminDirectory('')
+		]);
+		return {
+			admin: true,
+			features: features.features,
+			roles: features.roles,
+			admins: features.admins,
+			account: grants.account,
+			team: grants.team,
+			users: directory.users,
+			teams: directory.teams,
+		};
+	};
+	register('auraTeam.adminState', async () => adminOverview(), false);
+	// Поиск цели выдачи идёт на сервер: каталог команды может быть больше, чем
+	// влезает в первый срез, а фильтр по имени/email делает сервер.
+	register('auraTeam.adminDirectory', async (input?: { q?: string }) => {
+		if (!state.session?.admin) { throw new Error(vscode.l10n.t('Admin rights are required.')); }
+		const data = await api.adminDirectory(String(input?.q ?? '').trim());
+		return { users: data.users, teams: data.teams };
 	}, false);
+	register('auraTeam.adminRedeem', async (code?: string) => {
+		const value = String(code ?? '').trim();
+		if (!value) { return { admin: false }; }
+		const result = await api.adminRedeem(value);
+		// Статус админа приезжает в сессии вместе с правами — обновляем состояние,
+		// чтобы раздел появился без перезапуска окна.
+		if (result.admin) { await refresh(); }
+		return result;
+	}, false);
+	register('auraTeam.adminGrant', async (input?: { feature?: string; kind?: 'account' | 'team'; targetId?: string; minRole?: TeamRole; note?: string; revoke?: boolean }) => {
+		if (!input?.feature || !input.targetId) { throw new Error(vscode.l10n.t('Choose a feature and a target.')); }
+		await api.adminGrant({ feature: input.feature, kind: input.kind === 'team' ? 'team' : 'account', targetId: input.targetId, minRole: input.minRole, note: input.note, revoke: input.revoke === true });
+		return adminOverview();
+	}, false);
+	register('auraTeam.adminSetAdmin', async (input?: { email?: string; revoke?: boolean }) => {
+		const email = String(input?.email ?? '').trim();
+		if (!email) { throw new Error(vscode.l10n.t('Enter the account email.')); }
+		await api.adminSetAdmin(email, input?.revoke === true);
+		return adminOverview();
+	}, false);
+	// Внешнее ядро AGGG 5.2: сервер отдаёт файлы только по праву. Кэш — по хэшу
+	// ядра, поэтому повторный запуск ничего не перекачивает и не зависит от сети.
+	register('auraTeam.agggAgent', async () => {
+		const bundle = await api.agggAgent();
+		const dir = vscode.Uri.joinPath(context.globalStorageUri, 'aggg52', bundle.digest.slice(0, 16));
+		const marker = vscode.Uri.joinPath(dir, 'harness', 'core.txt');
+		const cached = await Promise.resolve(vscode.workspace.fs.stat(marker)).then(() => true, () => false);
+		if (!cached) {
+			await vscode.workspace.fs.createDirectory(dir);
+			for (const [name, content] of Object.entries(bundle.files)) {
+				const segments = name.split('/');
+				if (segments.length > 1) { await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(dir, ...segments.slice(0, -1))); }
+				await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(dir, ...segments), Buffer.from(content, 'utf8'));
+			}
+		}
+		return { path: dir.fsPath, version: bundle.version, cached };
+	}, false);
+
 	// Аватар: сохранение dataURL (JPEG, до ~200 КБ после сжатия на стороне webview).
 	register('auraTeam.setAvatar', async (dataUrl?: string) => {
 		if (!dataUrl || !dataUrl.startsWith('data:image/')) { throw new Error(vscode.l10n.t('Invalid image.')); }
@@ -592,16 +940,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}, false);
 	register('auraTeam.disableApiKey', async (key?: TeamApiKey) => {
 		if (!key) { return; }
-		if (!await confirm(vscode.l10n.t('Disable {0}? Existing clients will immediately stop using it.', key.label))) { return; }
+		// Отключение без модалки подтверждения — действие обратимо тем же тумблером.
 		await api.disableApiKey(requireTeam(state), key.id);
-		vscode.window.showInformationMessage(vscode.l10n.t('The team API key was disabled.'));
+		await refresh();
+	});
+	register('auraTeam.enableApiKey', async (key?: TeamApiKey) => {
+		if (!key) { return; }
+		await api.enableApiKey(requireTeam(state), key.id);
 		await refresh();
 	});
 	register('auraTeam.deleteApiKey', async (key?: TeamApiKey) => {
 		if (!key) { return; }
-		if (!await confirm(vscode.l10n.t('Delete {0} permanently? This cannot be undone.', key.label))) { return; }
+		// Webview уже показал модалку подтверждения — повторный confirm() блокировал
+		// выполнение и вызывал 10-секундный таймаут svc(), молча убивая удаление.
 		await api.deleteApiKey(requireTeam(state), key.id);
-		vscode.window.showInformationMessage(vscode.l10n.t('The team API key was deleted.'));
 		await refresh();
 	});
 	register('auraTeam.updateApiKey', async (keyId?: string, changes?: { label?: string; accessRole?: string; priority?: number; groupId?: string | null }) => {
@@ -610,11 +962,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		await refresh();
 	});
 	// Удаление участника из команды (права проверяет сервер; UI скрывает кнопку по роли).
-	register('auraTeam.removeMember', async (memberId?: string) => {
-		if (!memberId) { return; }
+	// Подтверждение спрашиваем здесь: обе панели приходят одной командой, а вкладка
+	// показывает свой диалог и передаёт confirmed — двойного вопроса не будет.
+	register('auraTeam.removeMember', async (memberId?: string, options?: { confirmed?: boolean }) => {
+		if (!memberId) { return { ok: false }; }
+		const member = state.board?.members.find(item => item.id === memberId) ?? state.summary?.members.find(item => item.id === memberId);
+		if (!options?.confirmed) {
+			const answer = await vscode.window.showWarningMessage(vscode.l10n.t('Remove {0} from the team?', member?.displayName ?? memberId), { modal: true }, vscode.l10n.t('Remove'));
+			if (answer !== vscode.l10n.t('Remove')) { return { ok: false, cancelled: true }; }
+		}
 		await api.removeMember(requireTeam(state), memberId);
 		vscode.window.showInformationMessage(vscode.l10n.t('The member was removed from the team.'));
 		await refresh();
+		return { ok: true };
 	});
 	// Лимиты сервера: клиент валидирует размер архива до отправки и показывает срок хранения.
 	let limitsCache: { teamId: string; at: number; value: { archiveMaxBytes: number; archiveTtlDays: number; proxyRequestsPerDay: number } } | undefined;
@@ -627,7 +987,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	// Проверить все ключи параллельно: обновляем снапшот и отдаём результаты в UI.
 	register('auraTeam.checkAllKeys', async () => {
 		const results = await api.checkAllKeys(requireTeam(state));
-		try { state.keys = await api.listApiKeys(requireTeam(state)); } catch { /* не критично */ }
+		try { state.keys = (await api.listApiKeys(requireTeam(state))).map(k => ({ ...k, keyHint: maskKey(k.keyHint) })); } catch { /* не критично */ }
 		await broadcast();
 		return results;
 	});
@@ -660,8 +1020,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		const limits = await teamLimits();
 		let size = 0;
 		try { size = (await vscode.workspace.fs.stat(uri)).size; } catch { /* недоступен stat — пусть сервер решит */ }
-		if (limits && size > limits.archiveMaxBytes) { throw new Error(vscode.l10n.t('The archive exceeds the server limit of {0} MiB.', Math.round(limits.archiveMaxBytes / 1048576))); }
-		const fileName = uri.fsPath.split(/[\\/]/).pop() ?? 'project';
+		const pickedName = uri.fsPath.split(/[\\/]/).pop() ?? 'project';
+		// Сначала расширение, потом размер: сервер принимает только zip/rar
+		// (остальное молча отклонялось после долгой загрузки).
+		if (!isArchiveName(pickedName)) { throw new Error(vscode.l10n.t('Only .zip and .rar archives are accepted.')); }
+		if (limits && size > limits.archiveMaxBytes) { throw new Error(vscode.l10n.t('The archive exceeds the server limit of {0}.', humanBytes(limits.archiveMaxBytes))); }
+		const fileName = pickedName;
 		return vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Uploading {0}…', fileName), cancellable: true }, async (progress, token) => {
 			let lastPercent = 0;
 			const upload = api.uploadArchiveStream(requireTeam(state), uri.fsPath, projectName, projectId, (sent, total) => {
@@ -677,31 +1041,42 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		});
 	};
 	register('auraTeam.uploadArchive', async (projectName?: string) => {
-		const uri = (await vscode.window.showOpenDialog({ canSelectMany: false, openLabel: vscode.l10n.t('Upload archive') }))?.[0];
+		const uri = (await vscode.window.showOpenDialog({ canSelectMany: false, openLabel: vscode.l10n.t('Upload archive'), filters: ARCHIVE_FILTERS }))?.[0];
 		if (!uri) { return; }
 		const fileName = uri.fsPath.split(/[\\/]/).pop() ?? 'project';
 		// Без явного имени проекта берём имя файла без расширения — модалка не нужна.
 		const name = projectName?.trim() || fileName.replace(/\.[^.]+$/, '') || 'project';
 		return uploadWithProgress(uri, name);
 	});
+	// Скачивание: имя файла берём из заголовка сервера (RFC 5987) — раньше диалог
+	// предлагал имя проекта без расширения, и файл сохранялся «никак».
+	const saveArchive = async (archiveId: string, projectName?: string): Promise<void> => {
+		if (!archiveId) { throw new Error(vscode.l10n.t('This project has no archive.')); }
+		const { bytes, filename } = await api.downloadArchive(requireTeam(state), archiveId);
+		const defaultName = suggestedArchiveName(projectName, filename);
+		const destination = await vscode.window.showSaveDialog({
+			defaultUri: vscode.Uri.joinPath(vscode.workspace.workspaceFolders?.[0]?.uri ?? vscode.Uri.file(process.cwd()), defaultName),
+			saveLabel: vscode.l10n.t('Save archive'),
+			filters: ARCHIVE_FILTERS
+		});
+		if (!destination) { return; }
+		await vscode.workspace.fs.writeFile(destination, bytes);
+		vscode.window.showInformationMessage(vscode.l10n.t('Archive saved to {0}.', destination.fsPath));
+	};
 	register('auraTeam.downloadArchive', async (project?: Project) => {
 		if (!project?.archiveId) { throw new Error(vscode.l10n.t('This project has no archive.')); }
-		const destination = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.file(project.name), filters: { 'All files': ['*'] } });
-		if (!destination) { return; }
-		await vscode.workspace.fs.writeFile(destination, await api.downloadArchive(requireTeam(state), project.archiveId));
-		vscode.window.showInformationMessage(vscode.l10n.t('Archive saved to {0}.', destination.fsPath));
+		return saveArchive(project.archiveId, project.name);
 	});
 	register('auraTeam.downloadArchiveById', async (archive?: { id: string; projectName?: string }) => {
 		if (!archive?.id) { throw new Error(vscode.l10n.t('This project has no archive.')); }
-		const destination = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.file(archive.projectName || 'archive'), filters: { 'All files': ['*'] } });
-		if (!destination) { return; }
-		await vscode.workspace.fs.writeFile(destination, await api.downloadArchive(requireTeam(state), archive.id));
-		vscode.window.showInformationMessage(vscode.l10n.t('Archive saved to {0}.', destination.fsPath));
+		return saveArchive(archive.id, archive.projectName);
 	});
 	register('auraTeam.listArchives', async () => {
 		return api.listArchives(requireTeam(state));
 	});
+	// Удалять архив может только owner/maintainer (то же правило на сервере).
 	register('auraTeam.deleteArchive', async (archiveId?: string) => {
+		if (!canMaintain(state)) { throw new Error(vscode.l10n.t('Only the team owner or a maintainer can delete archives.')); }
 		await api.deleteArchive(requireTeam(state), String(archiveId));
 		await refresh();
 		return { ok: true };
@@ -710,7 +1085,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		// Загрузка новой версии в существующий проект.
 		const project = state.board?.projects.find(p => p.id === projectId);
 		if (!project) { throw new Error(vscode.l10n.t('Project not found.')); }
-		const uri = (await vscode.window.showOpenDialog({ canSelectMany: false, openLabel: vscode.l10n.t('Upload archive') }))?.[0];
+		const uri = (await vscode.window.showOpenDialog({ canSelectMany: false, openLabel: vscode.l10n.t('Upload archive'), filters: ARCHIVE_FILTERS }))?.[0];
 		if (!uri) { return; }
 		return uploadWithProgress(uri, project.name, project.id);
 	});
@@ -727,7 +1102,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	register('auraTeam.getProject', async (project?: Project) => gitSvc().getProject(project?.gitUrl ?? await requiredInput(vscode.l10n.t('Git repository URL'))));
 	register('auraTeam.saveWork', async (message?: string) => {
 		const commit = await gitSvc().saveWork(message ?? await requiredInput(vscode.l10n.t('Commit message'), 'task #TASK_ID: describe the completed work'));
-		if (state.teamId && commit.remoteUrl) { await api.reportCommit(state.teamId, commit.hash, commit.remoteUrl, commit.message); }
+		await reportCommitForLinking(commit);
 		return commit;
 	});
 	register('auraTeam.updateProject', () => gitSvc().update());
@@ -737,13 +1112,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	register('auraTeam.relink', async (url?: string) => gitSvc().relink(url ?? await requiredInput(vscode.l10n.t('New origin URL'))));
 	register('auraTeam.history', () => gitSvc().showHistory());
 
+	/**
+	 * Докладываем серверу только коммиты со ссылкой на задачу: сервер связывает пару
+	 * исключительно по `#<hex>` в сообщении и без ссылки отвечает 404 — раньше эти
+	 * 404 попадали в общий catch и выглядели как ошибка коммита (а с непустым
+	 * remoteUrl запрос ещё и уходил впустую).
+	 */
+	const reportCommitForLinking = async (commit: { hash: string; message: string; remoteUrl?: string }): Promise<boolean> => {
+		const ref = taskRefInMessage(commit.message);
+		if (!ref) { output.appendLine('[commit] сообщение без ссылки на задачу — коммит не связан'); return false; }
+		if (!state.teamId) { return false; }
+		try {
+			await api.reportCommit(state.teamId, commit.hash, commit.remoteUrl ?? '', commit.message);
+			output.appendLine(`[commit] связан с задачей #${ref}`);
+			return true;
+		} catch (error) {
+			output.appendLine(`[commit] связка с задачей #${ref} не удалась: ${errorMessage(error)}`);
+			vscode.window.showWarningMessage(vscode.l10n.t('The commit is saved, but the task link could not be reported: {0}', errorMessage(error)));
+			return false;
+		}
+	};
+
 	// Новые команды для git-панели вкладки
 	register('auraTeam.commitAll', async (message: string) => {
 		// Коммит выполняется всегда; пуш — отдельным шагом, чтобы ошибка отправки
 		// не теряла коммит и попадала в тост, а не в молчаливое исключение.
 		const repository = gitSvc().repository;
 		const commit = await gitSvc().commitOnly(message, repository);
-		if (state.teamId && commit.remoteUrl) { await api.reportCommit(state.teamId, commit.hash, commit.remoteUrl, commit.message); }
+		const linked = await reportCommitForLinking(commit);
 		let pushed = false;
 		let pushError: string | undefined;
 		if (commit.remoteUrl && repository) {
@@ -753,7 +1149,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			}
 		}
 		await broadcast();
-		return { ...commit, pushed, pushError };
+		return { ...commit, pushed, pushError, linked };
 	});
 	register('auraTeam.push', async () => { await gitSvc().push(); await broadcast(); });
 	register('auraTeam.pull', async () => { await gitSvc().update(); await broadcast(); });
@@ -780,15 +1176,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	register('auraTeam.showDiff', async (filePath?: string) => {
 		if (filePath) { await gitSvc().showDiff(String(filePath)); }
 	});
+	// Командный стандарт: работа идёт в ветке задачи, а не в master/front.
+	// Ветка создаётся из задачи — имя детерминировано, ссылка на задачу попадает в имя.
+	register('auraTeam.createBranchFromTask', async (taskId?: string) => {
+		const id = String(taskId ?? '');
+		const task = (state.board?.tasks ?? []).find(item => item.id === id);
+		if (!task) { throw new Error(vscode.l10n.t('Task not found.')); }
+		const name = branchNameForTask(task.id, task.title);
+		const existing = await gitSvc().listBranches();
+		if (existing.includes(name)) { await gitSvc().checkout(name); } else { await gitSvc().createBranch(name); }
+		await broadcast();
+		return { branch: name, taskId: task.id };
+	});
+	/** Подсказка для коммита: ссылка на задачу в сообщении — то, по чему сервер связывает коммит. */
+	register('auraTeam.taskCommitHint', async (taskId?: string) => {
+		const id = String(taskId ?? '');
+		return { ref: '#' + id.slice(0, 8), branch: branchNameForTask(id, (state.board?.tasks ?? []).find(item => item.id === id)?.title) };
+	});
 	register('auraTeam.commitSelected', async (message?: string, selectedPaths?: string[]) => {
 		const paths = Array.isArray(selectedPaths) ? selectedPaths : [];
 		const commit = await gitSvc().commitSelected(message ?? await requiredInput(vscode.l10n.t('Commit message')), paths);
-		if (state.teamId && commit.remoteUrl) { await api.reportCommit(state.teamId, commit.hash, commit.remoteUrl, commit.message); }
+		const linked = await reportCommitForLinking(commit);
 		let pushed = false;
 		let pushError: string | undefined;
 		try { await gitSvc().push(); pushed = true; } catch (error) { pushError = errorMessage(error); }
 		await broadcast();
-		return { ...commit, pushed, pushError };
+		return { ...commit, pushed, pushError, linked };
 	});
 
 	// Профиль (локальный, без сервера)
@@ -799,9 +1212,37 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		return profile;
 	}, false);
 
+	register('auraTeam.runTeamTask', async (taskId?: string) => {
+		const id = String(taskId ?? '').trim();
+		if (!id) { return { ok: false }; }
+		// Публичная команда оркестратора: он сам решает, как замапить задачу в поток графа.
+		await vscode.commands.executeCommand('orchestrator.runTeamTask', id);
+		return { ok: true };
+	});
+
 	state.teamId = context.workspaceState.get<string>('auraTeam.teamId');
 	await updateSimpleModeContext();
 	await refresh();
+
+	// Публичный API: только эти методы и ничего сверх — потребитель проверяет apiVersion.
+	return {
+		apiVersion: PUBLIC_API_VERSION,
+		getSession: () => state.session,
+		getBoard: (teamId: string) => api.getBoard(teamId),
+		updateTask: async (teamId: string, taskId: string, changes: TeamTaskChanges) => {
+			const updated = await api.updateTask(teamId, taskId, changes);
+			await refresh();
+			return updated;
+		},
+		createTask: async (teamId: string, title: string, status?: TaskStatus) => {
+			const created = await api.createTask(teamId, title, status);
+			await refresh();
+			return created;
+		},
+		onDidChangeBoard: boardEmitter.event,
+		listApiKeys: (teamId: string) => api.listApiKeys(teamId),
+		createProxyToken: (teamId: string, provider: string, model: string) => api.createProxyToken(teamId, provider, model),
+	};
 }
 
 /**
@@ -809,10 +1250,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
  *  • не вошёл → карточка «Войдите или создайте аккаунт» с кнопками;
  *  • вошёл → меню: профиль, команды, канбан, проекты, файлы, ключи, приглашение, выход.
  */
+/**
+ * Кодирует codicon.ttf из состава IDE в base64 для встраивания в webview.
+ * Результат кэшируется: файл ~150 КБ, перекодировать при каждом открытии панели дорого.
+ */
+let codiconFontCache: string | undefined;
+function getCodiconFontBase64(): string {
+	if (codiconFontCache) { return codiconFontCache; }
+	// Шрифт ищем в корне расширения (assets/) и выше — out/ чистится при пересборке.
+	for (const candidate of [join(__dirname, '..', 'assets'), join(__dirname, '..', '..', 'assets'), __dirname]) {
+		try { codiconFontCache = readFileSync(join(candidate, 'codicon.ttf')).toString('base64'); break; } catch { /* следующий путь */ }
+	}
+	codiconFontCache ??= '';
+	return codiconFontCache;
+}
+
 class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
 	private view?: vscode.WebviewView;
 	private lastState?: unknown;
 	private lastInviteCode?: string;
+	private lastInviteExpires: string | null = null;
+	private lastInviteRole: string | null = null;
+	/** Приглашение, запрошенное до создания панели: показываем при первом же ready. */
+	private pendingInvite: { code: string | null; expiresAt: string | null; role?: string | null } | undefined;
+	/** Панель видима в сайдбаре. В скрытом состоянии состояние не пушим — фоновая активность останавливается. */
+	private visible = false;
 
 	constructor(
 		private readonly open: (view: string, filter?: unknown) => Promise<void>,
@@ -822,300 +1284,1063 @@ class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
 
 	resolveWebviewView(webviewView: vscode.WebviewView): void {
 		this.view = webviewView;
+		this.visible = webviewView.visible;
+		webviewView.onDidChangeVisibility(() => {
+			this.visible = webviewView.visible;
+			// Вернулись на панель — сразу проталкиваем свежее состояние.
+			if (this.visible) { void this.push(); }
+		});
+		webviewView.onDidDispose(() => { this.view = undefined; this.visible = false; });
 		webviewView.webview.options = { enableScripts: true };
 		const nonce = String(Date.now()) + '-' + Math.floor(Math.random() * 1e9);
 		// NB: replace() меняет только первое вхождение — nonce остался бы в CSP,
 		// а <script nonce="__NONCE__"> был бы заблокирован CSP (пустой сайдбар).
-		webviewView.webview.html = LAUNCHER_HTML.split('__NONCE__').join(nonce);
+		webviewView.webview.html = LAUNCHER_HTML
+			.split('__CODICON_FONT__').join(getCodiconFontBase64())
+			.split('__NONCE__').join(nonce);
 		webviewView.webview.onDidReceiveMessage(async message => {
 			if (message?.type === 'open' && typeof message.view === 'string') { await this.open(message.view, message.filter); }
-			else if (message?.type === 'toast' && typeof message.text === 'string') { void vscode.window.showInformationMessage(message.text); }
-			else if (message?.type === 'copy' && typeof message.text === 'string') { await vscode.env.clipboard.writeText(message.text); void vscode.window.showInformationMessage(vscode.l10n.t('Copied to clipboard.')); }
-			else if (message?.type === 'invoke' && typeof message.command === 'string') {
-				try {
-					const result = await this.invoke(message.command, Array.isArray(message.args) ? message.args : []);
-					// Код приглашения возвращается из auraTeam.currentInvite/createInvite — кладём в state для сайдбара.
-					if (result && typeof result === 'object' && 'code' in (result as Record<string, unknown>)) { this.lastInviteCode = String((result as Record<string, unknown>).code ?? ''); }
-				} catch (error) { void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error)); }
-				await this.push();
-			} else if (message?.type === 'ready') { await this.push(); }
-		});
-		void this.push();
+			else if (message?.type === 'toast' && typeof message.text === 'string') { void vscode.window.showInformationMessage(message.text); }		else if (message?.type === 'invoke' && typeof message.command === 'string') {
+			try {
+				const result = await this.invoke(message.command, Array.isArray(message.args) ? message.args : []);
+				// Код приглашения возвращается из auraTeam.currentInvite/createInvite — кладём в state для сайдбара.
+				if (result && typeof result === 'object' && 'code' in (result as Record<string, unknown>)) {
+					const invite = result as Record<string, unknown>;
+					this.lastInviteCode = String(invite.code ?? '');
+					this.lastInviteExpires = typeof invite.expiresAt === 'string' ? invite.expiresAt : null;
+					this.lastInviteRole = typeof invite.role === 'string' ? invite.role : null;
+				}
+				void this.view?.webview.postMessage({ type: 'response', id: message.id, ok: true, result });
+			} catch (error) {
+				void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error));
+				void this.view?.webview.postMessage({ type: 'response', id: message.id, ok: false, error: error instanceof Error ? error.message : String(error) });
+			}
+			await this.push();
+		} else if (message?.type === 'ready') {
+			await this.push();
+			/* Команда могла запросить приглашение до создания панели. */
+			if (this.pendingInvite) { const pending = this.pendingInvite; this.pendingInvite = undefined; void this.revealInvite(pending); }
+		}
+	});
+	void this.push();
+}
+
+	/** Открыть секцию приглашения в панели (вкладку редактора больше не создаём). */
+	async revealInvite(invite: { code: string | null; expiresAt?: string | null; role?: string | null }): Promise<void> {
+		this.lastInviteCode = invite.code ?? undefined;
+		this.lastInviteExpires = invite.expiresAt ?? null;
+		this.lastInviteRole = invite.role ?? null;
+		// Команда может прийти из палитры команд при скрытом сайдбаре — сначала показываем контейнер.
+		await vscode.commands.executeCommand('workbench.view.extension.auraTeam');
+		if (!this.view) { this.pendingInvite = { code: invite.code ?? null, expiresAt: invite.expiresAt ?? null, role: invite.role ?? null }; return; }
+		void this.view.webview.postMessage({ type: 'inviteCode', invite: { code: invite.code ?? null, expiresAt: invite.expiresAt ?? null, role: invite.role ?? null } });
+		await this.push();
+	}
+	/** Код отозван или протух: сбрасываем кэш, чтобы push() не вернул его в панель. */
+	clearInvite(): void {
+		this.lastInviteCode = undefined;
+		this.lastInviteExpires = null;
+		this.lastInviteRole = null;
+		this.pendingInvite = undefined;
 	}
 
 	/** Протолкнуть свежее состояние в сайдбар (вызывается из broadcast). */
 	async push(): Promise<void> {
+		// Скрытая панель не получает обновления — состояние догоним при возврате видимости.
+		if (!this.visible) { return; }
 		this.lastState = await this.getState();
 		if (this.view) {
-			void this.view.webview.postMessage({ type: 'state', state: this.lastState, inviteCode: this.lastInviteCode });
+			void this.view.webview.postMessage({ type: 'state', state: this.lastState, inviteCode: this.lastInviteCode, inviteExpires: this.lastInviteExpires, inviteRole: this.lastInviteRole ?? undefined });
 		}
 	}
 }
 
-const LAUNCHER_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-__NONCE__';">
+const LAUNCHER_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-__NONCE__'; font-src data:;">
 <style>
-	body { padding: 10px; font-family: var(--vscode-font-family); color: var(--vscode-foreground); }
-	.card { border: 1px solid var(--vscode-panel-border); border-radius: 10px; padding: 14px 12px; text-align: center; margin-bottom: 10px; animation: in .25s ease; }
-	@keyframes in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-	.title { font-weight: 600; margin-bottom: 4px; }
-	.sub { font-size: 12px; opacity: .75; margin-bottom: 12px; line-height: 1.4; }
-	button { display: block; width: 100%; box-sizing: border-box; margin: 6px 0 0; padding: 7px 10px; border: none; border-radius: 6px; cursor: pointer;
-		background: var(--vscode-button-background); color: var(--vscode-button-foreground); font-size: 13px; transition: filter .15s ease, transform .1s ease; }
-	button:hover { filter: brightness(1.12); } button:active { transform: scale(.98); }
-	button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
-	.nav button { text-align: left; background: transparent; color: var(--vscode-foreground); display: flex; gap: 9px; align-items: center; padding: 7px 10px; border-radius: 8px; font-size: 12.5px; line-height: 1; }
-	.nav .n-ico { width: 16px; height: 16px; display: grid; place-items: center; flex: none; opacity: .8; }
-	.nav .n-ico svg { width: 16px; height: 16px; }
-	.nav button:hover { background: var(--vscode-list-hoverBackground); }
-	.me { display: flex; gap: 10px; align-items: center; text-align: left; margin-bottom: 10px; }
-	.ava { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; flex: none; position: relative; }
-	.ava::after { content: ''; position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%; background: #3fb950; border: 2px solid var(--vscode-sideBar-background); }
-	.id { font-size: 11px; opacity: .6; }
-	hr { border: none; border-top: 1px solid var(--vscode-panel-border); margin: 8px 0; }
-	.danger { color: color-mix(in srgb, var(--vscode-errorForeground) 60%, var(--vscode-foreground)) !important; }
-	.section { margin: 12px 0 4px; padding: 0 8px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; opacity: .65; display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
-	.section .count { background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); border-radius: 999px; padding: 1px 8px; font-size: 10px; text-transform: none; letter-spacing: 0; font-weight: 500; }
-	.section .count.hot { background: #d29922; color: #1f1300; animation: pulse 1.6s ease infinite; }
-	@keyframes pulse { 50% { opacity: .55; } }
-	.done-btn { margin-left: auto; width: 18px; height: 18px; border: none; border-radius: 5px; background: transparent; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 11px; line-height: 1; padding: 0; flex: none; }
-	.done-btn:hover { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
-	.day-sep { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; opacity: .55; padding: 5px 8px 2px; font-weight: 600; }
-	.member { display: flex; gap: 8px; align-items: center; padding: 4px 8px; border-radius: 7px; animation: in .25s ease both; }
-	.member:hover { background: var(--vscode-list-hoverBackground); cursor: pointer; }
-	.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; margin-left: auto; }
-	.dot.on { background: #3fb950; box-shadow: 0 0 6px #3fb95088; }
-	.dot.off { background: var(--vscode-descriptionForeground); opacity: .4; }
-	.m-ava { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 700; flex: none; }
-	.m-role { font-size: 10px; opacity: .55; margin-left: 6px; }
-	.feed { display: flex; flex-direction: column; gap: 2px; }
-	.feed-item { display: flex; gap: 7px; padding: 4px 8px; border-radius: 7px; font-size: 12px; line-height: 1.35; animation: in .25s ease both; align-items: center; }
-	.feed-item:hover { background: var(--vscode-list-hoverBackground); }
-	.feed-item .ico { flex: none; opacity: .8; font-size: 12px; }
-	.feed-item .who { font-weight: 600; }
-	.feed-item .what { opacity: .85; }
-	.feed-item .when { margin-left: auto; flex: none; font-size: 10px; opacity: .45; }
-	.taskline { display: flex; gap: 7px; align-items: center; padding: 4px 8px; border-radius: 7px; font-size: 12px; cursor: pointer; animation: in .25s ease both; }
-	.taskline:hover { background: var(--vscode-list-hoverBackground); }
-	.taskline .st { flex: none; font-size: 10px; padding: 1px 6px; border-radius: 6px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
-	.taskline .due { margin-left: auto; font-size: 10px; opacity: .55; }
-	.taskline .due.hot { color: #d29922; opacity: 1; font-weight: 600; }
-	.line-btn { width: 18px; height: 18px; border: none; border-radius: 5px; background: transparent; color: var(--vscode-descriptionForeground); cursor: pointer; font-size: 11px; line-height: 1; padding: 0; flex: none; }
-	.line-btn:hover { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
-	.line-btn.del:hover { background: var(--vscode-errorForeground); color: #fff; }
-	.invite-menu { text-align: left; margin: 6px 0 2px; }
-	.invite-menu .code { font-family: var(--vscode-editor-font-family); font-size: 16px; font-weight: 700; letter-spacing: 2px; background: var(--vscode-input-background); border: 1px solid var(--vscode-panel-border); border-radius: 8px; padding: 9px 12px; margin: 8px 0; text-align: center; user-select: all; }
-	.projline { display: flex; gap: 7px; align-items: center; padding: 4px 8px; border-radius: 7px; font-size: 12px; cursor: pointer; animation: in .25s ease both; }
-	.projline:hover { background: var(--vscode-list-hoverBackground); }
-	.projline .br { margin-left: auto; font-size: 10px; opacity: .55; font-family: var(--vscode-editor-font-family); }
+/* ---------- codicon-шрифт из состава IDE (base64) ---------- */
+@font-face { font-family: 'codicon'; src: url(data:font/woff2;base64,__CODICON_FONT__) format('woff2'); }
+.ci { font-family: 'codicon'; font-size: 16px; line-height: 1; display: inline-block; font-weight: normal; font-style: normal; text-decoration: none; -webkit-font-smoothing: antialiased; text-rendering: auto; }
+/* ---------- шкала отступов 4/8/12/16/24/32, радиусы 6/10, токены движения (C1) ---------- */
+:root {
+\t--sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px;
+\t--r-ctl: 6px; --r-card: 10px;
+\t--dur-1: 90ms; --dur-2: 160ms; --dur-3: 240ms; --dur-4: 320ms;
+\t--ease-out: cubic-bezier(.2, 0, 0, 1);
+\t--ease-in: cubic-bezier(.4, 0, 1, 1);
+\t--ease-inout: cubic-bezier(.4, 0, .2, 1);
+\t--ease-snap: cubic-bezier(.34, 1.26, .64, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+\t:root { --dur-1: 1ms; --dur-2: 1ms; --dur-3: 1ms; --dur-4: 1ms; }
+\t* { animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; padding: var(--sp-2) 0 var(--sp-4); font-family: var(--vscode-font-family); font-size: 13px; color: var(--vscode-foreground); background: var(--vscode-sideBar-background); overflow: hidden; }
+button { font-family: inherit; font-size: 13px; color: inherit; background: none; border: none; cursor: pointer; padding: 0; }
+button:focus-visible, [tabindex]:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; border-radius: var(--r-ctl); }
+#root { height: 100%; overflow-y: auto; padding: 0 var(--sp-2); }
+
+/* ---------- единая сетка строки (A3): все строки панели — 20px | 1fr | auto ---------- */
+.row {
+\tdisplay: grid;
+\tgrid-template-columns: 20px minmax(0, 1fr) auto;
+\talign-items: center;
+\tgap: var(--sp-2);
+\tmin-height: 28px;
+\tpadding: 0 var(--sp-2);
+\tborder-radius: var(--r-ctl);
+\tcursor: pointer;
+\ttransition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+.row:hover { background: var(--vscode-list-hoverBackground); }
+.row > :first-child { width: 20px; display: grid; place-items: center; }
+.row .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.row .end { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.row .time { font-size: 11px; color: var(--vscode-descriptionForeground); white-space: nowrap; }
+.row .sub-count { margin-left: var(--sp-2); font-size: 11px; color: var(--vscode-descriptionForeground); font-variant-numeric: tabular-nums; }
+/* действия строки: проявляются сдвигом на 4px внутрь (C2), без движения самой строки */
+.row .actions { display: flex; gap: 2px; opacity: 0; transform: translateX(4px); transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); }
+.row:hover .actions, .row:focus-within .actions { opacity: 1; transform: none; }
+.row .actions .danger:hover { color: var(--vscode-errorForeground); }
+
+/* ---------- метки секций: та же левая граница, что у строк ---------- */
+.side-label { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 400; letter-spacing: .04em; color: var(--vscode-descriptionForeground); margin: 0 var(--sp-2) var(--sp-3); text-transform: none; }
+.side-label .label-actions { display: flex; gap: 2px; opacity: 0; transition: opacity var(--dur-2) var(--ease-out); }
+.side-label:hover .label-actions, .side-label:focus-within .label-actions { opacity: 1; }
+.section { margin-bottom: var(--sp-6); }
+.section .list { display: flex; flex-direction: column; gap: var(--sp-1); }
+
+/* ---------- нейтральные счётчики + roll чисел (C10) ---------- */
+.count { min-width: 18px; height: 18px; padding: 0 var(--sp-1); display: inline-grid; place-items: center; font-size: 11px; border-radius: calc(1e3px); color: var(--vscode-descriptionForeground); background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent); font-variant-numeric: tabular-nums; }
+.count > .count-text { grid-area: 1 / 1; }
+
+/* ---------- профиль (A1: хендл только если есть; A5: точка онлайна — здесь) ---------- */
+.me { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-1) var(--sp-2); margin-bottom: var(--sp-4); border-radius: var(--r-ctl); cursor: pointer; transition: background-color var(--dur-1) var(--ease-out); }
+.me:hover { background: var(--vscode-list-hoverBackground); }
+.ava { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 400; color: var(--vscode-sideBar-background); flex: none; position: relative; }
+.ava .presence { position: absolute; right: -2px; bottom: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--vscode-testing-iconPassed, var(--vscode-charts-green)); border: 2px solid var(--vscode-sideBar-background); }
+.ava .presence.off { background: var(--vscode-descriptionForeground); }
+
+.me .who { min-width: 0; display: flex; flex-direction: column; }
+.me .who .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me .who .handle { font-size: 11px; color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* меню профиля — поповер (единственный допустимый box-shadow), вход через @starting-style (C7) */
+.me-menu { position: absolute; z-index: 50; min-width: 160px; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border, transparent); border-radius: var(--r-card); box-shadow: 0 4px 16px color-mix(in srgb, var(--vscode-widget-shadow) 45%, transparent); padding: var(--sp-1); opacity: 1; transform: none; transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out), display var(--dur-2) allow-discrete; }
+@starting-style { .me-menu { opacity: 0; transform: scale(.97); } }
+.me-menu button { display: flex; align-items: center; gap: var(--sp-2); width: 100%; padding: var(--sp-2); border-radius: var(--r-ctl); text-align: left; transition: background-color var(--dur-1) var(--ease-out); }
+.me-menu button:hover { background: var(--vscode-list-hoverBackground); }
+.me-menu button.danger { color: color-mix(in srgb, var(--vscode-errorForeground) 60%, var(--vscode-foreground)); }
+
+/* ---------- навигация: та же сетка строки ---------- */
+.nav { display: flex; flex-direction: column; gap: 1px; }
+.nav-item { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: var(--sp-2); width: 100%; min-height: 28px; padding: 0 var(--sp-2); border-radius: var(--r-ctl); text-align: left; font-size: 13px; color: var(--vscode-foreground); transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
+.nav-item:hover { background: var(--vscode-list-hoverBackground); }
+.nav-item.active { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+.nav-item > :first-child { display: grid; place-items: center; }
+.nav-item .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- бейджи статусов (A4): фиксированная палитра, кроссфейд (C3) ---------- */
+.badge { display: inline-grid; min-width: 62px; height: 16px; justify-content: center; align-items: center; font-size: 11px; padding: 0 var(--sp-1); border-radius: var(--r-ctl); background: color-mix(in srgb, currentColor 14%, transparent); transition: color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out); flex: none; }
+.badge > .badge-text { grid-area: 1 / 1; }
+.badge[data-state='in-progress'] { color: var(--vscode-charts-blue); }
+.badge[data-state='review'] { color: var(--vscode-charts-purple); }
+.badge[data-state='blocked'] { color: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow)); }
+.badge[data-state='done'] { color: var(--vscode-charts-green); }
+.badge[data-state='overdue'] { color: var(--vscode-errorForeground); }
+/* однократный пульс подтверждения (C3) */
+@keyframes pulseOnce {
+\tfrom { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent); }
+\tto { box-shadow: 0 0 0 7px transparent; }
+}
+.badge.just-changed::before { content: ''; position: absolute; inset: 0; border-radius: inherit; animation: pulseOnce 420ms var(--ease-out) 1; }
+
+/* счётчик повторов события — инлайн без фона (A2) */
+.rep { font-size: 11px; color: var(--vscode-descriptionForeground); font-variant-numeric: tabular-nums; }
+
+.act-btn { width: 20px; height: 20px; display: grid; place-items: center; border-radius: var(--r-ctl); color: var(--vscode-descriptionForeground); transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
+.act-btn:hover { background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent); color: var(--vscode-foreground); }
+.act-btn.danger:hover { color: var(--vscode-errorForeground); }
+.act-btn .ci { font-size: 16px; }
+/* ghost-кнопки «Показать все/ещё» — с тем же padding, что у строк (A3) */
+.link-btn { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: var(--sp-2); min-height: 28px; padding: 0 var(--sp-2); font-size: 13px; color: var(--vscode-descriptionForeground); border-radius: var(--r-ctl); text-align: left; transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
+.link-btn:hover { background: var(--vscode-list-hoverBackground); color: var(--vscode-foreground); }
+.link-btn > :first-child { display: grid; place-items: center; }
+
+.m-role { font-size: 11px; color: var(--vscode-descriptionForeground); }
+
+/* ---------- события ---------- */
+.ev-entity { color: var(--vscode-textLink-foreground); cursor: pointer; }
+.ev-entity:hover { text-decoration: underline; }
+/* раскрытие «Показать ещё» через grid-template-rows (C7) */
+.collapsible { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--dur-3) var(--ease-out); }
+.collapsible > div { overflow: hidden; min-height: 0; display: flex; flex-direction: column; gap: var(--sp-1); }
+.collapsible[data-open='true'] { grid-template-rows: 1fr; }
+
+/* ---------- тост undo (C5): вход 320ms, уход 160ms, полоска-таймер ---------- */
+#undoToast { position: fixed; bottom: var(--sp-3); left: 50%; transform: translateX(-50%); z-index: 100; display: flex; align-items: center; gap: var(--sp-3); background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border, transparent); border-radius: var(--r-card); box-shadow: 0 4px 16px color-mix(in srgb, var(--vscode-widget-shadow) 45%, transparent); padding: var(--sp-2) var(--sp-3); font-size: 12px; overflow: hidden; opacity: 1; transform: translateX(-50%); transition: opacity var(--dur-4) var(--ease-out), transform var(--dur-4) var(--ease-out), display var(--dur-2) allow-discrete; }
+@starting-style { #undoToast { opacity: 0; transform: translateX(-50%) translateY(8px); } }
+#undoToast.hidden { display: none; opacity: 0; transition: opacity var(--dur-2) var(--ease-in); }
+#undoToast button { color: var(--vscode-textLink-foreground); font-size: 12px; }
+#undoToast .timer { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: color-mix(in srgb, var(--vscode-textLink-foreground) 40%, transparent); transform-origin: left; }
+
+/* ---------- приглашение: секция внутри сайдбара (вкладка редактора не нужна) ---------- */
+#secInvite[data-open='false'] { display: none; }
+.invite-code { display: flex; align-items: center; gap: var(--sp-2); min-height: 32px; padding: 0 var(--sp-1) 0 var(--sp-2); border: 1px solid color-mix(in srgb, var(--vscode-foreground) 22%, transparent); border-radius: var(--r-ctl); }
+.invite-code .code { flex: 1; min-width: 0; font-size: 13px; letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: all; }
+.invite-code .expires { font-size: 11px; color: var(--vscode-descriptionForeground); white-space: nowrap; }
+.invite-hint { margin: var(--sp-3) var(--sp-2) 0; font-size: 11px; line-height: 1.45; color: var(--vscode-descriptionForeground); }
+.invite-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
+.invite-actions button { flex: 1; min-height: 28px; padding: 0 var(--sp-2); border-radius: var(--r-ctl); background: var(--vscode-button-secondaryBackground, color-mix(in srgb, var(--vscode-foreground) 10%, transparent)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); font-size: 12px; text-align: center; transition: background-color var(--dur-1) var(--ease-out); }
+.invite-actions button:hover { background: var(--vscode-button-secondaryHoverBackground, color-mix(in srgb, var(--vscode-foreground) 16%, transparent)); }
+.invite-actions button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.invite-search { width: 100%; min-height: 28px; margin-top: var(--sp-4); padding: 0 var(--sp-2); font-family: inherit; font-size: 12px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: var(--r-ctl); }
+.invite-search::placeholder { color: var(--vscode-input-placeholderForeground); }
+/* Роль приглашения: компактная строка с селектом — видна и до создания кода. */
+.invite-role-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-top: var(--sp-4); }
+.invite-role-row label { font-size: 11px; color: var(--vscode-descriptionForeground); }
+.invite-role-row select { flex: 0 0 auto; min-height: 24px; padding: 0 var(--sp-1); font-family: inherit; font-size: 12px; color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); border: 1px solid var(--vscode-dropdown-border, transparent); border-radius: var(--r-ctl); }
+.invite-hit .email { display: block; font-size: 11px; color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.invite-hit .btn-invite { min-height: 20px; padding: 0 var(--sp-2); border-radius: var(--r-ctl); font-size: 11px; white-space: nowrap; background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent); transition: background-color var(--dur-1) var(--ease-out); }
+.invite-hit .btn-invite:hover { background: color-mix(in srgb, var(--vscode-foreground) 18%, transparent); }
+.invite-hit .btn-invite[data-sent='true'] { color: var(--vscode-testing-iconPassed, var(--vscode-charts-green)); background: none; cursor: default; }
+.invite-empty { padding: var(--sp-2); font-size: 11px; color: var(--vscode-descriptionForeground); }
+
+/* ---------- вход ---------- */
+.signin { padding: var(--sp-3) var(--sp-2); }
+.signin .sub { font-size: 12px; color: var(--vscode-descriptionForeground); line-height: 1.45; margin-bottom: var(--sp-3); }
+.signin button { display: block; width: 100%; padding: var(--sp-2); margin-bottom: var(--sp-2); border-radius: var(--r-ctl); background: var(--vscode-button-background); color: var(--vscode-button-foreground); text-align: center; transition: background-color var(--dur-1) var(--ease-out); }
+.signin button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+
+.empty-line { font-size: 12px; color: var(--vscode-descriptionForeground); padding: 2px var(--sp-2); }
 </style></head><body><div id="root"></div>
+<div id="undoToast" class="hidden"><span id="undoText"></span><button id="undoBtn"></button><span class="timer" id="undoTimer"></span></div>
 <script nonce="__NONCE__">
-	const vscode = acquireVsCodeApi();
-	let state;
-	function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-	function initials(n) { const p = (n || '').trim().split(/\s+/).filter(Boolean); return ((p[0]?.[0] ?? '?') + (p.length > 1 ? p[1][0] : (p[0]?.[1] ?? ''))).toUpperCase(); }
-	function timeAgo(iso) {
-		if (!iso) { return ''; }
-		const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-		if (s < 60) { return 'только что'; }
-		if (s < 3600) { return Math.floor(s / 60) + ' мин'; }
-		if (s < 86400) { return Math.floor(s / 3600) + ' ч'; }
-		return Math.floor(s / 86400) + ' д';
+'use strict';
+const vscode = acquireVsCodeApi();
+let state;
+let activeNav = 'board';
+let feedLimit = 3;
+let staticRendered = false; // профиль+навигация рендерятся один раз, списки обновляются построчно
+/* ---------- приглашение в команду: секция сайдбара ---------- */
+let inviteOpen = false;
+let inviteQuery = '';
+let inviteResults = null;
+let inviteSearchTimer;
+let inviteBusy = false;
+const invitedIds = new Set();
+const I18N = {
+\t	ru: { inviteNoCode: 'Кода пока нет — создайте его, чтобы приглашать коллег.', inviteCreate: 'Создать код', copyCode: 'Скопировать код', copiedCode: 'Код скопирован', inviteHint: 'Передайте код коллеге — он вступит в команду через «Присоединиться».', inviteNew: 'Новый код', inviteRevoke: 'Отозвать', inviteSearch: 'Поиск по имени или email…', inviteSearchHint: 'Начните вводить имя или email.', inviteSearchFail: 'Не удалось загрузить каталог', inviteNotFound: 'Никого не найдено', inviteSend: 'Пригласить', invited: 'Приглашён', inviteSent: 'Приглашение отправлено', expiresToday: 'истекает сегодня', expiresInDays: 'истекает через {0} дн.', expired: 'истёк', loading: 'Загружаем…', close: 'Закрыть', requestTimeout: 'Команда не ответила', requestFailed: 'Команда завершилась ошибкой', myTasks: 'Мои задачи', subtasks: 'Подзадачи', team: 'Команда', events: 'События', showAll: 'Показать все', showMore: 'Показать ещё', online: 'в сети', offlineAgo: 'был(а) в сети', justNow: 'только что', min: 'мин', hour: 'ч', day: 'д', yesterday: 'вчера', done: 'Выполнить', move: 'Сменить статус', del: 'Удалить', clear: 'Очистить', you: 'вы', deleted: 'Задача удалена', undo: 'Отменить', invite: 'Пригласить в команду', noTasks: 'Незакрытых задач нет', quiet: 'Пока тихо', hideEvent: 'Скрыть только у себя', delEvent: 'Удалить для всей команды', hiddenEvents: 'скрытых у вас', showHidden: 'Вернуть скрытые', signin: 'Войти', signup: 'Создать аккаунт', signinSub: 'Войдите или создайте аккаунт, чтобы работать с командой: проекты, канбан, задачи и общие ключи.', profile: 'Профиль', logout: 'Выйти', inWork: 'в работе', review: 'ревью', blocked: 'блок', ready: 'готово', overdue: 'просрочено', roleOwner: 'Владелец', roleMaintainer: 'Совладелец', roleDev: 'Разработчик', roleViewer: 'Зритель', removeMember: 'Удалить из команды', memberRemoved: 'Участник удалён из команды', inviteRevoked: 'Код отозван — старый больше не действует', inviteRoleTitle: 'Приглашать с ролью', inviteCodeRole: 'роль: {0}', inviteRoleCurrent: 'Активный код выдан на роль «{0}»', times2: '×' },
+\t	en: { inviteNoCode: 'No code yet — create one to invite teammates.', inviteCreate: 'Create code', copyCode: 'Copy code', copiedCode: 'Code copied', inviteHint: 'Share the code — your teammate joins with “Join”.', inviteNew: 'New code', inviteRevoke: 'Revoke', inviteSearch: 'Search by name or email…', inviteSearchHint: 'Start typing a name or email.', inviteSearchFail: 'Could not load the directory', inviteNotFound: 'Nobody found', inviteSend: 'Invite', invited: 'Invited', inviteSent: 'Invitation sent', expiresToday: 'expires today', expiresInDays: 'expires in {0} d', expired: 'expired', loading: 'Loading…', close: 'Close', requestTimeout: 'The command did not answer', requestFailed: 'The command failed', myTasks: 'My tasks', subtasks: 'Subtasks', team: 'Team', events: 'Activity', showAll: 'Show all', showMore: 'Show more', online: 'online', offlineAgo: 'last seen', justNow: 'just now', min: 'min', hour: 'h', day: 'd', yesterday: 'yesterday', done: 'Mark done', move: 'Change status', del: 'Delete', clear: 'Clear', you: 'you', deleted: 'Task deleted', undo: 'Undo', invite: 'Invite to team', noTasks: 'No open tasks', quiet: 'Nothing yet', hideEvent: 'Hide for me only', delEvent: 'Delete for the whole team', hiddenEvents: 'hidden by you', showHidden: 'Restore hidden', signin: 'Sign in', signup: 'Create account', signinSub: 'Sign in or create an account to work with your team: projects, kanban, tasks and shared keys.', profile: 'Profile', logout: 'Sign out', inWork: 'in progress', review: 'review', blocked: 'blocked', ready: 'done', overdue: 'overdue', roleOwner: 'Owner', roleMaintainer: 'Maintainer', roleDev: 'Developer', roleViewer: 'Viewer', removeMember: 'Remove from team', memberRemoved: 'The member was removed from the team', inviteRevoked: 'Code revoked — the old one no longer works', inviteRoleTitle: 'Invite with role', inviteCodeRole: 'role: {0}', inviteRoleCurrent: 'The active code grants the role “{0}”', times2: '\\u00d7' }
+};
+const t = (k) => (I18N[(state?.uiLanguage === 'en') ? 'en' : 'ru'] ?? I18N.ru)[k];
+
+/* codicon-иконки: codepoints из codiconsLibrary.ts IDE */
+const CP = { checklist: 0xeab3, sourceControl: 0xea68, files: 0xeaf0, key: 0xeb11, personAdd: 0xebcd, check: 0xeab2, arrowSwap: 0xebcb, trash: 0xea81, clearAll: 0xeabf, account: 0xeb99, logOut: 0xea6e, copy: 0xebcc, refresh: 0xeb37, arrowRight: 0xeab6, closeSmall: 0xea76, history: 0xeaa3 };
+const ci = (name) => '<span class="ci" aria-hidden="true">&#x' + CP[name].toString(16) + ';</span>';
+
+function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function initials(n) { const p = (n || '').trim().split(/\\\\s+/).filter(Boolean); return ((p[0]?.[0] ?? '?') + (p.length > 1 ? p[1][0] : (p[0]?.[1] ?? ''))).toUpperCase(); }
+function timeAgo(iso) {
+\tif (!iso) { return ''; }
+\tconst s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+\tif (s < 60) { return t('justNow'); }
+\tif (s < 3600) { return Math.floor(s / 60) + ' ' + t('min'); }
+\tif (s < 86400) { return Math.floor(s / 3600) + ' ' + t('hour'); }
+\tif (s < 172800) { return t('yesterday'); }
+\treturn Math.floor(s / 86400) + ' ' + t('day');
+}
+/* A5: палитра из 8 приглушённых оттенков, hash(userId) % 8 */
+const AVA_HUES = [215, 262, 305, 347, 20, 42, 145, 190];
+function colorFor(id) {
+\tlet h = 0; for (const c of String(id ?? '')) { h = (h * 31 + c.charCodeAt(0)) >>> 0; }
+\tconst hue = AVA_HUES[h % AVA_HUES.length];
+\treturn 'color-mix(in srgb, hsl(' + hue + ' 45% 55%) 65%, var(--vscode-editor-background))';
+}
+/* A4: фиксированная палитра статусов, никакого хеширования строки в цвет */
+function statusMeta(task) {
+\tif (task.dueAt && new Date(task.dueAt).getTime() < Date.now() && task.status !== 'done') { return { state: 'overdue', label: t('overdue') }; }
+\tconst map = { doing: ['in-progress', t('inWork')], review: ['review', t('review')], blocked: ['blocked', t('blocked')], done: ['done', t('ready')] };
+\treturn map[task.status] ? { state: map[task.status][0], label: map[task.status][1] } : null;
+}
+function describe(ev) {
+\tconst ru = state?.uiLanguage !== 'en';
+\tconst map = {
+\t\t'team.create': ru ? 'создал команду' : 'created team',
+\t\t'invite.create': ru ? 'создал код приглашения' : 'created an invite',
+\t\t'invite.accept': ru ? 'вступил в команду' : 'joined the team',
+\t\t'task.create': ru ? 'добавил задачу' : 'added task',
+\t\t'task.update': ru ? 'обновил задачу' : 'updated task',
+\t\t'task.commit_link': ru ? 'закоммитил в задачу' : 'committed to task',
+\t\t'member.role': ru ? 'сменил роль' : 'changed role',
+\t\t'member.add': ru ? 'добавил участника' : 'added a member',
+\t\t'membership.remove': ru ? 'убрал участника из команды' : 'removed a member from the team',
+\t\t'invite.revoke': ru ? 'отозвал код приглашения' : 'revoked the invite code',
+\t\t'key.create': ru ? 'добавил API-ключ' : 'added an API key',
+\t\t'key.disable': ru ? 'отключил API-ключ' : 'disabled an API key',
+\t\t'project.create': ru ? 'создал проект' : 'created project',
+\t\t'project.transfer': ru ? 'передал проект' : 'transferred project',
+\t\t'archive.upload': ru ? 'загрузил архив проекта' : 'uploaded a project archive',
+\t\t'activity.delete': ru ? 'удалил событие' : 'deleted an activity entry'
+\t};
+\treturn map[ev.action] ?? ev.action;
+}
+/* ---------- движение: утилиты C3/C5/C6/C10 ---------- */
+/* C3: кроссфейд текста бейджа + цвет через currentColor */
+function setStatus(badge, st) {
+\tif (!badge || badge.dataset.state === st.state) { return; }
+\tconst old = badge.querySelector('.badge-text');
+\tif (!old) { return; }
+\tif (!old.textContent) { badge.dataset.state = st.state; old.textContent = st.label; return; }
+\tconst next = old.cloneNode(false);
+\tnext.dataset.key = st.state; next.textContent = st.label;
+\tnext.style.opacity = '0';
+\tbadge.appendChild(next);
+\tbadge.dataset.state = st.state;
+\told.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: 'cubic-bezier(.4,0,1,1)' }).onfinish = () => old.remove();
+\tnext.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: 'cubic-bezier(.2,0,0,1)', fill: 'forwards' });
+\tbadge.classList.add('just-changed');
+\tsetTimeout(() => badge.classList.remove('just-changed'), 450);
+}
+/* C10: вертикальный roll числа */
+function rollNumber(el, text) {
+\tif (!el) { return; }
+\tconst cur = el.querySelector('.count-text');
+\tif (cur && cur.textContent === String(text)) { return; }
+\tif (!cur) { el.innerHTML = '<span class="count-text">' + esc(text) + '</span>'; return; }
+\tconst next = document.createElement('span');
+\tnext.className = 'count-text';
+\tnext.textContent = String(text);
+\tnext.style.opacity = '0';
+\tel.appendChild(next);
+\tcur.animate([{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(-8px)', opacity: 0 }], { duration: 160, easing: 'cubic-bezier(.4,0,1,1)' }).onfinish = () => cur.remove();
+\tnext.animate([{ transform: 'translateY(8px)', opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }], { duration: 160, easing: 'cubic-bezier(.2,0,0,1)', fill: 'forwards' });
+}
+/* C6: FLIP — при перестроении списка существующие едут на новые места, новые появляются без анимации */
+function flip(container, mutate) {
+\tconst items = [...container.children];
+\tconst before = new Map(items.map(el => [el, el.getBoundingClientRect()]));
+\tmutate();
+\tfor (const el of container.children) {
+\t\tconst b = before.get(el); if (!b) { continue; }
+\t\tconst a = el.getBoundingClientRect();
+\t\tconst dy = b.top - a.top, dx = b.left - a.left;
+\t\tif (!dx && !dy) { continue; }
+\t\tel.animate([{ transform: 'translate(' + dx + 'px, ' + dy + 'px)' }, { transform: 'none' }], { duration: 240, easing: 'cubic-bezier(.4,0,.2,1)' });
+\t}
+}
+/* C5: схлопывание строки (уезжает вбок и гаснет, затем высота) */
+async function collapseRow(row) {
+\tconst h = row.getBoundingClientRect().height;
+\trow.style.overflow = 'hidden';
+\tawait row.animate(
+\t\t[{ transform: 'none', opacity: 1 }, { transform: 'translateX(-24px)', opacity: 0 }],
+\t\t{ duration: 160, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' }
+\t).finished;
+\tawait row.animate(
+\t\t[{ height: h + 'px', marginBottom: '2px' }, { height: '0px', marginBottom: '0px' }],
+\t\t{ duration: 240, easing: 'cubic-bezier(.2,0,0,1)', fill: 'forwards' }
+\t).finished;
+}
+/* C5: тост с полоской-таймером; несколько удалений подряд — один тост со счётчиком */
+const pendingDeletes = [];
+let undoTimer;
+/* C5: тост с полоской-таймером; несколько удалений подряд — один тост со счётчиком.
+   Запрос уходит на сервер сразу (там soft-delete в корзину): раньше он откладывался
+   на 5 секунд, и перерисовка вебвью теряла его — задача оставалась живой. */
+function showUndoToast(count) {
+	const toast = document.getElementById('undoToast');
+	clearTimeout(undoTimer);
+	document.getElementById('undoText').textContent = t('deleted') + (count > 1 ? ' (' + count + ')' : '');
+	const timerEl = document.getElementById('undoTimer');
+	timerEl.style.transition = 'none';
+	timerEl.style.transform = 'scaleX(1)';
+	void timerEl.offsetWidth;
+	timerEl.style.transition = 'transform 5s linear';
+	timerEl.style.transform = 'scaleX(0)';
+	const btn = document.getElementById('undoBtn');
+	btn.textContent = t('undo');
+	btn.onclick = () => {
+		clearTimeout(undoTimer);
+		toast.classList.add('hidden');
+		/* отмена: возвращаем удалённые на сервере — строки приедут через broadcast/FLIP */
+		pendingDeletes.splice(0).forEach((id) => vscode.postMessage({ type: 'invoke', command: 'auraTeam.restoreTask', args: [id] }));
+		render();
+	};
+	toast.classList.remove('hidden');
+	undoTimer = setTimeout(() => {
+		toast.classList.add('hidden');
+		/* запрос уже отправлен: очередь нужна только для отмены */
+		pendingDeletes.length = 0;
+		render();
+	}, 5000);
+}
+async function deleteTask(id, row) {
+	if (!pendingDeletes.includes(id)) { pendingDeletes.push(id); }
+	vscode.postMessage({ type: 'invoke', command: 'auraTeam.deleteTask', args: [id] });
+	if (row) { await collapseRow(row); row.remove(); }
+	showUndoToast(pendingDeletes.length);
+}
+/* Кик участника: подтверждение спрашивает расширение (модалка), панель только просит. */
+async function kickMember(memberId) {
+	if (!memberId) { return; }
+	try {
+		const result = await invokeRemote('auraTeam.removeMember', [memberId]);
+		if (result && result.ok === false) { return; }
+		toastText(t('memberRemoved'));
+	} catch (err) {
+		toastText(err.message);
 	}
-	function colorFor(id) {
-		const colors = ['#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#f59e0b', '#10b981', '#14b8a6', '#0ea5e9', '#3b82f6'];
-		let h = 0; for (const c of String(id ?? '')) { h = (h * 31 + c.charCodeAt(0)) >>> 0; }
-		return colors[h % colors.length];
+}
+
+/* Сайдбар не умел ждать ответ на invoke: добавляем корреляцию по id —
+   без неё каталог приглашений и код с сервера получить было нечем. */
+let nextRequestId = 1;
+const pendingRequests = new Map();
+function invokeRemote(command, args) {
+	const id = nextRequestId++;
+	return new Promise((resolve, reject) => {
+		pendingRequests.set(id, { resolve, reject });
+		vscode.postMessage({ type: 'invoke', id, command, args });
+		setTimeout(() => {
+			const pending = pendingRequests.get(id);
+			if (pending) { pendingRequests.delete(id); pending.reject(new Error(t('requestTimeout'))); }
+		}, 12000);
+	});
+}
+function toastText(text) { if (text) { vscode.postMessage({ type: 'toast', text }); } }
+/* Приглашение живёт в сайдбаре: вкладка редактора уводила от контекста,
+   а результат оставался только в уведомлении. */
+function inviteExpiresLabel() {
+	const iso = state._inviteExpires;
+	if (!iso) { return ''; }
+	const days = (new Date(iso).getTime() - Date.now()) / 864e5;
+	if (!(days > 0)) { return t('expired'); }
+	/* Math.round, а не floor: свежий 7-дневный код показывался как «6 дн.» */
+	return days < 1 ? t('expiresToday') : t('expiresInDays').replace('{0}', Math.round(days));
+}
+/* Роль приглашения: селектор задаёт и роль кода, и роль персональных приглашений.
+   Список ограничен своей ролью — совладельца зовёт только владелец (то же правило на сервере). */
+let inviteRole = 'dev';
+function invitableRoles() {
+	const myRole = (state.session?.teams ?? []).find(team => team.id === state.teamId)?.role ?? 'viewer';
+	if (myRole === 'owner') { return ['maintainer', 'dev', 'viewer']; }
+	if (myRole === 'maintainer') { return ['dev', 'viewer']; }
+	return ['dev'];
+}
+function inviteRoleLabel(role) { return t('role' + String(role ?? '').charAt(0).toUpperCase() + String(role ?? '').slice(1)); }
+function inviteRoleRowHtml() {
+	const roles = invitableRoles();
+	/* Роль могла стать недоступной (сменили свою) — мягко возвращаемся к допустимой. */
+	if (!roles.includes(inviteRole)) { inviteRole = roles[0]; }
+	return '<div class="invite-role-row"><label for="inviteRole">' + esc(t('inviteRoleTitle')) + '</label>' +
+		'<select id="inviteRole">' + roles.map(role => '<option value="' + role + '"' + (role === inviteRole ? ' selected' : '') + '>' + esc(inviteRoleLabel(role)) + '</option>').join('') + '</select></div>';
+}
+function inviteCodeHtml() {
+	const code = state._inviteCode;
+	if (!code) {
+		return '<div class="invite-hint">' + esc(t('inviteNoCode')) + '</div>' +
+			'<div class="invite-actions"><button class="primary" id="inviteCreateBtn">' + esc(t('inviteCreate')) + '</button></div>';
 	}
-	function confirmInline(message) {
-		// Модальные showWarningMessage из webview недоступны — лёгкий inline-confirm.
-		// Повторный клик по кнопке в течение 3с подтверждает удаление.
-		const btn = window.__confirmBtn;
-		if (window.__confirmMsg === message && Date.now() - window.__confirmAt < 3000) {
-			window.__confirmMsg = null;
-			return true;
-		}
-		window.__confirmMsg = message;
-		window.__confirmAt = Date.now();
-		vscode.postMessage({ type: 'toast', text: message + ' — ' + (state?.uiLanguage === 'en' ? 'click again to confirm' : 'нажмите ещё раз для подтверждения') });
-		void btn;
-		return false;
+	/* Мета кода: срок действия и роль, с которой вступят по нему. */
+	const codeRole = state._inviteRole ? inviteRoleLabel(state._inviteRole) : '';
+	const meta = [inviteExpiresLabel(), codeRole ? t('inviteCodeRole').replace('{0}', codeRole) : ''].filter(Boolean).join(' · ');
+	/* Селектор управляет новыми кодами: если активный код выдан на другую роль, говорим об этом прямо. */
+	const mismatch = codeRole && state._inviteRole !== inviteRole
+		? '<div class="invite-hint">' + esc(t('inviteRoleCurrent').replace('{0}', codeRole)) + '</div>' : '';
+	return '<div class="invite-code"><span class="code" title="' + esc(code) + '">' + esc(code) + '</span>' +
+		(meta ? '<span class="expires">' + esc(meta) + '</span>' : '') +
+		'<button class="act-btn" id="inviteCopyBtn" aria-label="' + esc(t('copyCode')) + '" title="' + esc(t('copyCode')) + '">' + ci('copy') + '</button></div>' +
+		mismatch +
+		'<div class="invite-hint">' + esc(t('inviteHint')) + '</div>' +
+		'<div class="invite-actions"><button id="inviteNewBtn">' + esc(t('inviteNew')) + '</button>' +
+		'<button id="inviteRevokeBtn">' + esc(t('inviteRevoke')) + '</button></div>';
+}
+function inviteHitHtml(person, meId) {
+	const member = (state.summary?.members ?? []).find((m) => m.id === person.id);
+	const isMe = person.id === meId;
+	const sent = invitedIds.has(person.id) || Boolean(member);
+	const dot = member ? presenceHtml(member, isMe) : '';
+	return '<div class="row invite-hit">' +
+		'<span class="ava" style="background:' + colorFor(person.id) + ';width:20px;height:20px;font-size:11px">' + esc(initials(person.displayName)) + dot + '</span>' +
+		'<span class="title">' + esc(person.displayName) + (person.email ? '<span class="email">' + esc(person.email) + '</span>' : '') + '</span>' +
+		'<span class="end"><button class="btn-invite" data-invite-user="' + esc(person.id) + '"' + (sent ? ' data-sent="true" disabled' : '') + '>' + esc(sent ? t('invited') : t('inviteSend')) + '</button></span></div>';
+}
+function renderInviteSection() {
+	const section = document.getElementById('secInvite');
+	if (!section) { return; }
+	section.dataset.open = inviteOpen ? 'true' : 'false';
+	if (!inviteOpen) { return; }
+	const body = document.getElementById('inviteBody');
+	if (!body) { return; }
+	/* Поле поиска создаём один раз: перерисовка списка не должна отбирать фокус. */
+	if (!body.querySelector('#inviteCodeSlot')) {
+		/* Селектор роли — часть скелета: он не должен пересоздаваться при обновлении кода. */
+		body.innerHTML = '<div id="inviteRoleRow"></div>' +
+			'<div id="inviteCodeSlot"></div>' +
+			'<input class="invite-search" id="inviteSearch" type="search" autocomplete="off" spellcheck="false" placeholder="' + esc(t('inviteSearch')) + '" value="' + esc(inviteQuery) + '">' +
+			'<div class="list" id="inviteResults"></div>';
+	} else {
+		const input = document.getElementById('inviteSearch');
+		if (input && document.activeElement !== input && input.value !== inviteQuery) { input.value = inviteQuery; }
 	}
-	function describe(ev, ru) {
-		const map = {
-			'team.create': ru ? 'создал команду' : 'created team',
-			'invite.create': ru ? 'создал код приглашения' : 'created an invite',
-			'invite.accept': ru ? 'вступил в команду' : 'joined the team',
-			'task.create': ru ? 'добавил задачу' : 'added task',
-			'task.update': ru ? 'обновил задачу' : 'updated task',
-			'task.commit_link': ru ? 'закоммитил в задачу' : 'committed to task',
-			'member.role': ru ? 'сменил роль' : 'changed role',
-			'key.create': ru ? 'добавил API-ключ' : 'added an API key',
-			'key.disable': ru ? 'отключил API-ключ' : 'disabled an API key',
-			'project.create': ru ? 'создал проект' : 'created project',
-			'project.transfer': ru ? 'передал проект' : 'transferred project',
-			'archive.upload': ru ? 'загрузил архив проекта' : 'uploaded a project archive'
-		};
-		return map[ev.action] ?? ev.action;
+	/* Роль считаем до блока кода: подсказка про активный код сравнивает его роль с выбранной. */
+	const roleRow = body.querySelector('#inviteRoleRow');
+	if (roleRow) {
+		const roleHtml = inviteRoleRowHtml();
+		if (roleRow.innerHTML !== roleHtml) { roleRow.innerHTML = roleHtml; }
 	}
-	function render() {
-		const root = document.getElementById('root');
-		const ru = (state?.uiLanguage ?? 'ru') !== 'en';
-		if (!state?.signedIn) {
-			root.innerHTML = '<div class="card"><div class="title">' + (ru ? 'Командная работа' : 'Team work') + '</div><div class="sub">' +
-				(ru ? 'Войдите или создайте аккаунт, чтобы работать с командой: проекты, канбан, задачи и общие ключи.' : 'Sign in or create an account to work with your team: projects, kanban, tasks and shared keys.') + '</div>' +
-				'<button data-view="login">' + (ru ? 'Войти' : 'Sign in') + '</button><button class="secondary" data-view="register">' + (ru ? 'Создать аккаунт' : 'Create account') + '</button></div>';
-			// NB: view 'login' / 'register' открывают вкладку с нужной формой авторизации.
+	const slot = body.querySelector('#inviteCodeSlot');
+	const slotHtml = inviteCodeHtml();
+	if (slot.innerHTML !== slotHtml) { slot.innerHTML = slotHtml; }
+	const results = document.getElementById('inviteResults');
+	if (results) {
+		if (inviteResults === null) {
+			const html = '<div class="invite-empty">' + esc(inviteBusy ? t('loading') : t('inviteSearchHint')) + '</div>';
+			if (results.innerHTML !== html) { results.innerHTML = html; }
+		} else if (!inviteResults.length) {
+			const html = '<div class="invite-empty">' + esc(t('inviteNotFound')) + '</div>';
+			if (results.innerHTML !== html) { results.innerHTML = html; }
 		} else {
-			const u = state.session?.user ?? {};
-			const summary = state.summary;
-			const onlineCount = (summary?.members ?? []).filter(m => m.online).length;
-			const soon = Date.now() + 48 * 3600 * 1000;
-			const hotTasks = (summary?.myTasks ?? []).filter(t => t.dueAt && new Date(t.dueAt).getTime() < soon).length;
-			const teamName = (state.session?.teams ?? []).find(t => t.id === state.teamId)?.name ?? '';
-			const icons = {
-				board: '<svg viewBox="0 0 24 24" fill="none"><path d="M9 6h11M9 12h11M9 18h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 6l1.4 1.4L8 4.8M4 12l1.4 1.4L8 10.8M4 18l1.4 1.4L8 16.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-				git: '<svg viewBox="0 0 24 24" fill="none"><circle cx="6" cy="6" r="2.6" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="18" r="2.6" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="9" r="2.6" stroke="currentColor" stroke-width="1.8"/><path d="M6 8.6v6.8M18 11.6c0 3-2.5 4.4-6 4.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
-				files: '<svg viewBox="0 0 24 24" fill="none"><path d="M4 8l8-4.5L20 8v8l-8 4.5L4 16V8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4.4 8.4L12 12.6l7.6-4.2M12 12.6V20" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
-				keys: '<svg viewBox="0 0 24 24" fill="none"><circle cx="8" cy="14" r="3.6" stroke="currentColor" stroke-width="1.8"/><path d="M11 11L20 4M16.5 7.5L19 10M14 6l2.2 2.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
-				profile: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.4" r="3.6" stroke="currentColor" stroke-width="1.8"/><path d="M5 20c1.4-3.4 3.9-5 7-5s5.6 1.6 7 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
-				add: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>',
-				logout: '<svg viewBox="0 0 24 24" fill="none"><path d="M14 4h-8a1.5 1.5 0 0 0-1.5 1.5v13A1.5 1.5 0 0 0 6 20h8M10 12h10.5M17 8.5l3.5 3.5-3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-			};
-			const nav = [
-				['board', ru ? 'Канбан и задачи' : 'Kanban & tasks'],
-				['git', ru ? 'Проекты и Git' : 'Projects & Git'],
-				['files', ru ? 'Файлы' : 'Files'],
-				['keys', ru ? 'Ключи команды' : 'Team keys'],
-				['profile', ru ? 'Профиль' : 'Profile']
-			];
-			const teamRole = (state.session?.teams ?? []).find(t => t.id === state.teamId)?.role ?? 'viewer';
-			let html = '<div class="me"><div class="ava" style="background:' + colorFor(u.id) + '">' + esc(initials(u.displayName)) + '</div><div><div>' + esc(u.displayName ?? '') + '</div><div class="id">' + esc(teamName || u.email || '') + '</div></div></div>';
-			// Мои задачи
-			const myTasks = summary?.myTasks ?? [];
-			html += '<div class="section"><span>' + (ru ? 'Мои задачи' : 'My tasks') + '</span>' + (myTasks.length ? '<span class="count' + (hotTasks ? ' hot' : '') + '">' + myTasks.length + '</span>' : '') + '</div>';
-			html += myTasks.length
-				? myTasks.slice(0, 4).map(t => {
-					const hot = t.dueAt && new Date(t.dueAt).getTime() < soon;
-					return '<div class="taskline" data-view="board" data-task="' + esc(t.id) + '"><span class="st">' + esc(t.status) + '</span><span>' + esc(t.title) + '</span>' + (t.dueAt ? '<span class="due' + (hot ? ' hot' : '') + '">' + (hot ? '⏰ ' : '') + timeAgo(t.dueAt) + '</span>' : '') + '<button class="line-btn del" data-del-task="' + esc(t.id) + '" title="' + (ru ? 'Удалить' : 'Delete') + '">×</button><button class="line-btn" data-done-task="' + esc(t.id) + '" title="' + (ru ? 'Выполнено' : 'Done') + '">✓</button><button class="line-btn" data-status-task="' + esc(t.id) + '" title="' + (ru ? 'Сменить статус' : 'Change status') + '">⇄</button></div>';
-				}).join('')
-				: '<div class="feed-item"><span class="ico">✓</span><span class="what">' + (ru ? 'Незакрытых задач нет' : 'No open tasks') + '</span></div>';
-			// Участники
-			const members = summary?.members ?? [];
-			html += '<div class="section"><span>' + (ru ? 'Команда' : 'Team') + '</span><span class="count">' + onlineCount + '/' + members.length + '</span></div>';
-			html += members.slice(0, 8).map(m => '<div class="member" data-view="board" data-member="' + esc(m.id) + '"><div class="m-ava" style="background:' + colorFor(m.id) + '">' + esc(initials(m.displayName)) + '</div><span>' + esc(m.displayName) + '</span><span class="m-role">' + esc(m.role) + '</span><div class="dot ' + (m.online ? 'on' : 'off') + '"></div></div>').join('');
-			// Лента событий: локально скрытые (dismissed) не показываем; свайп вправо скрывает.
-			const dismissed = new Set(state.dismissedActivity ?? []);
-			const key = (ev) => ev.createdAt + '|' + ev.action + '|' + ev.userId;
-			const feedAll = state.activity ?? [];
-			const showHiddenMode = state._showHiddenActivity === true;
-			const feed = showHiddenMode ? feedAll.filter(ev => dismissed.has(key(ev))) : feedAll.filter(ev => !dismissed.has(key(ev)));
-			// Фильтр по типу события: все / задачи / коммиты (клик по значку циклит).
-			const feedFilter = state._feedFilter ?? 'all';
-			const filterIcons = { all: '•', task: '☑', commit: '⎇' };
-			const nextFilter = { all: 'task', task: 'commit', commit: 'all' };
-			const feedFiltered = feedFilter === 'all' ? feed : feed.filter(ev => ev.action.includes(feedFilter === 'task' ? 'task' : 'commit'));
-			html += '<div class="section"><span>' + (ru ? 'События' : 'Activity') + '</span><span>' +
-				(dismissed.size && !showHiddenMode ? '<span class="count" id="showHiddenBtn" style="cursor:pointer">' + dismissed.size + ' ' + (ru ? 'скрыт' : 'hidden') + '</span>' : showHiddenMode ? '<span class="count" id="showHiddenBtn" style="cursor:pointer">←</span>' : '') +
-				'<span class="count" id="feedFilterBtn" style="cursor:pointer" title="' + (ru ? 'Фильтр событий' : 'Filter events') + '">' + filterIcons[feedFilter] + '</span></span></div><div class="feed">';
-			// Группировка по дням: «Сегодня / Вчера / 12 сент».
-			const dayLabel = (iso) => {
-				const d = new Date(iso); const now = new Date(); const yesterday = new Date(Date.now() - 864e5);
-				if (d.toDateString() === now.toDateString()) { return ru ? 'Сегодня' : 'Today'; }
-				if (d.toDateString() === yesterday.toDateString()) { return ru ? 'Вчера' : 'Yesterday'; }
-				return d.toLocaleDateString(ru ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short' });
-			};
-			let lastDay = null;
-			html += feedFiltered.length
-				? feedFiltered.slice(0, 8).map(ev => {
-					const day = dayLabel(ev.createdAt);
-					const head = day !== lastDay ? ((lastDay = day), '<div class="day-sep">' + esc(day) + '</div>') : '';
-					return head + '<div class="feed-item" data-evkey="' + esc(key(ev)) + '"><span class="ico">' + (ev.action.includes('commit') ? '⎇' : ev.action.includes('task') ? '☑' : ev.action.includes('invite') ? '✉' : '•') + '</span><span><span class="who">' + esc(ev.userName) + '</span> <span class="what">' + esc(describe(ev, ru)) + (ev.taskTitle ? ' «' + esc(ev.taskTitle) + '»' : '') + '</span></span><span class="when">' + timeAgo(ev.createdAt) + '</span><button class="line-btn del" data-hide-ev="' + esc(key(ev)) + '" title="' + (ru ? 'Скрыть' : 'Hide') + '">×</button></div>';
-				}).join('')
-				: '<div class="feed-item"><span class="what">' + (showHiddenMode ? (ru ? 'Скрытых событий нет' : 'No hidden events') : (ru ? 'Пока тихо' : 'Nothing yet')) + '</span></div>';
-			html += '</div>';
-			// Проекты
-			const projects = summary?.projects ?? [];
-			if (projects.length) {
-				html += '<div class="section"><span>' + (ru ? 'Проекты' : 'Projects') + '</span><span class="count">' + projects.length + '</span></div>';
-				html += projects.slice(0, 5).map(p => '<div class="projline" data-view="git"><span>⎇</span><span>' + esc(p.name) + '</span><span class="br">' + esc(p.defaultBranch) + '</span></div>').join('');
-			}
-			html += '<hr><div class="nav">' + nav.map(n => '<button data-view="' + n[0] + '"><span class="n-ico">' + icons[n[0]] + '</span>' + n[1] + '</button>').join('') +
-				'<button id="invite"><span class="n-ico">' + icons.add + '</span>' + (ru ? 'Пригласить в команду' : 'Invite to team') + '</button></div>' +
-				'<div class="nav"><button id="logout" class="danger"><span class="n-ico">' + icons.logout + '</span>' + (ru ? 'Выйти' : 'Sign out') + '</button></div>';
-			root.innerHTML = html;
-			document.getElementById('logout').onclick = () => vscode.postMessage({ type: 'invoke', command: 'auraTeam.signOut', args: [] });
-			// «Пригласить в команду» — меню: показать код, скопировать, перегенерировать.
-			document.getElementById('invite').onclick = async () => {
-				const sec = document.getElementById('inviteMenu');
-				if (sec) { sec.remove(); return; }
-				const block = document.createElement('div');
-				block.id = 'inviteMenu';
-				block.className = 'card invite-menu';
-				block.innerHTML = '<div class="title">' + (ru ? 'Приглашение в команду' : 'Team invite') + '</div><div class="sub">' + (ru ? 'Отправьте код участнику — он введёт его в разделе «Команды».' : 'Share the code — the teammate enters it under Teams.') + '</div><div class="code mono" id="inviteCode">…</div><div class="nav"><button id="inviteCopy">📋 ' + (ru ? 'Скопировать код' : 'Copy code') + '</button><button class="secondary" id="inviteRegen">↻ ' + (ru ? 'Новый код' : 'New code') + '</button></div>';
-				document.getElementById('invite').after(block);
-				const load = (cmd, notice) => {
-					vscode.postMessage({ type: 'invoke', command: cmd, args: [] });
-					if (notice) { vscode.postMessage({ type: 'toast', text: notice }); }
-				};
-				// Код приходит ответом на invoke auraTeam.currentInvite (результат игнорируем — см. state._inviteCode).
-				block.querySelector('#inviteCopy').onclick = () => {
-					const code = (state._inviteCode ?? '').trim();
-					if (!code) { vscode.postMessage({ type: 'toast', text: ru ? 'Код ещё не получен' : 'Code not loaded yet' }); return; }
-					vscode.postMessage({ type: 'copy', text: code });
-				};
-				block.querySelector('#inviteRegen').onclick = () => load('auraTeam.createInvite', ru ? 'Старый код отозван, создан новый' : 'Old code revoked, new one created');
-				load('auraTeam.currentInvite');
-			};
+			/* Подсказка — отдельный узел: без явного удаления она висела первой строкой
+			   над уже приехавшими результатами каталога. */
+			results.querySelector('.invite-empty')?.remove();
+			syncList(results, inviteResults, (person) => inviteHitHtml(person, state.session?.user?.id), (person) => person.id);
 		}
-		for (const b of root.querySelectorAll('button[data-view]')) { b.onclick = () => vscode.postMessage({ type: 'open', view: b.dataset.view }); }			for (const el of root.querySelectorAll('[data-view].member, [data-view].taskline, [data-view].projline')) { el.onclick = () => vscode.postMessage({ type: 'open', view: el.dataset.view, filter: el.dataset.member ? { member: el.dataset.member } : el.dataset.task ? { task: el.dataset.task } : undefined }); }
-			// Свайп-скрытие событий ленты (короткий свайп вправо) + явная кнопка ×.
-			for (const el of root.querySelectorAll('[data-evkey]')) {
-				let sx = 0, active = false;
-				el.style.touchAction = 'pan-y';
-				el.onpointerdown = (e) => { sx = e.clientX; active = true; };
-				el.onpointerup = (e) => {
-					if (!active) { return; }
-					active = false;
-					if (e.clientX - sx > 60) { vscode.postMessage({ type: 'invoke', command: 'auraTeam.dismissActivity', args: [el.dataset.evkey] }); }
-				};
-			}
-			for (const btn of root.querySelectorAll('[data-hide-ev]')) {
-				btn.onclick = (e) => { e.stopPropagation(); vscode.postMessage({ type: 'invoke', command: 'auraTeam.dismissActivity', args: [btn.dataset.hideEv] }); };
-			}
-			const hiddenBtn = document.getElementById('showHiddenBtn');
-			if (hiddenBtn) { hiddenBtn.onclick = () => { state._showHiddenActivity = !showHiddenMode; render(); }; }
-			const filterBtn = document.getElementById('feedFilterBtn');
-			if (filterBtn) { filterBtn.onclick = () => { state._feedFilter = nextFilter[feedFilter]; render(); }; }
-			// Чекбокс «выполнено», смена статуса и удаление у моих задач.
-			for (const btn of root.querySelectorAll('[data-done-task]')) {
-				btn.onclick = (e) => { e.stopPropagation(); vscode.postMessage({ type: 'invoke', command: 'auraTeam.updateTask', args: [btn.dataset.doneTask, { status: 'done' }] }); };
-			}
-			// Смена статуса: клик по ⇄ циклит todo → doing → review → done.
-			const statusCycle = ['todo', 'doing', 'review', 'done'];
-			for (const btn of root.querySelectorAll('[data-status-task]')) {
-				btn.onclick = (e) => {
-					e.stopPropagation();
-					const task = (summary?.myTasks ?? []).find(t => t.id === btn.dataset.statusTask);
-					const current = statusCycle.indexOf(task?.status ?? 'todo');
-					const next = statusCycle[(current + 1) % statusCycle.length];
-					vscode.postMessage({ type: 'invoke', command: 'auraTeam.updateTask', args: [btn.dataset.statusTask, { status: next }] });
-				};
-			}
-			for (const btn of root.querySelectorAll('[data-del-task]')) {
-				btn.onclick = (e) => {
-					e.stopPropagation();
-					if (!confirmInline(ru ? 'Удалить задачу?' : 'Delete task?')) { return; }
-					vscode.postMessage({ type: 'invoke', command: 'auraTeam.deleteTask', args: [btn.dataset.delTask] });
-				};
-			}
 	}
-	window.addEventListener('message', e => { if (e.data?.type === 'state') { state = e.data.state; if (typeof e.data.inviteCode === 'string') { state._inviteCode = e.data.inviteCode; } render(); } });
-	vscode.postMessage({ type: 'ready' });
+	/* Перерисовка блока кода заменяет кнопки: обработчики вешаем здесь же, а не у вызывающего,
+	   иначе ответ каталога «отвязывал» скопировать/отозвать до следующего действия пользователя. */
+	wireInvite();
+}
+function wireInviteRows(scope) {
+	for (const btn of scope.querySelectorAll('[data-invite-user]')) {
+		if (btn.dataset.wired === 'true') { continue; }
+		btn.dataset.wired = 'true';
+		btn.onclick = () => { void sendInvite(btn); };
+	}
+}
+function wireInvite() {
+	const section = document.getElementById('secInvite');
+	if (!section) { return; }
+	const on = (id, fn) => { const el = document.getElementById(id); if (el) { el.onclick = fn; } };
+	on('inviteCloseBtn', () => setInviteOpen(false));
+	on('inviteCopyBtn', () => { void copyInviteCode(); });
+	on('inviteCreateBtn', () => { void regenerateInvite(); });
+	on('inviteNewBtn', () => { void regenerateInvite(); });
+	on('inviteRevokeBtn', () => { void revokeInvite(); });
+	const roleSelect = document.getElementById('inviteRole');
+	if (roleSelect && roleSelect.dataset.wired !== 'true') {
+		roleSelect.dataset.wired = 'true';
+		roleSelect.onchange = () => { inviteRole = roleSelect.value; renderInviteSection(); };
+	}
+	const input = document.getElementById('inviteSearch');
+	if (input && input.dataset.wired !== 'true') {
+		input.dataset.wired = 'true';
+		input.oninput = () => {
+			inviteQuery = input.value;
+			clearTimeout(inviteSearchTimer);
+			inviteSearchTimer = setTimeout(() => { void loadDirectory(inviteQuery); }, 250);
+		};
+	}
+	wireInviteRows(section);
+}
+function setInviteOpen(open) {
+	inviteOpen = Boolean(open);
+	updateNav();
+	renderInviteSection();
+	wireInvite();
+	if (!inviteOpen) { return; }
+	if (!state._inviteCode && !inviteBusy) { void askInviteCode(); }
+	void loadDirectory(inviteQuery);
+}
+async function loadDirectory(query) {
+	inviteBusy = true;
+	renderInviteSection();
+	try {
+		const rows = await invokeRemote('auraTeam.directory', [query ?? '']);
+		inviteResults = Array.isArray(rows) ? rows : [];
+	} catch {
+		inviteResults = [];
+		toastText(t('inviteSearchFail'));
+	} finally {
+		inviteBusy = false;
+		renderInviteSection();
+	}
+}
+async function askInviteCode() {
+		inviteBusy = true;
+	try {
+		const invite = await invokeRemote('auraTeam.currentInvite', []);
+		state._inviteCode = invite?.code ?? null;
+		state._inviteExpires = invite?.expiresAt ?? null;
+		state._inviteRole = invite?.role ?? null;
+	} catch { /* пустое состояние с кнопкой создания */ }
+	inviteBusy = false;
+	renderInviteSection();
+	wireInvite();
+}
+async function copyInviteCode() {
+	if (!state._inviteCode) { return; }
+	vscode.postMessage({ type: 'invoke', command: 'auraTeam.copyToClipboard', args: [state._inviteCode] });
+	toastText(t('copiedCode'));
+}
+async function regenerateInvite() {
+	try {
+		/* Код создаётся сразу с выбранной ролью: вступивший получит именно её. */
+		const invite = await invokeRemote('auraTeam.createInvite', [inviteRole]);
+		state._inviteCode = invite?.code ?? null;
+		state._inviteExpires = invite?.expiresAt ?? null;
+		state._inviteRole = invite?.role ?? inviteRole;
+		invitedIds.clear();
+		toastText(t('copiedCode'));
+	} catch (err) {
+		toastText(err.message);
+	}
+	renderInviteSection();
+	wireInvite();
+}
+async function revokeInvite() {
+	let result;
+	try { result = await invokeRemote('auraTeam.revokeInvite', []); } catch (err) { toastText(err.message); return; }
+	/* Отмена подтверждения в расширении не должна выглядеть как сработавший отзыв. */
+	if (result && result.ok === false) { renderInviteSection(); return; }
+	state._inviteCode = null;
+	state._inviteExpires = null;
+	toastText(t('inviteRevoked'));
+	renderInviteSection();
+}
+/* Отправка помечает кнопку сразу — список не перезагружается, фокус не теряется. */
+async function sendInvite(btn) {
+	const id = btn.dataset.inviteUser;
+	/* Повторный клик (в т.ч. по копии строки из прошлых перерисовок) — не второй запрос. */
+	if (!id || btn.dataset.sent === 'true') { return; }
+	invitedIds.add(id);
+	btn.dataset.sent = 'true';
+	btn.disabled = true;
+	btn.textContent = t('invited');
+	try { await invokeRemote('auraTeam.sendInvite', [id, inviteRole]); toastText(t('inviteSent')); } catch (err) {
+		invitedIds.delete(id);
+		btn.dataset.sent = 'false';
+		btn.disabled = false;
+		btn.textContent = t('inviteSend');
+		toastText(err.message);
+	}
+}
+function render() {
+\tconst root = document.getElementById('root');
+\tif (!state?.signedIn) {
+\t\tstaticRendered = false;
+\t\troot.innerHTML = '<div class="signin"><div class="sub">' + esc(t('signinSub')) + '</div>' +
+\t\t\t'<button data-view="login">' + esc(t('signin')) + '</button>' +
+\t\t\t'<button class="secondary" data-view="register">' + esc(t('signup')) + '</button></div>';
+\t\tfor (const b of root.querySelectorAll('button[data-view]')) { b.onclick = () => vscode.postMessage({ type: 'open', view: b.dataset.view }); }
+\t\treturn;
+\t}
+\tconst u = state.session?.user ?? {};
+\tif (!staticRendered) {
+\t\t/* статичные части — один раз (C7/C11: каскада нет) */
+\t\tconst teamName = (state.session?.teams ?? []).find(tm => tm.id === state.teamId)?.name ?? '';
+\t\t/* A1: хендл/подпись — только если есть и не дублирует имя */
+\t\tconst sub = teamName && teamName !== u.displayName ? teamName : '';
+\t\tlet html = '<div class="me" id="meRow" tabindex="0" role="button" aria-haspopup="menu" title="' + esc(u.displayName ?? '') + '">' +
+\t\t\t'<span class="ava" style="background:' + colorFor(u.id) + '">' + esc(initials(u.displayName)) + '<span class="presence" title="' + esc(t('online')) + '"></span></span>' +
+\t\t\t'<span class="who"><span class="name">' + esc(u.displayName ?? '') + '</span>' +
+\t\t\t(sub ? '<span class="handle">' + esc(sub) + '</span>' : '') +
+\t\t\t'</span></div>';
+\t\tconst navItems = [
+\t\t\t['board', state.uiLanguage === 'en' ? 'Kanban & tasks' : 'Канбан и задачи', 'checklist'],
+\t\t\t['git', state.uiLanguage === 'en' ? 'Projects & Git' : 'Проекты и Git', 'sourceControl'],
+\t\t\t['files', state.uiLanguage === 'en' ? 'Files' : 'Файлы', 'files'],
+\t\t\t['keys', state.uiLanguage === 'en' ? 'Team keys' : 'Ключи команды', 'key'],
+\t\t\t['invite', t('invite'), 'personAdd']
+\t\t];
+\t\thtml += '<nav aria-label="Team"><ul class="nav" style="list-style:none;margin:0;padding:0" id="navList">';
+\t\tfor (const [view, label, icon] of navItems) {
+\t\t\thtml += '<li><button class="nav-item" data-view="' + view + '"' + (view !== 'invite' && activeNav === view ? ' aria-current="page"' : '') + '>' + ci(icon) + '<span class="title">' + esc(label) + '</span></button></li>';
+\t\t}
+\t\thtml += '</ul></nav>';
+\t\thtml += '<div class="section" id="secTasks"><div class="side-label"><span>' + esc(t('myTasks')) + '</span><span class="count" id="tasksCount"></span></div><div class="list" id="taskList"></div></div>';
+\t\thtml += '<div class="section" id="secTeam"><div class="side-label"><span>' + esc(t('team')) + '</span><span class="count" id="teamCount"></span></div><div class="list" id="teamList"></div></div>';
+\t\thtml += '<div class="section" id="secInvite" data-open="false"><div class="side-label"><span>' + esc(t('invite')) + '</span><span class="label-actions"><button class="act-btn" id="inviteCloseBtn" aria-label="' + esc(t('close')) + '" title="' + esc(t('close')) + '">' + ci('closeSmall') + '</button></span></div><div id="inviteBody"></div></div>';
+		html += '<div class="section" id="secEvents"><div class="side-label"><span>' + esc(t('events')) + '</span><span class=\"label-actions\"><button class=\"act-btn\" id=\"restoreFeedBtn\" style=\"display:none\" aria-label=\"' + esc(t('showHidden')) + '\" title=\"' + esc(t('showHidden')) + '\">' + ci('history') + '</button><button class=\"act-btn\" id=\"clearFeedBtn\" aria-label="' + esc(t('clear')) + '" title="' + esc(t('clear')) + '">' + ci('clearAll') + '</button></span></div><div class="list" id="eventList"></div></div>';
+\t\troot.innerHTML = html;
+\t\tbindStaticHandlers();
+\t\tstaticRendered = true;
+\t}
+\tupdateNav();
+\tupdateLists();
+	renderInviteSection();
+	wireInvite();
+}
+function updateNav() {
+\tfor (const b of document.querySelectorAll('.nav-item[data-view]')) {
+\t\t/* «Пригласить» — не отдельный экран, а раскрывающаяся секция панели. */
+\t\tif (b.dataset.view === 'invite') { b.classList.toggle('active', inviteOpen); }
+\t\telse if (activeNav === b.dataset.view) { b.setAttribute('aria-current', 'page'); }
+\t\telse { b.removeAttribute('aria-current'); }
+\t}
+}
+function subCountHtml(task) {
+\tconst s = task && task.subtasks;
+\treturn s && s.total ? ' <span class="sub-count" title="' + esc(t('subtasks')) + '">' + s.done + '/' + s.total + '</span>' : '';
+}
+function taskRowHtml(task) {
+\tconst st = statusMeta(task);
+\treturn '<div class="row task-row" tabindex="0" data-task="' + esc(task.id) + '" data-view="board">' +
+\t\t'<span></span>' +
+\t\t'<span class="title">' + (st ? '<span class="badge" data-state="' + st.state + '"><span class="badge-text" data-key="' + st.state + '">' + esc(st.label) + '</span></span> ' : '') + esc(task.title) + subCountHtml(task) + '</span>' +
+\t\t'<span class="end"><span class="time">' + esc(timeAgo(task.dueAt)) + '</span>' +
+\t\t'<span class="actions">' +
+\t\t'<button class="act-btn" data-done-task="' + esc(task.id) + '" aria-label="' + esc(t('done')) + '" title="' + esc(t('done')) + '">' + ci('check') + '</button>' +
+\t\t'<button class="act-btn" data-status-task="' + esc(task.id) + '" aria-label="' + esc(t('move')) + '" title="' + esc(t('move')) + '">' + ci('arrowSwap') + '</button>' +
+\t\t'<button class="act-btn danger" data-del-task="' + esc(task.id) + '" aria-label="' + esc(t('del')) + '" title="' + esc(t('del')) + '">' + ci('trash') + '</button>' +
+\t\t'</span></span></div>';
+}
+/* Присутствие: зелёная точка — в сети, серая — был(а) в сети; детали в title. */
+function presenceHtml(member, isMe) {
+	const online = Boolean(member.online) || isMe;
+	const title = online ? t('online') : (member.lastSeenAt ? t('offlineAgo') + ' ' + timeAgo(member.lastSeenAt) : t('offlineAgo') + ': —');
+	return '<span class=\"presence ' + (online ? 'live' : 'off') + '\" title=\"' + esc(title) + '\"></span>';
+}
+/* Роль в сайдбаре печаталась сырым owner/dev/viewer — теперь по-русски (или по-английски). */
+function memberRoleLabel(m, isMe) {
+	if (isMe) { return t('you'); }
+	const raw = String(m.role ?? '').trim();
+	if (raw.length < 2 || raw === m.displayName) { return ''; }
+	return t('role' + raw.charAt(0).toUpperCase() + raw.slice(1)) ?? raw;
+}
+function memberRoleHtml(m, isMe) {
+	const label = memberRoleLabel(m, isMe);
+	return label ? '<span class=\"m-role\">' + esc(label) + '</span>' : '';
+}
+/* Кик по роли: владелец убирает любого кроме владельца, совладелец — dev/viewer. */
+function canKickMember(m, meId) {
+	if (!m || m.id === meId || m.role === 'owner') { return false; }
+	const myRole = (state.session?.teams ?? []).find(team => team.id === state.teamId)?.role ?? 'viewer';
+	return myRole === 'owner' || (myRole === 'maintainer' && ['dev', 'viewer'].includes(m.role));
+}
+function memberKickHtml(m, meId) {
+	if (!canKickMember(m, meId)) { return ''; }
+	return '<button class=\"act-btn danger\" data-kick-member=\"' + esc(m.id) + '\" aria-label=\"' + esc(t('removeMember')) + '\" title=\"' + esc(t('removeMember')) + '\">' + ci('closeSmall') + '</button>';
+}
+function memberRowHtml(m, meId) {
+	const isMe = m.id === meId;
+	const role = memberRoleHtml(m, isMe);
+	return '<div class=\"row member-row\" tabindex=\"0\" data-member=\"' + esc(m.id) + '\" data-view=\"board\">' +
+		'<span class=\"ava\" style=\"background:' + colorFor(m.id) + ';width:20px;height:20px;font-size:11px\">' + esc(initials(m.displayName)) + presenceHtml(m, isMe) + '</span>' +
+		'<span class=\"title\">' + esc(m.displayName) + '</span>' +
+		'<span class=\"end\">' + role + '<span class=\"actions\">' + memberKickHtml(m, meId) + '</span></span></div>';
+}
+/* Событие: ✕ скрывает запись только у вас, корзина (owner/maintainer) удаляет
+   её из аудита для всей команды. */
+function eventRowHtml(ev, evKey, canDelete) {
+	/* A2: счётчик повторов — инлайн ×N сразу после сущности */
+	const rep = ev.count > 1 ? ' <span class=\"rep\">' + t('times2') + ev.count + '</span>' : '';
+	const delBtn = canDelete && ev.id ? '<button class=\"act-btn danger\" data-del-event=\"' + esc(ev.id) + '\" aria-label=\"' + esc(t('delEvent')) + '\" title=\"' + esc(t('delEvent')) + '\">' + ci('trash') + '</button>' : '';
+	return '<div class=\"row ev-row\" data-evkey=\"' + esc(evKey) + '\">' +
+		'<span></span>' +
+		'<span class=\"title\">' + esc(ev.userName) + ' ' + esc(describe(ev)) + (ev.taskTitle ? ' <span class=\"ev-entity\" data-view=\"board\">«' + esc(ev.taskTitle) + '»</span>' : '') + rep + '</span>' +
+		'<span class=\"end\"><span class=\"time\">' + esc(timeAgo(ev.latestAt)) + '</span>' +
+		'<span class=\"actions\">' + delBtn +
+		'<button class=\"act-btn\" data-dismiss-ev=\"' + esc(evKey) + '\" aria-label=\"' + esc(t('hideEvent')) + '\" title=\"' + esc(t('hideEvent')) + '\">' + ci('closeSmall') + '</button>' +
+		'</span></span></div>';
+}
+function syncList(container, wanted, makeHtml, keyOf, onExisting) {
+\t/* diff-обновление: существующие обновляем на месте (без анимации появления), новые — без анимации, пропавшие — схлопываем */
+\tconst existingByKey = new Map();
+\tfor (const el of [...container.querySelectorAll('[data-keyid]')]) { existingByKey.set(el.dataset.keyid, el); }
+\tconst newHtml = [];
+\tconst kept = new Set();
+\tfor (const item of wanted) {
+\t\tconst key = keyOf(item);
+\t\tconst el = existingByKey.get(key);
+\t\t/* Строка переиспользуется, даже когда обновлять её нечем: раньше без onExisting
+\t\t   она создавалась заново, и список приглашений дублировался на каждом обновлении. */
+\t\tif (el) { if (onExisting) { onExisting(el, item); } kept.add(key); }
+\t\telse { newHtml.push({ key, html: makeHtml(item) }); kept.add(key); }
+\t}
+\tconst removed = [];
+\tfor (const [key, el] of existingByKey) { if (!kept.has(key)) { removed.push(el); } }
+\tflip(container, () => {
+\t\t/* новые — в правильный порядок */
+\t\tconst anchorMap = new Map(wanted.map((item, i) => [keyOf(item), i]));
+\t\tfor (const { key, html } of newHtml) {
+\t\t\tconst tpl = document.createElement('template');
+\t\t\ttpl.innerHTML = html.trim();
+\t\t\tconst node = tpl.content.firstElementChild;
+\t\t\tnode.dataset.keyid = key;
+\t\t\tlet anchor = null;
+\t\t\tconst myIdx = anchorMap.get(key);
+\t\t\tfor (let i = myIdx + 1; i < wanted.length; i++) {
+\t\t\t\tconst probe = container.querySelector('[data-keyid="' + CSS.escape(keyOf(wanted[i])) + '"]');
+\t\t\t\tif (probe) { anchor = probe; break; }
+\t\t\t}
+\t\t\tif (anchor) { container.insertBefore(node, anchor); } else { container.appendChild(node); }
+\t\t}
+\t\tfor (const el of removed) { el.remove(); }
+\t});
+\t/* пропавшие схлопываем после FLIP-перестановки */
+\tfor (const el of removed) { void el; }
+\treturn removed;
+}
+function updateLists() {
+\tconst u = state.session?.user ?? {};
+\tconst summary = state.summary;
+\tconst myTasks = (summary?.myTasks ?? []).filter((task) => !pendingDeletes.includes(task.id));
+\trollNumber(document.getElementById('tasksCount'), myTasks.length);
+\tconst taskList = document.getElementById('taskList');
+\tconst shownTasks = myTasks.slice(0, 5);
+\tconst taskExtras = document.getElementById('taskExtras');
+\tif (myTasks.length > 5 && !taskExtras) {
+\t\tconst btn = document.createElement('button');
+\t\tbtn.className = 'link-btn'; btn.id = 'taskExtras'; btn.dataset.view = 'board';
+\t\tbtn.innerHTML = ci('arrowRight') + '<span class="title">' + esc(t('showAll')) + ' (' + myTasks.length + ')</span>';
+\t\tbtn.onclick = () => vscode.postMessage({ type: 'open', view: 'board' });
+\t\ttaskList.after(btn);
+\t} else if (myTasks.length <= 5 && taskExtras) { taskExtras.remove(); }
+\tsyncList(taskList, shownTasks, (task) => taskRowHtml(task), (task) => task.id, (el, task) => {
+\t\tconst st = statusMeta(task);
+\t\tconst badge = el.querySelector('.badge');
+\t\tconst titleEl = el.querySelector('.title');
+\t\tif (st && !badge) { titleEl.insertAdjacentHTML('afterbegin', '<span class="badge" data-state="' + st.state + '"><span class="badge-text" data-key="' + st.state + '">' + esc(st.label) + '</span></span> '); }
+\t\telse if (st && badge) { setStatus(badge, st); }
+\t\telse if (!st && badge) { badge.remove(); }
+\t\tconst sub = titleEl.querySelector('.sub-count');
+\t\tif (sub && !(task.subtasks && task.subtasks.total)) { sub.remove(); }
+\t\telse if (sub) { const label = task.subtasks.done + '/' + task.subtasks.total; if (sub.textContent !== label) { sub.textContent = label; } }
+\t\telse if (task.subtasks && task.subtasks.total) { titleEl.insertAdjacentHTML('beforeend', ' <span class="sub-count" title="' + esc(t('subtasks')) + '">' + task.subtasks.done + '/' + task.subtasks.total + '</span>'); }
+\t\tconst time = el.querySelector('.time');
+\t\tif (time) { time.textContent = timeAgo(task.dueAt); }
+\t});
+
+\tconst members = [...(summary?.members ?? [])].sort((a, b) => Number(Boolean(b.online)) - Number(Boolean(a.online)) || String(a.displayName).localeCompare(String(b.displayName)));
+\tconst onlineCount = members.filter(m => m.online).length;
+\tconst teamCountEl = document.getElementById('teamCount');
+\tteamCountEl.title = onlineCount + ' ' + t('online') + ' — ' + members.length;
+\trollNumber(teamCountEl, onlineCount);
+\tsyncList(document.getElementById('teamList'), members.slice(0, 8), (m) => memberRowHtml(m, u.id), (m) => m.id, (el, m) => {
+\t\tconst isMe = m.id === u.id;
+\t\tconst dot = el.querySelector('.presence');
+		if (dot) {
+			const dotOnline = Boolean(m.online) || isMe;
+			dot.classList.toggle('live', dotOnline);
+			dot.classList.toggle('off', !dotOnline);
+			dot.title = dotOnline ? t('online') : (m.lastSeenAt ? t('offlineAgo') + ' ' + timeAgo(m.lastSeenAt) : t('offlineAgo') + ': —');
+		}
+		const end = el.querySelector('.end');
+		/* Роль и кнопка кика обновляются точечно: end.innerHTML стирал бы кнопку. */
+		const label = memberRoleLabel(m, isMe);
+		let roleEl = end.querySelector('.m-role');
+		if (label && !roleEl) { end.insertAdjacentHTML('afterbegin', memberRoleHtml(m, isMe)); roleEl = end.querySelector('.m-role'); }
+		else if (!label && roleEl) { roleEl.remove(); roleEl = null; }
+		else if (label && roleEl && roleEl.textContent !== label) { roleEl.textContent = label; }
+		const actions = end.querySelector('.actions');
+		const kickNow = actions ? actions.querySelector('[data-kick-member]') : null;
+		const kickWant = memberKickHtml(m, u.id);
+		if (kickWant && !kickNow && actions) { actions.insertAdjacentHTML('beforeend', kickWant); }
+		else if (!kickWant && kickNow) { kickNow.remove(); }
+
+\t});
+
+\t/* события: схлопывание дублей, feedLimit первых, хвост в collapsible (C7) */
+\tconst dismissed = new Set(state.dismissedActivity ?? []);
+\tconst key = (ev) => ev.createdAt + '|' + ev.action + '|' + ev.userId;
+\tconst me = members.find((m) => m.id === u.id);
+	const canDeleteEvents = Boolean(me && (me.role === 'owner' || me.role === 'maintainer'));
+	const feedAll = (state.activity ?? []).filter(ev => !dismissed.has(key(ev)));
+	const hiddenEvents = (state.activity ?? []).length - feedAll.length;
+	const restoreFeedBtn = document.getElementById('restoreFeedBtn');
+	if (restoreFeedBtn) {
+		restoreFeedBtn.style.display = hiddenEvents ? '' : 'none';
+		restoreFeedBtn.title = t('showHidden') + ' (' + hiddenEvents + ' ' + t('hiddenEvents') + ')';
+	}
+\tconst collapsed = [];
+\tfor (const ev of feedAll) {
+\t\tconst last = collapsed[collapsed.length - 1];
+\t\tif (last && last.userId === ev.userId && last.action === ev.action && last.taskTitle === ev.taskTitle) { last.count += 1; last.latestAt = ev.createdAt; }
+\t\telse { collapsed.push({ ...ev, count: 1, latestAt: ev.createdAt }); }
+\t}
+\tconst eventList = document.getElementById('eventList');
+\tconst head = collapsed.slice(0, feedLimit);
+\tconst tail = collapsed.slice(feedLimit);
+\t/* хвост оборачиваем в collapsible */
+\tlet tailWrap = document.getElementById('eventTail');
+\tif (tail.length && !tailWrap) {
+\t\ttailWrap = document.createElement('div');
+\t\ttailWrap.className = 'collapsible'; tailWrap.id = 'eventTail';
+\t\ttailWrap.innerHTML = '<div class="list" id="eventTailList"></div>';
+\t\teventList.after(tailWrap);
+\t\trequestAnimationFrame(() => { tailWrap.dataset.open = 'true'; });
+\t} else if (!tail.length && tailWrap) { tailWrap.dataset.open = 'false'; setTimeout(() => tailWrap.remove(), 250); }
+\tconst tailList = document.getElementById('eventTailList');
+\tsyncList(eventList, head, (ev) => eventRowHtml(ev, key(ev), canDeleteEvents), (ev) => key(ev), (el, ev) => {
+\t\tconst rep = ev.count > 1 ? t('times2') + ev.count : '';
+\t\tconst repEl = el.querySelector('.rep');
+\t\tif (rep && !repEl) { el.querySelector('.title').insertAdjacentHTML('beforeend', ' <span class="rep">' + esc(rep) + '</span>'); }
+\t\telse if (rep && repEl) { repEl.textContent = rep; }
+\t\telse if (!rep && repEl) { repEl.remove(); }
+\t\tel.querySelector('.time').textContent = timeAgo(ev.latestAt);
+\t});
+\tif (tailList) { syncList(tailList, tail, (ev) => eventRowHtml(ev, key(ev), canDeleteEvents), (ev) => key(ev), (el, ev) => { el.querySelector('.time').textContent = timeAgo(ev.latestAt); }); }
+\tconst clearFeedBtn = document.getElementById('clearFeedBtn');
+\tclearFeedBtn.style.display = collapsed.length ? '' : 'none';
+}
+function bindStaticHandlers() {
+\tfor (const b of document.querySelectorAll('.nav-item[data-view]')) {
+\t\tb.onclick = () => {
+\t\t\tconst view = b.dataset.view;
+\t\t\tif (view === 'invite') { setInviteOpen(!inviteOpen); return; }
+\t\t\tactiveNav = view;
+\t\t\tupdateNav();
+\t\t\tvscode.postMessage({ type: 'open', view });
+\t\t};
+\t}
+\tbindArrowNav(document.getElementById('navList'));
+\tconst meRow = document.getElementById('meRow');
+\tmeRow.onclick = toggleMeMenu;
+\tmeRow.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleMeMenu(); } };
+\tbindListHandlers();
+\tconst clearFeedBtn = document.getElementById('clearFeedBtn');
+\tclearFeedBtn.onclick = () => {
+\t\tconst dismissed = new Set(state.dismissedActivity ?? []);
+\t\tconst key = (ev) => ev.createdAt + '|' + ev.action + '|' + ev.userId;
+\t\tfor (const ev of (state.activity ?? [])) { if (!dismissed.has(key(ev))) { vscode.postMessage({ type: 'invoke', command: 'auraTeam.dismissActivity', args: [key(ev)] }); } }
+\t};
+	const restoreFeedBtn = document.getElementById('restoreFeedBtn');
+	if (restoreFeedBtn) {
+		restoreFeedBtn.onclick = () => {
+			state.dismissedActivity = [];
+			vscode.postMessage({ type: 'invoke', command: 'auraTeam.undismissAllActivity', args: [] });
+			render();
+		};
+	}
+}
+function bindListHandlers() {
+\tconst root = document.getElementById('root');
+\t/* делегирование: обработчики не пересоздаются при diff-обновлении строк */
+\troot.onkeydown = (e) => {
+\t\tconst row = e.target.closest('.task-row, .member-row');
+\t\tif (!row) { return; }
+\t\tif (e.key === 'Enter') {
+\t\t\tif (row.classList.contains('task-row')) { vscode.postMessage({ type: 'open', view: 'board', filter: { task: row.dataset.task } }); }
+\t\t\telse { vscode.postMessage({ type: 'open', view: 'board', filter: { member: row.dataset.member } }); }
+\t\t}
+\t\tif (e.key === 'Delete' && row.classList.contains('task-row')) { deleteTask(row.dataset.task, row); }
+\t};
+\troot.onclick = (e) => {
+\t\tconst doneBtn = e.target.closest('[data-done-task]');
+\t\tif (doneBtn) { e.stopPropagation(); vscode.postMessage({ type: 'invoke', command: 'auraTeam.updateTask', args: [doneBtn.dataset.doneTask, { status: 'done' }] }); return; }
+\t\tconst statusBtn = e.target.closest('[data-status-task]');
+\t\tif (statusBtn) {
+\t\t\te.stopPropagation();
+\t\t\tconst task = (state?.summary?.myTasks ?? []).find(x => x.id === statusBtn.dataset.statusTask);
+\t\t\tconst cycle = ['todo', 'doing', 'review', 'done'];
+\t\t\tconst next = cycle[(cycle.indexOf(task?.status ?? 'todo') + 1) % cycle.length];
+\t\t\tvscode.postMessage({ type: 'invoke', command: 'auraTeam.updateTask', args: [statusBtn.dataset.statusTask, { status: next }] });
+\t\t\treturn;
+\t\t}
+\t\tconst delBtn = e.target.closest('[data-del-task]');
+\t\tif (delBtn) { e.stopPropagation(); const row = delBtn.closest('.task-row'); deleteTask(delBtn.dataset.delTask, row); return; }
+\t\t/* кик участника — прямо из строки команды, с подтверждением в расширении */
+\t\tconst kickBtn = e.target.closest('[data-kick-member]');
+\t\tif (kickBtn) { e.stopPropagation(); void kickMember(kickBtn.dataset.kickMember); return; }
+\t\t/* событие — точечное скрытие (та же команда, что у «Очистить», но для одной записи) */
+\t\tconst dismissBtn = e.target.closest('[data-dismiss-ev]');
+		if (dismissBtn) {
+			e.stopPropagation();
+			/* мгновенно убираем строку локально: скрытие локальное, сервер не нужен */
+			const evHideKey = dismissBtn.dataset.dismissEv;
+			state.dismissedActivity = [...(state.dismissedActivity ?? []), evHideKey];
+			dismissBtn.closest('.ev-row')?.remove();
+			vscode.postMessage({ type: 'invoke', command: 'auraTeam.dismissActivity', args: [evHideKey] });
+			return;
+		}
+\t\tconst delEvBtn = e.target.closest('[data-del-event]');
+		if (delEvBtn) {
+			e.stopPropagation();
+			vscode.postMessage({ type: 'invoke', command: 'auraTeam.deleteActivity', args: [delEvBtn.dataset.delEvent] });
+			return;
+		}
+		const entity = e.target.closest('.ev-entity');
+\t\tif (entity) { e.stopPropagation(); vscode.postMessage({ type: 'open', view: 'board' }); return; }
+\t\tconst row = e.target.closest('.task-row, .member-row');
+\t\tif (row) {
+\t\t\tif (row.classList.contains('task-row')) { vscode.postMessage({ type: 'open', view: 'board', filter: { task: row.dataset.task } }); }
+\t\t\telse { vscode.postMessage({ type: 'open', view: 'board', filter: { member: row.dataset.member } }); }
+\t\t}
+\t};
+}
+function bindArrowNav(list) {
+\tif (!list) { return; }
+\tlist.onkeydown = (e) => {
+\t\tif (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') { return; }
+\t\tconst items = [...list.querySelectorAll('button, [tabindex="0"]')];
+\t\te.preventDefault();
+\t\tconst idx = items.indexOf(document.activeElement);
+\t\tconst next = e.key === 'ArrowDown' ? Math.min(idx + 1, items.length - 1) : Math.max(idx - 1, 0);
+\t\titems[next]?.focus();
+\t};
+}
+function toggleMeMenu() {
+\tconst existing = document.getElementById('meMenu');
+\tif (existing) { existing.remove(); return; }
+\tconst menu = document.createElement('div');
+\tmenu.id = 'meMenu';
+\tmenu.className = 'me-menu';
+\tconst meRow = document.getElementById('meRow');
+\tconst rect = meRow.getBoundingClientRect();
+\tmenu.style.top = (rect.bottom + 4) + 'px';
+\tmenu.style.left = rect.left + 'px';
+\tmenu.innerHTML = '<button data-act="profile">' + ci('account') + esc(t('profile')) + '</button>' +
+\t\t'<button class="danger" data-act="logout">' + ci('logOut') + esc(t('logout')) + '</button>';
+\tdocument.body.appendChild(menu);
+\tmenu.querySelector('[data-act="profile"]').onclick = () => { menu.remove(); vscode.postMessage({ type: 'open', view: 'profile' }); };
+\tmenu.querySelector('[data-act="logout"]').onclick = () => { menu.remove(); vscode.postMessage({ type: 'invoke', command: 'auraTeam.signOut', args: [] }); };
+\tsetTimeout(() => {
+\t\tconst close = (e) => { if (!menu.contains(e.target) && e.target !== meRow) { menu.remove(); document.removeEventListener('pointerdown', close); } };
+\t\tdocument.addEventListener('pointerdown', close);
+\t}, 0);
+}
+window.addEventListener('message', e => {
+\t/* ответ на invoke: разрешаем ожидающий промис (каталог, код приглашения) */
+\tif (e.data?.type === 'response') {
+\t\tconst pending = pendingRequests.get(e.data.id);
+\t\tif (pending) {
+\t\t\tpendingRequests.delete(e.data.id);
+\t\t\tif (e.data.ok) { pending.resolve(e.data.result); } else { pending.reject(new Error(e.data.error || t('requestFailed'))); }
+\t\t}
+\t\treturn;
+\t}
+\tif (e.data?.type === 'openInvite') { setInviteOpen(true); return; }
+\tif (e.data?.type === 'state') {
+\t\tstate = e.data.state;
+\t\tif (typeof e.data.inviteCode === 'string') { state._inviteCode = e.data.inviteCode || null; }
+\t\tif (e.data.inviteExpires !== undefined) { state._inviteExpires = e.data.inviteExpires; }
+\t\tif (e.data.inviteRole !== undefined) { state._inviteRole = e.data.inviteRole ?? null; }
+\t\t/* diff-обновление списков на месте: строки не перерисовываются целиком, фокус и скролл сохраняются */
+\t\tif (staticRendered) { updateLists(); updateNav(); renderInviteSection(); wireInvite(); } else { render(); }
+\t}
+});
+vscode.postMessage({ type: 'ready' });
 </script></body></html>`;
 
 function requireTeam(state: { teamId?: string }): string {
 	if (!state.teamId) { throw new Error(vscode.l10n.t('Create or join a team first.')); }
 	return state.teamId;
+}
+
+/**
+ * Роль текущего пользователя в активной команде.
+ * Сервер решает то же самое (`requireRole`), а расширение проверяет заранее,
+ * чтобы кнопка удаления не приводила к 403 после нажатия.
+ */
+export function roleInTeam(state: { teamId?: string; session?: Session }): string {
+	return state.session?.teams.find(team => team.id === state.teamId)?.role ?? 'viewer';
+}
+
+/** owner/maintainer: удаление архивов, удаление событий ленты и прочие необратимые действия. */
+export function canMaintain(state: { teamId?: string; session?: Session }): boolean {
+	return ['owner', 'maintainer'].includes(roleInTeam(state));
 }
 
 async function requiredInput(prompt: string, value?: string): Promise<string> {

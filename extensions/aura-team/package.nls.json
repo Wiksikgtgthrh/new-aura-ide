@@ -5,7 +5,7 @@
 	"configuration.serverUrl": "URL of the team server",
 	"configuration.simpleMode": "Show the safe simplified Git workflow for people who do not use Git commands directly",
 	"configuration.demoMode": "Demo mode: show sample team data when the server is unavailable",
-	"configuration.uiLanguage": "Team panel interface language",
+	"configuration.uiLanguage": "Panel language: auto (the Aura language switch, then the IDE), ru or en",
 	"container.title": "Team",
 	"view.home": "Team",
 	"command.open": "Open Aura Team",

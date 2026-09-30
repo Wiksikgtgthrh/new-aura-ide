@@ -27,6 +27,10 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IAuraPluginService } from '../common/auraPluginService.js';
+import { AURA_MARKET_ITEMS } from '../common/auraMarketCatalog.js';
 import { AuraMarketEditorPane } from './auraMarketEditorPane.js';
 import { AuraMarketEditorInput, AuraMarketEditorInputSerializer } from './auraMarketEditorInput.js';
 
@@ -48,7 +52,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: AURA_MARKET_OPEN_COMMAND_ID,
-			title: localize2('auraMarket.open', "Market: Открыть маркет"),
+			title: localize2('auraMarket.open', "Market: Open Market"),
 			category: localize2('auraMarket.category', "Market"),
 			f1: true,
 		});
@@ -104,3 +108,26 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	canToggleVisibility: true,
 	canMoveView: true,
 }], auraMarketContainer);
+
+/**
+ * Context keys `auraPlugin.<id>.enabled` привязываются с раннего старта: на них
+ * завязаны when-клаузы вьюх плагинов-расширений (например aura-kotlin), поэтому
+ * иконка такого плагина скрывается/возвращается при отключении/включении
+ * без перезагрузки окна. Без привязки ключ был бы undefined и вьюха пропадала бы
+ * даже у включённого плагина.
+ */
+class AuraMarketPluginKeysContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.auraMarketPluginKeys';
+
+	constructor(
+		@IAuraPluginService pluginService: IAuraPluginService,
+	) {
+		super();
+		for (const item of AURA_MARKET_ITEMS) {
+			pluginService.enabledWhen(item.id);
+		}
+	}
+}
+
+registerWorkbenchContribution2(AuraMarketPluginKeysContribution.ID, AuraMarketPluginKeysContribution, WorkbenchPhase.BlockRestore);

@@ -96,7 +96,7 @@ const AURA_HIDDEN_VIEW_CONTAINER_IDS = new Set<string>([
 // Aura IDE fork: контейнеры-лаунчеры — клик по иконке выполняет команду (открывает центральную вкладку), sidebar не открывается
 const AURA_LAUNCHER_CONTAINERS = new Map<string, string>([
 	['workbench.view.auraMarket', 'auraMarket.open'],
-	['workbench.view.auraApi', 'auraApi.openManager'],
+	['workbench.view.apiKeys', 'apiKeys.openManager'],
 ]);
 
 export class PaneCompositeBar extends Disposable {
@@ -837,10 +837,14 @@ class ViewContainerActivityAction extends CompositeBarAction {
 		}
 		this.lastRun = now;
 
-		// Aura IDE fork: контейнеры-лаунчеры — клик открывает вкладку, sidebar не трогаем
+		// Aura IDE fork: контейнеры-лаунчеры — клик открывает вкладку и закрывает сайдбар,
+		// чтобы панель предыдущего раздела (Team и т.п.) не оставалась висеть.
 		const auraLauncherCommand = AURA_LAUNCHER_CONTAINERS.get(this.compositeBarActionItem.id);
 		if (auraLauncherCommand) {
 			await this.commandService.executeCommand(auraLauncherCommand);
+			if (this.part === Parts.ACTIVITYBAR_PART && this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
+				this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+			}
 			return;
 		}
 

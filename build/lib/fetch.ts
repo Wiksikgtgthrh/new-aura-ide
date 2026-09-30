@@ -10,6 +10,7 @@ import ansiColors from 'ansi-colors';
 import crypto from 'crypto';
 import through2 from 'through2';
 import { Stream } from 'stream';
+import { pipeStreams } from './resilientSync.ts';
 
 export interface IFetchOptions {
 	base?: string;
@@ -147,11 +148,11 @@ export function fetchGithub(repo: string, options: IGitHubAssetOptions): Stream 
 	const releaseUrl = options.latest
 		? `/repos/${cleanRepo}/releases?per_page=100`
 		: `/repos/${cleanRepo}/releases/tags/v${options.version}`;
-	return fetchUrls(releaseUrl, {
+	return pipeStreams(fetchUrls(releaseUrl, {
 		base: 'https://api.github.com',
 		verbose: options.verbose,
 		nodeFetchOptions: { headers: ghApiHeaders }
-	}).pipe(through2.obj(async function (file, _enc, callback) {
+	})).pipe(through2.obj(async function (file, _enc, callback) {
 		const json = JSON.parse(file.contents.toString());
 		const assetFilter = typeof options.name === 'string' ? (name: string) => name === options.name : options.name;
 		let release: IGitHubRelease | undefined;
@@ -193,5 +194,5 @@ export function fetchGithub(repo: string, options: IGitHubAssetOptions): Stream 
 		} catch (error) {
 			callback(error);
 		}
-	}));
+	})).done();
 }

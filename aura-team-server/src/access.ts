@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { FastifyRequest } from 'fastify';
-import { database } from './database.js';
+import { database, isAdmin } from './database.js';
 import { verifyAccess } from './security.js';
 import { digest } from './security.js';
+import { ROLE_RANK, type Role } from './features.js';
 
-export type Role = 'owner' | 'maintainer' | 'dev' | 'viewer';
-const rank: Record<Role, number> = { viewer: 0, dev: 1, maintainer: 2, owner: 3 };
+export type { Role };
 
 export async function userId(request: FastifyRequest): Promise<string> {
 	const authorization = request.headers.authorization;
@@ -37,8 +37,16 @@ function statusError(statusCode: number, message: string): Error {
 
 export function requireRole(user: string, teamId: string, minimum: Role): Role {
 	const row = database.prepare('SELECT role FROM memberships WHERE user_id=? AND team_id=?').get(user, teamId) as { role: Role } | undefined;
-	if (!row || rank[row.role] < rank[minimum]) { throw new Error('FORBIDDEN'); }
+	if (!row || ROLE_RANK[row.role] < ROLE_RANK[minimum]) { throw new Error('FORBIDDEN'); }
 	return row.role;
+}
+
+/**
+ * Доступ в админ-панель: выдавать закрытые возможности может только админ.
+ * Проверка живёт на сервере — интерфейс лишь прячет раздел у остальных.
+ */
+export function requireAdmin(user: string): void {
+	if (!isAdmin(user)) { throw new Error('FORBIDDEN'); }
 }
 
 export function mapAccessError(error: unknown): never {

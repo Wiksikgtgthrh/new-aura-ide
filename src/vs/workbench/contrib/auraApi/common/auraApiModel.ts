@@ -1,8 +1,8 @@
 /*---------------------------------------------------------------------------------------------
- *  Aura API — модель данных «имба-менеджера ключей» (Этап 2).
+ *  API Keys — модель данных «имба-менеджера ключей» (Этап 2).
  *  Только чистые типы и функции: без DI, DOM и сети — покрывается юнит-тестами.
  *  Секреты сюда НЕ попадают в постоянное хранилище: секрет — только ISecretStorageService
- *  (ключ вида `auraApi.secret.<keyId>`), здесь — метаданные.
+ *  (ключ вида `apiKeys.secret.<keyId>`), здесь — метаданные.
  *--------------------------------------------------------------------------------------------*/
 
 export type AuraProvider = 'openai-compatible' | 'anthropic' | 'google' | 'openrouter' | 'litellm';
@@ -55,7 +55,7 @@ export interface IAuraApiKey {
 /* ---------------------------------- secrets ---------------------------------- */
 
 export function auraSecretStorageKey(keyId: string): string {
-	return `auraApi.secret.${keyId}`;
+	return `apiKeys.secret.${keyId}`;
 }
 
 /** Маска для UI/логов: sk-...wxyz */
@@ -320,6 +320,101 @@ export function modelAuthenticityPercent(requestedModel: string, returnedModel: 
 	return heuristicPercent ?? 50; // fallback: поведенческая эвристика
 }
 
+/* -------------------------------- сетевые сбои -------------------------------- */
+
+/** Коды ошибок, означающие «до провайдера не дотянулись» (`net`, `undici`, Chromium). */
+const NETWORK_ERROR_CODES = new Set([
+	'ENOTFOUND', 'EAI_AGAIN', 'EAI_FAIL', 'ECONNREFUSED', 'ECONNRESET', 'ECONNABORTED',
+	'ETIMEDOUT', 'EHOSTUNREACH', 'ENETUNREACH', 'ENETDOWN', 'EPIPE',
+	'ERR_NETWORK', 'ERR_NETWORK_CHANGED', 'ERR_CONNECTION_CLOSED', 'ERR_CONNECTION_REFUSED',
+	'ERR_CONNECTION_RESET', 'ERR_CONNECTION_TIMED_OUT', 'ERR_NAME_NOT_RESOLVED', 'ERR_ADDRESS_UNREACHABLE',
+	'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT', 'UND_ERR_SOCKET',
+]);
+
+const NETWORK_ERROR_NAMES = new Set(['NetworkError', 'ConnectTimeoutError', 'HeadersTimeoutError', 'BodyTimeoutError', 'SocketError']);
+
+const NETWORK_MESSAGE_PATTERNS = [
+	/fetch failed/i,
+	/failed to fetch/i,
+	/load failed/i,
+	/networkerror/i,
+	/network error/i,
+	/socket hang up/i,
+	/getaddrinfo/i,
+	/network is unreachable/i,
+	/temporarily unavailable/i,
+	/timed? ?out/i,
+];
+
+/**
+ * Сбой именно связи, а не ответ сервера: такой ключ уходит в короткий cooldown, а чат
+ * продолжает с другого ключа. Ошибку отмены пользователем (`AbortError`) сюда не относим —
+ * это не признак мёртвого ключа.
+ */
+export function isNetworkFailure(error: unknown): boolean {
+	const seen = new Set<unknown>();
+	const pending: unknown[] = [error];
+
+	while (pending.length > 0) {
+		const current = pending.shift();
+		if (current === null || typeof current !== 'object' || seen.has(current)) {
+			continue;
+		}
+		seen.add(current);
+
+		const { code, name, message, cause, errors } = current as {
+			code?: unknown; name?: unknown; message?: unknown; cause?: unknown; errors?: unknown;
+		};
+
+		if (typeof code === 'string' && NETWORK_ERROR_CODES.has(code)) {
+			return true;
+		}
+		if (typeof name === 'string' && NETWORK_ERROR_NAMES.has(name)) {
+			return true;
+		}
+		if (typeof message === 'string' && NETWORK_MESSAGE_PATTERNS.some(pattern => pattern.test(message))) {
+			return true;
+		}
+		// AggregateError от параллельных попыток держит причину в errors.
+		if (Array.isArray(errors)) {
+			pending.push(...errors);
+		}
+		if (cause !== undefined) {
+			pending.push(cause);
+		}
+	}
+
+	return false;
+}
+
+/** Короткая причина сбоя для UI и логов: код, иначе имя, иначе текст сообщения. */
+export function describeNetworkFailure(error: unknown): string {
+	const seen = new Set<unknown>();
+	let current: unknown = error;
+
+	while (current !== null && typeof current === 'object' && !seen.has(current)) {
+		seen.add(current);
+		const { code, name, message, cause } = current as {
+			code?: unknown; name?: unknown; message?: unknown; cause?: unknown;
+		};
+
+		if (typeof code === 'string' && code.length > 0) {
+			return code;
+		}
+		if (cause === undefined) {
+			// 'Error' и 'TypeError' — служебные имена (последнее как раз у fetch-сбоев), по ним
+			// пользователю ничего не понятно: показываем текст сообщения.
+			if (typeof name === 'string' && name.length > 0 && name !== 'Error' && name !== 'TypeError') {
+				return name;
+			}
+			return typeof message === 'string' && message.length > 0 ? message : String(error);
+		}
+		current = cause;
+	}
+
+	return String(error);
+}
+
 /* --------------------------------- роутер ------------------------------------ */
 
 export interface IAuraRouterState {
@@ -382,6 +477,203 @@ export function resolveKey(state: IAuraRouterState, now: number, modelId?: strin
 		}
 	}
 	return undefined;
+}
+
+/* --------------------- живые замеры и пороги маршрутизации --------------------- */
+
+/**
+ * Пороги «умного» переключения живут в настройках, а не в константах: «медленно»
+ * у локальной модели и у большого провайдера — разные числа.
+ */
+export const API_KEYS_SLOW_FIRST_TOKEN_SETTING = 'apiKeys.router.slowFirstTokenMs';
+export const API_KEYS_FIRST_TOKEN_TIMEOUT_SETTING = 'apiKeys.router.firstTokenTimeoutMs';
+export const API_KEYS_STREAM_GAP_SETTING = 'apiKeys.router.streamGapMs';
+export const API_KEYS_SLOW_KEY_FACTOR_SETTING = 'apiKeys.router.slowKeyFactor';
+export const API_KEYS_SLOW_FLOOR_SETTING = 'apiKeys.router.slowFloorMs';
+
+/** Префикс новых id настроек плагина. */
+export const API_KEYS_SETTING_PREFIX = 'apiKeys.';
+/** Прежний префикс («auraApi»): значения, сохранённые до переименования, читаются как fallback. */
+export const LEGACY_SETTING_PREFIX = 'auraApi.';
+
+/** Старые id для настройки, переименованной при смене брендинга (обычно один). */
+export function legacySettingIds(id: string): string[] {
+	return id.startsWith(API_KEYS_SETTING_PREFIX)
+		? [LEGACY_SETTING_PREFIX + id.slice(API_KEYS_SETTING_PREFIX.length)]
+		: [];
+}
+
+/**
+ * Значение настройки с учётом переименования: сначала новый id, при пустом значении — прежний.
+ * Так пользовательский системный промпт и пороги маршрутизации переживают смену id.
+ */
+export function readSettingWithFallback(read: (key: string) => unknown, id: string): unknown {
+	const filled = (value: unknown): boolean => value !== undefined && value !== null && value !== '';
+	const value = read(id);
+	if (filled(value)) {
+		return value;
+	}
+	for (const legacyId of legacySettingIds(id)) {
+		const legacy = read(legacyId);
+		if (filled(legacy)) {
+			return legacy;
+		}
+	}
+	return value;
+}
+
+/**
+ * Стартовый порог первого токена: работает, пока ни по одному ключу нет замеров.
+ * 0 — выключить наблюдение за скоростью живых ответов целиком.
+ */
+export const DEFAULT_SLOW_FIRST_TOKEN_MS = 3_000;
+/** Ответа нет вовсе дольше этого — попытка прерывается, запрос уходит на другой ключ. */
+export const DEFAULT_FIRST_TOKEN_TIMEOUT_MS = 45_000;
+/** Молчание посреди ответа дольше этого — поток прерывается с понятным сообщением. */
+export const DEFAULT_STREAM_GAP_MS = 45_000;
+/** Сколько медленных ответов подряд выводят ключ из автовыбора. */
+export const SLOW_STREAK_LIMIT = 2;
+/**
+ * Во сколько раз медленнее лучшего ключа — уже «медленно». Сравнение идёт между ключами,
+ * поэтому одни и те же миллисекунды на быстром канале и на медленном прокси значат разное.
+ */
+export const DEFAULT_SLOW_KEY_FACTOR = 2.5;
+/** Ниже этого порога «медленно» не считаем вовсе: иначе шум решает за нас и ключи мигают. */
+export const DEFAULT_SLOW_FLOOR_MS = 800;
+/** Сколько последних замеров держим по ключу: медиана по окну устойчивее одиночного выброса. */
+export const LATENCY_WINDOW = 10;
+
+export interface IAuraRouterLimits {
+	slowFirstTokenMs: number;
+	firstTokenTimeoutMs: number;
+	streamGapMs: number;
+	slowKeyFactor: number;
+	slowFloorMs: number;
+}
+
+/** Пороги из настроек с дефолтами: мусор в настройке не должен ломать маршрутизацию. */
+export function routerLimits(read: (key: string) => unknown): IAuraRouterLimits {
+	// Читаем через fallback: значения, сохранённые до переименования id, продолжают работать.
+	const readValue = (key: string): unknown => readSettingWithFallback(read, key);
+	const num = (key: string, fallback: number): number => {
+		const raw = readValue(key);
+		const parsed = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+		return Number.isFinite(parsed) ? parsed : fallback;
+	};
+	return {
+		slowFirstTokenMs: num(API_KEYS_SLOW_FIRST_TOKEN_SETTING, DEFAULT_SLOW_FIRST_TOKEN_MS),
+		firstTokenTimeoutMs: num(API_KEYS_FIRST_TOKEN_TIMEOUT_SETTING, DEFAULT_FIRST_TOKEN_TIMEOUT_MS),
+		streamGapMs: num(API_KEYS_STREAM_GAP_SETTING, DEFAULT_STREAM_GAP_MS),
+		slowKeyFactor: num(API_KEYS_SLOW_KEY_FACTOR_SETTING, DEFAULT_SLOW_KEY_FACTOR),
+		slowFloorMs: num(API_KEYS_SLOW_FLOOR_SETTING, DEFAULT_SLOW_FLOOR_MS),
+	};
+}
+
+/* --------------------------- медианы и адаптивный порог ------------------------ */
+
+/** Окно последних замеров ключа: свежие в конце, длиннее LATENCY_WINDOW не растёт. */
+export function pushLatencySample(samples: readonly number[] | undefined, firstTokenMs: number): number[] {
+	const next = [...(samples ?? []), firstTokenMs];
+	return next.length > LATENCY_WINDOW ? next.slice(next.length - LATENCY_WINDOW) : next;
+}
+
+/** Медиана замеров: одиночный выброс (холодный старт, всплеск сети) её не сдвинет. */
+export function medianLatency(samples: readonly number[] | undefined): number | undefined {
+	if (!samples || samples.length === 0) {
+		return undefined;
+	}
+	const sorted = [...samples].sort((a, b) => a - b);
+	const mid = sorted.length >> 1;
+	return sorted.length % 2 === 1 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
+/** Лучший (самый быстрый) медианный ключ из набора — база сравнения для остальных. */
+export function bestMedianLatency(samplesByKey: ReadonlyArray<readonly number[] | undefined>): number | undefined {
+	const medians = samplesByKey.map(medianLatency).filter((ms): ms is number => ms !== undefined);
+	return medians.length > 0 ? Math.min(...medians) : undefined;
+}
+
+/**
+ * Адаптивный порог «медленно» для живого ответа: относительно лучшего известного ключа.
+ * Пока замеров нет — работает стартовый slowFirstTokenMs (и 0 полностью выключает наблюдение).
+ * Пол нужен, чтобы на быстром канале шум в сотню миллисекунд не считался медленностью.
+ */
+export function slowThresholdMs(
+	bestMedianMs: number | undefined,
+	limits: { slowFirstTokenMs: number; slowKeyFactor: number; slowFloorMs: number },
+): number {
+	if (!(limits.slowFirstTokenMs > 0)) {
+		return limits.slowFirstTokenMs;
+	}
+	if (bestMedianMs === undefined || !(bestMedianMs > 0)) {
+		return limits.slowFirstTokenMs;
+	}
+	const factor = Math.max(1, limits.slowKeyFactor);
+	return Math.max(limits.slowFloorMs, Math.round(bestMedianMs * factor));
+}
+
+/** Человеческое объяснение решения — в trace и в подсказках интерфейса. */
+export function describeSlowDecision(firstTokenMs: number, thresholdMs: number, bestMedianMs: number | undefined): string {
+	return `первый токен ${firstTokenMs} мс > ${thresholdMs} мс`
+		+ (bestMedianMs !== undefined ? ` (лучший ключ — медиана ${bestMedianMs} мс)` : ' (замеров по другим ключам пока нет)');
+}
+
+export interface IAuraLatencyUpdate {
+	/** серия медленных ответов после этого замера */
+	slowStreak: number;
+	/** ключ уходит из автовыбора: набрал серию медленных ответов */
+	exclude: boolean;
+	/** снять прежнее исключение — ответ снова быстрый */
+	clearExclusion: boolean;
+}
+
+/**
+ * Живой замер (время до первого токена) → как менять состояние ключа.
+ * Быстрый ответ обнуляет серию и снимает исключение, поставленное по задержке;
+ * исключение по пингу-зонду снимает только следующая проверка ключа.
+ */
+export function nextLatencyUpdate(
+	previousStreak: number,
+	firstTokenMs: number,
+	thresholdMs: number,
+	excludedReason?: 'ping' | 'latency',
+): IAuraLatencyUpdate {
+	if (!(thresholdMs > 0)) {
+		return { slowStreak: previousStreak, exclude: false, clearExclusion: false };
+	}
+	if (firstTokenMs > thresholdMs) {
+		const slowStreak = Math.max(0, previousStreak) + 1;
+		return { slowStreak, exclude: slowStreak >= SLOW_STREAK_LIMIT, clearExclusion: false };
+	}
+	return { slowStreak: 0, exclude: false, clearExclusion: excludedReason === 'latency' };
+}
+
+export interface IAuraKeySpeedHint {
+	/** живой замер первого токена (точнее пинга) */
+	latencyMs?: number;
+	/** пинг из проверки ключа */
+	pingMs?: number;
+}
+
+/**
+ * Есть ли среди оставшихся ключей заведомо более быстрый. Нужен, чтобы не бросать
+ * модели, которые долго «думают» (reasoning), вслепую: переключаемся только там,
+ * где у замены уже есть измерение в пределах порога.
+ */
+export function hasFasterAlternative(current: IAuraKeySpeedHint, rest: readonly IAuraKeySpeedHint[], thresholdMs: number): boolean {
+	if (!(thresholdMs > 0)) { return false; }
+	const fastest = (hint: IAuraKeySpeedHint): number | undefined => hint.latencyMs ?? hint.pingMs;
+	const currentMs = fastest(current);
+	return rest.some(hint => {
+		const ms = fastest(hint);
+		return ms !== undefined && ms <= thresholdMs && (currentMs === undefined || ms < currentMs);
+	});
+}
+
+/** Человеческая причина вместо невнятного «network error» при молчании потока. */
+export function describeStreamStall(phase: 'first-token' | 'gap', waitedMs: number): string {
+	const seconds = Math.max(1, Math.round(waitedMs / 1000));
+	return phase === 'first-token' ? `нет первого токена за ${seconds} с` : `поток молчит дольше ${seconds} с`;
 }
 
 /** Failover: применить исход запроса к ключу (cooldown/статус). */

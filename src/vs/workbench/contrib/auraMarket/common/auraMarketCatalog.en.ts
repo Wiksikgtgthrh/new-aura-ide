@@ -1,0 +1,244 @@
+/*---------------------------------------------------------------------------------------------
+ *  Aura Market — английские тексты каталога (overlay поверх русского исходника).
+ *
+ *  Русский текст остаётся в auraMarketCatalog.ts как база («что показывает
+ *  редактор каталога»), здесь — только переводы. Так одна карточка не расползается
+ *  на две копии каталога: id, версии, даты, автор, builtinId и размеры не дублируются,
+ *  дублируется лишь то, что реально переводят, — имя, описание, документация и
+ *  changelog по номерам версий.
+ *
+ *  Договор: у каждого пункта AURA_MARKET_ITEMS обязан быть блок здесь, у каждой
+ *  версии — свой changelog. Иначе в английском интерфейсе всплывёт русская строка;
+ *  это сторожит auraMarketCatalog.test.ts (нет кириллицы и нет пропущенных версий).
+ *--------------------------------------------------------------------------------------------*/
+
+import type { IAuraMarketTranslation } from './auraMarketI18n.js';
+
+export const AURA_MARKET_ITEMS_EN: Readonly<Record<string, IAuraMarketTranslation>> = {
+
+	'aura-kotlin': {
+		description: 'Kotlin and Android without Android Studio: Gradle classpath via an init script (transitive dependencies, android.jar), Gradle tasks with a problem matcher, Android SDK and emulators, run and debug with F5 (JDWP), logcat with filters, completion and diagnostics over LSP.',
+		size: '≈ 150 KB',
+		sizeNote: 'The Kotlin Language Server is downloaded on the first .kt open (~83 MB, or bundle the offline kit into the build); the toolchain (JDK 11+ and the Android SDK) can take up to 6 GB if it is not installed yet.',
+		changelog: {
+			'0.2.0': [
+				'Full debugger stepping: next / stepIn / stepOut / pause via JDWP StepRequest',
+				'Exact stop line while stepping — the editor jumps through the code',
+				'Fixed clearAllBreakpoints (stray async)',
+			],
+			'0.1.0': [
+				'First release: Gradle classpath, Gradle tasks, logcat, run and debug with F5',
+			],
+		},
+		docs: [
+			'Aura Kotlin & Android — full Kotlin/Android development in Aura IDE.',
+			'',
+			'#### Quick start',
+			'',
+			'1. Open an existing Android project (Gradle) — the classpath is collected automatically by a Gradle init script; the build-file parser works as a fallback.',
+			'2. Build: Gradle commands — Sync, Build (assembleDebug), Clean, Tests, Release or any custom task; errors land in the Problems panel, progress in the status bar.',
+			'3. Devices and emulators: the Android panel in the activity bar — start/stop AVDs, a single device selector, logcat filtered by app.',
+			'4. Run and debug: F5 ("Run Android App") — builds the APK, installs it on the device, launches the app and attaches the debugger (breakpoints, variables, call stack).',
+			'5. Completion: the Kotlin Language Server is installed by a button on the first .kt open (or bundle it via scripts/fetch-server). It needs JDK 11+ (the JDK shipped with Android Studio works) — point `auraKotlin.javaPath` at it.',
+		].join('\n'),
+	},
+
+	'api-keys': {
+		description: 'API key manager: storage, grouping, priorities, automatic ping and error checks, model authenticity and response safety checks, and picking the active key for chat.',
+		size: '≈ 90 KB',
+		changelog: {
+			'1.1.0': [
+				'Adaptive slow-key threshold: first-token medians compared against the fastest key instead of fixed milliseconds',
+				'Live first-token measurement, switching to a faster key and silence timeouts: a long task is no longer blocked by a silent endpoint',
+				'Plugin and tab renamed: "Aura API" → "API Keys" (the tab is "API")',
+			],
+			'1.0.0': [
+				'Key manager: Secret Storage, groups, priorities',
+				'Automatic ping checks, model authenticity and response safety checks',
+				'Pick the active key for chat ("Use in chat")',
+			],
+		},
+		docs: [
+			'API Keys — the built-in API key manager.',
+			'',
+			'#### Installation',
+			'',
+			'Press "Install" and reload the window. After the reload a key icon (API Keys) shows up in the left panel, and the manager opens as a central editor tab.',
+			'',
+			'#### Adding keys',
+			'',
+			'- Manually: the "+ Add key" button — name, Base URL, model, expected model (for the authenticity check), group and the key itself.',
+			'- In bulk: the "Bulk import" button. Formats:',
+			'  - line by line: `name | baseUrl | model | key`',
+			'  - JSON array: `[{ "name", "baseUrl", "model", "key", "group"?, "priority"? }]`',
+			'',
+			'Keys are stored in the encrypted system secret storage (Secret Storage) and are never written to files.',
+			'',
+			'#### Groups and priorities',
+			'',
+			'Any key can be given a group (a filter above the table) and a priority: High / Medium / Low. When picking the "best" key the priority wins first, the lowest ping second.',
+			'',
+			'#### Automatic checks',
+			'',
+			'Every key is checked automatically when added, and by the "Check" / "Check all" buttons:',
+			'',
+			'- Ping — the response time of GET /models.',
+			'- Live speed — the time to the first token of real answers. For every key the median of the latest measurements is tracked, and the "slow" threshold is taken from the fastest key (times `apiKeys.router.slowKeyFactor`, but never below `apiKeys.router.slowFloorMs`).',
+			'- Switching — if the first token arrives after the threshold and a measurably faster key exists, the request goes to it before the answer starts streaming. Two slow answers in a row drop the key from auto-selection, the first fast one brings it back.',
+			'- Errors — a concrete reason: HTTP 401 (the key was rejected), HTTP 404 (the baseUrl is not OpenAI-compatible), network failures and so on.',
+			'',
+			'#### Model authenticity, %',
+			'',
+			'The model is asked a probe question ("name your exact model") and the answer is compared with the declared one: 100% — exact match, 80% — the family matches, 50% — a partial match, 20% — the answer does not look like the declared model.',
+			'',
+			'#### Safety check, %',
+			'',
+			'Model answers are scanned for malicious patterns: rm -rf / del /s, PowerShell -enc, curl | bash, Invoke-Expression, registry autostart. Every finding lowers the score; a baseUrl without HTTPS costs 20%. Hover the percentage for the details.',
+			'',
+			'#### Using in chat',
+			'',
+			'The "Use in chat" button on a row checks the key and makes it the active endpoint (`apiKeys.chat.baseUrl` / `apiKeys.chat.model`) for the AI chat.',
+		].join('\n'),
+	},
+
+	'aggg': {
+		description: 'Model booster harness: injects the AGGG2.0 core rules into the chat system prompt on every turn. Turn it on globally (aggg.enabled) or per project (aggg.projectBoost in workspace settings). The indicator and the switch live in the status bar.',
+		size: '≈ 25 KB',
+		changelog: {
+			'2.0.0': [
+				'AGGG2.0 core rules in the chat system prompt on every turn',
+				'Enabled globally (aggg.enabled) or per project (aggg.projectBoost)',
+			],
+		},
+		docs: [
+			'AGGG Boost — a harness that strengthens chat models with the AGGG2.0 core rules.',
+			'',
+			'#### Installation',
+			'',
+			'Press "Install" and reload the window. An "AGGG" indicator appears on the right of the status bar.',
+			'',
+			'#### Turning it on',
+			'',
+			'- Globally (all projects): the `aggg.enabled` setting = true, or click the status bar indicator → "Globally".',
+			'- This project only: click the indicator → "This project only" (writes `aggg.projectBoost` into the workspace settings).',
+			'',
+			'Command: "AGGG: Toggle model boost" (Ctrl+Shift+P).',
+			'',
+			'#### Core version',
+			'',
+			'In the card and in the AGGG panel you pick the version: `2.0.0` (bundled core) or `5.2` (external agent, the path comes from `aggg.externalAgentPath`). Switching restarts the core and updates the status bar indicator.',
+			'',
+			'#### How it works',
+			'',
+			'While the boost is active, the AGGG2.0 core rules are prepended as the first system message to every chat model request (API Keys): research first, the base before the code, skills per task, a "done" check and so on. The user system prompt (`apiKeys.chat.systemPrompt`) follows and is not overwritten.',
+		].join('\n'),
+	},
+
+	'aura-serverkit': {
+		description: 'ServerKit control panel in an IDE tab: app deploys, databases, Docker containers, SSL and monitoring. The icon in the activity bar opens the tab with the application.',
+		size: '≈ 10 KB',
+		changelog: {
+			'0.1.0': [
+				'First release: ServerKit panel in an IDE tab, status check and opening the application',
+			],
+		},
+		docs: [
+			'ServerKit — a server control panel right from the IDE.',
+			'',
+			'#### Installation',
+			'',
+			'Press "Install" and reload the window. A server icon (ServerKit) appears in the activity bar on the left.',
+			'',
+			'#### Usage',
+			'',
+			'- Clicking the icon in the activity bar opens a sidebar with the ServerKit card.',
+			'- The "Open control panel" button opens a full editor tab with the ServerKit application.',
+			'- The tab shows the server state (a green/red indicator, refreshed every 30 seconds) and the whole application.',
+			'- Commands (Ctrl+Shift+P): "ServerKit: Open control panel", "ServerKit: Check server status".',
+			'',
+			'#### Configuration',
+			'',
+			'- `auraServerkit.serverUrl` — the URL of the deployed ServerKit (https://serverkit.auraide.xyz by default).',
+			'',
+			'The plugin does not ship the application itself: ServerKit runs on your server, the tab only displays it and checks availability through /api/health.',
+		].join('\n'),
+	},
+
+	'aura-team': {
+		description: 'Team development right inside the IDE: teams and members, projects and tasks (a kanban board with subtasks), safe Git flows, a shared team API key bank, archives and invites.',
+		size: '≈ 320 KB',
+		changelog: {
+			'0.9.0': [
+				'Kanban and tasks: subtasks with progress (2/5), drag-and-drop of cards, progress in the "My tasks" list',
+				'Team invites: members with online/offline status and roles',
+				'Archives: upload by the owner or an admin only, up to 1 GB, zip and rar',
+				'Git: connecting to GitHub without pasting a token, a standard branch flow',
+			],
+		},
+		docs: [
+			'Team — team development and Git right inside the IDE.',
+			'',
+			'#### Installation',
+			'',
+			'Press "Install" and reload the window. A Team icon appears on the left; the panel also opens as a central tab.',
+			'',
+			'#### Team',
+			'',
+			'- Sign in with an account; members are shown with their online/offline status.',
+			'- Invites are created as a code and accepted with it; the invite list shows members and their roles.',
+			'- Roles: owner, admin, developer, guest. Only the owner and admins can delete team content.',
+			'',
+			'#### Tasks and kanban',
+			'',
+			'- A board with columns; a card can be dragged between columns while holding it.',
+			'- Subtasks with progress (2/5 for example) are ticked off right from the card and from the "My tasks" list.',
+			'',
+			'#### Git',
+			'',
+			'- A safe flow: commit to a branch, push, pull, switch branches; branch names follow the team standard.',
+			'- Connecting to GitHub without pasting a token by hand.',
+			'',
+			'#### Archives',
+			'',
+			'Upload and download project archives: up to 1 GB, zip and rar.',
+		].join('\n'),
+	},
+
+	'langgraph-orchestrator': {
+		description: 'Multi-agent orchestrator: a supervisor hands subtasks to workers (coder, tester, security auditor, reviewer) that run in parallel on the team API keys with tier routing by key priority.',
+		size: '≈ 2.4 MB',
+		changelog: {
+			'0.1.0': [
+				'First release: multi-agent orchestrator on LangGraph (a supervisor and workers)',
+				'Tier routing of keys from the team key bank: high / mid / low',
+				'Chat tool: a task can be handed to the agent team right from the conversation (/team)',
+			],
+		},
+		docs: [
+			'LangGraph Orchestrator — an agent team for multi-file tasks.',
+			'',
+			'#### Installation',
+			'',
+			'Press "Install" and reload the window. An orchestrator icon appears on the left and an indicator in the status bar on the right.',
+			'',
+			'#### How the agents work',
+			'',
+			'- A supervisor plans the work and hands subtasks to workers: coder, tester, security-auditor, reviewer.',
+			'- Independent subtasks run in parallel; the result is collected into a report with a log.',
+			'',
+			'#### Key routing',
+			'',
+			'- Every key gets a tier from its priority in the team key bank: high → high, low → low, otherwise mid.',
+			'- On 401/403 a key is taken out of rotation, on 429 it goes into cooldown; a node that fails several times is escalated one tier up.',
+			'',
+			'#### Running from chat',
+			'',
+			'In the conversation: `/team <task>` or just ask in words — the model calls the `agent_team` tool. Per-agent progress is visible right in the chat.',
+			'',
+			'#### Settings',
+			'',
+			'- `langgraphOrchestrator.approvals` — the tool approval policy.',
+			'- `langgraphOrchestrator.maxParallelWorkers`, `langgraphOrchestrator.escalationThreshold`, `langgraphOrchestrator.tierOverrides`.',
+		].join('\n'),
+	},
+};

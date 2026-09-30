@@ -16,8 +16,17 @@ The registration verification URL is logged only in development when SMTP is abs
 - Run as an unprivileged systemd user behind Caddy using files from `deploy/`.
 - Set `AURA_DATA_DIR=/var/lib/aura-team` and allow writes only there.
 - Put `AURA_JWT_SECRET` and `AURA_MASTER_KEY` in `/etc/aura-team.env` with mode `0600`.
+- Ship the AGGG 5.2 core with `AURA_AGGG_CORE_PATH` (a directory holding `VERSION`, `CLAUDE.md`, `harness/core.txt`) in `/etc/aura-team.env`. It is served only to accounts granted the `aggg52` entitlement (`npm run grant -- --email <email> --feature aggg52`); without the path the IDE stays on the built-in 2.0.0 core.
 - Back up the SQLite database using SQLite's online backup mechanism; do not copy a live WAL database as unrelated files.
 - For multiple server processes or larger teams, migrate the same domain model to Postgres before horizontal scaling.
+
+## Tests
+
+`npm test` runs `node --test` over `test/*.test.ts` and drives the real Fastify instance through `inject`, so the router, SQLite, JWT and argon2 are the real thing; only the socket is skipped. Each file gets its own temporary `AURA_DATA_DIR`.
+
+`test/bench.ts` is not a test file either: it seeds a realistic dataset (150 users, 3000 tasks, 20k audit events, 41 teams) and reports medians for the hot routes plus their `EXPLAIN QUERY PLAN`. Run it manually — `node --import tsx test/bench.ts` — when a route feels slow or before changing an index.
+
+`test/http-harness.ts` is not a test file. It is a stand-in server for the extension's end-to-end test (`extensions/aura-team/test/server-integration.test.mjs`): it boots on a free port, seeds an owner, a team and a refresh token, prints `AURA-HARNESS {…}` with the port and tokens, and is killed by the caller. Debug it directly with `node --import tsx test/http-harness.ts`.
 
 ## Security boundaries
 

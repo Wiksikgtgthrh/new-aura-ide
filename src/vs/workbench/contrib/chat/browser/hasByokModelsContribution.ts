@@ -13,7 +13,7 @@ import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEn
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { ChatAIDisabledSettingId } from '../common/constants.js';
-import { COPILOT_VENDOR_ID } from '../common/languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelsConfigurationService } from '../common/languageModelsConfiguration.js';
 
 /**
@@ -50,6 +50,7 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 
 	constructor(
 		@ILanguageModelsConfigurationService private readonly _languageModelsConfigurationService: ILanguageModelsConfigurationService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -80,11 +81,12 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatAIDisabledSettingId)),
 			Event.filter(this._contextKeyService.onDidChangeContext, e => e.affectsSome(HasByokModelsContribution.TRACKED_KEYS)),
 			this._languageModelsConfigurationService.onDidChangeLanguageModelGroups,
+			this._languageModelsService.onDidChangeLanguageModelVendors,
 		)(() => this._update()));
 	}
 
 	private _isFeatureEnabled(): boolean {
-		// Aura IDE: BYOK-модели (Aura API и любые не-Copilot вендоры) не должны зависеть
+		// Aura IDE: BYOK-модели (API Keys и любые не-Copilot вендоры) не должны зависеть
 		// от флага clientByokEnabled, который привязан к расширению GitHub Copilot.
 		// Достаточно, что чат не выключен настройкой.
 		return !this._configurationService.getValue<boolean>(ChatAIDisabledSettingId);
@@ -111,6 +113,14 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 
 		const hasByokVendor = this._languageModelsConfigurationService.getLanguageModelsProviderGroups().some(g => g.vendor !== COPILOT_VENDOR_ID);
 		if (hasByokVendor) {
+			this._setResult(true);
+			return;
+		}
+
+		// Aura IDE: встроенные BYOK-вендоры (API Keys) регистрируются прямо в LanguageModelsService
+		// и в конфигурационный файл групп не попадают — без этой проверки чат с рабочими
+		// ключами упирался в стену входа GitHub Copilot.
+		if (this._languageModelsService.getVendors().some(v => v.vendor !== COPILOT_VENDOR_ID)) {
 			this._setResult(true);
 			return;
 		}

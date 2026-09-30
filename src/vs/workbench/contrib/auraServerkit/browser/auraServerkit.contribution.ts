@@ -1,19 +1,16 @@
 /*---------------------------------------------------------------------------------------------
  *  Aura ServerKit — встроенный плагин Aura Market (панель управления сервером).
- *  Иконка в activity bar регистрируется ТОЛЬКО если плагин установлен через Aura Market
- *  (флаг auraMarket.installed.aura-serverkit). Клик по иконке открывает вкладку редактора
- *  с приложением ServerKit (extension aura-serverkit).
+ *  Иконка в activity bar живёт, пока плагин установлен и не отключён через Aura Market
+ *  (IAuraPluginService). Клик по иконке открывает вкладку редактора с приложением
+ *  ServerKit (расширение aura-serverkit).
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../nls.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
-import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -25,9 +22,10 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
-import { auraMarketInstalledKey, auraMarketDisabledKey } from '../../auraMarket/common/auraMarketCatalog.js';
+import { IAuraPluginService } from '../../auraMarket/common/auraPluginService.js';
+import { managePluginViewContainer } from '../../auraMarket/browser/auraPluginContainers.js';
 
 export const AURA_SERVERKIT_OPEN_COMMAND_ID = 'auraServerkit.openDashboard';
 export const AURA_SERVERKIT_VIEW_CONTAINER_ID = 'workbench.view.auraServerkit';
@@ -63,51 +61,35 @@ class AuraServerkitLauncherViewPane extends ViewPane {
 	}
 }
 
-let registered = false;
-
-/** Регистрирует иконку слева и команду открытия. Вызывается один раз, только если плагин установлен. */
-function registerAuraServerkitPlugin(): void {
-	if (registered) { return; }
-	registered = true;
-
-	// Иконка слева: клик по ней сразу открывает вкладку приложения
-	const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
-		id: AURA_SERVERKIT_VIEW_CONTAINER_ID,
-		title: localize2('auraServerkit', "ServerKit"),
-		ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [AURA_SERVERKIT_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
-		icon: auraServerkitViewIcon,
-		hideIfEmpty: false,
-		order: 8,
-	}, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
-
-	Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
-		id: AURA_SERVERKIT_LAUNCHER_VIEW_ID,
-		name: localize2('auraServerkit.launcher', "ServerKit"),
-		containerIcon: auraServerkitViewIcon,
-		ctorDescriptor: new SyncDescriptor(AuraServerkitLauncherViewPane),
-		canToggleVisibility: true,
-		canMoveView: true,
-	}], container);
-}
-
 /**
- * Плагин активируется только если он установлен через Aura Market.
- * После установки маркет предлагает перезагрузить окно — и иконка появляется.
+ * Иконка плагина управляется состоянием Market: отключение/удаление дерегистрирует
+ * контейнер без перезагрузки окна, включение/установка — возвращает.
  */
 class AuraServerkitPluginContribution extends Disposable {
 
 	static readonly ID = 'workbench.contrib.auraServerkitPlugin';
 
 	constructor(
-		@IStorageService storageService: IStorageService,
+		@IAuraPluginService pluginService: IAuraPluginService,
+		@IPaneCompositePartService paneCompositePartService: IPaneCompositePartService,
+		@IViewsService viewsService: IViewsService,
 	) {
 		super();
-		// Плагин отключён через Market: иконка и функции не регистрируются до включения.
-		if (storageService.get(auraMarketInstalledKey('aura-serverkit'), StorageScope.APPLICATION, 'false') !== 'true'
-			|| storageService.get(auraMarketDisabledKey('aura-serverkit'), StorageScope.APPLICATION, 'false') === 'true') {
-			return;
-		}
-		registerAuraServerkitPlugin();
+		this._register(managePluginViewContainer({
+			pluginId: 'aura-serverkit',
+			containerId: AURA_SERVERKIT_VIEW_CONTAINER_ID,
+			title: localize2('auraServerkit', "ServerKit"),
+			icon: auraServerkitViewIcon,
+			order: 8,
+			views: [{
+				id: AURA_SERVERKIT_LAUNCHER_VIEW_ID,
+				name: localize2('auraServerkit.launcher', "ServerKit"),
+				containerIcon: auraServerkitViewIcon,
+				ctorDescriptor: new SyncDescriptor(AuraServerkitLauncherViewPane),
+				canToggleVisibility: true,
+				canMoveView: true,
+			}],
+		}, pluginService, paneCompositePartService, viewsService));
 	}
 }
 

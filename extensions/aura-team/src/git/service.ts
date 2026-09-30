@@ -5,6 +5,8 @@
 
 import * as vscode from 'vscode';
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { API, GitExtension, Repository } from './git';
@@ -14,6 +16,8 @@ const execFileAsync = promisify(execFile);
 
 export class GitService {
 	private readonly api: API;
+	/** Пустой файл-эталон для диффов новых/удалённых файлов (кэш на процесс). */
+	private emptyFile?: vscode.Uri;
 
 	constructor(private readonly output: vscode.OutputChannel) {
 		const extension = vscode.extensions.getExtension<GitExtension>('vscode.git');
@@ -75,20 +79,44 @@ export class GitService {
 		};
 	}
 
-	/** Дифф файла: рабочая версия против HEAD (для клика по файлу в списке изменений). */
+	/**
+	 * Дифф файла против HEAD.
+	 *
+	 * Раньше для новых файлов строился git-URI с ref `/dev/null` — провайдер
+	 * `git:` знает только реальные refs и пустое дерево, поэтому чтение падало
+	 * с «Unable to resolve nonexistent file 'git:…'» (именно эта ошибка открывалась
+	 * вместо сравнения). Теперь левая сторона для отсутствующей версии — настоящий
+	 * пустой файл, а правая берётся с диска обычным `Uri.file`, который корректно
+	 * переживает кириллицу, пробелы и скобки в пути.
+	 */
 	async showDiff(filePath: string): Promise<void> {
 		const repository = this.requireRepository();
-		const uri = vscode.Uri.file(join(repository.rootUri.fsPath, filePath));
-		const title = `${filePath} (${repository.state.HEAD?.name ?? 'HEAD'})`;
+		const absolute = join(repository.rootUri.fsPath, filePath);
+		const uri = vscode.Uri.file(absolute);
+		const branch = repository.state.HEAD?.name ?? 'HEAD';
+		const exists = existsSync(absolute);
+		if (!exists) {
+			// Файл удалён: слева — версия из HEAD, справа — пусто.
+			const head = this.api.toGitUri(vscode.Uri.file(absolute), 'HEAD');
+			await vscode.commands.executeCommand('vscode.diff', head, await this.emptyFileUri(), `${filePath} (удалён · ${branch})`);
+			return;
+		}
 		const untracked = repository.state.untrackedChanges.some(change => vscode.workspace.asRelativePath(change.uri, false) === filePath);
 		if (untracked) {
-			// Нового файла нет в HEAD — сравниваем с пустой версией.
-			const empty = this.api.toGitUri(uri, '/dev/null');
-			await vscode.commands.executeCommand('vscode.diff', empty, uri, title);
+			await vscode.commands.executeCommand('vscode.diff', await this.emptyFileUri(), uri, `${filePath} (новый · ${branch})`);
 			return;
 		}
 		const head = this.api.toGitUri(uri, 'HEAD');
-		await vscode.commands.executeCommand('vscode.diff', head, uri, title);
+		await vscode.commands.executeCommand('vscode.diff', head, uri, `${filePath} (${branch})`);
+	}
+
+	/** Пустой файл-эталон во временной папке: сторона «до» для новых и удалённых файлов. */
+	private async emptyFileUri(): Promise<vscode.Uri> {
+		if (this.emptyFile) { return this.emptyFile; }
+		const target = vscode.Uri.joinPath(vscode.Uri.file(tmpdir()), 'aura-team-empty.txt');
+		try { await vscode.workspace.fs.writeFile(target, new Uint8Array()); } catch { /* файл могли создать раньше */ }
+		this.emptyFile = target;
+		return target;
 	}
 
 	async listBranches(): Promise<string[]> {

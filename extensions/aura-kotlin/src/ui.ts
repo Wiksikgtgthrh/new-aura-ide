@@ -7,17 +7,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { tr } from './l10n';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { AndroidPanel } from './android';
 import { ClasspathSync, ModuleInfo } from './classpath';
 import { LspState } from './lsp';
+import { javaServerInstalled } from './javaInstall';
 
-type Node = DeviceNode | ModuleNode | JarNode | DependencyNode | SectionNode | ActionNode;
+type Node = DeviceNode | AvdNode | ModuleNode | JarNode | DependencyNode | SectionNode | ActionNode | FileNode;
 
 
-interface SectionNode { kind: 'section'; label: string; }
+interface SectionNode { kind: 'section'; id: 'devices' | 'emulators' | 'files' | 'modules' | 'deps'; label: string; }
+interface FileNode { kind: 'file'; uri: vscode.Uri; }
 interface DeviceNode { kind: 'device'; id: string; emulator: boolean; model: string; selected: boolean; }
+interface AvdNode { kind: 'avd'; name: string; runningDevice?: string; }
 interface ActionNode { kind: 'action'; label: string; icon: string; command: string; tooltip?: string; }
 interface ModuleNode { kind: 'module'; module: ModuleInfo; }
 interface JarNode { kind: 'jar'; name: string; file: string; unresolved?: boolean; }
@@ -50,8 +54,20 @@ export class AndroidTreeProvider implements vscode.TreeDataProvider<Node> {
 				const item = new vscode.TreeItem(node.id, vscode.TreeItemCollapsibleState.None);
 				item.description = `${node.emulator ? 'emulator' : 'device'} · ${node.model}${node.selected ? ' · ✓' : ''}`;
 				item.iconPath = new vscode.ThemeIcon(node.emulator ? 'vm' : 'device-mobile');
-				item.contextValue = node.selected ? 'deviceSelected' : 'device';
-				item.command = { command: 'auraKotlin.android.pickDevice', title: vscode.l10n.t('Select device') };
+				item.contextValue = 'device';
+				item.command = { command: 'auraKotlin.android.pickDevice', title: tr('Select device') };
+				item.tooltip = tr('Click to select; inline buttons open the screen and logcat.');
+				return item;
+			}
+			case 'avd': {
+				const item = new vscode.TreeItem(node.name.replace(/_/g, ' '), vscode.TreeItemCollapsibleState.None);
+				item.description = node.runningDevice ? `${tr('running')} · ${node.runningDevice}` : tr('stopped');
+				item.iconPath = new vscode.ThemeIcon(node.runningDevice ? 'vm-running' : 'vm');
+				item.contextValue = node.runningDevice ? 'avdRunning' : 'avd';
+				item.command = node.runningDevice
+					? { command: 'auraKotlin.android.deviceScreen', title: tr('Open device screen'), arguments: [node] }
+					: { command: 'auraKotlin.android.startAvd', title: tr('Start emulator'), arguments: [node] };
+				item.tooltip = node.runningDevice ? tr('Click to open the device screen.') : tr('Click to start the emulator.');
 				return item;
 			}
 			case 'action': {
@@ -59,6 +75,16 @@ export class AndroidTreeProvider implements vscode.TreeDataProvider<Node> {
 				item.iconPath = new vscode.ThemeIcon(node.icon);
 				item.command = { command: node.command, title: node.label };
 				item.tooltip = node.tooltip ?? node.label;
+				return item;
+			}
+			case 'file': {
+				const item = new vscode.TreeItem(path.basename(node.uri.fsPath), vscode.TreeItemCollapsibleState.None);
+				const dir = vscode.workspace.asRelativePath(path.dirname(node.uri.fsPath), false);
+				if (dir && dir !== '.') { item.description = dir; }
+				item.iconPath = new vscode.ThemeIcon('file-code');
+				item.contextValue = 'file';
+				item.command = { command: 'vscode.open', title: tr('Open file'), arguments: [node.uri] };
+				item.tooltip = node.uri.fsPath;
 				return item;
 			}
 			case 'module': {
@@ -75,7 +101,7 @@ export class AndroidTreeProvider implements vscode.TreeDataProvider<Node> {
 				if (node.unresolved) {
 					item.iconPath = new vscode.ThemeIcon('warning');
 					item.contextValue = 'unresolvedDep';
-					item.tooltip = vscode.l10n.t('Not found in local caches — run a Gradle build once.');
+					item.tooltip = tr('Not found in local caches — run a Gradle build once.');
 				} else {
 					item.iconPath = new vscode.ThemeIcon('library');
 					item.contextValue = 'jar';
@@ -87,24 +113,30 @@ export class AndroidTreeProvider implements vscode.TreeDataProvider<Node> {
 				const item = new vscode.TreeItem(`${node.name}:${node.version}`, vscode.TreeItemCollapsibleState.None);
 				item.iconPath = new vscode.ThemeIcon('warning');
 				item.contextValue = 'unresolvedDep';
-				item.tooltip = vscode.l10n.t('Not found in local caches — run a Gradle build once.');
+				item.tooltip = tr('Not found in local caches — run a Gradle build once.');
 				return item;
 			}
 		}
 	}
 
-	getChildren(node?: Node): Node[] {
+	async getChildren(node?: Node): Promise<Node[]> {
 		if (!node) {
 			return [
-				{ kind: 'section', label: vscode.l10n.t('Devices') },
-				{ kind: 'section', label: vscode.l10n.t('Modules') },
-				{ kind: 'section', label: vscode.l10n.t('Dependencies') },
+				{ kind: 'section', id: 'devices', label: tr('Devices') },
+				{ kind: 'section', id: 'emulators', label: tr('Emulators') },
+				{ kind: 'section', id: 'files', label: tr('Files') },
+				{ kind: 'section', id: 'modules', label: tr('Modules') },
+				{ kind: 'section', id: 'deps', label: tr('Dependencies') },
 			];
 		}
 		if (node.kind === 'section') {
-			if (node.label === vscode.l10n.t('Devices')) { return this.deviceNodes(); }
-			if (node.label === vscode.l10n.t('Modules')) { return this.moduleNodes(); }
-			return this.dependencyNodes();
+			switch (node.id) {
+				case 'devices': return this.deviceNodes();
+				case 'emulators': return this.emulatorNodes();
+				case 'files': return this.fileNodes();
+				case 'modules': return this.moduleNodes();
+				case 'deps': return this.dependencyNodes();
+			}
 		}
 		if (node.kind === 'module') {
 			return node.module.jars.map(jar => ({ kind: 'jar', name: path.basename(jar), file: jar }));
@@ -112,26 +144,47 @@ export class AndroidTreeProvider implements vscode.TreeDataProvider<Node> {
 		return [];
 	}
 
-	private deviceNodes(): Node[] {
-		const nodes: Node[] = [];
-		void this.androidPanel.devices().then(devices => {
-			// Асинхронное обновление не блокирует дерево; обновим при готовности.
-			if (devices.length !== this.lastDeviceCount) {
-				this.lastDeviceCount = devices.length;
-				this.refresh();
-			}
-		});
-		nodes.push({ kind: 'action', label: vscode.l10n.t('Start emulator…'), icon: 'play', command: 'auraKotlin.android.startEmulator' });
-		nodes.push({ kind: 'action', label: vscode.l10n.t('Stop emulator'), icon: 'debug-stop', command: 'auraKotlin.android.stopEmulator' });
+	private async deviceNodes(): Promise<Node[]> {
+		const devices = await this.androidPanel.devices();
+		const selected = this.androidPanel.selectedDevice;
+		const nodes: Node[] = devices.map(device => ({ kind: 'device', id: device.id, emulator: device.emulator, model: device.model, selected: device.id === selected }));
+		if (!devices.length) {
+			nodes.push({ kind: 'action', label: tr('No devices connected'), icon: 'info', command: 'auraKotlin.android.devices' });
+		}
+		nodes.push({ kind: 'action', label: tr('Device screen…'), icon: 'device-mobile', command: 'auraKotlin.android.deviceScreen' });
+		nodes.push({ kind: 'action', label: tr('Open logcat'), icon: 'output', command: 'auraKotlin.android.logcat' });
 		return nodes;
 	}
 
-	private lastDeviceCount = -1;
+	private async emulatorNodes(): Promise<Node[]> {
+		const [avds, running] = await Promise.all([this.androidPanel.listAvds(), this.androidPanel.runningAvds()]);
+		const nodes: Node[] = avds.map(name => ({ kind: 'avd', name, runningDevice: running.get(name) }));
+		nodes.push({ kind: 'action', label: tr('Create emulator (AVD)…'), icon: 'add', command: 'auraKotlin.android.createAvd' });
+		if (avds.length) {
+			nodes.push({ kind: 'action', label: tr('Stop all emulators'), icon: 'debug-stop', command: 'auraKotlin.android.stopEmulator' });
+		}
+		return nodes;
+	}
+
+	/** Файлы проекта: создание новых + быстрый переход к .kt/.kts/.java (независимо от Gradle). */
+	private async fileNodes(): Promise<Node[]> {
+		const nodes: Node[] = [
+			{ kind: 'action', label: tr('New Kotlin/Java file…'), icon: 'add', command: 'auraKotlin.newFile' },
+			{ kind: 'action', label: tr('New project…'), icon: 'project', command: 'auraKotlin.newProject' },
+		];
+		if (!vscode.workspace.workspaceFolders?.length) { return nodes; }
+		const files = await vscode.workspace.findFiles('**/*.{kt,kts,java}', '{**/out/**,**/build/**,**/.gradle/**,**/node_modules/**,**/.idea/**}', 80);
+		files.sort((a, b) => a.fsPath.localeCompare(b.fsPath));
+		// main.kt — первым: это обычно точка входа.
+		files.sort((a, b) => Number(/(^|[\\/])main\.kts?$/i.test(b.fsPath)) - Number(/(^|[\\/])main\.kts?$/i.test(a.fsPath)));
+		for (const uri of files) { nodes.push({ kind: 'file', uri }); }
+		return nodes;
+	}
 
 	private moduleNodes(): Node[] {
 		const modules = this.classpathSync.classpath.modules;
 		if (!modules.length) {
-			return [{ kind: 'action', label: vscode.l10n.t('No Gradle/Maven modules found'), icon: 'info', command: 'auraKotlin.syncDependencies' }];
+			return [{ kind: 'action', label: tr('No Gradle/Maven modules found'), icon: 'info', command: 'auraKotlin.syncDependencies' }];
 		}
 		return modules.map(module => ({ kind: 'module', module }));
 	}
@@ -148,22 +201,33 @@ export class AndroidTreeProvider implements vscode.TreeDataProvider<Node> {
 
 // ---------- Статус-бар LSP ----------
 
+export interface LspStatusbarOptions {
+	/** Короткая метка языка: «Kotlin», «Java». */
+	label: string;
+	/** Команда перезапуска по клику. */
+	command: string;
+	/** Приоритет справа. */
+	priority: number;
+	/** Полное имя сервера для подсказки. */
+	server: string;
+}
+
 /** Статус-бар состояния LSP: запущен / падал / не установлен. Клик — рестарт. */
-export function registerLspStatusbar(context: vscode.ExtensionContext, getState: () => LspState, onStateChange: vscode.Event<LspState>): void {
-	const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 46);
-	item.name = 'Kotlin LSP';
-	item.command = 'auraKotlin.restartLsp';
+export function registerLspStatusbar(context: vscode.ExtensionContext, getState: () => LspState, onStateChange: vscode.Event<LspState>, options: LspStatusbarOptions): void {
+	const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, options.priority);
+	item.name = `${options.label} LSP`;
+	item.command = options.command;
 	const update = (state: LspState) => {
 		const map: Record<LspState, { icon: string; text: string }> = {
-			running: { icon: 'check', text: vscode.l10n.t('LSP running') },
-			starting: { icon: 'sync~spin', text: vscode.l10n.t('LSP starting') },
-			crashed: { icon: 'error', text: vscode.l10n.t('LSP crashed') },
-			'not-installed': { icon: 'circle-slash', text: vscode.l10n.t('LSP not installed') },
-			stopped: { icon: 'circle-outline', text: vscode.l10n.t('LSP stopped') },
+			running: { icon: 'check', text: tr('LSP running') },
+			starting: { icon: 'sync~spin', text: tr('LSP starting') },
+			crashed: { icon: 'error', text: tr('LSP crashed') },
+			'not-installed': { icon: 'circle-slash', text: tr('LSP not installed') },
+			stopped: { icon: 'circle-outline', text: tr('LSP stopped') },
 		};
 		const entry = map[state];
-		item.text = `$(${entry.icon}) ${entry.text}`;
-		item.tooltip = vscode.l10n.t('Kotlin Language Server state: {0}. Click to restart.', state);
+		item.text = `$(${entry.icon}) ${options.label} ${entry.text}`;
+		item.tooltip = tr('{0} state: {1}. Click to restart.', options.server, state);
 		item.show();
 	};
 	update(getState());
@@ -184,19 +248,27 @@ export async function showOnboarding(context: vscode.ExtensionContext, androidPa
 	const missing: string[] = [];
 	const buttons: string[] = [];
 
-	if (looksAndroid && !androidPanel.sdk()) { missing.push(vscode.l10n.t('Android SDK (needed for build, devices and emulator)')); buttons.push(vscode.l10n.t('Set SDK path')); }
+	if (looksAndroid && !androidPanel.sdk()) { missing.push(tr('Android SDK (needed for build, devices and emulator)')); buttons.push(tr('Set SDK path')); }
+	// Java-исходники в проекте есть, а Java-сервер не установлен — говорим об этом в том же баннере.
+	const hasJavaSources = !!root && ['app/src/main/java', 'src/main/java'].some(relative => fs.existsSync(path.join(root, relative)));
+	if (hasJavaSources && !javaServerInstalled(context)) {
+		missing.push(tr('Java Language Server (needed for completion, diagnostics and auto-import in .java)'));
+		buttons.push(tr('Install Java LSP'));
+	}
 	if (vscode.workspace.getConfiguration('auraKotlin').get<string>('kotlinLspPath', 'kotlin-language-server') === 'kotlin-language-server') {
 		// Не проверяем PATH синхронно; баннер предлагает установить LSP, если он ещё не открывался.
 		const dismissed = context.workspaceState.get<boolean>('auraKotlin.lspBannerDismissed');
-		if (!dismissed) { missing.push(vscode.l10n.t('Kotlin Language Server (needed for completion and diagnostics)')); buttons.push(vscode.l10n.t('Install instructions')); }
+		if (!dismissed) { missing.push(tr('Kotlin Language Server (needed for completion and diagnostics)')); buttons.push(tr('Install instructions')); }
 	}
 
 	if (!missing.length) { return; }
-	const message = vscode.l10n.t('To work with this project, install:') + '\n' + missing.map(entry => `• ${entry}`).join('\n');
+	const message = tr('To work with this project, install:') + '\n' + missing.map(entry => `• ${entry}`).join('\n');
 	const pick = await vscode.window.showInformationMessage(message, ...buttons);
-	if (pick === vscode.l10n.t('Set SDK path')) {
+	if (pick === tr('Set SDK path')) {
 		await vscode.commands.executeCommand('auraKotlin.androidDoctor');
-	} else if (pick === vscode.l10n.t('Install instructions')) {
+	} else if (pick === tr('Install Java LSP')) {
+		await vscode.commands.executeCommand('auraKotlin.java.installLsp');
+	} else if (pick === tr('Install instructions')) {
 		await vscode.env.openExternal(vscode.Uri.parse('https://github.com/fwcd/kotlin-language-server'));
 		await context.workspaceState.update('auraKotlin.lspBannerDismissed', true);
 	}

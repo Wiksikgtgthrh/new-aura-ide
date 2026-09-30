@@ -484,10 +484,13 @@ import './contrib/opener/browser/opener.contribution.js';
 
 //#endregion
 
+// Aura language (single aura.language switch: market, plugin cards, panels)
+import './contrib/auraI18n/browser/auraLanguage.contribution.js';
+
 // Aura Market (custom marketplace panel)
 import './contrib/auraMarket/browser/auraMarket.contribution.js';
 
-// Aura API (key manager: ping, authenticity, security)
+// API Keys (key manager: ping, live latency, authenticity, security)
 import './contrib/auraApi/browser/auraApi.contribution.js';
 
 // AGGG (model booster: injects AGGG2.0 core rules into the chat system prompt)

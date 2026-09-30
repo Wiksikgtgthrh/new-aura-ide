@@ -1,0 +1,360 @@
+{
+	"name": "langgraph-orchestrator",
+	"displayName": "LangGraph Оркестратор",
+	"description": "Мультиагентный оркестратор с тир-маршрутизацией API-ключей (супервизор и воркеры на high/mid/low тирах), на базе LangGraph.",
+	"version": "0.1.0",
+	"publisher": "aura",
+	"icon": "media/orchestrator.svg",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.100.0"
+	},
+	"activationEvents": [
+		"onCustomEditor:auraOrchestrator.panel",
+		"onCommand:auraOrchestrator.open",
+		"onCommand:auraOrchestrator.startTask",
+		"onCommand:auraOrchestrator.pause",
+		"onCommand:auraOrchestrator.resume",
+		"onCommand:auraOrchestrator.cancel",
+		"onView:auraOrchestrator.home"
+	],
+	"enabledApiProposals": [
+		"toolProgress"
+	],
+	"main": "./out/extension",
+	"scripts": {
+		"compile": "gulp compile-extension:langgraph-orchestrator",
+		"watch": "gulp watch-extension:langgraph-orchestrator",
+		"compile-sidecar": "node ./build/compile-sidecar.mjs",
+		"test": "node test/run-all.mjs"
+	},
+	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "auraOrchestrator",
+					"title": "Оркестратор",
+					"icon": "media/orchestrator-activity.svg"
+				}
+			]
+		},
+		"views": {
+			"auraOrchestrator": [
+				{
+					"id": "auraOrchestrator.home",
+					"name": "Оркестратор",
+					"type": "webview",
+					"when": "auraPlugin.langgraph-orchestrator.enabled == true"
+				}
+			]
+		},
+		"configuration": {
+			"title": "LangGraph Оркестратор",
+			"properties": {
+				"langgraphOrchestrator.tiers": {
+					"type": "object",
+					"default": {
+						"rules": []
+					},
+					"description": "Правила назначения тиров ключам. Правила применяются по порядку, первое совпадение побеждает. Поля: match (подстрока для name/baseUrl/model), priorityFrom/priorityTo (диапазон командного приоритета 0-1000), tier (high|mid|low).",
+					"additionalProperties": true
+				},
+				"langgraphOrchestrator.tierOverrides": {
+					"type": "object",
+					"default": {},
+					"description": "Ручные переопределения тиров по id ключа (id -> high|mid|low). Задаётся из панели оркестратора.",
+					"additionalProperties": {
+						"type": "string",
+						"enum": [
+							"high",
+							"mid",
+							"low"
+						]
+					}
+				},
+				"langgraphOrchestrator.approvals": {
+					"type": "string",
+					"enum": [
+						"auto-readonly",
+						"confirm-writes",
+						"confirm-all"
+					],
+					"default": "confirm-writes",
+					"enumDescriptions": [
+						"Только чтение: ничего не спрашивает",
+						"Запись файлов и терминал — с подтверждением",
+						"Каждый вызов инструмента — с подтверждением"
+					],
+					"description": "Политика подтверждений инструментов: auto-readonly (только чтение), confirm-writes (запись и терминал — с подтверждением), confirm-all (каждый вызов — с подтверждением)."
+				},
+				"langgraphOrchestrator.maxParallelWorkers": {
+					"type": "number",
+					"default": 3,
+					"minimum": 1,
+					"maximum": 8,
+					"description": "Максимум параллельно работающих воркеров (лимит fan-out)."
+				},
+				"langgraphOrchestrator.maxAgentsPerKey": {
+					"type": "number",
+					"default": 0,
+					"minimum": 0,
+					"maximum": 8,
+					"description": "Сколько агентов одновременно может ходить к модели через один ключ (0 — без предела). Лимит мягкий: если все ключи тира заняты, задача всё равно выполнится."
+				},
+				"langgraphOrchestrator.uiLanguage": {
+					"type": "string",
+					"enum": [
+						"auto",
+						"ru",
+						"en"
+					],
+					"default": "auto",
+					"enumDescriptions": [
+						"Общий переключатель Aura (aura.language), иначе язык IDE — по умолчанию",
+						"Русский только для этой панели",
+						"Английский только для этой панели"
+					],
+					"description": "Язык панели: auto (по умолчанию — общий переключатель Aura, иначе язык IDE), ru или en."
+				},
+				"langgraphOrchestrator.escalationThreshold": {
+					"type": "number",
+					"default": 2,
+					"minimum": 1,
+					"maximum": 5,
+					"description": "Сколько раз задача может провалиться на низком тире, прежде чем узел будет эскалирован на тир выше."
+				},				"langgraphOrchestrator.maxVerifyRetries": {
+					"type": "number",
+					"default": 2,
+					"minimum": 0,
+					"maximum": 5,
+				"description": "Сколько раз провалившаяся верификация подзадача перезапускается автоматически, прежде чем сдаться (evaluator-optimizer цикл)."
+				},
+				"langgraphOrchestrator.verifyCommand": {
+					"type": "string",
+					"default": "",
+					"description": "Команда проверки, которую verify-нода запускает после провалившейся пачки (например, npm test). Её вывод уходит ретраящемуся воркеру как реальный контекст ошибки. Пусто — только эвристика по тексту."
+				},
+				"langgraphOrchestrator.gitPath": {
+					"type": "string",
+					"default": "git",
+					"description": "Путь к git-бинарнику, которым создаются рабочие деревья воркеров и делается merge. По умолчанию git из PATH."
+				},
+				"langgraphOrchestrator.checks": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"command": { "type": "string" },
+							"timeoutMs": { "type": "number" }
+						},
+						"required": [
+							"command"
+						]
+					},
+					"default": [],
+					"description": "Команды проверок проекта, которые петля самолечения гоняет внутри рабочего дерева воркера, по порядку (lint, typecheck, test). Элемент: {command, timeoutMs}. Пусто — дефолты npm run lint / npx tsc --noEmit / npm test."
+				},
+				"langgraphOrchestrator.maxFixIterations": {
+					"type": "number",
+					"default": 3,
+					"minimum": 1,
+					"maximum": 5,
+					"description": "Жёсткий лимит итераций правка → проверка внутри воркера. После стольких неудач узел получает статус needs_human, и граф поднимает interrupt."
+				},
+				"langgraphOrchestrator.budget": {
+					"type": "object",
+					"default": {
+						"runTokens": 0,
+						"runCost": 0,
+						"nodeTokens": 0,
+						"nodeCost": 0,
+						"prices": {
+							"high": { "input": 15, "output": 75 },
+							"mid": { "input": 3, "output": 15 },
+							"low": { "input": 0.5, "output": 1.5 }
+						},
+						"modelPrices": []
+					},
+					"description": "Лимит токенов и $ на запуск и на каждую ноду (0 — без лимита) плюс цены моделей за 1M токенов. Неизвестные модели считаются как high-тир.",
+					"additionalProperties": true
+				},
+				"langgraphOrchestrator.trace": {
+					"type": "object",
+					"default": {
+						"enabled": true,
+						"file": false,
+						"otlpEndpoint": "",
+						"maxSpans": 500
+					},
+					"description": "Трейсинг нод и LLM-вызовов в стиле OpenTelemetry: включить спаны, опционально писать JSONL в .aura/orchestrator/traces и указать OTLP/HTTP endpoint для экспорта.",
+					"additionalProperties": true
+				},
+				"langgraphOrchestrator.teamAutoGrab": {
+					"type": "boolean",
+					"default": false,
+					"description": "Автоматически брать задачи доски Aura Team из колонки «В очереди» с меткой [agent] в заголовке и отдавать их команде агентов."
+				},
+				"langgraphOrchestrator.teamAutoGrabLimit": {
+					"type": "number",
+					"default": 2,
+					"minimum": 1,
+					"maximum": 8,
+					"description": "Сколько задач [agent] автозабор держит в очереди. Оркестратор всё равно идёт по ним по одной."
+				},
+			"langgraphOrchestrator.terminalAllowlist": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [
+						"npm test",
+						"npm run test",
+						"npm run lint",
+						"npx tsc --noEmit",
+						"npx eslint",
+						"npx vitest",
+						"npx jest"
+					],
+					"description": "Префиксы терминальных команд, которые агенты могут запускать без дополнительного подтверждения."
+				}
+			}
+		},
+		"languageModelTools": [
+			{
+				"name": "auraOrchestrator_runTeam",
+				"toolReferenceName": "agent_team",
+				"when": "auraPlugin.langgraph-orchestrator.enabled == true",
+				"displayName": "Команда агентов",
+				"icon": "$(organization)",
+				"canBeReferencedInPrompt": true,
+				"userDescription": "Поручить задачу мультиагентной команде: супервизор и воркеры (кодер, тестировщик, аудит безопасности, ревьюер).",
+				"modelDescription": "Поручить многофайловую задачу команде агентов, которая работает сама: супервизор планирует, воркеры (coder, tester, security-auditor, reviewer) выполняют параллельно на API-ключах команды, вызывающий получает отчёт, а ход работы виден по мере выполнения. Аргументы: {\"task\": string, \"max_workers\"?: number}. Зовите для задач на несколько файлов, которые нужно ещё и протестировать/проверить; правку одного файла делайте обычными инструментами.",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"task": {
+							"type": "string",
+							"description": "Задача для команды агентов, своими словами и со всем нужным контекстом: что сделать, где именно и как проверить."
+						},
+						"max_workers": {
+							"type": "number",
+							"description": "Сколько воркеров может работать параллельно (1-8). По умолчанию — лимит из настроек."
+						}
+					},
+					"required": [
+						"task"
+					]
+				}
+			}
+		],
+		"customEditors": [
+			{
+				"viewType": "auraOrchestrator.panel",
+				"displayName": "LangGraph Оркестратор",
+				"selector": [
+					{
+						"filenamePattern": "*.aura-orchestrator"
+					}
+				],
+				"priority": "option"
+			}
+		],
+		"commands": [
+			{
+				"command": "auraOrchestrator.open",
+				"title": "Открыть оркестратор",
+				"category": "LangGraph Оркестратор", "enablement": "auraPlugin.langgraph-orchestrator.enabled == true"
+			},
+			{
+				"command": "auraOrchestrator.startTask",
+				"title": "Запустить задачу",
+				"category": "LangGraph Оркестратор", "enablement": "auraPlugin.langgraph-orchestrator.enabled == true"
+			},
+			{
+				"command": "auraOrchestrator.pause",
+				"title": "Пауза",
+				"category": "LangGraph Оркестратор", "enablement": "auraPlugin.langgraph-orchestrator.enabled == true"
+			},
+			{
+				"command": "auraOrchestrator.resume",
+				"title": "Продолжить",
+				"category": "LangGraph Оркестратор", "enablement": "auraPlugin.langgraph-orchestrator.enabled == true"
+			},
+			{
+				"command": "auraOrchestrator.cancel",
+				"title": "Отменить задачу",
+				"category": "LangGraph Оркестратор", "enablement": "auraPlugin.langgraph-orchestrator.enabled == true"
+			},
+			{
+				"command": "auraOrchestrator.interrupt.resolve",
+				"title": "Решить прерывание оркестратора (подтвердить/отклонить)",
+				"category": "LangGraph Оркестратор", "enablement": "auraPlugin.langgraph-orchestrator.enabled == true"
+			},
+			{
+				"command": "auraOrchestrator.tab.run",
+				"title": "Оркестратор: вкладка Run",
+				"category": "LangGraph Оркестратор", "enablement": "auraPlugin.langgraph-orchestrator.enabled == true"
+			},
+			{
+				"command": "auraOrchestrator.tab.board",
+				"title": "Оркестратор: вкладка Board",
+				"category": "LangGraph Оркестратор", "enablement": "auraPlugin.langgraph-orchestrator.enabled == true"
+			},
+			{
+				"command": "auraOrchestrator.tab.models",
+				"title": "Оркестратор: вкладка Models",
+				"category": "LangGraph Оркестратор", "enablement": "auraPlugin.langgraph-orchestrator.enabled == true"
+			},
+			{
+				"command": "auraOrchestrator.tab.trace",
+				"title": "Оркестратор: вкладка Trace",
+				"category": "LangGraph Оркестратор", "enablement": "auraPlugin.langgraph-orchestrator.enabled == true"
+			},
+			{
+				"command": "auraOrchestrator.tab.log",
+				"title": "Оркестратор: вкладка Log",
+				"category": "LangGraph Оркестратор", "enablement": "auraPlugin.langgraph-orchestrator.enabled == true"
+			}
+		],
+		"menus": {
+			"commandPalette": [
+				{
+					"command": "auraOrchestrator.pause",
+					"when": "auraOrchestrator.running"
+				},
+				{
+					"command": "auraOrchestrator.resume",
+					"when": "auraOrchestrator.paused"
+				},
+				{
+					"command": "auraOrchestrator.cancel",
+					"when": "auraOrchestrator.running"
+				}
+			]
+		},
+		"keybindings": [
+			{
+				"command": "auraOrchestrator.pause",
+				"key": "f6",
+				"when": "activeCustomEditorId == 'auraOrchestrator.panel' && auraOrchestrator.running && !auraOrchestrator.paused"
+			},
+			{
+				"command": "auraOrchestrator.resume",
+				"key": "f7",
+				"when": "activeCustomEditorId == 'auraOrchestrator.panel' && auraOrchestrator.paused"
+			},
+			{
+				"command": "auraOrchestrator.cancel",
+				"key": "f8",
+				"when": "activeCustomEditorId == 'auraOrchestrator.panel' && auraOrchestrator.running"
+			}
+		]
+	},
+	"devDependencies": {
+		"@types/node": "24.x",
+		"esbuild": "^0.25.0"
+	},
+	"allowScripts": {
+		"esbuild@0.25.12": true
+	}
+}

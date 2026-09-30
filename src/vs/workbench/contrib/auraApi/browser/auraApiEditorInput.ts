@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Aura API — центральная вкладка менеджера ключей (EditorInput).
+ *  API — центральная вкладка менеджера ключей (EditorInput).
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
@@ -9,14 +9,14 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 
 export class AuraApiEditorInput extends EditorInput {
 
-	static readonly ID = 'workbench.editors.auraApi';
-	static readonly RESOURCE = URI.from({ scheme: 'aura-api', path: 'manager' });
+	static readonly ID = 'workbench.editors.apiKeys';
+	static readonly RESOURCE = URI.from({ scheme: 'api-keys', path: 'manager' });
 
 	override get typeId(): string { return AuraApiEditorInput.ID; }
 	override get editorId(): string { return this.typeId; }
 	override get resource(): URI { return AuraApiEditorInput.RESOURCE; }
 
-	override getName(): string { return 'Aura API'; }
+	override getName(): string { return 'API'; }
 	override getIcon() { return undefined; }
 
 	override matches(other: unknown): boolean {

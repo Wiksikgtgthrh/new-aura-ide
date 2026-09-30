@@ -15,6 +15,7 @@ import { getCurrentExtensionTarget, getPlatformSpecificAssetName } from './exten
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import { Stream } from 'stream';
+import { describeFailure, drainStream, isTruthyEnvFlag, pipeStreams, runSyncJobs } from './resilientSync.ts';
 
 export interface IExtensionDefinition {
 	name: string;
@@ -48,6 +49,13 @@ const webBuiltInExtensions = productjson.webBuiltInExtensions as IExtensionDefin
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
 
+/**
+ * Set this to keep working on a machine that has no access to the marketplace: cached built-in
+ * extensions are used as-is and no download is attempted, which also avoids the connect and
+ * retry timeouts that an offline download would otherwise burn on every launch.
+ */
+const offlineEnvVar = 'VSCODE_BUILTIN_EXTENSIONS_OFFLINE';
+
 function log(...messages: string[]): void {
 	if (ENABLE_LOGGING) {
 		fancyLog(...messages);
@@ -55,24 +63,30 @@ function log(...messages: string[]): void {
 }
 
 function getExtensionPath(extension: IExtensionDefinition): string {
-	return path.join(root, '.build', 'builtInExtensions', extension.name);
+	return getExtensionPathForName(extension.name);
 }
 
-function isUpToDate(extension: IExtensionDefinition): boolean {
+function getExtensionPathForName(name: string): string {
+	return path.join(root, '.build', 'builtInExtensions', name);
+}
+
+function readCachedVersion(extension: IExtensionDefinition): string | undefined {
 	const packagePath = path.join(getExtensionPath(extension), 'package.json');
 
 	if (!fs.existsSync(packagePath)) {
-		return false;
+		return undefined;
 	}
-
-	const packageContents = fs.readFileSync(packagePath, { encoding: 'utf8' });
 
 	try {
-		const diskVersion = JSON.parse(packageContents).version;
-		return (diskVersion === extension.version);
+		const diskVersion = JSON.parse(fs.readFileSync(packagePath, { encoding: 'utf8' })).version;
+		return typeof diskVersion === 'string' ? diskVersion : undefined;
 	} catch (err) {
-		return false;
+		return undefined;
 	}
+}
+
+function isUpToDate(extension: IExtensionDefinition): boolean {
+	return readCachedVersion(extension) === extension.version;
 }
 
 function isInsiders(): boolean {
@@ -99,7 +113,9 @@ function getExtensionDownloadStream(extension: IExtensionDefinition) {
 		input = ext.fromGithub(extension, { latest: isInsiders() });
 	}
 
-	return input.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`));
+	return pipeStreams(input)
+		.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`))
+		.done();
 }
 
 function resolvePlatformSpecificAsset(extension: IExtensionDefinition): { assetName: string; sha256: string } | undefined {
@@ -132,7 +148,7 @@ export function getExtensionStream(extension: IExtensionDefinition) {
 	return getExtensionDownloadStream(extension);
 }
 
-function syncMarketplaceExtension(extension: IExtensionDefinition): Stream {
+function syncMarketplaceExtension(extension: IExtensionDefinition, offline: boolean): Stream {
 	const galleryServiceUrl = productjson.extensionsGallery?.serviceUrl;
 	const source = ansiColors.blue(galleryServiceUrl ? '[marketplace]' : '[github]');
 	if (isUpToDate(extension)) {
@@ -140,14 +156,31 @@ function syncMarketplaceExtension(extension: IExtensionDefinition): Stream {
 		return es.readArray([]);
 	}
 
+	if (offline) {
+		logOfflineSkip(extension, source);
+		return es.readArray([]);
+	}
+
 	rimraf.sync(getExtensionPath(extension));
 
-	return getExtensionDownloadStream(extension)
+	return pipeStreams(getExtensionDownloadStream(extension))
 		.pipe(vfs.dest('.build/builtInExtensions'))
+		.done()
 		.on('end', () => log(source, extension.name, ansiColors.green('✔︎')));
 }
 
-function syncExtension(extension: IExtensionDefinition, controlState: 'disabled' | 'marketplace'): Stream {
+/** Reports what the cached copy is, or that there is no cached copy to fall back on. */
+function logOfflineSkip(extension: IExtensionDefinition, source: string): void {
+	const cachedVersion = readCachedVersion(extension);
+
+	if (cachedVersion) {
+		log(source, ansiColors.blue('[offline]'), `${extension.name}@${cachedVersion}`, ansiColors.gray(`(wanted ${extension.version})`));
+	} else {
+		log(ansiColors.yellow('[skip]'), `${extension.name}@${extension.version}: not cached and downloads are disabled`);
+	}
+}
+
+function syncExtension(extension: IExtensionDefinition, controlState: 'disabled' | 'marketplace', offline: boolean): Stream {
 	if (extension.platforms) {
 		const platforms = new Set(extension.platforms);
 
@@ -163,7 +196,7 @@ function syncExtension(extension: IExtensionDefinition, controlState: 'disabled'
 			return es.readArray([]);
 
 		case 'marketplace':
-			return syncMarketplaceExtension(extension);
+			return syncMarketplaceExtension(extension, offline);
 
 		default:
 			if (!fs.existsSync(controlState)) {
@@ -197,27 +230,65 @@ function writeControlFile(control: IControlFile): void {
 	fs.writeFileSync(controlFilePath, JSON.stringify(control, null, 2));
 }
 
-export function getBuiltInExtensions(): Promise<void> {
+export async function getBuiltInExtensions(): Promise<void> {
 	log('Synchronizing built-in extensions...');
 	log(`You can manage built-in extensions with the ${ansiColors.cyan('--builtin')} flag`);
 
+	const offline = isTruthyEnvFlag(process.env[offlineEnvVar]);
+	if (offline) {
+		log(ansiColors.blue('[offline]'), `${offlineEnvVar} is set: using cached built-in extensions only`);
+	}
+
 	const control = readControlFile();
-	const streams: Stream[] = [];
+	const extensions = [...builtInExtensions, ...webBuiltInExtensions];
 
-	for (const extension of [...builtInExtensions, ...webBuiltInExtensions]) {
-		const controlState = control[extension.name] || 'marketplace';
-		control[extension.name] = controlState;
-
-		streams.push(syncExtension(extension, controlState));
+	for (const extension of extensions) {
+		control[extension.name] = control[extension.name] || 'marketplace';
 	}
 
 	writeControlFile(control);
 
-	return new Promise((resolve, reject) => {
-		es.merge(streams)
-			.on('error', reject)
-			.on('end', resolve);
-	});
+	const failures = await runSyncJobs(extensions.map(extension => ({
+		name: extension.name,
+		run: () => drainStream(syncExtension(extension, control[extension.name], offline)),
+	})));
+
+	const skipped: string[] = [];
+	let fatal: unknown;
+
+	for (const failure of failures) {
+		if (!failure.network) {
+			// A bad checksum, an unexpected HTTP status or a missing asset is a broken
+			// configuration, not a missing network: keep failing loudly.
+			fatal ??= failure.error;
+			continue;
+		}
+
+		log(ansiColors.yellow('[warn]'), `${failure.name}: ${describeFailure(failure.error)}, the network looks unreachable`);
+		removePartialDownload(failure.name);
+		skipped.push(failure.name);
+	}
+
+	if (fatal !== undefined) {
+		throw fatal;
+	}
+
+	if (skipped.length > 0) {
+		log(ansiColors.yellow('[warn]'), `Continuing without ${skipped.join(', ')}; they stay unavailable until they can be downloaded.`);
+		log(ansiColors.yellow('[warn]'), `Set ${ansiColors.cyan(`${offlineEnvVar}=1`)} to skip the download attempt, or run ${ansiColors.cyan('npm run download-builtin-extensions')} once the network is back.`);
+	}
+}
+
+/**
+ * Drops what a failed download left behind. The previous copy was already removed before the
+ * download started, so whatever is on disk is incomplete and should not be mistaken for it.
+ */
+function removePartialDownload(name: string): void {
+	try {
+		rimraf.sync(getExtensionPathForName(name));
+	} catch (err) {
+		log(ansiColors.yellow('[warn]'), `Could not clean up a partial download of ${name}: ${err}`);
+	}
 }
 
 if (import.meta.main) {

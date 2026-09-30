@@ -1,160 +1,382 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Aura Market — центральная вкладка.
+ *  Токены отступов/движения — из auraTokens.css (корень .aura-market-tab имеет класс .aura).
+ *  Анимации только на transform/opacity; карточки при первом рендере НЕ анимируются.
  *--------------------------------------------------------------------------------------------*/
 
-.aura-market-view {
+@import '../../auraApi/browser/media/auraTokens.css';
+
+.aura-market-tab {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	height: 100%;
-	padding: 8px;
-	box-sizing: border-box;
-	gap: 8px;
+	overflow: hidden;
+	background: var(--vscode-editor-background);
 }
+
+/* Скроллится только эта обёртка — оверлей-читалка поверх неё не уезжает. */
+.aura-market-scroll {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-4);
+	flex: 1;
+	min-height: 0;
+	padding: 24px clamp(18px, 5vw, 64px) 36px;
+	box-sizing: border-box;
+	overflow-y: auto;
+}
+
+.aura-market-tab-title { margin: 0; font-size: 24px; letter-spacing: -.4px; }
+.aura-market-tab-subtitle { margin: 0; color: var(--vscode-descriptionForeground); font-size: 13px; }
+
+/* --- Переключатель языка Aura: тот же выбор, что в статус-баре --- */
+.aura-market-lang {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 8px;
+	align-self: flex-start;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+}
+.aura-market-lang-select {
+	padding: 2px 6px;
+	border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border, transparent));
+	border-radius: var(--r-ctl);
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+	font-size: 12px;
+	outline: none;
+}
+.aura-market-lang-select:focus { border-color: var(--vscode-focusBorder); }
 
 .aura-market-search-input {
 	width: 100%;
+	max-width: 1080px;
+	margin-inline: auto;
 	box-sizing: border-box;
 	padding: 4px 8px;
 	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: 4px;
+	border-radius: var(--r-ctl);
 	background: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
 	outline: none;
 }
+.aura-market-search-input:focus { border-color: var(--vscode-focusBorder); }
 
-.aura-market-search-input:focus {
-	border-color: var(--vscode-focusBorder);
-}
-
-.aura-market-chips {
+/* --- Сегмент-контрол фильтров: подложка едет FLIP-анимацией --- */
+.aura-market-seg {
+	position: relative;
 	display: flex;
-	gap: 6px;
-	flex-wrap: wrap;
+	gap: 2px;
+	align-self: flex-start;
+	margin-inline: auto;
+	width: 100%;
+	max-width: 1080px;
+	box-sizing: border-box;
+	border: 1px solid var(--aura-line);
+	border-radius: var(--r-ctl);
+	padding: 2px;
 }
-
-.aura-market-chip {
-	padding: 3px 10px;
-	border-radius: 12px;
-	border: 1px solid var(--vscode-button-border, transparent);
-	background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
-	color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+.aura-market-seg-btn {
+	position: relative;
+	z-index: 1;
+	padding: 3px 12px;
+	border: none;
+	border-radius: calc(var(--r-ctl) - 2px);
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
 	font-size: 12px;
 }
-
-.aura-market-chip.active {
+.aura-market-seg-btn.active { color: var(--vscode-button-foreground); }
+.aura-market-seg-pill {
+	position: absolute;
+	top: 2px;
+	bottom: 2px;
+	left: 0;
+	width: 0;
+	border-radius: calc(var(--r-ctl) - 2px);
 	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
+	pointer-events: none;
 }
 
-.aura-market-chip:hover {
-	opacity: 0.9;
-}
-
-.aura-market-list {
-	flex: 1;
-	overflow-y: auto;
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
+/* --- Сетка карточек --- */
+.aura-market-tab-list {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+	gap: var(--sp-3);
+	width: 100%;
+	max-width: 1080px;
+	margin-inline: auto;
+	align-items: stretch;
 }
 
 .aura-market-empty {
 	padding: 16px 8px;
 	color: var(--vscode-descriptionForeground);
 	text-align: center;
+	grid-column: 1 / -1;
 }
 
-.aura-market-item {
-	border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
-	border-radius: 6px;
-	padding: 8px 10px;
+.aura-market-card {
+	border: 1px solid var(--aura-line);
+	border-radius: var(--r-box);
+	padding: var(--sp-4) 18px;
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
-	background: var(--vscode-sideBar-background);
+	gap: var(--sp-2);
+	background: var(--aura-surface);
+	transition: border-color var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out),
+		transform var(--dur-3) var(--ease-out), height var(--dur-3) var(--ease-out);
+}
+.aura-market-card:hover { border-color: color-mix(in srgb, var(--vscode-focusBorder) 55%, var(--aura-line)); }
+
+/* Отключённый плагин */
+.aura-market-card.is-disabled { opacity: .65; }
+
+/* Удаление: уезд влево + схлопывание высоты (240ms), затем undo-тост */
+.aura-market-card.is-leaving { opacity: 0; transform: translateX(-24px); overflow: hidden; }
+.aura-market-card.is-collapsing {
+	height: 0 !important;
+	padding-top: 0;
+	padding-bottom: 0;
+	border-width: 0;
+	margin: 0;
 }
 
-.aura-market-item-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 8px;
-}
-
-.aura-market-item-name {
-	font-weight: 600;
-}
+.aura-market-card-header { display: flex; align-items: center; gap: 6px; }
+.aura-market-card-check { font-size: 16px; color: var(--aura-ok); flex: none; }
+.aura-market-card-name { font-weight: 600; font-size: 14px; }
 
 .aura-market-item-badge {
 	font-size: 10px;
 	padding: 1px 8px;
 	border-radius: 10px;
 	white-space: nowrap;
+	margin-left: auto;
+}
+.aura-market-item-badge.badge-skillset { background: var(--vscode-charts-purple, #a371f7); color: #fff; }
+
+.aura-market-card-desc { color: var(--vscode-foreground); font-size: 13px; line-height: 1.5; }
+.aura-market-card-meta { font-size: 11px; color: var(--vscode-descriptionForeground); }
+
+.aura-market-card-actions {
+	display: flex;
+	gap: var(--sp-2);
+	flex-wrap: wrap;
+	margin-top: auto; /* кнопки прибиты к низу — карточки в строке равной высоты */
+	padding-top: var(--sp-2);
 }
 
-.aura-market-item-badge.badge-plugin {
-	background: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
-}
-
-.aura-market-item-badge.badge-skillset {
-	background: var(--vscode-charts-purple, #a371f7);
-	color: #ffffff;
-}
-
-.aura-market-item-description {
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.aura-market-item-meta {
-	font-size: 11px;
-	color: var(--vscode-descriptionForeground);
-}
-
+/* Одна primary на карточку; остальные — ghost */
 .aura-market-install {
-	align-self: flex-start;
-	margin-top: 4px;
-	padding: 3px 12px;
+	min-width: 104px;
+	padding: 4px 14px;
 	border: none;
-	border-radius: 4px;
+	border-radius: var(--r-ctl);
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	cursor: pointer;
+	font-size: 12px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	transition: background var(--dur-2) var(--ease-out);
+}
+.aura-market-install:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
+.aura-market-install:disabled { opacity: .7; cursor: default; }
+
+.aura-market-btn-ghost {
+	padding: 4px 10px;
+	border: 1px solid transparent;
+	border-radius: var(--r-ctl);
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	font-size: 12px;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	transition: color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out);
+}
+.aura-market-btn-ghost:hover { background: var(--vscode-toolbar-hoverBackground); color: var(--vscode-foreground); }
+.aura-market-btn-danger:hover { color: var(--aura-err); }
+
+/* --- Читалка документации: оверлей поверх вкладки, сетка карточек не перестраивается --- */
+.aura-market-reader {
+	position: absolute;
+	inset: 0;
+	z-index: 20;
+	display: flex;
+	justify-content: center;
+	background: color-mix(in srgb, var(--vscode-editor-background) 72%, transparent);
+	opacity: 0;
+	outline: none;
+	transition: opacity var(--dur-2) var(--ease-out);
+}
+.aura-market-reader.open { opacity: 1; }
+
+.aura-market-reader-panel {
+	display: flex;
+	flex-direction: column;
+	width: min(760px, 94%);
+	max-height: calc(100% - 48px);
+	margin: 24px 0;
+	border: 1px solid var(--aura-line);
+	border-radius: var(--r-box);
+	background: var(--aura-surface);
+	box-shadow: 0 8px 28px color-mix(in srgb, var(--vscode-widget-shadow, #000) 45%, transparent);
+	overflow: hidden;
+	transform: translateY(10px);
+	transition: transform var(--dur-3) var(--ease-out);
+}
+.aura-market-reader.open .aura-market-reader-panel { transform: none; }
+
+.aura-market-reader-head {
+	display: flex;
+	align-items: center;
+	gap: var(--sp-2);
+	padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-4);
+	border-bottom: 1px solid var(--aura-line);
+}
+.aura-market-reader-icon { color: var(--vscode-descriptionForeground); flex: none; }
+.aura-market-reader-heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.aura-market-reader-title { font-weight: 600; font-size: 13px; }
+.aura-market-reader-meta { font-size: 11px; color: var(--vscode-descriptionForeground); }
+.aura-market-reader-close { margin-left: auto; }
+
+.aura-market-reader-body {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	padding: var(--sp-3) var(--sp-4) var(--sp-4);
+}
+
+.aura-market-docs-body {
+	font-size: 13px;
+	line-height: 1.55;
+	max-width: 68ch;
+	color: var(--vscode-foreground);
+}
+
+/* Ссылки, акценты и разделители: в документации плагинов они встречаются
+   регулярно, а без стилей читались как обычный текст. */
+.aura-market-docs-body.rendered-markdown a,
+.aura-market-docs-body a { color: var(--vscode-textLink-foreground); }
+.aura-market-docs-body.rendered-markdown a:hover { text-decoration: underline; }
+.aura-market-docs-body.rendered-markdown strong { font-weight: 600; }
+.aura-market-docs-body.rendered-markdown blockquote {
+	margin: 0 0 var(--sp-2);
+	padding: var(--sp-2) var(--sp-3);
+	border-left: 2px solid var(--aura-line);
+	color: var(--vscode-descriptionForeground);
+}
+.aura-market-docs-body.rendered-markdown hr {
+	margin: var(--sp-3) 0;
+	border: none;
+	border-top: 1px solid var(--aura-line);
+}
+.aura-market-docs-body.rendered-markdown h5,
+.aura-market-docs-body h5 { margin: var(--sp-2) 0 var(--sp-2); font-size: 12px; font-weight: 600; }
+.aura-market-docs-body.rendered-markdown > :first-child { margin-top: 0; }
+.aura-market-docs-body.rendered-markdown > :last-child { margin-bottom: 0; }
+
+/* Типографика доки: моноширинный только код, заголовки — настоящие h4 */
+.aura-market-docs-body.rendered-markdown h4,
+.aura-market-docs-body h4 {
+	margin: var(--sp-3) 0 var(--sp-1);
+	font-size: 13px;
+	font-weight: 600;
+}
+.aura-market-docs-body.rendered-markdown h4:first-child,
+.aura-market-docs-body h4:first-child { margin-top: 0; }
+.aura-market-docs-body.rendered-markdown p { margin: 0 0 var(--sp-2); }
+.aura-market-docs-body.rendered-markdown ul,
+.aura-market-docs-body.rendered-markdown ol { margin: 0 0 var(--sp-2); padding-left: 22px; }
+.aura-market-docs-body.rendered-markdown li { margin-bottom: 2px; }
+.aura-market-docs-body.rendered-markdown code,
+.aura-market-docs-body.rendered-markdown pre {
+	font-family: var(--vscode-editor-font-family);
+	font-size: 12px;
+}
+.aura-market-docs-body.rendered-markdown pre {
+	padding: var(--sp-2) var(--sp-3);
+	border-radius: var(--r-ctl);
+	background: var(--vscode-textCodeBlock-background, var(--vscode-input-background));
+	overflow-x: auto;
+}
+.aura-market-docs-body.rendered-markdown pre code { background: transparent; padding: 0; }
+
+/* --- AGGG: селектор версии в карточке --- */
+.aura-market-card-version { margin-top: var(--sp-1); }
+.aura-market-card-version .aggg-version-row { font-size: 12px; }
+
+/* --- Undo-тост удаления --- */
+.aura-market-toast {
+	position: sticky;
+	bottom: var(--sp-3);
+	align-self: center;
+	display: flex;
+	align-items: center;
+	gap: var(--sp-3);
+	padding: var(--sp-2) var(--sp-4);
+	border-radius: var(--r-box);
+	border: 1px solid var(--aura-line);
+	background: var(--aura-surface);
+	box-shadow: 0 4px 16px color-mix(in srgb, var(--vscode-widget-shadow, #000) 45%, transparent);
+	font-size: 12px;
+	z-index: 10;
+}
+.aura-market-toast-undo {
+	padding: 2px 10px;
+	border: none;
+	border-radius: var(--r-ctl);
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 	cursor: pointer;
 	font-size: 12px;
 }
+.aura-market-toast-undo:hover { background: var(--vscode-button-hoverBackground); }
 
-.aura-market-install:hover {
-	background: var(--vscode-button-hoverBackground);
+/* --- История версий --- */
+.aura-market-versions {
+	margin: 4px 0 0;
+	padding: 10px 12px;
+	border-radius: var(--r-box);
+	border: 1px solid var(--aura-line);
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	max-height: 320px;
+	overflow-y: auto;
 }
-
-/* --- Aura Market как центральная вкладка --- */
-.aura-market-tab { display: flex; flex-direction: column; height: 100%; padding: 24px clamp(18px, 5vw, 64px) 36px; box-sizing: border-box; gap: 14px; overflow-y: auto; background: radial-gradient(circle at 85% 0%, color-mix(in srgb, var(--vscode-button-background) 13%, transparent), transparent 34%), var(--vscode-editor-background); animation: auraMarketIn .35s ease both; }
-@keyframes auraMarketIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-.aura-market-tab-title { margin: 0; font-size: 24px; letter-spacing: -.4px; }
-.aura-market-tab-subtitle { margin: 0; color: var(--vscode-descriptionForeground); font-size: 13px; }
-.aura-market-tab-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; max-width: 1180px; }
-.aura-market-card { border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; background: color-mix(in srgb, var(--vscode-editorWidget-background) 58%, transparent); box-shadow: 0 8px 24px color-mix(in srgb, var(--vscode-widget-shadow, #000) 15%, transparent); transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; animation: auraMarketCard .32s ease both; }
-.aura-market-card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--vscode-focusBorder) 55%, var(--vscode-widget-border)); box-shadow: 0 14px 32px color-mix(in srgb, var(--vscode-widget-shadow, #000) 24%, transparent); }
-@keyframes auraMarketCard { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-.aura-market-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.aura-market-card-name { font-weight: 600; font-size: 14px; }
-.aura-market-card-desc { color: var(--vscode-foreground); }
-.aura-market-card-meta { font-size: 11px; color: var(--vscode-descriptionForeground); }
-.aura-market-card-actions { display: flex; gap: 8px; margin-top: 4px; }
-.aura-market-install.installed { opacity: 0.7; cursor: default; }
-.aura-market-docs { margin: 6px 0 0; padding: 14px; border-radius: 10px; background: var(--vscode-textCodeBlock-background, var(--vscode-input-background)); font-size: 12px; line-height: 1.65; white-space: pre-wrap; max-height: 420px; overflow-y: auto; border-left: 3px solid var(--vscode-button-background); animation: auraMarketDocs .22s ease both; }
-@keyframes auraMarketDocs { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 420px; } }
-.aura-market-launcher { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
-
-/* --- История версий (как в расширениях VS Code) --- */
-.aura-market-versions { margin: 4px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--vscode-editorWidget-background, var(--vscode-input-background)); border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; animation: auraMarketDocs .22s ease both; }
 .aura-market-version { display: flex; flex-direction: column; gap: 4px; }
 .aura-market-version-head { display: flex; align-items: baseline; gap: 8px; }
 .aura-market-version-num { font-weight: 700; font-size: 12.5px; font-family: var(--vscode-editor-font-family); }
-.aura-market-version-latest { font-size: 10px; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--vscode-button-background) 20%, transparent); color: var(--vscode-button-background); font-weight: 600; }
+.aura-market-version-latest {
+	font-size: 10px;
+	padding: 1px 7px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--vscode-button-background) 20%, transparent);
+	color: var(--vscode-button-background);
+	font-weight: 600;
+}
 .aura-market-version-date { font-size: 11px; color: var(--vscode-descriptionForeground); margin-left: auto; }
 .aura-market-version-log { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.55; color: var(--vscode-descriptionForeground); }
 .aura-market-version:first-child .aura-market-version-log { color: var(--vscode-foreground); }
+
+/* Сайдбар-лаунчер (не используется для контента — клик перехватывается командой) */
+.aura-market-launcher { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+
+/* Reduced motion: без анимаций, только мгновенные состояния */
+@media (prefers-reduced-motion: reduce) {
+	.aura-market-tab *,
+	.aura-market-tab *::before,
+	.aura-market-tab *::after {
+		transition-duration: 1ms !important;
+		animation-duration: 1ms !important;
+	}
+}

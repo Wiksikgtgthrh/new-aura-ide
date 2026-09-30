@@ -1,0 +1,16 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+	<!-- Иконка расширения (список расширений, карточка плагина): своя плашка и белый силуэт,
+	     тот же, что в маске активити-бара — плагин узнаётся в обоих местах. -->
+	<rect width="128" height="128" rx="30" fill="#4f46e5"/>
+	<g transform="translate(4 4) scale(5)">
+		<g stroke="#ffffff" stroke-opacity="0.7" stroke-width="1.7" stroke-linecap="round">
+			<path d="M12 9.4V13.6M5 13.6h14M5 13.6v4.9M12 13.6v4.9M19 13.6v4.9"/>
+		</g>
+		<g fill="#ffffff">
+			<rect x="8.5" y="3.6" width="7" height="5.8" rx="1.9"/>
+			<circle cx="5" cy="18.5" r="1.9"/>
+			<circle cx="12" cy="18.5" r="1.9"/>
+			<circle cx="19" cy="18.5" r="1.9"/>
+		</g>
+	</g>
+</svg>

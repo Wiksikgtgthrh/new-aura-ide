@@ -9,6 +9,7 @@
 	"command.compileFile": "Compile Kotlin File",
 	"command.androidDoctor": "Check Android SDK",
 	"command.newProject": "New Kotlin/Android Project",
+	"command.newFile": "New Kotlin/Android File",
 	"command.restartLsp": "Restart Language Server",
 	"command.installLsp": "Install Kotlin Language Server",
 	"command.debugFile": "Debug Kotlin File",
@@ -25,8 +26,16 @@
 	"command.android.logcatFilter": "Filter Logcat by Application",
 	"command.android.logcatStop": "Stop Logcat Stream",
 	"command.android.startEmulator": "Start Emulator…",
+	"command.android.startAvd": "Start This Emulator",
 	"command.android.stopEmulator": "Stop Emulator",
 	"command.android.createAvd": "Create AVD…",
+	"command.android.deviceScreen": "Device Screen",
 	"command.android.runAndDebug": "Run Android App (F5)",
-	"command.refreshAndroidView": "Refresh Android View"
+	"command.refreshAndroidView": "Refresh Android View",
+	"command.javaRestartLsp": "Restart Java Language Server",
+	"command.javaOrganizeImports": "Organize imports (Java)",
+	"command.javaInstallLsp": "Install Java Language Server",
+	"configuration.javaLspPath": "Path to a custom Eclipse JDT Language Server (jdtls) installation. Leave empty to use the bundled/downloaded server.",
+	"command.javaDownloadSources": "Download sources for android.jar and libraries",
+	"configuration.javaDownloadSources": "Download and attach sources of Android platform and libraries so that go-to-definition and hover work inside android.jar and androidx."
 }

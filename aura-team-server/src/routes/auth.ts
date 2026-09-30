@@ -16,18 +16,16 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 	app.post<{ Body: Credentials }>('/v1/auth/register', { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } }, async (request, reply) => {
 		const email = request.body.email?.trim().toLowerCase();
 		if (!email?.includes('@') || request.body.password?.length < 8) { return reply.badRequest('Use a valid email and a password of at least 8 characters'); }
-		const existing = database.prepare('SELECT id,verified_at FROM users WHERE email=?').get(email) as { id: string; verified_at?: string } | undefined;
-		if (existing?.verified_at) { return reply.conflict('An account with this email already exists'); }
-		const userId = existing?.id ?? id();
+		// Существующий аккаунт не переприсваивается даже если он не подтверждён:
+		// раньше повторная регистрация того же email перезаписывала пароль и
+		// активировала чужой (в том числе старый неподтверждённый) аккаунт — это
+		// был готовый способ угона. Пароль меняется только через смену пароля.
+		const existing = database.prepare('SELECT id FROM users WHERE email=?').get(email) as { id: string } | undefined;
+		if (existing) { return reply.conflict('An account with this email already exists'); }
+		const userId = id();
 		const passwordHash = await hash(request.body.password);
 		// Aura: регистрация БЕЗ письма — аккаунт сразу активен (email не проверяем).
-		database.transaction(() => {
-			if (existing) {
-				database.prepare('UPDATE users SET display_name=?,password_hash=?,verified_at=? WHERE id=? AND verified_at IS NULL').run(request.body.displayName?.trim() || email.split('@')[0], passwordHash, new Date().toISOString(), userId);
-			} else {
-				database.prepare('INSERT INTO users(id,email,display_name,password_hash,created_at,verified_at) VALUES(?,?,?,?,?,?)').run(userId, email, request.body.displayName?.trim() || email.split('@')[0], passwordHash, new Date().toISOString(), new Date().toISOString());
-			}
-		})();
+		database.prepare('INSERT INTO users(id,email,display_name,password_hash,created_at,verified_at) VALUES(?,?,?,?,?,?)').run(userId, email, request.body.displayName?.trim() || email.split('@')[0], passwordHash, new Date().toISOString(), new Date().toISOString());
 		return reply.code(201).send({
 			ok: true,
 			message: 'Account created. You can sign in now.'

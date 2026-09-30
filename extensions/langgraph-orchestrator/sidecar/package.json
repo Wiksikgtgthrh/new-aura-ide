@@ -1,0 +1,11 @@
+{
+	"name": "langgraph-orchestrator-sidecar",
+	"private": true,
+	"version": "0.1.0",
+	"description": "LangGraph.js sidecar for the Aura IDE orchestrator extension",
+	"type": "commonjs",
+	"dependencies": {
+		"@langchain/langgraph": "^0.2.60"
+	},
+	"devDependencies": {}
+}

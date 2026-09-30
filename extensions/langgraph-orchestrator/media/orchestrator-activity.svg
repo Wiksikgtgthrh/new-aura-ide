@@ -1,0 +1,12 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+	<!-- Оркестратор: супервизор сверху раздаёт работу воркерам.
+	     Фона нет намеренно — VS Code рисует эту иконку как CSS-маску, а цвет берёт у темы,
+	     поэтому непрозрачным должен быть только силуэт (currentColor). -->
+	<g stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+		<path d="M12 9.4V13.6M5 13.6h14M5 13.6v4.9M12 13.6v4.9M19 13.6v4.9"/>
+	</g>
+	<rect x="8.5" y="3.6" width="7" height="5.8" rx="1.9" fill="currentColor"/>
+	<circle cx="5" cy="18.5" r="1.9" fill="currentColor"/>
+	<circle cx="12" cy="18.5" r="1.9" fill="currentColor"/>
+	<circle cx="19" cy="18.5" r="1.9" fill="currentColor"/>
+</svg>
