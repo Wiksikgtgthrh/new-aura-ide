@@ -35,6 +35,7 @@ export type ApprovalHandler = (tool: ToolDef, input: Record<string, unknown>, pr
 
 const OUTPUT_LIMIT = 8000;
 const TERMINAL_TIMEOUT_MS = 180_000;
+const CLI_AGENT_TIMEOUT_MS = 600_000;
 
 export const TOOL_DEFS: ToolDef[] = [
 	{
@@ -130,6 +131,20 @@ export const TOOL_DEFS: ToolDef[] = [
 			type: 'object',
 			properties: { command: { type: 'string' } },
 			required: ['command'],
+		},
+	},
+	{
+		name: 'agent.cli',
+		description: 'Delegate a self-contained coding task to an external CLI agent (Claude Code, Codex, Gemini CLI, Qwen Code, OpenCode, Aider) via the Orca plugin. Runs headless in the workspace (or node worktree) and returns its final output. Use for large, well-specified subtasks.',
+		mutating: true,
+		inputSchema: {
+			type: 'object',
+			properties: {
+				task: { type: 'string', description: 'Full task description for the CLI agent.' },
+				agent: { type: 'string', enum: ['claude', 'codex', 'gemini', 'qwen', 'opencode', 'aider', 'custom'], description: 'Which CLI to use. Omit to use the Orca default.' },
+				timeoutMs: { type: 'number', description: 'Max run time in ms (default 600000).' },
+			},
+			required: ['task'],
 		},
 	},
 	{
@@ -354,6 +369,7 @@ export class ToolExecutor {
 			case 'fs.writeFile': return this.writeFile(String(input.path ?? ''), String(input.content ?? ''), cwd);
 			case 'fs.delete': return this.deletePath(String(input.path ?? ''), cwd);
 			case 'terminal.run': return this.runTerminal(String(input.command ?? ''), cwd, Number(input.timeoutMs) || undefined);
+			case 'agent.cli': return this.runCliAgent(input, cwd);
 			case 'diagnostics.get': return this.getDiagnostics(input.path ? String(input.path) : undefined);
 			case 'git.worktreeAdd': return this.worktreeAdd(input);
 			case 'git.worktreeRemove': return this.worktreeRemove(input);
@@ -473,6 +489,35 @@ export class ToolExecutor {
 	 * База для относительных путей: рабочее дерево узла (cwd) или корень workspace.
 	 * cwd обязан лежать внутри workspace — иначе это выход за пределы песочницы.
 	 */
+	/** Делегировать задачу CLI-агенту через плагин Orca (auraOrca.runHeadless). */
+	private async runCliAgent(input: Record<string, unknown>, cwd?: string): Promise<string> {
+		const task = String(input.task ?? '').trim();
+		if (!task) {
+			throw new Error('agent.cli: task is required');
+		}
+		const commands = await vscode.commands.getCommands(true);
+		if (!commands.includes('auraOrca.runHeadless')) {
+			throw new Error('agent.cli: the Orca plugin is not installed or disabled (Market → Orca)');
+		}
+		const timeoutMs = Math.min(Math.max(Number(input.timeoutMs) || CLI_AGENT_TIMEOUT_MS, 10_000), 3_600_000);
+		const result = await vscode.commands.executeCommand<{ ok: boolean; exitCode?: number | null; error?: string; output?: string } | undefined>('auraOrca.runHeadless', {
+			agent: input.agent ? String(input.agent) : undefined,
+			task,
+			cwd: this.baseDir(cwd),
+			title: task.slice(0, 60),
+			timeoutMs,
+		});
+		if (!result) {
+			throw new Error('agent.cli: Orca returned no result');
+		}
+		const output = String(result.output ?? '');
+		const tail = output.length > OUTPUT_LIMIT ? `…(truncated)\n${output.slice(-OUTPUT_LIMIT)}` : output;
+		if (!result.ok) {
+			throw new Error(`agent.cli failed${result.exitCode !== undefined && result.exitCode !== null ? ` (exit ${result.exitCode})` : ''}: ${result.error ?? ''}\n${tail}`.trim());
+		}
+		return tail || '(no output)';
+	}
+
 	private baseDir(cwd?: string): string {
 		const root = path.normalize(this.workspaceRootFs());
 		if (!cwd) {

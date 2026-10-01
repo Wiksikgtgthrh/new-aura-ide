@@ -1,0 +1,11 @@
+{
+	"displayName": "Orca",
+	"description": "CLI-агенты (Claude Code, Codex, Gemini CLI, Qwen Code, opencode, Aider) во вкладках-терминалах: несколько параллельно, каждый в своей git-ветке, с ключами, base URL и моделью для каждого CLI.",
+	"configuration.title": "Orca",
+	"configuration.terminalLocation": "Где открываются терминалы агентов",
+	"configuration.terminalLocation.editor": "Вкладками редактора",
+	"configuration.terminalLocation.panel": "В панели терминала",
+	"configuration.defaultAgent": "CLI-агент, которого берёт оркестратор, если не указал другого",
+	"command.open": "Открыть Orca",
+	"command.newAgent": "Новый CLI-агент"
+}

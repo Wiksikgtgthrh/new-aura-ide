@@ -1,0 +1,49 @@
+{
+	"name": "aura-orca",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.1.0",
+	"publisher": "aura",
+	"icon": "media/orca.svg",
+	"license": "MIT",
+	"engines": { "vscode": "^1.100.0" },
+	"activationEvents": [
+		"onCommand:auraOrca.open",
+		"onCommand:auraOrca.newAgent",
+		"onCommand:auraOrca.runHeadless",
+		"onCommand:auraOrca.listAgents"
+	],
+	"main": "./out/extension",
+	"scripts": {
+		"compile": "gulp compile-extension:aura-orca",
+		"watch": "gulp watch-extension:aura-orca",
+		"test": "node test/run-all.mjs"
+	},
+	"contributes": {
+		"configuration": {
+			"title": "%configuration.title%",
+			"properties": {
+				"auraOrca.terminalLocation": {
+					"type": "string",
+					"enum": ["editor", "panel"],
+					"enumDescriptions": ["%configuration.terminalLocation.editor%", "%configuration.terminalLocation.panel%"],
+					"default": "editor",
+					"description": "%configuration.terminalLocation%"
+				},
+				"auraOrca.defaultAgent": {
+					"type": "string",
+					"enum": ["claude", "codex", "gemini", "qwen", "opencode", "aider", "custom"],
+					"default": "claude",
+					"description": "%configuration.defaultAgent%"
+				}
+			}
+		},
+		"commands": [
+			{ "command": "auraOrca.open", "title": "%command.open%", "category": "Orca", "icon": "$(hubot)" },
+			{ "command": "auraOrca.newAgent", "title": "%command.newAgent%", "category": "Orca", "icon": "$(add)" }
+		]
+	},
+	"devDependencies": {
+		"@types/node": "24.x"
+	}
+}

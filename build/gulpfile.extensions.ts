@@ -54,6 +54,7 @@ const compilations = [
 	'extensions/aura-team/tsconfig.json',
 	'extensions/aura-kotlin/tsconfig.json',
 	'extensions/aura-serverkit/tsconfig.json',
+	'extensions/aura-orca/tsconfig.json',
 	'extensions/langgraph-orchestrator/tsconfig.json',
 	'extensions/configuration-editing/tsconfig.json',
 	'extensions/css-language-features/client/tsconfig.json',

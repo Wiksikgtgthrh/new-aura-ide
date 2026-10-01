@@ -13,6 +13,7 @@ const TOOL_TITLES = {
 	'fs.writeFile': 'пишу',
 	'terminal.run': 'запускаю',
 	'diagnostics.get': 'собираю ошибки',
+	'agent.cli': 'поручаю CLI-агенту',
 };
 
 /** В строку карточки больше не влезает. */
@@ -32,6 +33,9 @@ function argumentOf(name, input) {
 	}
 	if (name === 'terminal.run') {
 		return String(input.command || '');
+	}
+	if (name === 'agent.cli') {
+		return String(input.task || '');
 	}
 	return String(input.path || input.query || input.pattern || '');
 }

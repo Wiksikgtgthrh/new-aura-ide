@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src __CSP__ data:; style-src 'unsafe-inline'; script-src 'nonce-__NONCE__';">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orca</title>
+<style>
+:root {
+	--bg: var(--vscode-editor-background);
+	--text: var(--vscode-foreground);
+	--muted: var(--vscode-descriptionForeground);
+	--surface: color-mix(in srgb, var(--vscode-editor-background) 92%, var(--vscode-foreground) 8%);
+	--card: color-mix(in srgb, var(--vscode-editor-background) 95%, var(--vscode-foreground) 5%);
+	--card-hover: color-mix(in srgb, var(--vscode-editor-background) 90%, var(--vscode-foreground) 10%);
+	--border: color-mix(in srgb, var(--vscode-foreground) 16%, transparent);
+	--border-soft: color-mix(in srgb, var(--vscode-foreground) 9%, transparent);
+	--accent: var(--vscode-button-background);
+	--accent-fg: var(--vscode-button-foreground);
+	--ok: var(--vscode-testing-iconPassedForeground, #2ea043);
+	--off: var(--vscode-testing-iconFailedForeground, #f85149);
+	--warn: var(--vscode-editorWarning-foreground, #d29922);
+	--link: var(--vscode-textLink-foreground);
+	--mono: var(--vscode-editor-font-family, ui-monospace, monospace);
+	--input-bg: var(--vscode-input-background);
+	--input-border: var(--vscode-input-border, var(--border));
+	--ease: cubic-bezier(.2, .8, .2, 1);
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 0; color: var(--text); background: var(--bg); font-family: var(--vscode-font-family); font-size: 13px; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+button:disabled { opacity: .45; cursor: default; }
+input, textarea, select { font: inherit; color: var(--text); background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 8px; padding: 7px 9px; outline: none; width: 100%; transition: border-color .15s var(--ease); }
+input:focus, textarea:focus, select:focus { border-color: var(--vscode-focusBorder); }
+textarea { resize: vertical; min-height: 60px; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 18px 22px 40px; }
+.top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo svg { width: 30px; height: 30px; }
+.logo b { font-size: 17px; letter-spacing: .2px; }
+.logo span { display: block; font-size: 11.5px; color: var(--muted); }
+.tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border-soft); margin-left: auto; }
+.tab { padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--muted); transition: background .18s var(--ease), color .18s var(--ease); }
+.tab.active { background: var(--accent); color: var(--accent-fg); }
+.tab .count { margin-left: 6px; font-size: 10.5px; padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, currentColor 18%, transparent); }
+.card { background: var(--card); border: 1px solid var(--border-soft); border-radius: 14px; padding: 14px; animation: rise .32s var(--ease) both; animation-delay: calc(var(--i, 0) * 35ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; background: var(--vscode-button-secondaryBackground, var(--surface)); color: var(--vscode-button-secondaryForeground, var(--text)); transition: background .15s var(--ease), transform .1s var(--ease); white-space: nowrap; }
+.btn:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground, var(--card-hover)); }
+.btn:active:not(:disabled) { transform: scale(.97); }
+.btn.primary { background: var(--accent); color: var(--accent-fg); }
+.btn.primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground, var(--accent)); }
+.btn.sm { padding: 4px 9px; font-size: 11.5px; }
+.btn.danger { color: var(--off); }
+.btn.icon { padding: 4px 7px; }
+.muted { color: var(--muted); }
+.mono { font-family: var(--mono); }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.grow { flex: 1; min-width: 0; }
+.section { font-size: 10.5px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); font-weight: 700; margin: 20px 0 8px; display: flex; align-items: center; gap: 8px; }
+.glyph { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-size: 10.5px; font-weight: 800; color: #fff; flex: none; letter-spacing: .3px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.clis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.cli { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border-soft); background: var(--surface); text-align: left; transition: border-color .15s var(--ease), background .15s var(--ease), transform .12s var(--ease); }
+.cli:hover { border-color: var(--border); }
+.cli.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+.cli .nm { font-size: 12px; font-weight: 600; }
+.cli .st { font-size: 10.5px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.ok { background: var(--ok); }
+.dot.off { background: color-mix(in srgb, var(--muted) 60%, transparent); }
+.launch { display: grid; gap: 10px; margin-top: 12px; }
+.seg { display: inline-flex; padding: 2px; border-radius: 9px; background: var(--surface); border: 1px solid var(--border-soft); }
+.seg button { padding: 5px 10px; border-radius: 7px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.seg button.active { background: var(--card-hover); color: var(--text); box-shadow: 0 1px 0 var(--border); }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.check input { width: auto; }
+select.count { width: auto; padding: 5px 8px; }
+.note { font-size: 11.5px; color: var(--muted); }
+.note.warn { color: var(--warn); }
+.sessions { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 10px; }
+.session { padding: 12px; cursor: pointer; transition: border-color .15s var(--ease), background .15s var(--ease); position: relative; overflow: hidden; }
+.session:hover { border-color: var(--border); background: var(--card-hover); }
+.session::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c, var(--accent)); opacity: .85; }
+.s-head { display: flex; align-items: center; gap: 10px; }
+.s-title { font-weight: 600; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s-meta { font-size: 11px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 2px; }
+.pill { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 18%, transparent); color: var(--muted); display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.pill.running { color: var(--link); background: color-mix(in srgb, var(--link) 15%, transparent); }
+.pill.running::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.2s ease-in-out infinite; }
+.pill.exited { color: var(--ok); background: color-mix(in srgb, var(--ok) 15%, transparent); }
+.pill.failed { color: var(--off); background: color-mix(in srgb, var(--off) 15%, transparent); }
+@keyframes pulse { 50% { opacity: .3; transform: scale(.7); } }
+.chip { font-size: 10.5px; padding: 1px 7px; border-radius: 6px; background: color-mix(in srgb, var(--text) 8%, transparent); font-family: var(--mono); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s-task { margin-top: 8px; font-size: 11.5px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.s-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.s-out { margin-top: 10px; max-height: 160px; overflow: auto; font-family: var(--mono); font-size: 11px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; background: color-mix(in srgb, #000 22%, var(--bg)); border-radius: 8px; padding: 8px 10px; color: var(--muted); }
+.s-changes { margin-top: 8px; font-size: 11.5px; }
+.s-changes .f { font-family: var(--mono); font-size: 11px; display: flex; gap: 6px; }
+.s-changes .f b { width: 12px; }
+.f b.A { color: var(--ok); } .f b.D { color: var(--off); } .f b.M { color: var(--warn); } .f b.R { color: var(--link); }
+.empty { text-align: center; padding: 34px 14px; color: var(--muted); border: 1px dashed var(--border); border-radius: 14px; }
+.empty b { display: block; color: var(--text); font-size: 13px; margin-bottom: 4px; }
+.settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 12px; }
+.set-head { display: flex; align-items: center; gap: 10px; }
+.set-head .grow b { display: block; font-size: 13px; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-top: 12px; }
+.field { display: grid; gap: 4px; }
+.field.wide { grid-column: 1 / -1; }
+.field label { font-size: 11px; color: var(--muted); font-weight: 600; }
+.env { margin-top: 10px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); background: var(--surface); border-radius: 8px; padding: 7px 9px; line-height: 1.6; word-break: break-all; }
+.set-actions { display: flex; gap: 6px; margin-top: 12px; justify-content: flex-end; flex-wrap: wrap; }
+.toasts { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 50; }
+.toast { padding: 9px 13px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); font-size: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.3); animation: rise .25s var(--ease); max-width: 420px; }
+.toast.err { border-color: color-mix(in srgb, var(--off) 55%, transparent); }
+.toast.ok { border-color: color-mix(in srgb, var(--ok) 55%, transparent); }
+.spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 640px) { .fields { grid-template-columns: 1fr; } .tabs { margin-left: 0; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+	<div class="top">
+		<div class="logo">
+			<svg viewBox="0 0 32 32" fill="none"><path d="M4 18c2.5-7.5 9-12 16-11.5 3.4.3 6.4 2 8 4.5-2.6-.6-4.6 0-6 1.6 2.8 1.6 4.4 4.2 4.4 7 0 .5-.5.8-1 .5-1.6-1-3.4-1.4-5.4-1.1-1.4 3-4.4 5-8.3 5-3.4 0-6.4-1.6-7.7-4.4z" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M9.5 19.5c1.5 1.6 3.6 2.4 6 2.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><ellipse cx="12.5" cy="14" rx="2.2" ry="1.2" fill="currentColor"/><path d="M16 6.7 17.5 2.5l2.3 4.3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+			<div><b>Orca</b><span id="subtitle"></span></div>
+		</div>
+		<div class="tabs" role="tablist" id="tabs"></div>
+	</div>
+	<div id="view"></div>
+</div>
+<div class="toasts" id="toasts"></div>
+<script nonce="__NONCE__">
+const vscode = acquireVsCodeApi();
+const DICT = {
+	ru: {
+		subtitle: 'CLI-агенты во вкладках-терминалах', agents: 'Агенты', settings: 'Настройки CLI', newAgent: 'Новый агент',
+		task: 'Задача', taskPh: 'Что сделать? Для интерактивного режима можно оставить пустым — агент откроется и будет ждать вас.',
+		interactive: 'Интерактивно', headless: 'Без участия', worktree: 'Своя ветка (git worktree)', parallel: 'Параллельно', launch: 'Запустить', launchN: 'Запустить ×{0}',
+		notInstalled: '{0} не найден в PATH', install: 'Установить', installed: 'установлен', missing: 'не найден', noKey: 'ключ не задан', keyFromApi: 'ключ из API Keys', keyNone: 'вход через CLI', keySaved: 'ключ {0}',
+		headlessNeedsTask: 'Для режима «без участия» нужна задача', parallelHint: 'Каждый параллельный агент работает в своей ветке orca/… — результаты сливаются кнопкой «Слить».',
+		modeHintInteractive: 'Агент открывается в терминале-вкладке, вы общаетесь с ним напрямую.', modeHintHeadless: 'Агент выполняет задачу сам и завершается; вывод и код выхода — в карточке.',
+		sessions: 'Сессии', noSessions: 'Агентов пока нет', noSessionsSub: 'Выберите CLI, при желании опишите задачу и нажмите «Запустить».',
+		st_starting: 'запуск', st_running: 'работает', st_exited: 'готово', st_failed: 'ошибка', st_idle: 'ветка сохранена', code: 'код {0}',
+		terminal: 'Терминал', stop: 'Стоп', restart: 'Перезапуск', changes: 'Изменения', diff: 'Дифф', merge: 'Слить', removeBranch: 'Удалить ветку', dismiss: 'Убрать', openFolder: 'Открыть папку',
+		mergeDone: 'Ветка {0} влита в текущую', mergeNothing: 'Нечего сливать — агент ничего не изменил', mergeConflicts: 'Конфликты при слиянии — откройте «Система контроля версий»', removed: 'Ветка удалена',
+		noChanges: 'Изменений пока нет', commits: 'коммитов: {0}', started: 'Запущено: {0}', elapsed: '{0}',
+		binary: 'Команда / путь', binaryPh: 'по умолчанию: {0}', keySource: 'Источник ключа', srcManual: 'Ввести ключ', srcApi: 'Ключ из плагина API Keys', srcNone: 'Без ключа (вход через сам CLI)',
+		apiKey: 'API-ключ', apiKeyPh: 'вставьте ключ', apiKeySavedPh: 'сохранён {0} — введите новый, чтобы заменить', clearKey: 'Удалить ключ', apiKeyPick: 'Ключ API Keys', apiKeyNone: 'В плагине API Keys нет ключей',
+		baseUrl: 'Base URL', baseUrlPh: 'https://… (прокси или совместимый endpoint)', baseUrlNo: 'CLI не поддерживает base URL через env', model: 'Модель', modelPh: 'например ', keyEnv: 'Переменная ключа', extraArgs: 'Доп. аргументы', extraArgsPh: '--verbose', extraEnv: 'Доп. переменные окружения', extraEnvPh: 'KEY=value — по одной на строку',
+		save: 'Сохранить', saved: 'Сохранено', check: 'Проверить', docs: 'Документация', envPreview: 'Будет передано агенту', checkOk: '{0}: {1}', checkFail: '{0} не запускается', customName: 'Своя команда',
+		location: 'Терминалы открываются вкладками редактора — переключите в настройках «auraOrca.terminalLocation».', openSettings: 'Параметры', orchestrator: 'Оркестратор вызывает агентов через auraOrca.runHeadless — CLI по умолчанию задаётся в «auraOrca.defaultAgent».',
+		noFolder: 'Откройте папку проекта — агенты работают в ней.'
+	},
+	en: {
+		subtitle: 'CLI agents in terminal tabs', agents: 'Agents', settings: 'CLI settings', newAgent: 'New agent',
+		task: 'Task', taskPh: 'What should it do? For interactive mode you can leave it empty — the agent opens and waits for you.',
+		interactive: 'Interactive', headless: 'Headless', worktree: 'Own branch (git worktree)', parallel: 'Parallel', launch: 'Launch', launchN: 'Launch ×{0}',
+		notInstalled: '{0} was not found in PATH', install: 'Install', installed: 'installed', missing: 'not found', noKey: 'no key', keyFromApi: 'key from API Keys', keyNone: 'CLI sign-in', keySaved: 'key {0}',
+		headlessNeedsTask: 'Headless mode needs a task', parallelHint: 'Each parallel agent works in its own orca/… branch — merge results with "Merge".',
+		modeHintInteractive: 'The agent opens in a terminal tab and you talk to it directly.', modeHintHeadless: 'The agent completes the task on its own and exits; output and exit code show on the card.',
+		sessions: 'Sessions', noSessions: 'No agents yet', noSessionsSub: 'Pick a CLI, optionally describe a task and press "Launch".',
+		st_starting: 'starting', st_running: 'running', st_exited: 'done', st_failed: 'failed', st_idle: 'branch kept', code: 'code {0}',
+		terminal: 'Terminal', stop: 'Stop', restart: 'Restart', changes: 'Changes', diff: 'Diff', merge: 'Merge', removeBranch: 'Delete branch', dismiss: 'Dismiss', openFolder: 'Open folder',
+		mergeDone: 'Branch {0} merged into the current one', mergeNothing: 'Nothing to merge — the agent changed nothing', mergeConflicts: 'Merge conflicts — open Source Control', removed: 'Branch deleted',
+		noChanges: 'No changes yet', commits: 'commits: {0}', started: 'Started: {0}', elapsed: '{0}',
+		binary: 'Command / path', binaryPh: 'default: {0}', keySource: 'Key source', srcManual: 'Enter a key', srcApi: 'Key from the API Keys plugin', srcNone: 'No key (sign in through the CLI)',
+		apiKey: 'API key', apiKeyPh: 'paste the key', apiKeySavedPh: 'saved {0} — type a new one to replace it', clearKey: 'Delete key', apiKeyPick: 'API Keys key', apiKeyNone: 'The API Keys plugin has no keys',
+		baseUrl: 'Base URL', baseUrlPh: 'https://… (proxy or compatible endpoint)', baseUrlNo: 'This CLI has no base URL env variable', model: 'Model', modelPh: 'e.g. ', keyEnv: 'Key variable', extraArgs: 'Extra arguments', extraArgsPh: '--verbose', extraEnv: 'Extra environment', extraEnvPh: 'KEY=value — one per line',
+		save: 'Save', saved: 'Saved', check: 'Check', docs: 'Docs', envPreview: 'Passed to the agent', checkOk: '{0}: {1}', checkFail: '{0} does not start', customName: 'Custom command',
+		location: 'Terminals open as editor tabs — switch with the "auraOrca.terminalLocation" setting.', openSettings: 'Settings', orchestrator: 'The orchestrator calls agents through auraOrca.runHeadless — the default CLI is "auraOrca.defaultAgent".',
+		noFolder: 'Open a project folder — agents work inside it.'
+	}
+};
+let state = { language: 'ru', workspace: '', clis: [], sessions: [] };
+let ui = { view: 'agents', cli: 'claude', mode: 'interactive', worktree: false, count: 1, task: '', open: {}, changes: {}, apiKeys: null, busy: '' };
+try { Object.assign(ui, vscode.getState() || {}); ui.busy = ''; ui.changes = {}; } catch { /* нет сохранённого */ }
+const T = (key, ...values) => values.reduce((text, value, i) => text.split('{' + i + '}').join(String(value)), (DICT[state.language] || DICT.en)[key] ?? DICT.en[key] ?? key);
+const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+const save = () => { const { busy, changes, apiKeys, ...rest } = ui; vscode.setState(rest); };
+let reqId = 1;
+const pending = new Map();
+function svc(command, args = [], timeout = 120000) {
+	return new Promise((resolve, reject) => {
+		const id = reqId++;
+		pending.set(id, { resolve, reject });
+		vscode.postMessage({ type: 'invoke', command, args, id });
+		setTimeout(() => { if (pending.has(id)) { pending.delete(id); reject(new Error('timeout')); } }, timeout);
+	});
+}
+window.addEventListener('message', (event) => {
+	const message = event.data;
+	if (!message) { return; }
+	if (message.type === 'response') {
+		const waiter = pending.get(message.id);
+		if (!waiter) { return; }
+		pending.delete(message.id);
+		if (message.ok) { waiter.resolve(message.result); } else { waiter.reject(new Error(message.error || 'error')); }
+	} else if (message.type === 'state') {
+		state = message.state;
+		render();
+	}
+});
+function toast(text, kind = '') {
+	const el = document.createElement('div');
+	el.className = 'toast ' + kind;
+	el.textContent = text;
+	document.getElementById('toasts').appendChild(el);
+	setTimeout(() => { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 320); }, 3800);
+}
+const MODEL_EXAMPLES = { claude: 'claude-sonnet-4-5', codex: 'gpt-5-codex', gemini: 'gemini-2.5-pro', qwen: 'qwen3-coder-plus', opencode: 'anthropic/claude-sonnet-4-5', aider: 'sonnet' };
+const cliById = (id) => state.clis.find((c) => c.id === id);
+const glyph = (cli) => `<span class="glyph" style="background:${esc(cli?.color || '#64748b')}">${esc(cli?.glyph || '?')}</span>`;
+const cliName = (cli) => cli?.id === 'custom' ? T('customName') : cli?.name || '';
+function duration(from, to) {
+	const s = Math.max(0, Math.round(((to || Date.now()) - from) / 1000));
+	if (s < 60) { return s + 's'; }
+	const m = Math.floor(s / 60);
+	if (m < 60) { return m + 'm ' + String(s % 60).padStart(2, '0') + 's'; }
+	return Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm';
+}
+function keyStatus(cli) {
+	const src = cli.settings?.keySource;
+	if (src === 'api-plugin') { return T('keyFromApi'); }
+	if (src === 'none') { return T('keyNone'); }
+	return cli.hasKey ? T('keySaved', cli.keyMask) : T('noKey');
+}
+
+function renderTabs() {
+	const running = state.sessions.filter((s) => s.status === 'running' || s.status === 'starting').length;
+	document.getElementById('tabs').innerHTML = [
+		['agents', T('agents') + (state.sessions.length ? `<span class="count">${running ? running + '/' : ''}${state.sessions.length}</span>` : '')],
+		['settings', T('settings')]
+	].map(([id, label]) => `<button class="tab ${ui.view === id ? 'active' : ''}" role="tab" aria-selected="${ui.view === id}" data-view="${id}">${label}</button>`).join('');
+	document.getElementById('subtitle').textContent = T('subtitle');
+}
+
+function renderAgents() {
+	const cli = cliById(ui.cli) || state.clis[0];
+	const chips = state.clis.map((c, i) => `<button class="cli ${c.id === cli?.id ? 'active' : ''}" data-cli="${c.id}" style="--i:${i}" aria-pressed="${c.id === cli?.id}">${glyph(c)}<span class="grow"><span class="nm">${esc(cliName(c))}</span><span class="st"><span class="dot ${c.path ? 'ok' : 'off'}"></span>${esc(c.path ? T('installed') : T('missing'))}</span></span></button>`).join('');
+	const parallel = ui.count > 1;
+	const missing = cli && !cli.path;
+	const launchDisabled = !state.workspace || (ui.mode === 'headless' && !ui.task.trim()) || ui.busy === 'launch';
+	const launcher = `<div class="card" style="--i:0">
+		<div class="clis">${chips}</div>
+		<div class="launch">
+			<textarea id="task" rows="3" placeholder="${esc(T('taskPh'))}">${esc(ui.task)}</textarea>
+			<div class="row">
+				<div class="seg" role="group"><button data-mode="interactive" class="${ui.mode === 'interactive' ? 'active' : ''}">${esc(T('interactive'))}</button><button data-mode="headless" class="${ui.mode === 'headless' ? 'active' : ''}">${esc(T('headless'))}</button></div>
+				<label class="check"><input type="checkbox" id="optWorktree" ${ui.worktree || parallel ? 'checked' : ''} ${parallel ? 'disabled' : ''}> ${esc(T('worktree'))}</label>
+				<label class="check">${esc(T('parallel'))} <select class="count" id="optCount">${[1, 2, 3, 4].map((n) => `<option value="${n}" ${n === ui.count ? 'selected' : ''}>×${n}</option>`).join('')}</select></label>
+				<span class="grow"></span>
+				<button class="btn primary" id="btnLaunch" ${launchDisabled ? 'disabled' : ''}>${ui.busy === 'launch' ? '<span class="spin"></span>' : esc(parallel ? T('launchN', ui.count) : T('launch'))}</button>
+			</div>
+			<div class="note">${esc(ui.mode === 'headless' ? T('modeHintHeadless') : T('modeHintInteractive'))}${parallel ? ' ' + esc(T('parallelHint')) : ''}</div>
+			${!state.workspace ? `<div class="note warn">${esc(T('noFolder'))}</div>` : ''}
+			${ui.mode === 'headless' && !ui.task.trim() ? `<div class="note warn">${esc(T('headlessNeedsTask'))}</div>` : ''}
+			${missing ? `<div class="row note warn">${esc(T('notInstalled', cliName(cli)))}${cli.install ? `<button class="btn sm" data-install="${cli.id}">${esc(T('install'))}</button>` : ''}</div>` : ''}
+		</div>
+	</div>`;
+	const sessions = state.sessions.length
+		? `<div class="sessions">${state.sessions.map(renderSession).join('')}</div>`
+		: `<div class="empty"><b>${esc(T('noSessions'))}</b>${esc(T('noSessionsSub'))}</div>`;
+	return launcher + `<div class="section">${esc(T('sessions'))} · ${state.sessions.length}</div>` + sessions;
+}
+
+function renderSession(s, i) {
+	const cli = cliById(s.cli);
+	const live = s.status === 'running' || s.status === 'starting';
+	const statusText = T('st_' + s.status) + (s.exitCode !== undefined && s.exitCode !== null && s.status !== 'running' ? ' · ' + T('code', s.exitCode) : '');
+	const changes = ui.changes[s.id];
+	const changesBlock = changes ? `<div class="s-changes">${changes.files.length ? changes.files.slice(0, 12).map((f) => `<div class="f"><b class="${esc(f.status)}">${esc(f.status)}</b><span>${esc(f.path)}</span></div>`).join('') + (changes.files.length > 12 ? `<div class="muted">… +${changes.files.length - 12}</div>` : '') : `<span class="muted">${esc(T('noChanges'))}</span>`}
+		${changes.stat || changes.commits.length ? `<div class="muted" style="margin-top:4px">${esc(changes.stat)}${changes.commits.length ? ' · ' + esc(T('commits', changes.commits.length)) : ''}</div>` : ''}</div>` : '';
+	return `<div class="card session" data-session="${s.id}" style="--i:${i};--c:${esc(cli?.color || '')}">
+		<div class="s-head">${glyph(cli)}<div class="grow"><div class="s-title" title="${esc(s.title)}">${esc(s.title)}</div>
+			<div class="s-meta"><span>${esc(cliName(cli))}</span>·<span>${esc(s.mode === 'headless' ? T('headless') : T('interactive'))}</span>${s.worktree ? `<span class="chip" title="${esc(s.worktree.path)}">${esc(s.worktree.branch)}</span>` : ''}<span class="elapsed" data-from="${s.startedAt}" data-to="${s.endedAt || ''}" data-live="${live ? 1 : 0}">${s.status === 'idle' ? '' : esc(duration(s.startedAt, s.endedAt))}</span></div></div>
+			<span class="pill ${esc(s.status)}">${esc(statusText)}</span></div>
+		${s.task ? `<div class="s-task" title="${esc(s.task)}">${esc(s.task)}</div>` : ''}
+		${s.error ? `<div class="note warn" style="margin-top:6px">${esc(s.error)}</div>` : ''}
+		${s.output ? `<div class="s-out">${esc(s.output.slice(-1800))}</div>` : ''}
+		${changesBlock}
+		<div class="s-actions">
+			${s.hasTerminal ? `<button class="btn sm" data-act="focus">${esc(T('terminal'))}</button>` : ''}
+			${live ? `<button class="btn sm danger" data-act="stop">${esc(T('stop'))}</button>` : `<button class="btn sm" data-act="restart">${esc(T('restart'))}</button>`}
+			${s.worktree ? `<button class="btn sm" data-act="changes">${esc(T('changes'))}</button><button class="btn sm" data-act="diff">${esc(T('diff'))}</button><button class="btn sm primary" data-act="merge" ${live ? 'disabled' : ''}>${esc(T('merge'))}</button><button class="btn sm danger" data-act="remove">${esc(T('removeBranch'))}</button>` : ''}
+			${!live ? `<button class="btn sm icon" data-act="dismiss" title="${esc(T('dismiss'))}" aria-label="${esc(T('dismiss'))}">×</button>` : ''}
+		</div>
+	</div>`;
+}
+
+function renderSettings() {
+	const keys = ui.apiKeys;
+	const cards = state.clis.map((c, i) => {
+		const st = c.settings || {};
+		const src = st.keySource || 'manual';
+		const keyEnv = st.keyEnv || c.keyEnv;
+		const env = [];
+		if (src !== 'none') { env.push(`${keyEnv}=${src === 'api-plugin' ? '‹API Keys›' : (c.hasKey ? c.keyMask : '—')}`); }
+		if (st.baseUrl && c.baseUrlEnv) { env.push(`${c.baseUrlEnv}=${st.baseUrl}`); }
+		if (st.model && c.modelEnv) { env.push(`${c.modelEnv}=${st.model}`); }
+		if (st.model && c.modelFlag) { env.push(`${c.modelFlag} ${st.model}`); }
+		return `<div class="card" data-settings="${c.id}" style="--i:${i}">
+			<div class="set-head">${glyph(c)}<div class="grow"><b>${esc(cliName(c))}</b><span class="note"><span class="dot ${c.path ? 'ok' : 'off'}" style="display:inline-block;margin-right:5px"></span>${esc(c.path || T('missing'))} · ${esc(keyStatus(c))}</span></div>
+				${c.docsUrl ? `<button class="btn sm" data-docs="${esc(c.docsUrl)}">${esc(T('docs'))}</button>` : ''}</div>
+			<div class="fields">
+				<div class="field"><label>${esc(T('binary'))}</label><input data-f="binary" value="${esc(st.binary || '')}" placeholder="${esc(c.defaultBinary ? T('binaryPh', c.defaultBinary) : 'my-agent --flag')}"></div>
+				<div class="field"><label>${esc(T('keySource'))}</label><select data-f="keySource">
+					<option value="manual" ${src === 'manual' ? 'selected' : ''}>${esc(T('srcManual'))}</option>
+					<option value="api-plugin" ${src === 'api-plugin' ? 'selected' : ''}>${esc(T('srcApi'))}</option>
+					<option value="none" ${src === 'none' ? 'selected' : ''}>${esc(T('srcNone'))}</option></select></div>
+				${src === 'manual' ? `<div class="field wide"><label>${esc(T('apiKey'))} · <span class="mono">${esc(keyEnv)}</span></label><input type="password" data-f="apiKey" autocomplete="off" placeholder="${esc(c.hasKey ? T('apiKeySavedPh', c.keyMask) : T('apiKeyPh'))}"></div>` : ''}
+				${src === 'api-plugin' ? `<div class="field wide"><label>${esc(T('apiKeyPick'))}</label>${keys && keys.length ? `<select data-f="apiKeyId">${keys.map((k) => `<option value="${esc(k.id)}" ${k.id === st.apiKeyId ? 'selected' : ''}>${esc((k.name || k.id) + (k.model ? ' · ' + k.model : ''))}</option>`).join('')}</select>` : `<div class="note warn">${esc(keys ? T('apiKeyNone') : '…')}</div>`}</div>` : ''}
+				<div class="field"><label>${esc(T('baseUrl'))}${c.baseUrlEnv ? ` · <span class="mono">${esc(c.baseUrlEnv)}</span>` : ''}</label><input data-f="baseUrl" value="${esc(st.baseUrl || '')}" placeholder="${esc(c.baseUrlEnv ? T('baseUrlPh') : T('baseUrlNo'))}" ${c.baseUrlEnv ? '' : 'disabled'}></div>
+				<div class="field"><label>${esc(T('model'))}</label><input data-f="model" value="${esc(st.model || '')}" placeholder="${esc(T('modelPh') + (MODEL_EXAMPLES[c.id] || 'gpt-4.1'))}"></div>
+				<div class="field"><label>${esc(T('keyEnv'))}</label><input data-f="keyEnv" class="mono" value="${esc(st.keyEnv || '')}" placeholder="${esc(c.keyEnv)}"></div>
+				<div class="field"><label>${esc(T('extraArgs'))}</label><input data-f="extraArgs" class="mono" value="${esc(st.extraArgs || '')}" placeholder="${esc(T('extraArgsPh'))}"></div>
+				<div class="field wide"><label>${esc(T('extraEnv'))}</label><textarea data-f="extraEnv" class="mono" rows="2" placeholder="${esc(T('extraEnvPh'))}">${esc(st.extraEnv || '')}</textarea></div>
+			</div>
+			${env.length ? `<div class="env"><b>${esc(T('envPreview'))}:</b> ${esc(env.join('  ·  '))}</div>` : ''}
+			<div class="set-actions">
+				${c.hasKey && src === 'manual' ? `<button class="btn sm danger" data-clear-key="${c.id}">${esc(T('clearKey'))}</button>` : ''}
+				${c.install && !c.path ? `<button class="btn sm" data-install="${c.id}">${esc(T('install'))}</button>` : ''}
+				<button class="btn sm" data-check="${c.id}">${ui.busy === 'check:' + c.id ? '<span class="spin"></span>' : esc(T('check'))}</button>
+				<button class="btn sm primary" data-save="${c.id}">${esc(T('save'))}</button>
+			</div>
+		</div>`;
+	}).join('');
+	return `<div class="note" style="margin:14px 0 10px">${esc(T('location'))} ${esc(T('orchestrator'))} <button class="btn sm" id="btnOpenSettings">${esc(T('openSettings'))}</button></div><div class="settings">${cards}</div>`;
+}
+
+function render() {
+	document.documentElement.lang = state.language;
+	renderTabs();
+	const view = document.getElementById('view');
+	const focused = document.activeElement?.id === 'task' ? { start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd } : null;
+	view.innerHTML = `<div style="margin-top:16px">${ui.view === 'settings' ? renderSettings() : renderAgents()}</div>`;
+	if (focused) { const t = document.getElementById('task'); t?.focus(); t?.setSelectionRange(focused.start, focused.end); }
+	wire();
+	save();
+}
+
+function wire() {
+	document.querySelectorAll('[data-view]').forEach((b) => b.onclick = () => {
+		ui.view = b.dataset.view;
+		if (ui.view === 'settings' && ui.apiKeys === null) { void svc('auraOrca.apiPluginKeys').then((list) => { ui.apiKeys = list || []; render(); }).catch(() => { ui.apiKeys = []; }); }
+		render();
+	});
+	document.querySelectorAll('[data-cli]').forEach((b) => b.onclick = () => { ui.cli = b.dataset.cli; render(); });
+	document.querySelectorAll('[data-mode]').forEach((b) => b.onclick = () => { ui.mode = b.dataset.mode; render(); });
+	const task = document.getElementById('task');
+	if (task) { task.oninput = () => { const before = !ui.task.trim(); ui.task = task.value; if (before !== !ui.task.trim() && ui.mode === 'headless') { render(); } else { save(); } }; }
+	const wt = document.getElementById('optWorktree');
+	if (wt) { wt.onchange = () => { ui.worktree = wt.checked; save(); }; }
+	const count = document.getElementById('optCount');
+	if (count) { count.onchange = () => { ui.count = Number(count.value) || 1; render(); }; }
+	const launchBtn = document.getElementById('btnLaunch');
+	if (launchBtn) {
+		launchBtn.onclick = async () => {
+			ui.busy = 'launch'; render();
+			try {
+				const started = await svc('auraOrca.newAgent', [{ cli: ui.cli, task: ui.task, mode: ui.mode, worktree: ui.worktree, count: ui.count }]);
+				toast(T('started', (started || []).map((s) => s.title).join(', ')), 'ok');
+				if (ui.mode === 'headless') { ui.task = ''; }
+			} catch (err) { toast(err.message, 'err'); }
+			ui.busy = ''; render();
+		};
+	}
+	document.querySelectorAll('[data-install]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); void svc('auraOrca.install', [b.dataset.install]).catch((err) => toast(err.message, 'err')); });
+	document.querySelectorAll('[data-docs]').forEach((b) => b.onclick = () => { void svc('auraOrca.openExternal', [b.dataset.docs]); });
+	document.getElementById('btnOpenSettings')?.addEventListener('click', () => { void svc('auraOrca.openSettings'); });
+	document.querySelectorAll('[data-session]').forEach((card) => {
+		const id = card.dataset.session;
+		card.onclick = (e) => { if (e.target.closest('button, a, input, select, textarea')) { return; } void svc('auraOrca.focus', [id]).catch(() => { }); };
+		card.querySelectorAll('[data-act]').forEach((b) => b.onclick = async (e) => {
+			e.stopPropagation();
+			const act = b.dataset.act;
+			b.disabled = true;
+			try {
+				if (act === 'focus') { await svc('auraOrca.focus', [id]); }
+				else if (act === 'stop') { await svc('auraOrca.stop', [id]); }
+				else if (act === 'restart') { await svc('auraOrca.restart', [id]); }
+				else if (act === 'dismiss') { await svc('auraOrca.dismiss', [id]); delete ui.changes[id]; }
+				else if (act === 'changes') { ui.changes[id] = ui.changes[id] ? undefined : await svc('auraOrca.changes', [id]); if (!ui.changes[id]) { delete ui.changes[id]; } render(); }
+				else if (act === 'diff') { await svc('auraOrca.openChanges', [id]); }
+				else if (act === 'merge') {
+					const s = state.sessions.find((x) => x.id === id);
+					const result = await svc('auraOrca.merge', [id]);
+					toast(result?.conflicts ? T('mergeConflicts') : result?.merged ? T('mergeDone', s?.worktree?.branch || '') : T('mergeNothing'), result?.conflicts ? 'err' : 'ok');
+				}
+				else if (act === 'remove') { await svc('auraOrca.removeWorktree', [id]); delete ui.changes[id]; toast(T('removed'), 'ok'); }
+			} catch (err) { toast(err.message, 'err'); }
+			b.disabled = false;
+		});
+	});
+	document.querySelectorAll('[data-settings]').forEach((card) => {
+		const id = card.dataset.settings;
+		const collect = () => {
+			const value = {};
+			card.querySelectorAll('[data-f]').forEach((f) => { value[f.dataset.f] = f.value; });
+			return value;
+		};
+		card.querySelector('[data-f="keySource"]')?.addEventListener('change', async (e) => {
+			// Переключение источника сохраняем сразу: поле ключа зависит от выбора.
+			const value = collect();
+			delete value.apiKey;
+			if (e.target.value === 'api-plugin' && ui.apiKeys && ui.apiKeys[0] && !value.apiKeyId) { value.apiKeyId = ui.apiKeys[0].id; }
+			try { await svc('auraOrca.saveCliSettings', [id, value]); } catch (err) { toast(err.message, 'err'); }
+		});
+		card.querySelector('[data-save]')?.addEventListener('click', async () => {
+			try { await svc('auraOrca.saveCliSettings', [id, collect()]); toast(T('saved'), 'ok'); } catch (err) { toast(err.message, 'err'); }
+		});
+		card.querySelector('[data-clear-key]')?.addEventListener('click', async () => {
+			const value = collect(); delete value.apiKey; value.clearKey = true;
+			try { await svc('auraOrca.saveCliSettings', [id, value]); } catch (err) { toast(err.message, 'err'); }
+		});
+		card.querySelector('[data-check]')?.addEventListener('click', async () => {
+			ui.busy = 'check:' + id; render();
+			try {
+				const result = await svc('auraOrca.checkCli', [id], 30000);
+				const cli = cliById(id);
+				toast(result?.ok ? T('checkOk', cliName(cli), result.version || result.path) : (result?.path ? T('checkFail', cliName(cli)) + (result.error ? ': ' + result.error : '') : T('notInstalled', cliName(cli))), result?.ok ? 'ok' : 'err');
+			} catch (err) { toast(err.message, 'err'); }
+			ui.busy = ''; render();
+		});
+	});
+}
+
+setInterval(() => {
+	document.querySelectorAll('.elapsed[data-live="1"]').forEach((el) => { el.textContent = duration(Number(el.dataset.from)); });
+}, 1000);
+render();
+vscode.postMessage({ type: 'ready' });
+</script>
+</body>
+</html>

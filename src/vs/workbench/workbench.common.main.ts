@@ -498,3 +498,4 @@ import './contrib/aggg/browser/aggg.contribution.js';
 
 // Aura ServerKit (server control panel plugin: activity bar icon only when installed from Aura Market)
 import './contrib/auraServerkit/browser/auraServerkit.contribution.js';
+import './contrib/auraOrca/browser/auraOrca.contribution.js';

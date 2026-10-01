@@ -1,0 +1,11 @@
+{
+	"displayName": "Orca",
+	"description": "CLI coding agents (Claude Code, Codex, Gemini CLI, Qwen Code, opencode, Aider) in terminal tabs: run several in parallel, each in its own git branch, with keys, base URL and model per CLI.",
+	"configuration.title": "Orca",
+	"configuration.terminalLocation": "Where agent terminals open",
+	"configuration.terminalLocation.editor": "As editor tabs",
+	"configuration.terminalLocation.panel": "In the terminal panel",
+	"configuration.defaultAgent": "CLI agent the orchestrator uses when it does not name one",
+	"command.open": "Open Orca",
+	"command.newAgent": "New CLI agent"
+}

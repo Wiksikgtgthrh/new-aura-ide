@@ -134,6 +134,42 @@ export const AURA_MARKET_ITEMS_EN: Readonly<Record<string, IAuraMarketTranslatio
 		].join('\n'),
 	},
 
+	'aura-orca': {
+		description: 'An orchestra of CLI agents right in the IDE: run Claude Code, Codex, Gemini CLI, Qwen Code, OpenCode and Aider in parallel in terminal tabs, each in its own git worktree. Keys, models and base URLs are configured with buttons.',
+		size: '≈ 60 KB',
+		changelog: {
+			'0.1.0': [
+				'First release: several CLI agents (Claude Code, Codex, Gemini, Qwen, OpenCode, Aider) in parallel in terminal tabs',
+				'An isolated git worktree per agent: changes, diff, merge and branch deletion with buttons',
+				'Per-CLI settings: binary, key (manual or from API Keys), base URL, model, arguments and environment variables',
+				'Headless mode and the agent.cli tool for the orchestrator',
+			],
+		},
+		docs: [
+			'Orca runs several CLI agents in parallel, each in its own terminal tab and (optionally) its own git worktree.',
+			'',
+			'#### Installation',
+			'',
+			'Press "Install" and reload the window. A robot icon (Orca) appears in the activity bar on the left. The CLIs themselves are installed separately: the "CLI settings" tab has "Install" (an npm/pip command in a terminal) and "Check" buttons.',
+			'',
+			'#### Usage',
+			'',
+			'- Pick a CLI, describe the task and press "Run". "Interactive" opens a terminal in an editor tab, "Headless" runs the CLI non-interactively and collects its output.',
+			'- The "Separate worktree" checkbox creates an `orca/<name>` branch in `.orca/worktrees/`, so agents do not interfere with each other. "Parallel xN" starts several agents on the same task.',
+			'- The agent card has "Terminal", "Stop", "Restart", "Changes" (file list), "Diff" (multi-diff editor), "Merge" (into the current branch) and "Delete branch".',
+			'- Commands (Ctrl+Shift+P): "Orca: Open Orca", "Orca: New CLI agent".',
+			'',
+			'#### Configuration',
+			'',
+			'- The "CLI settings" tab, per agent: binary path, key source (manual, kept in secure storage; from the API Keys plugin; or none), base URL, model, key variable name, extra arguments and environment variables.',
+			'- `auraOrca.terminalLocation` sets where terminals open (editor / panel), `auraOrca.defaultAgent` sets the default CLI.',
+			'',
+			'#### Orchestrator',
+			'',
+			'The orchestrator can call the `agent.cli` tool: it runs the chosen CLI headlessly and returns its output.',
+		].join('\n'),
+	},
+
 	'aura-serverkit': {
 		description: 'ServerKit control panel in an IDE tab: app deploys, databases, Docker containers, SSL and monitoring. The icon in the activity bar opens the tab with the application.',
 		size: '≈ 10 KB',
