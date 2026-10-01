@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { API, GitExtension, Repository } from './git';
 import { GitBranchInfo, GitSnapshot } from '../types';
+import { detectTestCommand, isValidBranchName, parseLeftRight } from './workflow';
 
 const execFileAsync = promisify(execFile);
 
@@ -379,6 +380,305 @@ export class GitService {
 				await vscode.commands.executeCommand('vscode.diff', this.api.toGitUri(file, selected.commit.hash), file, selected.label);
 			}
 		}
+	}
+
+	/* ================= Командный процесс: ветка → main → тесты → дифф → PR → откат ================= */
+
+	/** git с возвратом stdout (большой буфер — диффы бывают крупными). */
+	async runGitOut(args: string[], allowExitCodes: number[] = []): Promise<string> {
+		const repository = this.requireRepository();
+		try {
+			const result = await execFileAsync(this.api.git?.path ?? 'git', args, { cwd: repository.rootUri.fsPath, maxBuffer: 64 * 1024 * 1024 });
+			return result.stdout;
+		} catch (error) {
+			const failed = error as Error & { code?: number; stdout?: string; stderr?: string };
+			if (typeof failed.code === 'number' && allowExitCodes.includes(failed.code)) { return failed.stdout ?? ''; }
+			throw new Error((failed.stderr || failed.message || String(error)).trim());
+		}
+	}
+
+	private async refExists(ref: string): Promise<boolean> {
+		try { await this.runGitOut(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]); return true; } catch { return false; }
+	}
+
+	/** Основная ветка команды: origin/HEAD → main → master → текущая. */
+	async defaultBranch(): Promise<string> {
+		try {
+			const head = (await this.runGitOut(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])).trim();
+			if (head.startsWith('origin/')) { return head.slice('origin/'.length); }
+		} catch { /* origin/HEAD не выставлен — ищем по именам */ }
+		for (const name of ['main', 'master', 'develop']) {
+			if (await this.refExists(`origin/${name}`) || await this.refExists(name)) { return name; }
+		}
+		return this.repository?.state.HEAD?.name || 'main';
+	}
+
+	/** Ref основной ветки для сравнения: удалённая версия, если она есть. */
+	async baseRef(base?: string): Promise<{ base: string; ref: string }> {
+		const name = base ?? await this.defaultBranch();
+		return { base: name, ref: await this.refExists(`origin/${name}`) ? `origin/${name}` : name };
+	}
+
+	hasOrigin(): boolean {
+		return Boolean(this.repository?.state.remotes.some(remote => remote.name === 'origin'));
+	}
+
+	originUrl(): string | undefined {
+		return this.repository?.state.remotes.find(remote => remote.name === 'origin')?.fetchUrl;
+	}
+
+	isDirty(): boolean {
+		const repository = this.requireRepository();
+		return repository.state.workingTreeChanges.length + repository.state.indexChanges.length + repository.state.untrackedChanges.length > 0;
+	}
+
+	private async fetchOrigin(): Promise<void> {
+		if (!this.hasOrigin()) { return; }
+		this.log('git fetch origin --prune');
+		try { await this.runGit(this.requireRepository(), ['fetch', 'origin', '--prune']); } catch (error) { this.log(`fetch failed: ${String(error)}`); }
+	}
+
+	/** Насколько ветка ушла от main: ahead — моих коммитов, behind — новых в main. */
+	async divergence(): Promise<{ base: string; ahead: number; behind: number }> {
+		const { base, ref } = await this.baseRef();
+		try {
+			const counts = parseLeftRight(await this.runGitOut(['rev-list', '--left-right', '--count', `${ref}...HEAD`]));
+			return { base, ...counts };
+		} catch { return { base, ahead: 0, behind: 0 }; }
+	}
+
+	/** Перейти в свою ветку: локальную, удалённую (с трекингом) или новую от свежего main. */
+	async startBranch(name: string): Promise<{ branch: string; created: boolean }> {
+		const repository = this.requireRepository();
+		if (!isValidBranchName(name)) { throw new Error(vscode.l10n.t('Invalid branch name.')); }
+		if (repository.state.HEAD?.name === name) { return { branch: name, created: false }; }
+		await this.fetchOrigin();
+		if (await this.refExists(`refs/heads/${name}`)) {
+			this.log(`git checkout ${name}`);
+			await this.runGit(repository, ['checkout', name]);
+			return { branch: name, created: false };
+		}
+		if (await this.refExists(`origin/${name}`)) {
+			this.log(`git checkout -b ${name} --track origin/${name}`);
+			await this.runGit(repository, ['checkout', '-b', name, '--track', `origin/${name}`]);
+			return { branch: name, created: false };
+		}
+		const { ref } = await this.baseRef();
+		const from = await this.refExists(ref) ? ref : 'HEAD';
+		this.log(`git checkout -b ${name} ${from}`);
+		await this.runGit(repository, ['checkout', '--no-track', '-b', name, from]);
+		return { branch: name, created: true };
+	}
+
+	/** Подтянуть свежий main в текущую ветку (merge), локальные правки — через stash. */
+	async syncWithBase(): Promise<{ base: string; upToDate: boolean; behindBefore: number }> {
+		const repository = this.requireRepository();
+		await this.fetchOrigin();
+		const { base, ref } = await this.baseRef();
+		const before = await this.divergence();
+		if (before.behind === 0) { return { base, upToDate: true, behindBefore: 0 }; }
+		const stashed = await this.stashPush('aura-team: перед слиянием main');
+		try {
+			if (repository.state.HEAD?.name === base) {
+				this.log(`git merge --ff-only ${ref}`);
+				await this.runGit(repository, ['merge', '--ff-only', ref]);
+			} else {
+				this.log(`git merge --no-edit ${ref}`);
+				try { await this.runGit(repository, ['merge', '--no-edit', ref]); } catch (error) {
+					await this.waitForState();
+					await this.handleConflicts(repository);
+					throw error;
+				}
+			}
+		} finally {
+			if (stashed) {
+				try { await this.stashPop(); } catch (error) {
+					this.log(`stash pop failed: ${String(error)}`);
+					vscode.window.showWarningMessage(vscode.l10n.t('Your stashed changes could not be applied automatically — run "git stash pop" manually.'));
+				}
+			}
+		}
+		return { base, upToDate: false, behindBefore: before.behind };
+	}
+
+	/** Даём git-расширению обновить state (mergeChanges) после внешней команды. */
+	private async waitForState(): Promise<void> {
+		await new Promise(resolve => setTimeout(resolve, 600));
+	}
+
+	/** Что ветка принесёт в main: дифф от точки ответвления до HEAD. */
+	async diffAgainstBase(): Promise<{ base: string; ref: string; text: string }> {
+		await this.fetchOrigin();
+		const { base, ref } = await this.baseRef();
+		const text = await this.runGitOut(['diff', '--no-color', '--no-ext-diff', '-M', `${ref}...HEAD`]);
+		return { base, ref, text };
+	}
+
+	/** Несохранённые изменения: tracked против HEAD + новые файлы целиком. */
+	async diffWorking(): Promise<string> {
+		const repository = this.requireRepository();
+		let text = await this.runGitOut(['diff', '--no-color', '--no-ext-diff', '-M', 'HEAD']).catch(() => this.runGitOut(['diff', '--no-color', '--no-ext-diff', '--cached']));
+		for (const change of repository.state.untrackedChanges.slice(0, 40)) {
+			const relative = vscode.workspace.asRelativePath(change.uri, false).replaceAll('\\', '/');
+			text += '\n' + await this.runGitOut(['diff', '--no-color', '--no-ext-diff', '--no-index', '--', '/dev/null', change.uri.fsPath], [1])
+				.then(out => out.replace(/^diff --git .*$/m, `diff --git a/${relative} b/${relative}`).replace(/^\+\+\+ .*$/m, `+++ b/${relative}`))
+				.catch(() => '');
+		}
+		return text;
+	}
+
+	private static assertHash(hash: string): string {
+		const value = String(hash ?? '').trim();
+		if (!/^[0-9a-f]{4,40}$/i.test(value)) { throw new Error(vscode.l10n.t('Invalid commit hash.')); }
+		return value;
+	}
+
+	private async parentCount(hash: string): Promise<number> {
+		const line = (await this.runGitOut(['rev-list', '--parents', '-n', '1', hash])).trim();
+		return Math.max(0, line.split(/\s+/).length - 1);
+	}
+
+	/** Дифф одного коммита (для merge-коммита — против первого родителя). */
+	async commitDiff(hash: string): Promise<{ text: string; subject: string; author: string; date: string }> {
+		const ref = GitService.assertHash(hash);
+		const meta = (await this.runGitOut(['show', '-s', '--format=%s%x1f%an%x1f%aI', ref])).trim().split('\x1f');
+		const parents = await this.parentCount(ref);
+		const text = parents === 0
+			? await this.runGitOut(['show', '--format=', '--no-color', '--no-ext-diff', '-M', ref])
+			: await this.runGitOut(['diff', '--no-color', '--no-ext-diff', '-M', `${ref}^1`, ref]);
+		return { text, subject: meta[0] ?? '', author: meta[1] ?? '', date: meta[2] ?? '' };
+	}
+
+	/** Откатить конкретный коммит новым коммитом (merge-коммит — относительно main, -m 1). */
+	async revertCommit(hash: string): Promise<{ hash: string }> {
+		const repository = this.requireRepository();
+		const ref = GitService.assertHash(hash);
+		if (this.isDirty()) { throw new Error(vscode.l10n.t('Save or discard your changes before reverting a commit.')); }
+		const args = (await this.parentCount(ref)) > 1 ? ['revert', '--no-edit', '-m', '1', ref] : ['revert', '--no-edit', ref];
+		this.log(`git ${args.join(' ')}`);
+		try { await this.runGit(repository, args); } catch (error) {
+			await this.waitForState();
+			await this.handleConflicts(repository);
+			throw error;
+		}
+		return { hash: (await this.runGitOut(['rev-parse', 'HEAD'])).trim() };
+	}
+
+	/** Отправить текущую ветку и выставить upstream (нужно перед созданием PR). */
+	async pushCurrentBranch(): Promise<string> {
+		const repository = this.requireRepository();
+		const branch = repository.state.HEAD?.name;
+		if (!branch) { throw new Error(vscode.l10n.t('Check out a branch first.')); }
+		if (!this.hasOrigin()) { throw new Error(vscode.l10n.t('The repository has no origin remote.')); }
+		this.log(`git push -u origin ${branch}`);
+		try { await repository.push('origin', branch, true); } catch (error) {
+			if (!isPushRejected(error)) { throw error; }
+			this.log('git pull --rebase');
+			await this.runGit(repository, ['pull', '--rebase', 'origin', branch]);
+			await this.handleConflicts(repository);
+			await repository.push('origin', branch, true);
+		}
+		return branch;
+	}
+
+	/**
+	 * Слить ветку в main без GitHub (локально): main ← merge --no-ff ветки → push → назад.
+	 * Только на чистом дереве: смешивать слияние с несохранённой работой опасно.
+	 */
+	async mergeIntoBase(branch: string): Promise<{ base: string; pushed: boolean }> {
+		const repository = this.requireRepository();
+		if (this.isDirty()) { throw new Error(vscode.l10n.t('Save or discard your changes before merging.')); }
+		const { base, ref } = await this.baseRef();
+		if (branch === base) { throw new Error(vscode.l10n.t('You are already on the main branch.')); }
+		await this.fetchOrigin();
+		this.log(`git checkout ${base}`);
+		await this.runGit(repository, ['checkout', base]);
+		let pushed = false;
+		try {
+			if (ref !== base) {
+				this.log(`git merge --ff-only ${ref}`);
+				await this.runGit(repository, ['merge', '--ff-only', ref]);
+			}
+			this.log(`git merge --no-ff --no-edit ${branch}`);
+			try { await this.runGit(repository, ['merge', '--no-ff', '--no-edit', branch]); } catch (error) {
+				await this.waitForState();
+				await this.handleConflicts(repository);
+				throw error;
+			}
+			if (this.hasOrigin()) {
+				this.log(`git push origin ${base}`);
+				await repository.push('origin', base, false);
+				pushed = true;
+			}
+		} finally {
+			if (repository.state.mergeChanges.length === 0) {
+				this.log(`git checkout ${branch}`);
+				await this.runGit(repository, ['checkout', branch]).catch(error => this.log(`checkout back failed: ${String(error)}`));
+			}
+		}
+		return { base, pushed };
+	}
+
+	/** Ветка отката PR: от свежего main, revert merge-коммита, push. */
+	async prepareRevertBranch(name: string, mergeSha: string): Promise<string> {
+		const repository = this.requireRepository();
+		if (this.isDirty()) { throw new Error(vscode.l10n.t('Save or discard your changes before reverting a commit.')); }
+		await this.fetchOrigin();
+		const { ref } = await this.baseRef();
+		this.log(`git checkout --no-track -B ${name} ${ref}`);
+		await this.runGit(repository, ['checkout', '--no-track', '-B', name, ref]);
+		await this.revertCommit(mergeSha);
+		await this.pushCurrentBranch();
+		return name;
+	}
+
+	/** Открыть файл в редакторе сравнения: слева версия на ref, справа рабочая (или rightRef). */
+	async openFileAgainst(filePath: string, leftRef: string, rightRef?: string): Promise<void> {
+		const repository = this.requireRepository();
+		const absolute = join(repository.rootUri.fsPath, filePath);
+		const uri = vscode.Uri.file(absolute);
+		const left = this.api.toGitUri(uri, leftRef);
+		const right = rightRef ? this.api.toGitUri(uri, rightRef) : (existsSync(absolute) ? uri : await this.emptyFileUri());
+		await vscode.commands.executeCommand('vscode.diff', left, right, `${filePath} (${leftRef} ↔ ${rightRef ?? vscode.l10n.t('working tree')})`);
+	}
+
+	/** Команда тестов: настройка auraTeam.git.testCommand или автоопределение по файлам проекта. */
+	async testCommand(): Promise<string | undefined> {
+		const configured = vscode.workspace.getConfiguration('auraTeam').get<string>('git.testCommand', '').trim();
+		if (configured) { return configured; }
+		const root = this.requireRepository().rootUri.fsPath;
+		const read = async (name: string): Promise<string | undefined> => {
+			try { return new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.file(join(root, name)))); } catch { return undefined; }
+		};
+		return detectTestCommand({
+			packageJson: await read('package.json'),
+			hasPyproject: existsSync(join(root, 'pyproject.toml')),
+			hasPytestIni: existsSync(join(root, 'pytest.ini')),
+			hasCargo: existsSync(join(root, 'Cargo.toml')),
+			hasGoMod: existsSync(join(root, 'go.mod')),
+			hasMakefile: await read('Makefile')
+		});
+	}
+
+	/** Запуск тестов задачей VS Code (вывод — в терминале), ждём код выхода. */
+	async runTests(): Promise<{ command: string; exitCode: number | undefined }> {
+		const repository = this.requireRepository();
+		const command = await this.testCommand();
+		if (!command) { throw new Error(vscode.l10n.t('No test command found. Set "auraTeam.git.testCommand" in settings.')); }
+		const folder = vscode.workspace.getWorkspaceFolder(repository.rootUri) ?? vscode.TaskScope.Workspace;
+		const task = new vscode.Task({ type: 'shell', task: 'aura-team-tests' }, folder, 'Aura Team: tests', 'aura-team', new vscode.ShellExecution(command, { cwd: repository.rootUri.fsPath }));
+		task.presentationOptions = { reveal: vscode.TaskRevealKind.Always, panel: vscode.TaskPanelKind.Dedicated, clear: true };
+		this.log(`tests: ${command}`);
+		const execution = await vscode.tasks.executeTask(task);
+		const exitCode = await new Promise<number | undefined>(resolve => {
+			const done = vscode.tasks.onDidEndTaskProcess(event => {
+				if (event.execution === execution) { done.dispose(); ended.dispose(); resolve(event.exitCode); }
+			});
+			const ended = vscode.tasks.onDidEndTask(event => {
+				if (event.execution === execution) { setTimeout(() => { done.dispose(); ended.dispose(); resolve(undefined); }, 300); }
+			});
+		});
+		return { command, exitCode };
 	}
 
 	/** Кинет ошибку, если репозитория нет; доступен подклассам и сервисам синка. */

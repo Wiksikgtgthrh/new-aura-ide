@@ -72,6 +72,11 @@
 					"default": "wip: {files}",
 					"description": "Commit message template for auto-push. Supports {files} and {date}"
 				},
+				"auraTeam.git.testCommand": {
+					"type": "string",
+					"default": "",
+					"description": "Команда для кнопки «Запустить тесты» в командном процессе (пусто — определить автоматически: npm test, cargo test, go test, pytest, make test)"
+				},
 				"auraTeam.simpleMode": {
 					"type": "boolean",
 					"default": true,

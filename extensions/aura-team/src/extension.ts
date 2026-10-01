@@ -8,10 +8,12 @@ import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { AuraApiClient } from './api/client';
-import { connectGitHub, createGithubRepo, disconnectGitHub, hasGitHubToken, listGithubRepos, pickAndCloneGithubRepo } from './auth/github';
+import { GITHUB_TOKEN_KEY, connectGitHub, createGithubRepo, disconnectGitHub, hasGitHubToken, listGithubRepos, pickAndCloneGithubRepo } from './auth/github';
 import { matchTeamProvider, mapAuraPriority, providerDraftFrom, importLabelOf, summarizeImport, type AuraApiKey, type AuraApiKeyExport, type ImportOutcome } from './keys/importMapping';
 import { GitService } from './git/service';
 import { branchNameForTask, taskRefInMessage } from './git/branchName';
+import { compareUrl, parseGithubRemote, parseUnifiedDiff, personalBranchName, type DiffSummary } from './git/workflow';
+import { GithubClient, type PullRequestInfo } from './git/github';
 import { AdminOverview, TeamRole } from './types';
 import { TeamSyncService } from './git/teamSync';
 import { ProfileManager } from './profile';
@@ -1206,6 +1208,156 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 		try { await gitSvc().push(); pushed = true; } catch (error) { pushError = errorMessage(error); }
 		await broadcast();
 		return { ...commit, pushed, pushError, linked };
+	});
+
+	/* ================= Командный процесс GitHub: всё по кнопкам ================= */
+	let lastTestRun: { command: string; exitCode: number | undefined; at: string; branch: string } | undefined;
+	const githubClient = async (required = true): Promise<GithubClient | undefined> => {
+		const repo = parseGithubRemote(gitSvc().originUrl());
+		const token = await context.secrets.get(GITHUB_TOKEN_KEY);
+		if (!repo || !token) {
+			if (!required) { return undefined; }
+			throw new Error(!repo ? vscode.l10n.t('The origin remote is not a GitHub repository.') : vscode.l10n.t('Connect GitHub first.'));
+		}
+		return new GithubClient(token, repo);
+	};
+	const canMergeToBase = (): boolean => !state.teamId || canMaintain(state) || state.session?.admin === true;
+	const myBranchName = (): string => personalBranchName(profiles.get().nickname || state.session?.user.displayName || state.session?.user.email?.split('@')[0]);
+	const diffPayload = (title: string, summary: DiffSummary, refs: { left?: string; right?: string; pr?: number }) => ({ title, ...summary, ...refs });
+
+	register('auraTeam.flowState', async () => {
+		const svcGit = gitSvc();
+		const repository = svcGit.repository;
+		if (!repository) { return undefined; }
+		const branch = repository.state.HEAD?.name ?? '';
+		const divergence = await svcGit.divergence();
+		const repo = parseGithubRemote(svcGit.originUrl());
+		const client = await githubClient(false);
+		let pr: PullRequestInfo | undefined;
+		let prs: PullRequestInfo[] = [];
+		let merged: PullRequestInfo[] = [];
+		let prError: string | undefined;
+		if (client) {
+			try {
+				const [open, closed] = await Promise.all([client.listPullRequests('open', 20), client.listPullRequests('closed', 15)]);
+				prs = open;
+				merged = closed.filter(item => item.state === 'merged').slice(0, 6);
+				pr = open.find(item => item.head === branch);
+			} catch (error) { prError = errorMessage(error); }
+		}
+		return {
+			branch,
+			base: divergence.base,
+			ahead: divergence.ahead,
+			behind: divergence.behind,
+			onBase: branch === divergence.base,
+			dirty: svcGit.isDirty(),
+			personalBranch: myBranchName(),
+			github: repo ?? null,
+			githubReady: Boolean(client),
+			hasOrigin: svcGit.hasOrigin(),
+			canMerge: canMergeToBase(),
+			testCommand: await svcGit.testCommand().catch(() => undefined),
+			lastTest: lastTestRun && lastTestRun.branch === branch ? lastTestRun : undefined,
+			pr, prs, merged, prError
+		};
+	}, false);
+	register('auraTeam.flowOpenSettings', async () => { await vscode.commands.executeCommand('workbench.action.openSettings', 'auraTeam.git.testCommand'); });
+	register('auraTeam.flowStartBranch', async (name?: string) => {
+		const result = await gitSvc().startBranch(String(name || myBranchName()));
+		await broadcast();
+		return result;
+	});
+	register('auraTeam.flowSyncMain', async () => {
+		const result = await gitSvc().syncWithBase();
+		await broadcast();
+		return result;
+	});
+	register('auraTeam.flowRunTests', async () => {
+		const branch = gitSvc().repository?.state.HEAD?.name ?? '';
+		const result = await gitSvc().runTests();
+		lastTestRun = { ...result, at: new Date().toISOString(), branch };
+		return lastTestRun;
+	});
+	register('auraTeam.flowCompare', async (mode?: 'branch' | 'working') => {
+		if (mode === 'working') {
+			return diffPayload(vscode.l10n.t('Uncommitted changes'), parseUnifiedDiff(await gitSvc().diffWorking()), { left: 'HEAD' });
+		}
+		const diff = await gitSvc().diffAgainstBase();
+		return diffPayload(`${diff.base} ← ${gitSvc().repository?.state.HEAD?.name ?? 'HEAD'}`, parseUnifiedDiff(diff.text), { left: diff.ref, right: 'HEAD' });
+	}, false);
+	register('auraTeam.flowCommitDiff', async (hash?: string) => {
+		const diff = await gitSvc().commitDiff(String(hash ?? ''));
+		return { ...diffPayload(diff.subject, parseUnifiedDiff(diff.text), { left: `${hash}^`, right: String(hash) }), author: diff.author, date: diff.date };
+	}, false);
+	register('auraTeam.flowPrDiff', async (number?: number) => {
+		const client = (await githubClient())!;
+		const details = await client.pullRequestDetails(Number(number));
+		return { ...diffPayload(`#${details.number} ${details.title}`, await client.pullRequestDiff(details.number), { pr: details.number }), details };
+	}, false);
+	register('auraTeam.flowOpenFileDiff', async (input?: { path?: string; left?: string; right?: string }) => {
+		if (!input?.path || !input.left) { return; }
+		await gitSvc().openFileAgainst(input.path, input.left, input.right === 'HEAD' ? 'HEAD' : input.right);
+	});
+	register('auraTeam.flowCreatePr', async (input?: { title?: string; body?: string; draft?: boolean }) => {
+		const svcGit = gitSvc();
+		const { base } = await svcGit.baseRef();
+		const branch = svcGit.repository?.state.HEAD?.name ?? '';
+		if (!branch || branch === base) { throw new Error(vscode.l10n.t('Create your own branch first: pull requests are opened from a branch into {0}.', base)); }
+		await svcGit.pushCurrentBranch();
+		const repo = parseGithubRemote(svcGit.originUrl());
+		const client = await githubClient(false);
+		if (!client) {
+			// Без токена — открываем страницу сравнения GitHub: PR создаётся там одной кнопкой.
+			if (repo) { await vscode.env.openExternal(vscode.Uri.parse(compareUrl(repo, base, branch))); return { opened: 'browser' }; }
+			throw new Error(vscode.l10n.t('The origin remote is not a GitHub repository.'));
+		}
+		const task = (state.board?.tasks ?? []).find(item => branch.startsWith(`task/${item.id.slice(0, 8)}`));
+		const title = input?.title?.trim() || task?.title || branch;
+		const body = input?.body ?? (task ? `Задача #${task.id.slice(0, 8)}: ${task.title}` : '');
+		const pr = await client.createPullRequest({ head: branch, base, title, body, draft: input?.draft });
+		await broadcast();
+		return pr;
+	});
+	register('auraTeam.flowMergePr', async (number?: number, method?: 'merge' | 'squash' | 'rebase', deleteBranch?: boolean) => {
+		if (!canMergeToBase()) { throw new Error(vscode.l10n.t('Only the team owner or a maintainer can merge into the main branch.')); }
+		const client = (await githubClient())!;
+		const pr = await client.getPullRequest(Number(number));
+		const result = await client.mergePullRequest(pr.number, method === 'squash' || method === 'rebase' ? method : 'merge');
+		let branchDeleted = false;
+		if (deleteBranch) { try { await client.deleteBranch(pr.head); branchDeleted = true; } catch (error) { output.appendLine(`[github] delete branch failed: ${errorMessage(error)}`); } }
+		// Свежий main — локально, чтобы следующий шаг «Подтянуть main» не удивлял.
+		try { await gitSvc().update(); } catch (error) { output.appendLine(`[git] update after merge failed: ${errorMessage(error)}`); }
+		await broadcast();
+		return { ...result, branchDeleted };
+	});
+	register('auraTeam.flowMergeLocal', async () => {
+		if (!canMergeToBase()) { throw new Error(vscode.l10n.t('Only the team owner or a maintainer can merge into the main branch.')); }
+		const branch = gitSvc().repository?.state.HEAD?.name ?? '';
+		const result = await gitSvc().mergeIntoBase(branch);
+		await broadcast();
+		return result;
+	});
+	register('auraTeam.flowRevertCommit', async (hash?: string, push?: boolean) => {
+		const result = await gitSvc().revertCommit(String(hash ?? ''));
+		let pushed = false;
+		let pushError: string | undefined;
+		if (push !== false && gitSvc().hasOrigin()) {
+			try { await gitSvc().pushCurrentBranch(); pushed = true; } catch (error) { pushError = errorMessage(error); }
+		}
+		await broadcast();
+		return { ...result, pushed, pushError };
+	});
+	register('auraTeam.flowRevertPr', async (number?: number) => {
+		const client = (await githubClient())!;
+		const pr = await client.getPullRequest(Number(number));
+		if (pr.state !== 'merged' || !pr.mergeCommitSha) { throw new Error(vscode.l10n.t('Only a merged pull request can be reverted.')); }
+		const previous = gitSvc().repository?.state.HEAD?.name;
+		const branch = await gitSvc().prepareRevertBranch(`revert/pr-${pr.number}`, pr.mergeCommitSha);
+		const created = await client.createPullRequest({ head: branch, base: pr.base, title: `Revert «${pr.title}» (#${pr.number})`, body: `Откат #${pr.number}: ${pr.url}` });
+		output.appendLine(`[github] revert PR #${created.number} for #${pr.number} (была ветка ${previous ?? '—'})`);
+		await broadcast();
+		return created;
 	});
 
 	// Профиль (локальный, без сервера)

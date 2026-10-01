@@ -770,6 +770,67 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 	display: grid; place-items: center;
 	animation: overlayIn .2s ease;
 }
+/* ---------- Командный процесс (ветка → main → тесты → дифф → PR → слияние → откат) ---------- */
+.team-flow { margin-bottom: 14px; }
+.tf-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.tf-title { font-size: 13px; font-weight: 700; }
+.tf-steps { display: grid; gap: 6px; margin-top: 12px; counter-reset: tfstep; }
+.tf-step { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border-soft); background: color-mix(in srgb, var(--text) 3%, transparent); animation: fadeUp .3s var(--ease) both; animation-delay: calc(var(--i, 0) * 35ms); transition: border-color .18s var(--ease), background .18s var(--ease); }
+.tf-step:hover { border-color: var(--border); }
+.tf-num { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--muted); background: color-mix(in srgb, var(--text) 9%, transparent); }
+.tf-step.ok .tf-num { color: #fff; background: var(--ok); }
+.tf-step.warn .tf-num { color: #000; background: var(--warn); }
+.tf-step.err .tf-num { color: #fff; background: var(--off); }
+.tf-step.err { border-color: color-mix(in srgb, var(--off) 45%, transparent); }
+.tf-step-title { font-size: 12px; font-weight: 600; }
+.tf-step-sub { font-size: 11px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; }
+.tf-step-sub .mono, .tf-pr .mono { font-family: var(--mono); }
+.tf-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.tf-actions .btn { white-space: nowrap; }
+.tf-section { font-size: 10.5px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 14px 0 6px; font-weight: 600; }
+.tf-pr { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 8px; transition: background .18s var(--ease); animation: fadeUp .3s var(--ease) both; animation-delay: calc(var(--i, 0) * 30ms); }
+.tf-pr:hover { background: var(--card-hover); }
+.tf-pr-num { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.tf-pr-title { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tf-pr-meta { font-size: 10.5px; color: var(--muted); }
+.tf-skel { height: 34px; border-radius: 10px; background: linear-gradient(90deg, color-mix(in srgb, var(--text) 5%, transparent), color-mix(in srgb, var(--text) 10%, transparent), color-mix(in srgb, var(--text) 5%, transparent)); background-size: 200% 100%; animation: tfShimmer 1.2s linear infinite; }
+@keyframes tfShimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.hist-actions { margin-left: auto; display: flex; gap: 4px; opacity: 0; transition: opacity .18s var(--ease); }
+.history-item:hover .hist-actions, .history-item:focus-within .hist-actions { opacity: 1; }
+/* Графический дифф */
+.modal.wide { width: min(1180px, calc(100vw - 32px)); max-height: calc(100vh - 40px); padding: 18px; }
+.dv-sum { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; margin-bottom: 10px; }
+.dv-add { color: var(--ok); font-weight: 600; }
+.dv-del { color: var(--off); font-weight: 600; }
+.dv-bar { display: inline-flex; gap: 2px; vertical-align: middle; }
+.dv-bar i { width: 8px; height: 8px; border-radius: 2px; background: color-mix(in srgb, var(--text) 18%, transparent); }
+.dv-bar i.a { background: var(--ok); }
+.dv-bar i.d { background: var(--off); }
+.dv-body { display: grid; grid-template-columns: minmax(180px, 260px) 1fr; gap: 12px; min-height: 0; }
+.dv-files { border: 1px solid var(--border-soft); border-radius: 10px; padding: 4px; max-height: calc(100vh - 230px); overflow: auto; }
+.dv-frow { display: grid; grid-template-columns: 16px 1fr auto; gap: 6px; align-items: center; padding: 5px 7px; border-radius: 6px; font-size: 11.5px; cursor: pointer; transition: background .15s var(--ease); }
+.dv-frow:hover, .dv-frow.active { background: var(--card-hover); }
+.dv-frow .dv-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+.dv-st { width: 15px; height: 15px; border-radius: 4px; font-size: 9px; font-weight: 800; display: grid; place-items: center; color: #fff; }
+.dv-st.added { background: var(--ok); } .dv-st.deleted { background: var(--off); } .dv-st.modified { background: var(--warn); color: #000; } .dv-st.renamed { background: var(--link); }
+.dv-main { max-height: calc(100vh - 230px); overflow: auto; display: grid; gap: 10px; align-content: start; }
+.dv-file { border: 1px solid var(--border-soft); border-radius: 10px; overflow: hidden; }
+.dv-fhead { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: color-mix(in srgb, var(--text) 5%, transparent); font-size: 12px; position: sticky; top: 0; z-index: 1; cursor: pointer; }
+.dv-fhead .dv-path { font-family: var(--mono); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.dv-file.collapsed .dv-lines { display: none; }
+.dv-lines { font-family: var(--mono); font-size: 11.5px; line-height: 1.5; overflow-x: auto; }
+.dl { display: grid; grid-template-columns: 44px 44px 16px 1fr; white-space: pre; }
+.dl .ln { color: var(--muted); text-align: right; padding-right: 8px; user-select: none; opacity: .7; }
+.dl .sg { user-select: none; color: var(--muted); }
+.dl.add { background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.dl.add .sg { color: var(--ok); }
+.dl.del { background: color-mix(in srgb, var(--off) 14%, transparent); }
+.dl.del .sg { color: var(--off); }
+.dl.meta { color: var(--muted); font-style: italic; }
+.dh { padding: 3px 10px; color: var(--link); background: color-mix(in srgb, var(--link) 8%, transparent); font-family: var(--mono); font-size: 11px; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.dv-note { padding: 8px 10px; font-size: 11.5px; color: var(--muted); }
+.dv-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+@media (max-width: 720px) { .dv-body { grid-template-columns: 1fr; } .dv-files { max-height: 160px; } .tf-step { grid-template-columns: 26px 1fr; } .tf-actions { grid-column: 1 / -1; justify-content: flex-start; } }
 .modal {
 	width: min(520px, calc(100vw - 60px));
 	max-height: min(620px, calc(100vh - 80px));
@@ -1018,6 +1079,18 @@ const vscode = acquireVsCodeApi();
 /* ---------- i18n ---------- */
 const DICT = {
 	ru: {
+		tfTitle: 'Командный процесс', tfSub: 'своя ветка → свежий main → тесты → проверка изменений → pull request → слияние', tfLoading: 'Смотрю ветки и pull request’ы…',
+		tfStepBranch: 'Своя ветка', tfOnBase: 'Вы в {0} — работа идёт в своей ветке', tfOnBranch: 'Вы в ветке {0}', tfMyBranch: 'Моя ветка', tfTaskBranch: 'Из задачи',
+		tfStepSync: 'Свежий main', tfBehind: 'В {0} новых коммитов: {1}', tfUpToDate: 'Ветка содержит всё из {0}', tfSync: 'Подтянуть {0}', tfSynced: 'Подтянуто: {0} коммит(ов) из {1}', tfAlreadySynced: 'Уже актуально',
+		tfStepTests: 'Тесты', tfTestsCmd: 'Команда: {0}', tfTestsNone: 'Команда тестов не найдена — задайте её в настройках', tfTestsPassed: 'Прошли · {0}', tfTestsFailed: 'Упали (код {0}) · {1}', tfRunTests: 'Запустить тесты', tfTestsRunning: 'Тесты идут — вывод в терминале', tfTestsSettings: 'Настроить',
+		tfStepReview: 'Проверить изменения', tfReviewSub: 'Моих коммитов: {0} · несохранённых файлов: {1}', tfCompare: 'Изменения vs {0}', tfWorking: 'Несохранённые',
+		tfStepPr: 'Pull request', tfPrOpen: 'PR #{0} открыт: {1}', tfPrNone: 'PR для этой ветки ещё нет', tfPrNoToken: 'Без входа в GitHub откроется страница сравнения', tfPrCreate: 'Создать PR', tfPrView: 'Открыть', tfPrDiff: 'Дифф PR', tfPrTitle: 'Заголовок', tfPrBody: 'Описание', tfPrDraft: 'Черновик (draft)', tfPrCreated: 'PR #{0} создан', tfPrExists: 'PR #{0} уже открыт', tfPrBrowser: 'Страница сравнения открыта в браузере', tfPrOnBase: 'Сначала своя ветка',
+		tfStepMerge: 'Слияние в {0}', tfMergeWho: 'Сливает владелец или мейнтейнер команды', tfMergeReady: 'Можно сливать после проверок', tfMerge: 'Слить', tfMergeLocal: 'Слить в {0} локально', tfMergeMethod: 'Способ', tfMethodMerge: 'Merge-коммит', tfMethodSquash: 'Squash (один коммит)', tfMethodRebase: 'Rebase', tfDeleteBranch: 'Удалить ветку после слияния', tfMerged: 'Слито в {0}', tfMergeConfirm: 'Слить PR #{0} в {1}?',
+		tfPrs: 'Pull request’ы команды', tfNoPrs: 'Открытых PR нет', tfRevertSection: 'Откат', tfMergedPrs: 'Недавно слитые', tfRevertPr: 'Откатить PR', tfRevertPrConfirm: 'Создать ветку revert/pr-{0} с откатом и открыть PR?', tfRevertPrDone: 'PR отката #{0} создан',
+		tfRevertCommit: 'Откатить', tfRevertCommitConfirm: 'Создать коммит, отменяющий {0}?', tfRevertDone: 'Коммит {0} откачен', tfRevertLocal: 'Откат сохранён локально — нажмите Push', tfCommitDiff: 'Дифф',
+		tfChecks: 'Проверки', tfChecksOk: 'проверки ✓', tfChecksFail: 'проверки ✗', tfChecksPending: 'проверки идут', tfChecksNone: 'без проверок', tfApprovals: 'одобрений: {0}', tfChangesReq: 'просят правки', tfConflicts: 'конфликты с {0}', tfMergeable: 'без конфликтов',
+		tfFiles: 'файлов: {0}', tfOpenEditor: 'Открыть в редакторе', tfBinary: 'Двоичный файл', tfTruncated: 'Показано начало — полностью в редакторе', tfNoDiff: 'Изменений нет', tfClose: 'Закрыть', tfCollapseAll: 'Свернуть всё', tfExpandAll: 'Развернуть всё',
+		tfGithubOff: 'GitHub не подключён: PR и проверки недоступны', tfNotGithub: 'origin — не GitHub: работаем локально', tfNoOrigin: 'Нет remote origin', tfDirty: 'есть несохранённые изменения', tfRetry: 'Обновить',
 		connDemo: 'Демо', connLive: 'Онлайн', connOff: 'Офлайн',
 		profile: 'Профиль', logout: 'Выйти', teams: 'Команды', keys: 'Банк ключей',
 		myTeams: 'Мои команды', createTeam: 'Создать команду', joinTeam: 'Вступить по коду',
@@ -1203,6 +1276,18 @@ const DICT = {
 		addKeyTitle: 'Новый ключ', keyValue: 'Значение ключа', keyValuePh: 'sk-…',
 	},
 	en: {
+		tfTitle: 'Team workflow', tfSub: 'own branch → fresh main → tests → review changes → pull request → merge', tfLoading: 'Checking branches and pull requests…',
+		tfStepBranch: 'Own branch', tfOnBase: 'You are on {0} — work happens in your own branch', tfOnBranch: 'On branch {0}', tfMyBranch: 'My branch', tfTaskBranch: 'From task',
+		tfStepSync: 'Fresh main', tfBehind: '{0} has new commits: {1}', tfUpToDate: 'Branch contains everything from {0}', tfSync: 'Pull {0}', tfSynced: 'Pulled {0} commit(s) from {1}', tfAlreadySynced: 'Already up to date',
+		tfStepTests: 'Tests', tfTestsCmd: 'Command: {0}', tfTestsNone: 'No test command found — set it in settings', tfTestsPassed: 'Passed · {0}', tfTestsFailed: 'Failed (code {0}) · {1}', tfRunTests: 'Run tests', tfTestsRunning: 'Tests are running — output in the terminal', tfTestsSettings: 'Configure',
+		tfStepReview: 'Review changes', tfReviewSub: 'My commits: {0} · uncommitted files: {1}', tfCompare: 'Changes vs {0}', tfWorking: 'Uncommitted',
+		tfStepPr: 'Pull request', tfPrOpen: 'PR #{0} is open: {1}', tfPrNone: 'No PR for this branch yet', tfPrNoToken: 'Without GitHub sign-in the compare page opens', tfPrCreate: 'Create PR', tfPrView: 'Open', tfPrDiff: 'PR diff', tfPrTitle: 'Title', tfPrBody: 'Description', tfPrDraft: 'Draft', tfPrCreated: 'PR #{0} created', tfPrExists: 'PR #{0} is already open', tfPrBrowser: 'Compare page opened in the browser', tfPrOnBase: 'Create your branch first',
+		tfStepMerge: 'Merge into {0}', tfMergeWho: 'The team owner or a maintainer merges', tfMergeReady: 'Ready to merge after checks', tfMerge: 'Merge', tfMergeLocal: 'Merge into {0} locally', tfMergeMethod: 'Method', tfMethodMerge: 'Merge commit', tfMethodSquash: 'Squash (one commit)', tfMethodRebase: 'Rebase', tfDeleteBranch: 'Delete branch after merge', tfMerged: 'Merged into {0}', tfMergeConfirm: 'Merge PR #{0} into {1}?',
+		tfPrs: 'Team pull requests', tfNoPrs: 'No open PRs', tfRevertSection: 'Revert', tfMergedPrs: 'Recently merged', tfRevertPr: 'Revert PR', tfRevertPrConfirm: 'Create branch revert/pr-{0} with the revert and open a PR?', tfRevertPrDone: 'Revert PR #{0} created',
+		tfRevertCommit: 'Revert', tfRevertCommitConfirm: 'Create a commit that undoes {0}?', tfRevertDone: 'Commit {0} reverted', tfRevertLocal: 'Revert saved locally — press Push', tfCommitDiff: 'Diff',
+		tfChecks: 'Checks', tfChecksOk: 'checks ✓', tfChecksFail: 'checks ✗', tfChecksPending: 'checks running', tfChecksNone: 'no checks', tfApprovals: 'approvals: {0}', tfChangesReq: 'changes requested', tfConflicts: 'conflicts with {0}', tfMergeable: 'no conflicts',
+		tfFiles: '{0} files', tfOpenEditor: 'Open in editor', tfBinary: 'Binary file', tfTruncated: 'Showing the beginning — full file in the editor', tfNoDiff: 'No changes', tfClose: 'Close', tfCollapseAll: 'Collapse all', tfExpandAll: 'Expand all',
+		tfGithubOff: 'GitHub is not connected: PRs and checks are unavailable', tfNotGithub: 'origin is not GitHub: working locally', tfNoOrigin: 'No origin remote', tfDirty: 'uncommitted changes', tfRetry: 'Refresh',
 		connDemo: 'Demo', connLive: 'Online', connOff: 'Offline',
 		profile: 'Profile', logout: 'Sign out', teams: 'Teams', keys: 'Key vault',
 		myTeams: 'My teams', createTeam: 'Create team', joinTeam: 'Join with code',
@@ -1386,12 +1471,12 @@ let authTab = '__INITIAL_VIEW__' === 'register' ? 'register' : 'login';
 const pending = new Map();
 let reqId = 1;
 
-function svc(command, args = []) {
+function svc(command, args = [], timeout = 10000) {
 	return new Promise((resolve, reject) => {
 		const id = reqId++;
 		pending.set(id, { resolve, reject });
 		vscode.postMessage({ type: 'invoke', command, args, id });
-		setTimeout(() => { if (pending.has(id)) { pending.delete(id); reject(new Error('timeout')); } }, 10000);
+		setTimeout(() => { if (pending.has(id)) { pending.delete(id); reject(new Error('timeout')); } }, timeout);
 	});
 }
 
@@ -3284,9 +3369,217 @@ function renderGit() {
 				${!state.demoMode ? `<button class="btn ghost sm" id="btnReset">${esc(T('resetBranch'))}</button>` : ''}
 			</div>
 		</div>
-		${git.commits?.length ? `<div class="section-title">${esc(T('history'))}</div><div class="card" style="--i:0">${git.commits.slice(0, 10).map((c, i) => `<div class="history-item" style="--i:${i}"><span class="hist-dot"></span><div><div class="hist-msg">${esc(c.message)}</div><div class="hist-meta">${esc(c.hash?.slice(0, 8))} · ${esc(c.author || '')} · ${esc(timeAgo(c.date))}</div></div></div>`).join('')}</div>` : ''}`;
+		${renderTeamFlow()}
+		${git.commits?.length ? `<div class="section-title">${esc(T('history'))}</div><div class="card" style="--i:0">${git.commits.slice(0, 10).map((c, i) => `<div class="history-item" style="--i:${i}"><span class="hist-dot"></span><div><div class="hist-msg">${esc(c.message)}</div><div class="hist-meta">${esc(c.hash?.slice(0, 8))} · ${esc(c.author || '')} · ${esc(timeAgo(c.date))}</div></div><div class="hist-actions"><button class="btn ghost sm" data-commit-diff="${esc(c.hash)}">${esc(T('tfCommitDiff'))}</button><button class="btn ghost sm danger-text" data-commit-revert="${esc(c.hash)}">${esc(T('tfRevertCommit'))}</button></div></div>`).join('')}</div>` : ''}`;
+}
+/* ---------- Командный процесс: состояние грузится отдельно, чтобы не тормозить getState ---------- */
+let flow = { data: null, loading: false, key: '', at: 0, error: '', busy: '' };
+const fmt = (key, ...values) => values.reduce((text, value, index) => text.split(`{${index}}`).join(String(value)), T(key));
+function flowKey() {
+	const git = state.git;
+	return git ? [git.branch, git.ahead || 0, git.behind || 0, (git.changes || []).length, (git.commits || [])[0]?.hash || ''].join('|') : '';
+}
+function demoFlow() {
+	const git = state.git || {};
+	return {
+		branch: git.branch || 'dev/demo', base: 'main', ahead: 2, behind: 1, onBase: git.branch === 'main', dirty: (git.changes || []).length > 0,
+		personalBranch: 'dev/demo', github: { owner: 'aura', repo: 'demo' }, githubReady: true, hasOrigin: true, canMerge: true, testCommand: 'npm test',
+		pr: { number: 12, title: 'Канбан: перетаскивание карточек', url: '#', head: git.branch || 'dev/demo', base: 'main', author: 'demo', draft: false, state: 'open' },
+		prs: [
+			{ number: 12, title: 'Канбан: перетаскивание карточек', url: '#', head: git.branch || 'dev/demo', base: 'main', author: 'demo', draft: false, state: 'open' },
+			{ number: 11, title: 'Банк ключей: проверка base URL', url: '#', head: 'task/1a2b3c4d-klyuchi', base: 'main', author: 'anna', draft: true, state: 'open' }
+		],
+		merged: [{ number: 9, title: 'Лента событий без подтверждения', url: '#', head: 'dev/ivan', base: 'main', author: 'ivan', draft: false, state: 'merged', mergeCommitSha: 'abc1234' }]
+	};
+}
+async function loadFlow(force = false) {
+	const key = flowKey();
+	if (flow.loading || (!force && flow.data && flow.key === key && Date.now() - flow.at < 30000)) { return; }
+	flow.loading = true; flow.key = key; flow.error = '';
+	try {
+		flow.data = state.demoMode ? demoFlow() : await svc('auraTeam.flowState', [], 30000);
+	} catch (err) { flow.error = err.message; }
+	flow.loading = false; flow.at = Date.now();
+	paintFlow();
+}
+function paintFlow() {
+	const holder = document.getElementById('teamFlow');
+	if (!holder) { return; }
+	holder.outerHTML = renderTeamFlow(true);
+	wireTeamFlow();
+}
+function renderTeamFlow(fromPaint = false) {
+	if (!state.git) { return ''; }
+	if (!fromPaint && !flow.loading && (flowKey() !== flow.key || !flow.data)) { setTimeout(() => { void loadFlow(); }, 0); }
+	const d = flow.data;
+	const head = `<div class="tf-head"><div><div class="tf-title">${esc(T('tfTitle'))}</div><div class="sub">${esc(T('tfSub'))}</div></div>
+		<div class="flex">${d?.github ? `<span class="chip">${esc(d.github.owner + '/' + d.github.repo)}</span>` : ''}<button class="btn ghost sm" id="btnFlowRefresh" title="${esc(T('tfRetry'))}" aria-label="${esc(T('tfRetry'))}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></div>`;
+	if (!d) {
+		return `<div class="card team-flow" id="teamFlow" style="--i:1">${head}
+			${flow.error ? `<div class="sub mt12 danger-text">${esc(flow.error)}</div>` : `<div class="tf-steps"><div class="tf-skel"></div><div class="tf-skel"></div><div class="tf-skel"></div></div><div class="sub mt8">${esc(T('tfLoading'))}</div>`}
+		</div>`;
+	}
+	const busy = (id) => flow.busy === id ? ' disabled' : '';
+	const label = (id, text) => flow.busy === id ? '<span class="spin"></span>' : esc(text);
+	const step = (i, cls, title, sub, actions) => `<div class="tf-step ${cls}" style="--i:${i}"><span class="tf-num">${cls === 'ok' ? '✓' : cls === 'err' ? '!' : i + 1}</span><div style="min-width:0"><div class="tf-step-title">${esc(title)}</div><div class="tf-step-sub">${sub}</div></div><div class="tf-actions">${actions}</div></div>`;
+	const changed = (state.git.changes || []).length;
+	const steps = [];
+	steps.push(step(0, d.onBase ? 'warn' : 'ok', T('tfStepBranch'),
+		d.onBase ? esc(fmt('tfOnBase', d.base)) : esc(T('tfOnBranch').split('{0}')[0]) + `<span class="mono">${esc(d.branch)}</span>`,
+		(d.branch !== d.personalBranch ? `<button class="btn ${d.onBase ? 'primary' : 'ghost'} sm" id="btnFlowMyBranch"${busy('branch')}>${label('branch', T('tfMyBranch') + ' · ' + d.personalBranch)}</button>` : '')
+		+ `<button class="btn ghost sm" id="btnFlowTaskBranch">${esc(T('tfTaskBranch'))}</button>`));
+	steps.push(step(1, d.behind ? 'warn' : 'ok', T('tfStepSync'),
+		esc(d.behind ? fmt('tfBehind', d.base, d.behind) : fmt('tfUpToDate', d.base)),
+		`<button class="btn ${d.behind ? 'primary' : 'ghost'} sm" id="btnFlowSync"${busy('sync')}>${label('sync', fmt('tfSync', d.base))}</button>`));
+	const lt = d.lastTest;
+	const testCls = lt ? (lt.exitCode === 0 ? 'ok' : 'err') : '';
+	const testSub = flow.busy === 'tests' ? T('tfTestsRunning')
+		: lt ? (lt.exitCode === 0 ? fmt('tfTestsPassed', timeAgo(lt.at)) : fmt('tfTestsFailed', lt.exitCode ?? '?', timeAgo(lt.at)))
+		: d.testCommand ? fmt('tfTestsCmd', d.testCommand) : T('tfTestsNone');
+	steps.push(step(2, testCls, T('tfStepTests'), esc(testSub),
+		`<button class="btn ghost sm" id="btnFlowTestSettings">${esc(T('tfTestsSettings'))}</button><button class="btn ${lt && lt.exitCode === 0 ? 'ghost' : 'primary'} sm" id="btnFlowTests"${busy('tests')}${d.testCommand ? '' : ' disabled'}>${label('tests', T('tfRunTests'))}</button>`));
+	steps.push(step(3, '', T('tfStepReview'), esc(fmt('tfReviewSub', d.ahead || 0, changed)),
+		`<button class="btn ghost sm" id="btnFlowCompare"${busy('compare')}>${label('compare', fmt('tfCompare', d.base))}</button><button class="btn ghost sm" id="btnFlowWorking"${changed ? '' : ' disabled'}${busy('working')}>${label('working', T('tfWorking'))}</button>`));
+	const prSub = d.pr ? esc(fmt('tfPrOpen', d.pr.number, d.pr.title)) : esc(d.onBase ? T('tfPrOnBase') : d.githubReady ? T('tfPrNone') : !d.hasOrigin ? T('tfNoOrigin') : d.github ? T('tfPrNoToken') : T('tfNotGithub'));
+	steps.push(step(4, d.pr ? 'ok' : '', T('tfStepPr'), prSub,
+		d.pr ? `<button class="btn ghost sm" data-pr-diff="${d.pr.number}">${esc(T('tfPrDiff'))}</button><button class="btn ghost sm" data-pr-open="${esc(d.pr.url)}">${esc(T('tfPrView'))}</button>`
+			: `<button class="btn primary sm" id="btnFlowPr"${d.onBase || !d.github ? ' disabled' : ''}${busy('pr')}>${label('pr', T('tfPrCreate'))}</button>`));
+	const mergeActions = !d.canMerge ? `<span class="chip off">${esc(T('tfMergeWho'))}</span>`
+		: d.pr && d.githubReady ? `<button class="btn primary sm" data-pr-merge="${d.pr.number}">${esc(T('tfMerge'))} #${d.pr.number}</button>`
+		: !d.onBase && !d.github ? `<button class="btn ghost sm" id="btnFlowMergeLocal"${d.dirty ? ' disabled' : ''}${busy('mergeLocal')}>${label('mergeLocal', fmt('tfMergeLocal', d.base))}</button>` : '';
+	steps.push(step(5, '', fmt('tfStepMerge', d.base), esc(d.canMerge ? T('tfMergeReady') : T('tfMergeWho')) + (d.dirty ? ` · ${esc(T('tfDirty'))}` : ''), d.canMerge ? mergeActions : ''));
+	const prRow = (pr, i, merged) => `<div class="tf-pr" style="--i:${i}">
+		<span class="tf-pr-num">#${pr.number}</span>
+		<div style="min-width:0"><div class="tf-pr-title">${esc(pr.title)}${pr.draft ? ' <span class="chip">draft</span>' : ''}</div><div class="tf-pr-meta">${esc(pr.author)} · <span class="mono">${esc(pr.head)} → ${esc(pr.base)}</span>${pr.updatedAt || pr.mergedAt ? ' · ' + esc(timeAgo(pr.mergedAt || pr.updatedAt)) : ''}</div></div>
+		<div class="tf-actions">${merged
+			? `<button class="btn ghost sm" data-pr-diff="${pr.number}">${esc(T('tfCommitDiff'))}</button><button class="btn ghost sm danger-text" data-pr-revert="${pr.number}">${esc(T('tfRevertPr'))}</button>`
+			: `<button class="btn ghost sm" data-pr-diff="${pr.number}">${esc(T('tfCommitDiff'))}</button>${d.canMerge ? `<button class="btn ghost sm" data-pr-merge="${pr.number}">${esc(T('tfMerge'))}</button>` : ''}`}
+			<button class="btn ghost sm" data-pr-open="${esc(pr.url)}" title="GitHub">↗</button></div>
+	</div>`;
+	const prsBlock = d.githubReady
+		? `<div class="tf-section">${esc(T('tfPrs'))} · ${(d.prs || []).length}</div>${(d.prs || []).length ? d.prs.map((pr, i) => prRow(pr, i, false)).join('') : `<div class="sub">${esc(T('tfNoPrs'))}</div>`}
+			${(d.merged || []).length ? `<div class="tf-section">${esc(T('tfRevertSection'))} · ${esc(T('tfMergedPrs'))}</div>${d.merged.map((pr, i) => prRow(pr, i, true)).join('')}` : ''}`
+		: `<div class="sub mt12">${esc(d.github ? T('tfGithubOff') : d.hasOrigin ? T('tfNotGithub') : T('tfNoOrigin'))}</div>`;
+	return `<div class="card team-flow" id="teamFlow" style="--i:1">${head}<div class="tf-steps">${steps.join('')}</div>${d.prError ? `<div class="sub mt8 danger-text">${esc(d.prError)}</div>` : ''}${prsBlock}</div>`;
+}
+
+/* ---------- Графический дифф: файлы слева, ханки справа ---------- */
+function diffBar(add, del) {
+	const total = add + del;
+	if (!total) { return '<span class="dv-bar"><i></i><i></i><i></i><i></i><i></i></span>'; }
+	const a = Math.round((add / total) * 5);
+	return '<span class="dv-bar">' + [0, 1, 2, 3, 4].map((i) => `<i class="${i < a ? 'a' : del ? 'd' : ''}"></i>`).join('') + '</span>';
+}
+const DV_LETTER = { added: 'A', deleted: 'D', modified: 'M', renamed: 'R' };
+function renderDiffBody(data) {
+	const files = data.files || [];
+	if (!files.length) { return `<div class="sub">${esc(T('tfNoDiff'))}</div>`; }
+	const list = files.map((f, i) => `<div class="dv-frow" data-dv-jump="${i}" title="${esc(f.oldPath ? f.oldPath + ' → ' + f.path : f.path)}"><span class="dv-st ${f.status}">${DV_LETTER[f.status] || 'M'}</span><span class="dv-name">${esc(f.path)}</span><span class="tf-pr-meta"><span class="dv-add">+${f.additions}</span> <span class="dv-del">−${f.deletions}</span></span></div>`).join('');
+	const line = (l) => `<div class="dl ${l.kind}"><span class="ln">${l.oldNo ?? ''}</span><span class="ln">${l.newNo ?? ''}</span><span class="sg">${l.kind === 'add' ? '+' : l.kind === 'del' ? '−' : ''}</span><span class="tx">${esc(l.text)}</span></div>`;
+	const canOpen = Boolean(data.left) && !state.demoMode;
+	const main = files.map((f, i) => `<div class="dv-file" id="dvf${i}">
+		<div class="dv-fhead" data-dv-toggle="${i}"><span class="dv-st ${f.status}">${DV_LETTER[f.status] || 'M'}</span><span class="dv-path">${esc(f.oldPath && f.status === 'renamed' ? f.oldPath + ' → ' + f.path : f.path)}</span><span class="dv-add">+${f.additions}</span><span class="dv-del">−${f.deletions}</span>${diffBar(f.additions, f.deletions)}${canOpen ? `<button class="btn ghost sm" data-dv-open="${i}">${esc(T('tfOpenEditor'))}</button>` : ''}</div>
+		<div class="dv-lines">${f.binary ? `<div class="dv-note">${esc(T('tfBinary'))}</div>` : (f.hunks || []).map((h) => `<div class="dh">${esc(h.header)}</div>${h.lines.map(line).join('')}`).join('')}${f.truncated ? `<div class="dv-note">${esc(T('tfTruncated'))}</div>` : ''}</div>
+	</div>`).join('');
+	return `<div class="dv-body"><div class="dv-files">${list}</div><div class="dv-main">${main}</div></div>`;
+}
+function checksChip(checks) {
+	if (!checks) { return ''; }
+	const map = { success: ['ok', 'tfChecksOk'], failure: ['off', 'tfChecksFail'], pending: ['', 'tfChecksPending'], none: ['', 'tfChecksNone'] };
+	const [cls, key] = map[checks.state] || map.none;
+	return `<span class="chip ${cls}">${esc(T(key))}${checks.total ? ` ${checks.passed}/${checks.total}` : ''}</span>`;
+}
+function openDiffViewer(data, extra = {}) {
+	const files = data.files || [];
+	const det = data.details;
+	const badges = det ? `<div class="dv-badges">${checksChip(det.checks)}
+		${det.approvals ? `<span class="chip ok">${esc(fmt('tfApprovals', det.approvals))}</span>` : ''}
+		${det.changesRequested ? `<span class="chip off">${esc(T('tfChangesReq'))}</span>` : ''}
+		${det.mergeable === false ? `<span class="chip off">${esc(fmt('tfConflicts', det.base))}</span>` : det.mergeable ? `<span class="chip ok">${esc(T('tfMergeable'))}</span>` : ''}
+		<span class="chip mono">${esc(det.head)} → ${esc(det.base)}</span></div>` : '';
+	const canMerge = det && det.state === 'open' && flow.data?.canMerge;
+	const overlay = openModal({
+		title: data.title || T('changes'),
+		sub: data.author ? `${data.author} · ${timeAgo(data.date)}` : '',
+		actionText: canMerge ? T('tfMerge') : T('tfClose'),
+		body: `<div class="dv-sum"><b>${esc(fmt('tfFiles', files.length))}</b><span class="dv-add">+${data.additions || 0}</span><span class="dv-del">−${data.deletions || 0}</span>${diffBar(data.additions || 0, data.deletions || 0)}
+			<span class="right flex"><button class="btn ghost sm" data-dv-all="collapse">${esc(T('tfCollapseAll'))}</button><button class="btn ghost sm" data-dv-all="expand">${esc(T('tfExpandAll'))}</button></span></div>
+			${badges}<div class="mt8">${renderDiffBody(data)}</div>`,
+		onAction: async () => { if (canMerge) { setTimeout(() => openMergeDialog(det), 30); } return false; }
+	});
+	overlay.querySelector('.modal')?.classList.add('wide');
+	overlay.querySelectorAll('[data-dv-jump]').forEach((row) => row.addEventListener('click', () => {
+		overlay.querySelectorAll('.dv-frow.active').forEach((r) => r.classList.remove('active'));
+		row.classList.add('active');
+		const target = overlay.querySelector('#dvf' + row.dataset.dvJump);
+		target?.classList.remove('collapsed');
+		target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}));
+	overlay.querySelectorAll('[data-dv-toggle]').forEach((head) => head.addEventListener('click', (e) => {
+		if (e.target.closest('[data-dv-open]')) { return; }
+		head.parentElement.classList.toggle('collapsed');
+	}));
+	overlay.querySelectorAll('[data-dv-all]').forEach((b) => b.addEventListener('click', () => {
+		overlay.querySelectorAll('.dv-file').forEach((f) => f.classList.toggle('collapsed', b.dataset.dvAll === 'collapse'));
+	}));
+	overlay.querySelectorAll('[data-dv-open]').forEach((b) => b.addEventListener('click', (e) => {
+		e.stopPropagation();
+		const file = files[Number(b.dataset.dvOpen)];
+		void svc('auraTeam.flowOpenFileDiff', [{ path: file.path, left: data.left, right: data.right }]).catch((err) => toast(err.message, 'err'));
+	}));
+	return overlay;
+}
+function demoDiff(title) {
+	return {
+		title, additions: 7, deletions: 2, left: '', files: [
+			{ path: 'src/board/kanban.ts', status: 'modified', additions: 5, deletions: 2, binary: false, truncated: false, hunks: [{ header: '@@ -10,6 +10,9 @@ export function renderBoard()', lines: [
+				{ kind: 'ctx', text: 'const columns = board.columns;', oldNo: 10, newNo: 10 },
+				{ kind: 'del', text: 'render(columns);', oldNo: 11 },
+				{ kind: 'del', text: 'bindDrag();', oldNo: 12 },
+				{ kind: 'add', text: 'for (const column of columns) {', newNo: 11 },
+				{ kind: 'add', text: '\trenderColumn(column);', newNo: 12 },
+				{ kind: 'add', text: '\tenableDrop(column);', newNo: 13 },
+				{ kind: 'add', text: '}', newNo: 14 },
+				{ kind: 'add', text: 'animateIn(columns);', newNo: 15 },
+				{ kind: 'ctx', text: 'return columns.length;', oldNo: 13, newNo: 16 }
+			] }] },
+			{ path: 'docs/workflow.md', status: 'added', additions: 2, deletions: 0, binary: false, truncated: false, hunks: [{ header: '@@ -0,0 +1,2 @@', lines: [{ kind: 'add', text: '# Командный процесс', newNo: 1 }, { kind: 'add', text: 'ветка → main → тесты → PR', newNo: 2 }] }] }
+		]
+	};
+}
+async function showDiffFrom(command, args, title) {
+	if (state.demoMode) { openDiffViewer(demoDiff(title)); return; }
+	try { openDiffViewer(await svc(command, args, 60000)); } catch (err) { toast(err.message, 'err'); }
+}
+function openMergeDialog(pr) {
+	if (!pr) { return; }
+	openModal({
+		title: fmt('tfMergeConfirm', pr.number, pr.base), sub: pr.title, actionText: T('tfMerge'),
+		body: `<div class="field"><label>${esc(T('tfMergeMethod'))}</label><select data-merge-method>
+				<option value="merge">${esc(T('tfMethodMerge'))}</option><option value="squash">${esc(T('tfMethodSquash'))}</option><option value="rebase">${esc(T('tfMethodRebase'))}</option></select></div>
+			<label class="flex" style="gap:8px;font-size:12px"><input type="checkbox" data-merge-delete checked> ${esc(T('tfDeleteBranch'))}</label>`,
+		onAction: async (overlay) => {
+			const method = overlay.querySelector('[data-merge-method]')?.value || 'merge';
+			const del = overlay.querySelector('[data-merge-delete]')?.checked === true;
+			if (state.demoMode) { toast(fmt('tfMerged', pr.base), 'ok'); return false; }
+			try {
+				await svc('auraTeam.flowMergePr', [pr.number, method, del], 120000);
+				toast(fmt('tfMerged', pr.base), 'ok');
+				await refreshAfterFlow();
+				return false;
+			} catch (err) { toast(err.message, 'err'); return true; }
+		}
+	});
+}
+async function refreshAfterFlow() {
+	await svc('auraTeam.getState').then((s) => { state = s; }).catch(() => { });
+	flow.key = '';
+	render();
+	await loadFlow(true);
 }
 function wireGit() {
+	wireTeamFlow();
+	wireHistoryActions();
 	// Экран без репозитория: клонировать проект команды / открыть папку / git init.
 	document.getElementById('btnNoRepoClone')?.addEventListener('click', async () => {
 		try { await svc('auraTeam.cloneGithubRepo', []); } catch (err) { toast(err.message, 'err'); }
@@ -3409,30 +3702,7 @@ function wireGit() {
 		} catch (err) { toast(err.message, 'err'); }
 	});
 	// Ветка из задачи: стандарт «не работаем в master» одной кнопкой.
-	document.getElementById('btnBranchFromTask')?.addEventListener('click', () => {
-		if (state.demoMode) { toast(T('demo')); return; }
-		const tasks = (state.board?.tasks ?? []).filter((t) => t.status !== 'done');
-		if (!tasks.length) { toast(T('noTasks'), 'err'); return; }
-		openModal({
-			title: T('branchFromTask'), actionText: T('create'), sub: T('branchFromTaskHint'),
-			body: `<div class="field"><label>${esc(T('branch'))}</label>` + tasks.slice(0, 30).map((t, i) => `<div class="member" style="--i:${i}">
-				<span class="chip">#${esc(t.id.slice(0, 8))}</span><span>${esc(t.title)}</span>
-				<button class="btn sm ghost right" data-branch-task="${esc(t.id)}">${esc(T('create'))}</button>
-			</div>`).join('') + '</div>',
-			onAction: async () => true
-		});
-		setTimeout(() => {
-			document.querySelectorAll('[data-branch-task]').forEach((b) => b.addEventListener('click', async () => {
-				b.disabled = true;
-				try {
-					const result = await svc('auraTeam.createBranchFromTask', [b.dataset.branchTask]);
-					document.querySelector('.overlay')?.remove();
-					toast(T('branchCreated').replace('{0}', result?.branch ?? ''), 'ok');
-					await svc('auraTeam.getState').then((s) => { state = s; render(); }).catch(() => { });
-				} catch (err) { b.disabled = false; toast(err.message, 'err'); }
-			}));
-		}, 40);
-	});
+	document.getElementById('btnBranchFromTask')?.addEventListener('click', () => openTaskBranchPicker());
 	document.getElementById('btnGitHubOut')?.addEventListener('click', () => { void svc('auraTeam.disconnectGitHub', []); });		document.getElementById('btnGhRepos')?.addEventListener('click', async (e) => {
 			ripple(e);
 			if (state.demoMode) { toast(T('demo')); return; }
@@ -3444,6 +3714,130 @@ function wireGit() {
 			toast(T('githubCreating'), '');
 			try { await svc('auraTeam.createGithubRepo', []); } catch (err) { toast(err.message, 'err'); }
 		});
+}
+function wireTeamFlow() {
+	const card = document.getElementById('teamFlow');
+	if (!card) { return; }
+	const run = async (id, job) => {
+		if (flow.busy) { return; }
+		flow.busy = id; paintFlow();
+		try { await job(); } catch (err) { toast(err.message, 'err'); }
+		flow.busy = ''; paintFlow();
+	};
+	const demoOr = (fn) => () => { if (state.demoMode) { toast(T('demo')); return; } void fn(); };
+	document.getElementById('btnFlowRefresh')?.addEventListener('click', () => { flow.data = flow.data || null; void loadFlow(true); });
+	document.getElementById('btnFlowMyBranch')?.addEventListener('click', demoOr(() => run('branch', async () => {
+		const result = await svc('auraTeam.flowStartBranch', [flow.data?.personalBranch], 60000);
+		toast(result?.created ? fmt('branchCreated', result.branch) : fmt('tfOnBranch', result?.branch ?? ''), 'ok');
+		await refreshAfterFlow();
+	})));
+	document.getElementById('btnFlowTaskBranch')?.addEventListener('click', () => openTaskBranchPicker());
+	document.getElementById('btnFlowSync')?.addEventListener('click', demoOr(() => run('sync', async () => {
+		const result = await svc('auraTeam.flowSyncMain', [], 120000);
+		toast(result?.upToDate ? T('tfAlreadySynced') : fmt('tfSynced', result?.behindBefore ?? 0, result?.base ?? ''), 'ok');
+		await refreshAfterFlow();
+	})));
+	document.getElementById('btnFlowTests')?.addEventListener('click', demoOr(() => run('tests', async () => {
+		const result = await svc('auraTeam.flowRunTests', [], 30 * 60 * 1000);
+		if (flow.data) { flow.data.lastTest = result; }
+		toast(result?.exitCode === 0 ? fmt('tfTestsPassed', timeAgo(result.at)) : fmt('tfTestsFailed', result?.exitCode ?? '?', timeAgo(result?.at)), result?.exitCode === 0 ? 'ok' : 'err');
+	})));
+	document.getElementById('btnFlowTestSettings')?.addEventListener('click', () => { void svc('auraTeam.flowOpenSettings', []).catch((err) => toast(err.message, 'err')); });
+	document.getElementById('btnFlowCompare')?.addEventListener('click', () => run('compare', () => showDiffFrom('auraTeam.flowCompare', ['branch'], fmt('tfCompare', flow.data?.base || 'main'))));
+	document.getElementById('btnFlowWorking')?.addEventListener('click', () => run('working', () => showDiffFrom('auraTeam.flowCompare', ['working'], T('tfWorking'))));
+	document.getElementById('btnFlowPr')?.addEventListener('click', () => {
+		const d = flow.data;
+		if (!d) { return; }
+		const task = (state.board?.tasks ?? []).find((t) => String(d.branch).startsWith('task/' + String(t.id).slice(0, 8)));
+		openModal({
+			title: T('tfPrCreate'), sub: `${d.branch} → ${d.base}`, actionText: T('tfPrCreate'),
+			body: `<div class="field"><label>${esc(T('tfPrTitle'))}</label><input data-pr-title maxlength="200" value="${esc(task?.title || '')}" placeholder="${esc(d.branch)}"></div>
+				<div class="field"><label>${esc(T('tfPrBody'))}</label><textarea data-pr-body rows="4">${esc(task ? `Задача #${String(task.id).slice(0, 8)}: ${task.title}` : '')}</textarea></div>
+				<label class="flex" style="gap:8px;font-size:12px"><input type="checkbox" data-pr-draft> ${esc(T('tfPrDraft'))}</label>`,
+			onAction: async (overlay) => {
+				if (state.demoMode) { toast(fmt('tfPrCreated', 13), 'ok'); return false; }
+				const input = { title: overlay.querySelector('[data-pr-title]')?.value.trim(), body: overlay.querySelector('[data-pr-body]')?.value, draft: overlay.querySelector('[data-pr-draft]')?.checked === true };
+				try {
+					const pr = await svc('auraTeam.flowCreatePr', [input], 120000);
+					toast(pr?.opened === 'browser' ? T('tfPrBrowser') : pr?.existing ? fmt('tfPrExists', pr.number) : fmt('tfPrCreated', pr?.number ?? ''), 'ok');
+					await refreshAfterFlow();
+					return false;
+				} catch (err) { toast(err.message, 'err'); return true; }
+			}
+		});
+	});
+	document.getElementById('btnFlowMergeLocal')?.addEventListener('click', demoOr(() => confirmAction(fmt('tfMergeLocal', flow.data?.base || 'main'), async () => {
+		await run('mergeLocal', async () => {
+			const result = await svc('auraTeam.flowMergeLocal', [], 120000);
+			toast(fmt('tfMerged', result?.base ?? ''), 'ok');
+			await refreshAfterFlow();
+		});
+	})));
+	card.querySelectorAll('[data-pr-open]').forEach((b) => b.addEventListener('click', () => {
+		if (state.demoMode) { toast(T('demo')); return; }
+		void svc('auraTeam.openExternal', [b.dataset.prOpen]);
+	}));
+	card.querySelectorAll('[data-pr-diff]').forEach((b) => b.addEventListener('click', () => {
+		const number = Number(b.dataset.prDiff);
+		void showDiffFrom('auraTeam.flowPrDiff', [number], `#${number}`);
+	}));
+	card.querySelectorAll('[data-pr-merge]').forEach((b) => b.addEventListener('click', () => {
+		const number = Number(b.dataset.prMerge);
+		const pr = [...(flow.data?.prs || []), flow.data?.pr].find((p) => p && p.number === number);
+		openMergeDialog(pr);
+	}));
+	card.querySelectorAll('[data-pr-revert]').forEach((b) => b.addEventListener('click', () => {
+		const number = Number(b.dataset.prRevert);
+		if (state.demoMode) { toast(T('demo')); return; }
+		confirmAction(fmt('tfRevertPrConfirm', number), async () => {
+			try {
+				const pr = await svc('auraTeam.flowRevertPr', [number], 120000);
+				toast(fmt('tfRevertPrDone', pr?.number ?? ''), 'ok');
+				await refreshAfterFlow();
+			} catch (err) { toast(err.message, 'err'); }
+		});
+	}));
+}
+function wireHistoryActions() {
+	document.querySelectorAll('[data-commit-diff]').forEach((b) => b.addEventListener('click', () => {
+		const hash = b.dataset.commitDiff;
+		void showDiffFrom('auraTeam.flowCommitDiff', [hash], hash.slice(0, 8));
+	}));
+	document.querySelectorAll('[data-commit-revert]').forEach((b) => b.addEventListener('click', () => {
+		const hash = b.dataset.commitRevert;
+		if (state.demoMode) { toast(T('demo')); return; }
+		confirmAction(fmt('tfRevertCommitConfirm', hash.slice(0, 8)), async () => {
+			try {
+				const result = await svc('auraTeam.flowRevertCommit', [hash], 120000);
+				toast(result?.pushed ? fmt('tfRevertDone', hash.slice(0, 8)) : T('tfRevertLocal'), result?.pushError ? 'err' : 'ok');
+				await refreshAfterFlow();
+			} catch (err) { toast(err.message, 'err'); }
+		});
+	}));
+}
+function openTaskBranchPicker() {
+	if (state.demoMode) { toast(T('demo')); return; }
+	const tasks = (state.board?.tasks ?? []).filter((t) => t.status !== 'done');
+	if (!tasks.length) { toast(T('noTasks'), 'err'); return; }
+	openModal({
+		title: T('branchFromTask'), actionText: T('create'), sub: T('branchFromTaskHint'),
+		body: `<div class="field"><label>${esc(T('branch'))}</label>` + tasks.slice(0, 30).map((t, i) => `<div class="member" style="--i:${i}">
+			<span class="chip">#${esc(t.id.slice(0, 8))}</span><span>${esc(t.title)}</span>
+			<button class="btn sm ghost right" data-branch-task="${esc(t.id)}">${esc(T('create'))}</button>
+		</div>`).join('') + '</div>',
+		onAction: async () => true
+	});
+	setTimeout(() => {
+		document.querySelectorAll('[data-branch-task]').forEach((b) => b.addEventListener('click', async () => {
+			b.disabled = true;
+			try {
+				const result = await svc('auraTeam.createBranchFromTask', [b.dataset.branchTask]);
+				document.querySelector('.overlay')?.remove();
+				toast(T('branchCreated').replace('{0}', result?.branch ?? ''), 'ok');
+				await svc('auraTeam.getState').then((s) => { state = s; render(); }).catch(() => { });
+			} catch (err) { b.disabled = false; toast(err.message, 'err'); }
+		}));
+	}, 40);
 }
 function confirmAction(label, job) {
 	openModal({

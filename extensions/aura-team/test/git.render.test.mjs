@@ -19,12 +19,13 @@ const html = raw
 	.split('__INITIAL_FILTER__').join('null');
 
 let posted = [];
+const allPosted = [];
 const dom = new JSDOM(html, {
 	runScripts: 'outside-only',
 	url: 'https://localhost/',
 	pretendToBeVisual: true,
 	beforeParse(window) {
-		window.acquireVsCodeApi = () => ({ postMessage: (m) => posted.push(m), getState: () => ({}), setState: () => { } });
+		window.acquireVsCodeApi = () => ({ postMessage: (m) => { posted.push(m); allPosted.push(m); }, getState: () => ({}), setState: () => { } });
 		window.requestAnimationFrame ??= (cb) => setTimeout(cb, 0);
 		window.matchMedia ??= () => ({ matches: false, addEventListener() { }, removeEventListener() { }, addListener() { }, removeListener() { } });
 		window.Element.prototype.animate = function () { return { finished: Promise.resolve(), onfinish: null, cancel() { } }; };
@@ -165,5 +166,56 @@ await tick(30);
 check('после создания ветки окно закрыто', !document.querySelector('.overlay'));
 check('имя новой ветки показано в тосте', [...document.querySelectorAll('.toast')].some((t) => /task\/29d49eaf/.test(t.textContent)));
 
+/* ---------- 9. Командный процесс: шаги, PR, графический дифф ---------- */
+document.querySelector('.overlay')?.remove();
+const flowData = {
+	branch: 'dev/wiks', base: 'main', ahead: 2, behind: 3, onBase: false, dirty: true, personalBranch: 'dev/wiks',
+	github: { owner: 'o', repo: 'r' }, githubReady: true, hasOrigin: true, canMerge: true, testCommand: 'npm test',
+	pr: { number: 7, title: 'Мой PR', url: 'https://github.com/o/r/pull/7', head: 'dev/wiks', base: 'main', author: 'wiks', state: 'open' },
+	prs: [{ number: 7, title: 'Мой PR', url: 'https://github.com/o/r/pull/7', head: 'dev/wiks', base: 'main', author: 'wiks', state: 'open' }],
+	merged: [{ number: 3, title: 'Старое', url: 'https://github.com/o/r/pull/3', head: 'x', base: 'main', author: 'a', state: 'merged', mergeCommitSha: 'abc' }]
+};
+await setState((s) => { s.git = gitSnapshot({ branch: 'dev/wiks', commits: [{ hash: 'a1b2c3d4e5', message: 'm', author: 'W', date: new Date().toISOString() }] }); });
+await tick(20);
+check('карточка процесса запрашивает состояние', allPosted.some((m) => m.type === 'invoke' && m.command === 'auraTeam.flowState'));
+for (const request of allPosted.filter((m) => m.type === 'invoke' && m.command === 'auraTeam.flowState')) {
+	window.dispatchEvent(new window.MessageEvent('message', { data: { type: 'response', id: request.id, ok: true, result: flowData } }));
+}
+await tick(30);
+document.getElementById('btnFlowRefresh')?.click();
+await tick(10);
+answer('auraTeam.flowState', flowData);
+await tick(30);
+const tfSteps = [...document.querySelectorAll('#teamFlow .tf-step')];
+check('процесс показывает 6 шагов', tfSteps.length === 6);
+check('отставание от main — предупреждение и кнопка «Подтянуть main»', tfSteps[1]?.classList.contains('warn') && /Подтянуть main/.test(document.getElementById('btnFlowSync')?.textContent ?? ''));
+check('открытый PR показан в шаге PR', /PR #7/.test(tfSteps[4]?.textContent ?? ''));
+check('список PR и откат слитых', document.querySelectorAll('#teamFlow .tf-pr').length === 2 && Boolean(document.querySelector('[data-pr-revert="3"]')));
+check('у коммитов истории есть «Дифф» и «Откатить»', Boolean(document.querySelector('[data-commit-diff="a1b2c3d4e5"]')) && Boolean(document.querySelector('[data-commit-revert="a1b2c3d4e5"]')));
+posted = [];
+document.getElementById('btnFlowCompare').click();
+await tick(10);
+check('сравнение с main уходит в расширение', posted.some((m) => m.type === 'invoke' && m.command === 'auraTeam.flowCompare' && m.args?.[0] === 'branch'));
+answer('auraTeam.flowCompare', { title: 'main ← dev/wiks', additions: 2, deletions: 1, left: 'origin/main', right: 'HEAD', files: [{ path: 'src/a.ts', status: 'modified', additions: 2, deletions: 1, binary: false, truncated: false, hunks: [{ header: '@@ -1,2 +1,3 @@', lines: [{ kind: 'ctx', text: 'a', oldNo: 1, newNo: 1 }, { kind: 'del', text: 'b', oldNo: 2 }, { kind: 'add', text: 'c', newNo: 2 }, { kind: 'add', text: '<script>', newNo: 3 }] }] }] });
+await tick(30);
+check('графический дифф открыт в широком окне', Boolean(document.querySelector('.modal.wide .dv-body')));
+check('строки диффа раскрашены по типу', document.querySelectorAll('.dl.add').length === 2 && document.querySelectorAll('.dl.del').length === 1);
+check('текст диффа экранирован', !document.querySelector('.dv-main script') && /<script>/.test(document.querySelector('.dv-main')?.textContent ?? ''));
+posted = [];
+document.querySelector('[data-dv-open="0"]').click();
+await tick(10);
+const openCall = posted.find((m) => m.type === 'invoke' && m.command === 'auraTeam.flowOpenFileDiff');
+check('«Открыть в редакторе» передаёт путь и refs', openCall?.args?.[0]?.path === 'src/a.ts' && openCall?.args?.[0]?.left === 'origin/main');
+document.querySelector('.overlay')?.remove();
+document.querySelector('[data-pr-merge="7"]').click();
+await tick(20);
+check('слияние PR спрашивает способ', Boolean(document.querySelector('[data-merge-method]')));
+posted = [];
+document.querySelector('.overlay [data-ok]').click();
+await tick(10);
+const mergeCall = posted.find((m) => m.type === 'invoke' && m.command === 'auraTeam.flowMergePr');
+check('слияние уходит с номером, способом и удалением ветки', mergeCall?.args?.[0] === 7 && mergeCall?.args?.[1] === 'merge' && mergeCall?.args?.[2] === true);
+
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
 if (failures) { process.exit(1); }
+process.exit(0);
