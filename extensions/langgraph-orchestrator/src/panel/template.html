@@ -88,6 +88,13 @@ h1 { font-size: 14px; margin: 0; font-weight: 600; white-space: nowrap; }
 .icon-btn:hover:not(:disabled) { background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, .15)); }
 .icon-btn:disabled { opacity: .35; cursor: default; }
 .icon-btn svg { width: 14px; height: 14px; fill: currentColor; }
+.controls .icon-btn { width: auto; padding: 0 10px; gap: 6px; font-size: 12px; }
+.controls .ctl-label { line-height: 1; }
+@media (max-width: 560px) { .controls .ctl-label { display: none; } .controls .icon-btn { padding: 0 8px; } }
+/* Счётчики на вкладках: сколько ждёт решения, сколько ошибок в журнале. */
+nav button .tab-badge { display: inline-block; min-width: 16px; margin-left: 6px; padding: 0 5px; border-radius: 8px; font-size: 10.5px; line-height: 16px; text-align: center; background: color-mix(in srgb, var(--vscode-foreground) 12%, transparent); color: var(--vscode-foreground); }
+nav button .tab-badge.warn { background: color-mix(in srgb, var(--c-warn) 30%, transparent); }
+nav button .tab-badge.err { background: color-mix(in srgb, var(--c-err) 30%, transparent); }
 #btnStop:not(:disabled) { color: var(--c-err); }
 /* Баннер о сайдкаре: причина ошибки видна сразу, а не только в подсказке бейджа. */
 .banner {
@@ -136,7 +143,7 @@ textarea {
 	font-size: inherit;
 	resize: vertical;
 }
-input[type="text"], input[type="number"], select {
+input[type="text"], input[type="number"], input[type="search"], select {
 	background: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
 	border: 1px solid var(--vscode-input-border, var(--border));
@@ -155,6 +162,11 @@ button.ghost { background: var(--vscode-button-secondaryBackground); color: var(
 button.ghost:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-secondaryBackground)); }
 button.tiny { background: transparent; color: var(--vscode-textLink-foreground); border: none; padding: 2px 4px; font-size: 11px; }
 button.tiny:hover:not(:disabled) { text-decoration: underline; }
+button.tiny { display: inline-flex; align-items: center; gap: 4px; }
+button.tiny svg { width: 10px; height: 10px; fill: currentColor; flex: none; }
+button.tiny.primary { background: color-mix(in srgb, var(--vscode-button-background) 18%, transparent); color: var(--vscode-foreground); border-radius: 4px; padding: 3px 8px; }
+button.tiny.primary:hover:not(:disabled) { background: var(--vscode-button-background); color: var(--vscode-button-foreground); text-decoration: none; }
+button.tiny:disabled { opacity: .45; cursor: default; }
 button:disabled { opacity: .5; cursor: default; }
 .kbd { font-family: var(--mono); font-size: 10px; padding: 1px 5px; border-radius: 3px; border: 1px solid var(--border); color: var(--muted); }
 /* Композер задачи: поле и панель действий в одной рамке. */
@@ -340,17 +352,61 @@ pre {
 .example::before { content: '↗'; color: var(--vscode-textLink-foreground); }
 .example:hover { background: var(--vscode-list-hoverBackground, var(--surface)); border-color: var(--vscode-focusBorder); }
 /* Канбан доски. */
-.board { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--gap-lg); align-items: start; margin-top: var(--gap-lg); }
-.column { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; background: var(--surface); }
-.col-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; margin-bottom: var(--gap); }
-.col-head span + span { font-size: 11px; font-weight: 500; color: var(--muted); padding: 0 6px; border-radius: 8px; background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent); }
-.col-body { display: flex; flex-direction: column; gap: var(--gap); }
-.card { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; background: var(--vscode-editor-background); }
-.card .card-title { font-weight: 600; font-size: 12px; word-break: break-word; }
-.card .card-meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+/* Канбан в стиле Aura Team: колонки с точкой статуса и счётчиком, карточки с мета-строкой. */
+.kb-toolbar { display: flex; align-items: center; gap: var(--gap); flex-wrap: wrap; margin-bottom: var(--gap); }
+.kb-toolbar .spacer { flex: 1 1 auto; }
+.kb-search { width: 220px; max-width: 100%; height: 26px; }
+.kb-hint { font-size: 11px; max-width: 360px; }
+.board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(210px, 1fr); gap: var(--gap); overflow-x: auto; align-items: start; margin-top: var(--gap); padding-bottom: 4px; }
+.column { display: flex; flex-direction: column; min-width: 0; border-radius: 8px; background: color-mix(in srgb, var(--vscode-foreground) 4%, transparent); transition: background .12s ease; }
+.column.drag-over { background: color-mix(in srgb, var(--vscode-focusBorder) 14%, transparent); }
+.column.collapsed .col-body { display: none; }
+.col-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 11px; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; }
+.col-head .col-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--muted); }
+.col-dot.cd-doing, .col-dot.cd-running { background: var(--c-run); }
+.col-dot.cd-review { background: var(--c-llm); }
+.col-dot.cd-waiting { background: var(--c-warn); }
+.col-dot.cd-done { background: var(--c-ok); }
+.col-dot.cd-failed { background: var(--c-err); }
+.col-count { min-width: 18px; height: 18px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 9px; font-size: 11px; text-transform: none; letter-spacing: 0; background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent); font-variant-numeric: tabular-nums; }
+.col-head .col-toggle { margin-left: auto; width: 22px; height: 22px; padding: 0; display: grid; place-items: center; background: transparent; border: none; color: var(--muted); border-radius: 4px; cursor: pointer; opacity: .6; }
+.col-head .col-toggle:hover { opacity: 1; background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent); }
+.col-head .col-toggle svg { width: 12px; height: 12px; fill: currentColor; transition: transform .15s ease; }
+.column.collapsed .col-toggle svg { transform: rotate(-90deg); }
+.col-body { display: flex; flex-direction: column; gap: 8px; padding: 0 8px 8px; min-height: 40px; }
+.card { position: relative; border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--vscode-editor-background); transition: border-color .12s ease, opacity .15s ease, transform .15s ease; }
+.card:hover { border-color: var(--vscode-focusBorder); }
+.card[draggable="true"] { cursor: grab; }
+.card.dragging { opacity: .4; }
+.card.selected { border-color: var(--vscode-focusBorder); }
+.card.st-error { border-left: 3px solid var(--c-err); }
+.card.st-waiting { border-left: 3px solid var(--c-warn); }
+.card.st-running { border-left: 3px solid var(--c-run); }
+.card .card-top { display: flex; align-items: flex-start; gap: 8px; }
+.card .card-title { flex: 1 1 auto; min-width: 0; font-size: 12.5px; line-height: 1.35; word-break: break-word; }
+.card .card-title mark { background: color-mix(in srgb, var(--vscode-editor-findMatchHighlightBackground, var(--c-warn)) 70%, transparent); color: inherit; border-radius: 2px; }
+.card .card-desc { margin-top: 4px; font-size: 11px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card .card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 11px; color: var(--muted); margin-top: 6px; }
 .card .card-meta:empty { display: none; }
-.card .card-acts { margin-top: 6px; display: flex; gap: 6px; }
-/* Своя задача на доске: поле тянется, колонка и кнопка — по содержимому. */
+.card .card-acts { margin-top: 8px; display: flex; align-items: center; gap: 4px; }
+.card .card-acts .grow { flex: 1 1 auto; }
+.card .mini { width: 22px; height: 22px; padding: 0; display: grid; place-items: center; border: none; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; opacity: 0; transition: opacity .12s ease; }
+.card:hover .mini, .card:focus-within .mini { opacity: 1; }
+.card .mini:hover:not(:disabled) { background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent); color: var(--vscode-foreground); }
+.card .mini:disabled { opacity: 0 !important; cursor: default; }
+.card .mini svg { width: 12px; height: 12px; fill: currentColor; }
+.who { display: inline-flex; align-items: center; gap: 5px; }
+.who .ava { width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; font-size: 8.5px; font-weight: 600; color: #fff; flex: none; }
+.chip.due { font-size: 10.5px; padding: 1px 7px; border-radius: 8px; background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent); }
+.chip.due.overdue { color: var(--c-err); background: color-mix(in srgb, var(--c-err) 15%, transparent); }
+.col-add { display: flex; align-items: center; gap: 6px; width: 100%; padding: 6px 8px; border: none; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; text-align: left; cursor: pointer; }
+.col-add:hover { background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent); color: var(--vscode-foreground); }
+.col-add svg { width: 12px; height: 12px; fill: currentColor; }
+.kb-empty { padding: 28px 12px; text-align: center; color: var(--muted); border: 1px dashed var(--border); border-radius: 8px; margin-top: var(--gap); }
+.kb-empty button { margin-top: 10px; }
+.runbar .run-acts { display: flex; gap: 6px; margin-left: auto; }
+.runbar .run-acts button { font-size: 11.5px; padding: 2px 8px; }
 .add-task { display: flex; gap: var(--gap); align-items: center; flex-wrap: wrap; margin: var(--gap) 0; }
 .add-task input { flex: 1 1 160px; min-width: 120px; }
 .add-task select { flex: 0 0 auto; }
@@ -460,7 +516,7 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 		<span class="btext" id="budgetText"></span>
 		<div class="bbar"><span id="budgetBar"></span></div>
 	</div>
-	<div class="controls">
+	<div class="controls" id="runControls">
 		<button class="icon-btn" id="btnPause" hidden></button>
 		<button class="icon-btn" id="btnResume" hidden></button>
 		<button class="icon-btn" id="btnStop" hidden></button>
@@ -507,9 +563,12 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 </section>
 
 <section id="tab-board">
-	<div class="row">
+	<div class="kb-toolbar">
+		<div class="seg" id="boardViewSeg"></div>
+		<input type="search" id="boardSearch" class="kb-search">
+		<span class="spacer"></span>
+		<span class="muted kb-hint" id="teamHint"></span>
 		<button class="ghost" id="btnTeamRefresh"></button>
-		<span class="muted" id="teamHint"></span>
 	</div>
 	<div class="add-task" id="addTaskRow" hidden>
 		<input type="text" id="newTaskTitle" maxlength="140">
@@ -566,13 +625,13 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 			taskPlaceholder: 'Опишите задачу для оркестра. Например: добавь страницу настроек, покрой тестами и проверь на уязвимости',
 			srcOwn: 'Своя задача', srcBoard: 'С доски', boardPlaceholder: 'Задача с доски',
 			start: 'Запустить', pause: 'Пауза', resume: 'Продолжить', cancel: 'Остановить',
-			plannerLabel: 'Планнер', parallelLabel: 'Макс. параллель', plannerAuto: 'auto',
+			plannerLabel: 'Планировщик', parallelLabel: 'Параллельно', plannerAuto: 'авто',
 			waitingTitle: 'Ждёт тебя', approve: 'Принять', reject: 'Отклонить', reply: 'Ответить',
 			notePlaceholder: 'Заметка (необязательно)', noApprovals: 'Нет ожидающих подтверждений',
 			planTitle: 'План', planEmpty: 'План появится после старта — супервизор разложит задачу на подзадачи.',
-			selectNodeHint: 'Выбери ноду слева, чтобы увидеть цель, итог и diff.',
-			nodeGoal: 'Цель', nodeSummary: 'Итог', nodeDiff: 'diff --stat',
-			nodeOpenDiff: 'Открыть diff', nodeRestart: 'Перезапустить', nodeNoDiff: 'Правок нет.',
+			selectNodeHint: 'Выберите узел слева, чтобы увидеть цель, итог и правки.',
+			nodeGoal: 'Цель', nodeSummary: 'Итог', nodeDiff: 'Изменённые файлы',
+			nodeOpenDiff: 'Показать правки', nodeRestart: 'Перезапустить', nodeNoDiff: 'Правок нет.',
 			restartSent: 'перезапуск отправлен', restartFailed: 'перезапуск не удался',
 			runExamples: 'Попробуйте пример:',
 			examples: [
@@ -582,22 +641,22 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 			],
 			lastTask: 'Последняя задача: ',
 			runSummary: 'Итог запуска',
-			timeline: 'Чекпоинты', timelineHint: 'Точка — шаг запуска. Клик — откат к нему или ручная правка состояния.',
+			timeline: 'Контрольные точки', timelineHint: 'Точка — шаг запуска. Клик — откат к нему или ручная правка состояния.',
 			timelineEmpty: 'История появится после первого запуска.',
-			rewind: 'Откатиться сюда', patch: 'Править state…',
+			rewind: 'Откатиться сюда', patch: 'Править состояние…',
 			patchPrompt: 'JSON-патч состояния, например: {"summary": "правка руками"}', patchInvalid: 'Не JSON. Попробуйте ещё раз.',
-			patchReady: 'Финальный патч', patchApply: 'Применить', patchReject: 'Отклонить', patchOpen: 'Открыть diff',
+			patchReady: 'Финальный патч', patchApply: 'Применить', patchReject: 'Отклонить', patchOpen: 'Показать правки',
 			fileForms: ['файл', 'файла', 'файлов'], patchEmpty: 'Патч пуст — правок нет.',
 			patchConflict: 'Конфликт при применении — файлы:', patchApplied: 'Патч применён', patchRejected: 'Патч отклонён',
-			round: 'раунд', retry: 'ретрай', tier: 'Тир', model: 'Модель',
+			round: 'раунд', retry: 'повтор', tier: 'Уровень', model: 'Модель',
 			// Формы для склонения после числа: 1 токен, 2 токена, 5 токенов.
 			tokenForms: ['токен', 'токена', 'токенов'], time: 'время',
 			status: 'Статус', name: 'Название', source: 'Источник', ping: 'Пинг', usedToday: 'За запуск', actions: 'Действия',
 			srcPersonal: 'личный', srcTeam: 'командный', srcAll: 'Все источники',
-			modelsSummary: 'Модели по тирам', liveForms: ['живой', 'живых', 'живых'], modelsEmptyTier: 'пусто — запуск упадёт в этот тир',
+			modelsSummary: 'Модели по уровням', liveForms: ['живой', 'живых', 'живых'], modelsEmptyTier: 'пусто — задачи этого уровня некому выполнить',
 			check: 'Проверить', checkAll: 'Проверить все', refresh: 'Обновить', exclude: 'Вывести', include: 'Вернуть',
 			noKeys: 'Ключи не найдены. Добавьте ключи в панели API Keys или подключите командные.',
-			keysHint: 'Тир правится прямо в таблице; пинг и статус приходят из ядра API Keys и командного банка.',
+			keysHint: 'Уровень меняется прямо в таблице; пинг и статус приходят из плагина API-ключей и командного банка.',
 			boardEmpty: 'На доске команды нет задач. Добавьте свою — она встанет в выбранную колонку.', teamUnavailable: 'Плагин Aura Team не установлен — доска недоступна.',
 			teamRefresh: 'Обновить доску', sendToAgents: 'Отдать агентам',
 			newTaskPh: 'Своя задача для доски', addTask: 'Добавить задачу', taskColumn: 'Колонка',
@@ -606,18 +665,18 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 			teamHint: 'Задача идёт отдельным потоком: повторный запуск продолжает уже начатый.',
 			teamRow: 'командный банк',
 			colTodo: 'В очереди', colDoing: 'В работе', colReview: 'На ревью', colDone: 'Готово',
-			traceWaterfall: 'Водопад спанов', traceEmpty: 'Спаны появятся после запуска.',
-			traceByTime: 'Топ нод по времени', traceByCost: 'Топ нод по деньгам',
-			spanForms: ['спан', 'спана', 'спанов'], retryForms: ['ретрай', 'ретрая', 'ретраев'],
-			logLevelLabel: 'Уровень', logNodeLabel: 'Нода', logAll: 'Все', logPin: 'Закрепить', logUnpin: 'Открепить',
+			traceWaterfall: 'Шаги запуска по времени', traceEmpty: 'Шаги появятся после запуска.',
+			traceByTime: 'Самые долгие узлы', traceByCost: 'Самые дорогие узлы',
+			spanForms: ['шаг', 'шага', 'шагов'], retryForms: ['повтор', 'повтора', 'повторов'],
+			logLevelLabel: 'Уровень', logNodeLabel: 'Узел', logAll: 'Все', logPin: 'Закрепить', logUnpin: 'Открепить',
 			logEmpty: 'Журнал пуст.', levels: { info: 'инфо', warn: 'предупр.', error: 'ошибка' },
 			budgetRunTokens: 'Токены запуска', budgetRunCost: 'Стоимость запуска',
-			budgetNodeTokens: 'Токены ноды', budgetNodeCost: 'Стоимость ноды', budgetNoLimit: 'без лимита',
+			budgetNodeTokens: 'Токены узла', budgetNodeCost: 'Стоимость узла', budgetNoLimit: 'без лимита',
 			budgetByModel: 'Расход по моделям', budgetNoSpend: 'Пока нет расхода.',
 			budgetTeamTitle: 'Команда', budgetTeamUnavailable: 'Aura Team не отдаёт траты по людям.',
 			budgetTeamTotal: 'всего', budgetRequestsShort: 'запр.',
 			budgetCacheTitle: 'Кэш инструментов', budgetCacheClear: 'Очистить кэш', entryForms: ['запись', 'записи', 'записей'], budgetCacheCleared: 'кэш очищен',
-			budgetEditTitle: 'Лимиты и цены', budgetLimits: 'Лимиты запуска и ноды',
+			budgetEditTitle: 'Лимиты и цены', budgetLimits: 'Лимиты запуска и узла',
 			budgetPrices: 'Цены за 1M токенов', budgetModelRules: 'Переопределения по моделям',
 			budgetAddModel: 'Добавить модель', budgetSave: 'Сохранить', budgetSaved: 'сохранено',
 			budgetSaveError: 'не сохранилось', budgetNextRun: 'применится к следующему запуску',
@@ -628,8 +687,8 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 			budgetDetails: 'Бюджет: лимиты, цены, профили, кэш',
 			profiles: { economy: 'Экономный', normal: 'Обычный', max: 'Максимум' },
 			colCalls: 'вызовов',
-			sidecarOff: 'сайдкар: не запущен', sidecarStarting: 'сайдкар: запускается', sidecarReady: 'сайдкар: готов', sidecarError: 'сайдкар: ошибка',
-			sidecarStart: 'Запустить сайдкар',
+			sidecarOff: 'движок: не запущен', sidecarStarting: 'движок: запускается', sidecarReady: 'движок: готов', sidecarError: 'движок: ошибка',
+			sidecarStart: 'Запустить движок',
 			statuses: {
 				idle: 'в очереди', running: 'работает', 'waiting-approval': 'ждёт подтверждения', done: 'готово',
 				error: 'ошибка', skipped: 'пропущено', needs_human: 'нужен человек', cancelled: 'отменён',
@@ -643,18 +702,38 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 				notSelectable: 'только сведения командного банка — напрямую ключ не используется',
 			},
 			roles: { supervisor: 'Супервизор', coder: 'Кодер', tester: 'Тестировщик', 'security-auditor': 'Аудит безопасности', reviewer: 'Ревьюер' },
-			tiers: { high: 'HIGH', mid: 'MID', low: 'LOW' },
+			tiers: { high: 'ВЫС', mid: 'СРЕД', low: 'НИЗ' },
 			tierNames: { low: 'низкий', mid: 'средний', high: 'высокий' },
 			units: { ms: 'мс', sec: 'с', min: 'мин' },
 			agentsTitle: 'Агенты', startHint: 'запустить', runOf: 'из', runDone: 'готово',
 			subtaskForms: ['подзадача', 'подзадачи', 'подзадач'], dependsOn: 'после', approvalFrom: 'просит',
-			sidecarErrorTitle: 'Сайдкар не запустился', sidecarOffTitle: 'Сайдкар ещё не запущен',
+			sidecarErrorTitle: 'Движок графа не запустился', sidecarOffTitle: 'Движок графа ещё не запущен',
 			sidecarOffHint: 'Он поднимется сам при первом запуске задачи — или запустите его сейчас.',
-			sidecarErrorHint: 'Без сайдкара граф не выполняется. Подробности — в панели «Вывод», канал «LangGraph Orchestrator».',
+			sidecarErrorHint: 'Без движка граф не выполняется. Подробности — в панели «Вывод», канал «LangGraph Orchestrator».',
 			sidecarRetry: 'Запустить заново',
-			traceLegendNode: 'нода графа', traceLegendLlm: 'вызов модели', traceLegendErr: 'с ошибкой',
+			traceLegendNode: 'узел графа', traceLegendLlm: 'вызов модели', traceLegendErr: 'с ошибкой',
+			tokShort: 'ток.', kilo: ' тыс.', mega: ' млн',
+			boardAgents: 'Агенты запуска', boardTeam: 'Доска команды', boardSearch: 'Поиск по карточкам…',
+			kbQueue: 'Очередь', kbRunning: 'В работе', kbWaiting: 'Ждут вас', kbDone: 'Готово', kbFailed: 'Ошибки',
+			kbAgentsEmpty: 'Агентов пока нет — запустите задачу, и супервизор разложит её по колонкам.', kbToRun: 'К запуску',
+			kbDetails: 'Подробнее', kbMoveLeft: 'В предыдущую колонку', kbMoveRight: 'В следующую колонку',
+			kbCollapse: 'Свернуть колонку', kbExpand: 'Развернуть колонку', kbAddHere: 'Задача',
+			kbDropHint: 'Перетащите карточку в другую колонку, чтобы сменить статус.', kbMoved: 'статус обновлён', kbMoveFailed: 'не удалось сменить статус',
+			kbNothingFound: 'Ничего не найдено', kbOverdue: 'просрочено', kbDue: 'срок', kbUnassigned: 'без исполнителя', kbBusy: 'агенты уже заняты',
+			ctlPause: 'Пауза', ctlResume: 'Дальше', ctlStop: 'Стоп', ctlHotkeys: 'F6 — пауза, F7 — продолжить, F8 — стоп, Alt+1…5 — вкладки',
+			runOpenLog: 'Журнал', runOpenBoard: 'Канбан', runClear: 'Сбросить запуск', runClearConfirm: 'Ещё раз — сбросить',
 		},
 		en: {
+			tokShort: 'tok', kilo: 'k', mega: 'M',
+			boardAgents: 'Run agents', boardTeam: 'Team board', boardSearch: 'Search cards…',
+			kbQueue: 'Queue', kbRunning: 'Running', kbWaiting: 'Needs you', kbDone: 'Done', kbFailed: 'Failed',
+			kbAgentsEmpty: 'No agents yet — start a task and the supervisor will lay it out on the columns.', kbToRun: 'Go to Run',
+			kbDetails: 'Details', kbMoveLeft: 'Move to previous column', kbMoveRight: 'Move to next column',
+			kbCollapse: 'Collapse column', kbExpand: 'Expand column', kbAddHere: 'Task',
+			kbDropHint: 'Drag a card to another column to change its status.', kbMoved: 'status updated', kbMoveFailed: 'could not change status',
+			kbNothingFound: 'Nothing found', kbOverdue: 'overdue', kbDue: 'due', kbUnassigned: 'unassigned', kbBusy: 'agents are busy',
+			ctlPause: 'Pause', ctlResume: 'Resume', ctlStop: 'Stop', ctlHotkeys: 'F6 — pause, F7 — resume, F8 — stop, Alt+1…5 — tabs',
+			runOpenLog: 'Log', runOpenBoard: 'Kanban', runClear: 'Reset run', runClearConfirm: 'Click again to reset',
 			tabRun: 'Run', tabBoard: 'Board', tabModels: 'Models', tabTrace: 'Trace', tabLog: 'Log',
 			title: 'LangGraph Orchestrator',
 			taskPlaceholder: 'Describe the task for the orchestra. E.g.: add a settings page, cover it with tests and audit for vulnerabilities',
@@ -785,6 +864,9 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 		logLevel: 'all',
 		logNode: 'all',
 		logPinned: true,
+		boardView: '',
+		boardQuery: '',
+		collapsedCols: {},
 	};
 	let ui = loadUi();
 
@@ -814,6 +896,12 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 				return { ...current, logNode: action.payload };
 			case 'togglePin':
 				return { ...current, logPinned: !current.logPinned };
+			case 'boardView':
+				return { ...current, boardView: action.payload };
+			case 'boardQuery':
+				return { ...current, boardQuery: action.payload };
+			case 'toggleCol':
+				return { ...current, collapsedCols: { ...(current.collapsedCols || {}), [action.payload]: !(current.collapsedCols || {})[action.payload] } };
 			default:
 				return current;
 		}
@@ -890,6 +978,7 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 				else if (key === 'html') { node.innerHTML = value; }
 				else if (key === 'dataset') { Object.assign(node.dataset, value); }
 				else if (key.startsWith('on') && typeof value === 'function') { node.addEventListener(key.slice(2), value); }
+				else if (key.startsWith('aria-')) { node.setAttribute(key, String(value)); }
 				else { node[key] = value; }
 			}
 		}
@@ -925,8 +1014,8 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 	}
 	function fmtTok(value) {
 		const n = Number(value) || 0;
-		if (n >= 1000000) { return (n / 1000000).toFixed(1) + 'M'; }
-		if (n >= 1000) { return (n / 1000).toFixed(1) + 'k'; }
+		if (n >= 1000000) { return (n / 1000000).toFixed(1) + T().mega; }
+		if (n >= 1000) { return (n / 1000).toFixed(1) + T().kilo; }
 		return String(Math.round(n));
 	}
 	function fmtMs(ms) {
@@ -977,7 +1066,7 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 		const cost = Number(budget.cost) || 0;
 		chip.hidden = !s.budget;
 		if (s.budget) {
-			const tokPart = fmtTok(tokens) + ' / ' + (limits.runTokens > 0 ? fmtTok(limits.runTokens) + ' tok' : t.budgetNoLimit);
+			const tokPart = fmtTok(tokens) + ' / ' + (limits.runTokens > 0 ? fmtTok(limits.runTokens) + ' ' + t.tokShort : t.budgetNoLimit);
 			const costPart = '$' + cost.toFixed(2) + ' / ' + (limits.runCost > 0 ? '$' + Number(limits.runCost).toFixed(2) : t.budgetNoLimit);
 			document.getElementById('budgetText').textContent = tokPart + ' · ' + costPart;
 			const ratio = Math.max(
@@ -991,19 +1080,20 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 		}
 
 		const pauseBtn = document.getElementById('btnPause');
-		pauseBtn.innerHTML = ICONS.pause;
+		document.getElementById('runControls').title = t.ctlHotkeys;
+		pauseBtn.innerHTML = ICONS.pause + '<span class="ctl-label">' + t.ctlPause + '</span>';
 		pauseBtn.title = t.pause;
 		pauseBtn.hidden = false;
 		pauseBtn.disabled = !s.running || s.paused;
 		pauseBtn.setAttribute('aria-label', t.pause);
 		const resumeBtn = document.getElementById('btnResume');
-		resumeBtn.innerHTML = ICONS.continue;
+		resumeBtn.innerHTML = ICONS.continue + '<span class="ctl-label">' + t.ctlResume + '</span>';
 		resumeBtn.title = t.resume;
 		resumeBtn.hidden = false;
 		resumeBtn.disabled = !s.paused;
 		resumeBtn.setAttribute('aria-label', t.resume);
 		const stopBtn = document.getElementById('btnStop');
-		stopBtn.innerHTML = ICONS.stop;
+		stopBtn.innerHTML = ICONS.stop + '<span class="ctl-label">' + t.ctlStop + '</span>';
 		stopBtn.title = t.cancel;
 		stopBtn.hidden = false;
 		stopBtn.disabled = !s.running;
@@ -1034,12 +1124,18 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 		runBtn.textContent = t.tabRun;
 		const boardBtn = document.getElementById('tabBoard');
 		boardBtn.textContent = t.tabBoard;
-		boardBtn.hidden = !(state().team && state().team.available);
+		// Доска есть всегда: канбан агентов запуска не зависит от плагина Team.
+		boardBtn.hidden = false;
+		const s = state();
+		const waitingCount = (s.approvals || []).length + (s.nodes || []).filter(n => n.status === 'waiting-approval' || n.status === 'needs_human').length;
+		const badge = (btn, count, cls) => { if (count > 0) { btn.append(el('span', { class: 'tab-badge' + (cls ? ' ' + cls : ''), text: String(count) })); } };
+		badge(runBtn, (s.approvals || []).length, 'warn');
+		badge(boardBtn, waitingCount, 'warn');
 		document.getElementById('tabModels').textContent = t.tabModels;
 		document.getElementById('tabTrace').textContent = t.tabTrace;
-		document.getElementById('tabLog').textContent = t.tabLog;
-		// Скрытая вкладка (Board без Team) не может быть активной.
-		if (ui.tab === 'board' && !(state().team && state().team.available)) { ui.tab = 'run'; }
+		const logBtn = document.getElementById('tabLog');
+		logBtn.textContent = t.tabLog;
+		badge(logBtn, (s.logs || []).filter(entry => entry.level === 'error').length, 'err');
 		for (const key of ['run', 'board', 'models', 'trace', 'log']) {
 			const btn = document.getElementById('tab' + key.charAt(0).toUpperCase() + key.slice(1));
 			btn.classList.toggle ? btn.classList.toggle('active', ui.tab === key) : undefined;
@@ -1158,7 +1254,7 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 		const row = document.getElementById('defaultsRow');
 		clear(row);
 		const defaults = s.runDefaults || {};
-		row.append(el('span', { title: t.plannerLabel, text: t.plannerLabel + ': ' + (defaults.planner || t.plannerAuto) + ' · ' + tierTitle(defaults.plannerTier || 'high') }));
+		row.append(el('span', { title: t.plannerLabel, text: t.plannerLabel + ': ' + (!defaults.planner || defaults.planner === 'auto' ? t.plannerAuto : defaults.planner) + ' · ' + tierTitle(defaults.plannerTier || 'high') }));
 		row.append(el('span', { title: t.parallelLabel, text: t.parallelLabel + ': ' + (defaults.maxParallel || 1) }));
 	}
 
@@ -1182,7 +1278,22 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 		const finished = nodes.filter(n => n.status === 'done').length;
 		if (nodes.length) { fact(t.runDone, finished + ' ' + t.runOf + ' ' + nodes.length); }
 		if (run.startedAt) { fact(t.time, fmtMs(Math.max(0, (run.finishedAt || Date.now()) - run.startedAt))); }
-		bar.append(facts, el('span', {}));
+		const acts = el('div', { class: 'run-acts' });
+		acts.append(
+			el('button', { class: 'ghost', type: 'button', text: t.runOpenBoard, onclick: () => { dispatch({ type: 'boardView', payload: 'agents' }); dispatch({ type: 'tab', payload: 'board' }); } }),
+			el('button', { class: 'ghost', type: 'button', text: t.runOpenLog, onclick: () => dispatch({ type: 'tab', payload: 'log' }) }),
+		);
+		if (!s.running) {
+			let armed = false;
+			const clearBtn = el('button', { class: 'ghost', type: 'button', text: t.runClear });
+			// Сброс — двумя кликами: случайный клик не стирает чекпоинт, а модалки во webview нет.
+			clearBtn.addEventListener('click', () => {
+				if (!armed) { armed = true; clearBtn.textContent = t.runClearConfirm; setTimeout(() => { armed = false; clearBtn.textContent = t.runClear; }, 3000); return; }
+				invoke('clearCheckpoint', {}).catch(() => undefined);
+			});
+			acts.append(clearBtn);
+		}
+		bar.append(facts, acts);
 		if (nodes.length) {
 			const progress = el('div', { class: 'run-progress' });
 			const part = (cls, count) => { if (count) { progress.append(el('span', { class: cls, style: 'width:' + (count / nodes.length * 100).toFixed(2) + '%' })); } };
@@ -1460,14 +1571,80 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 		return { todo: t.colTodo, doing: t.colDoing, review: t.colReview, done: t.colDone }[column.key];
 	}
 
+	const KB_ICONS = {
+		chevron: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4z"/></svg>',
+		left: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5z"/></svg>',
+		right: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5z"/></svg>',
+		plus: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7 3h2v4h4v2H9v4H7V9H3V7h4z"/></svg>',
+		play: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>',
+		restart: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3a5 5 0 1 0 5 5h-2a3 3 0 1 1-3-3v2l3-3-3-3z"/></svg>',
+	};
+	/** Колонки канбана агентов: статусы узлов графа сводятся к пяти понятным состояниям. */
+	const AGENT_COLUMNS = [
+		{ key: 'queue', label: 'kbQueue', match: st => st === 'idle' || st === 'queued' || !st },
+		{ key: 'running', label: 'kbRunning', match: st => st === 'running' },
+		{ key: 'waiting', label: 'kbWaiting', match: st => st === 'waiting-approval' || st === 'needs_human' },
+		{ key: 'done', label: 'kbDone', match: st => st === 'done' },
+		{ key: 'failed', label: 'kbFailed', match: st => st === 'error' || st === 'cancelled' || st === 'skipped' },
+	];
+	const AVATAR_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
+	function avatarColor(name) {
+		let h = 0;
+		for (const ch of String(name || '')) { h = (h * 31 + ch.charCodeAt(0)) >>> 0; }
+		return AVATAR_COLORS[h % AVATAR_COLORS.length];
+	}
+	function initials(name) {
+		const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+		return ((parts[0] || '?').charAt(0) + (parts[1] ? parts[1].charAt(0) : '')).toUpperCase();
+	}
+	function matchesQuery(query, ...fields) {
+		if (!query) { return true; }
+		return fields.some(field => String(field || '').toLowerCase().includes(query));
+	}
+	function kbColumn(key, dotClass, title, count, bodyKids, extra) {
+		const t = T();
+		const collapsed = Boolean((ui.collapsedCols || {})[key]);
+		const col = el('div', { class: 'column' + (collapsed ? ' collapsed' : ''), dataset: { col: key } });
+		const head = el('div', { class: 'col-head' });
+		head.append(
+			el('span', { class: 'col-dot cd-' + dotClass }),
+			el('span', { class: 'col-name', text: title }),
+			el('span', { class: 'col-count', text: String(count) }),
+			el('button', { class: 'col-toggle', type: 'button', title: collapsed ? t.kbExpand : t.kbCollapse, html: KB_ICONS.chevron, onclick: () => dispatch({ type: 'toggleCol', payload: key }) }),
+		);
+		col.append(head);
+		const body = el('div', { class: 'col-body' });
+		append(body, bodyKids);
+		if (extra) { body.append(extra); }
+		col.append(body);
+		return col;
+	}
+
 	function renderBoardTab() {
 		const t = T();
-		document.getElementById('btnTeamRefresh').textContent = t.teamRefresh;
-		document.getElementById('teamHint').textContent = t.teamHint;
-		const team = state().team || { available: false, tasks: [] };
+		const s = state();
+		const team = s.team || { available: false, tasks: [] };
+		const nodes = s.nodes || [];
+		const view = ui.boardView === 'team' && team.available ? 'team'
+			: ui.boardView === 'agents' ? 'agents'
+				: (nodes.length || !team.available ? 'agents' : 'team');
+		const seg = document.getElementById('boardViewSeg');
+		clear(seg);
+		seg.append(
+			el('button', { type: 'button', class: view === 'agents' ? 'active' : '', text: t.boardAgents + (nodes.length ? ' · ' + nodes.length : ''), onclick: () => dispatch({ type: 'boardView', payload: 'agents' }) }),
+			el('button', { type: 'button', class: view === 'team' ? 'active' : '', text: t.boardTeam + (team.available ? ' · ' + (team.tasks || []).length : ''), disabled: !team.available, title: team.available ? '' : t.teamUnavailable, onclick: () => dispatch({ type: 'boardView', payload: 'team' }) }),
+		);
+		const search = document.getElementById('boardSearch');
+		search.placeholder = t.boardSearch;
+		search.setAttribute('aria-label', t.boardSearch);
+		if (search.value !== (ui.boardQuery || '')) { search.value = ui.boardQuery || ''; }
+		const refresh = document.getElementById('btnTeamRefresh');
+		refresh.textContent = t.teamRefresh;
+		refresh.hidden = view !== 'team';
+		document.getElementById('teamHint').textContent = view === 'team' ? t.kbDropHint : '';
 		// Свою задачу заводим прямо здесь: пока Team недоступен, форма скрыта.
 		const form = document.getElementById('addTaskRow');
-		form.hidden = !team.available;
+		form.hidden = !team.available || view !== 'team';
 		const titleInput = document.getElementById('newTaskTitle');
 		titleInput.placeholder = t.newTaskPh;
 		titleInput.title = t.newTaskPh;
@@ -1478,38 +1655,185 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 		fillSelect(statusSelect, COLUMNS.map(column => ({ value: column.status, text: columnLabel(t, column) })));
 		const host = document.getElementById('teamBoard');
 		clear(host);
-		if (!team.available) {
-			host.append(el('div', { class: 'muted', text: t.teamUnavailable }));
+		const query = String(ui.boardQuery || '').trim().toLowerCase();
+		if (view === 'agents') { renderAgentBoard(t, host, nodes, s, query); return; }
+		renderTeamBoard(t, host, team, s, query);
+	}
+
+	/** Канбан агентов: узлы графа по колонкам состояния, с действиями прямо на карточке. */
+	function renderAgentBoard(t, host, nodes, s, query) {
+		if (nodes.length === 0) {
+			const empty = el('div', { class: 'kb-empty' });
+			empty.append(el('div', { text: t.kbAgentsEmpty }), el('button', { class: 'primary', type: 'button', text: t.kbToRun, onclick: () => dispatch({ type: 'tab', payload: 'run' }) }));
+			host.append(empty);
 			return;
 		}
-		const tasks = team.tasks || [];
-		if (tasks.length === 0) {
-			host.append(el('div', { class: 'muted', text: t.boardEmpty }));
+		const trace = s.trace || {};
+		const approvals = s.approvals || [];
+		const board = el('div', { class: 'board' });
+		let shown = 0;
+		for (const column of AGENT_COLUMNS) {
+			const items = nodes.filter(node => column.match(node.status)).filter(node => matchesQuery(query, node.id, node.role, roleTitle(node.role), node.note, node.error, node.goal));
+			shown += items.length;
+			const cards = items.map(node => agentCard(t, node, trace, approvals));
+			board.append(kbColumn('agents:' + column.key, column.key, t[column.label], items.length, cards));
+		}
+		host.append(board);
+		if (query && shown === 0) { host.append(el('div', { class: 'kb-empty', text: t.kbNothingFound })); }
+	}
+
+	function agentCard(t, node, trace, approvals) {
+		const status = node.status || 'idle';
+		const role = node.role || String(node.id || '').split('#')[0];
+		const known = ['supervisor', 'coder', 'tester', 'security-auditor', 'reviewer'].includes(role);
+		const name = roleTitle(role) || node.id;
+		const stCls = status === 'error' ? ' st-error' : (status === 'waiting-approval' || status === 'needs_human') ? ' st-waiting' : status === 'running' ? ' st-running' : '';
+		const card = el('div', { class: 'card' + stCls + (ui.selectedNode === node.id ? ' selected' : ''), title: node.id });
+		const top = el('div', { class: 'card-top' });
+		top.append(el('span', { class: 'avatar ' + (known ? role : 'other'), text: String(name).charAt(0).toUpperCase() }));
+		const label = el('div', { class: 'card-title' });
+		label.append(el('b', { text: name }), el('div', { class: 'muted', style: 'font-family:var(--mono);font-size:10.5px', text: node.id }));
+		top.append(label);
+		if (node.tier) { top.append(el('span', { class: 'tier ' + node.tier, text: tierTitle(node.tier) })); }
+		card.append(top);
+		const line = el('div', { class: 'agent-state st ' + status });
+		line.append(statusIcon(status), el('span', { class: 'label', text: statusTitle(status) }));
+		card.append(line);
+		const note = node.error || node.note;
+		if (note) { card.append(el('div', { class: 'card-desc' + (node.error ? ' err-text' : ''), text: note })); }
+		const meta = el('div', { class: 'card-meta' });
+		const model = nodeModel(node.id, trace) || node.keyName;
+		[model, duration(node), node.round ? t.round + ' ' + node.round : ''].filter(Boolean).forEach((bit, index) => {
+			if (index) { meta.append(el('span', { class: 'dot-sep' })); }
+			meta.append(el('span', { text: bit }));
+		});
+		card.append(meta);
+		const acts = el('div', { class: 'card-acts' });
+		const approval = approvals.find(item => item.nodeId === node.id);
+		if (approval) {
+			acts.append(
+				el('button', { class: 'tiny primary', type: 'button', text: t.approve, onclick: () => invoke('approval.resolve', { id: approval.id, approved: true }).catch(() => undefined) }),
+				el('button', { class: 'tiny', type: 'button', text: t.reject, onclick: () => invoke('approval.resolve', { id: approval.id, approved: false }).catch(() => undefined) }),
+			);
+		}
+		acts.append(el('span', { class: 'grow' }));
+		acts.append(el('button', { class: 'tiny', type: 'button', text: t.kbDetails, onclick: () => { dispatch({ type: 'selectNode', payload: node.id }); dispatch({ type: 'tab', payload: 'run' }); } }));
+		if (status === 'error' || status === 'done' || status === 'cancelled' || status === 'skipped') {
+			acts.append(el('button', { class: 'mini', type: 'button', title: t.nodeRestart, 'aria-label': t.nodeRestart, html: KB_ICONS.restart, onclick: () => invoke('node.restart', { nodeId: node.id }).catch(() => undefined) }));
+		}
+		card.append(acts);
+		return card;
+	}
+
+	/** Доска команды: те же колонки, что в Aura Team, перетаскивание меняет статус задачи. */
+	function renderTeamBoard(t, host, team, s, query) {
+		if (!team.available) {
+			host.append(el('div', { class: 'kb-empty', text: t.teamUnavailable }));
+			return;
+		}
+		const tasks = (team.tasks || []).filter(task => matchesQuery(query, task.title, task.description, task.assigneeName));
+		if ((team.tasks || []).length === 0) {
+			host.append(el('div', { class: 'kb-empty', text: t.boardEmpty }));
 			return;
 		}
 		const board = el('div', { class: 'board' });
-		for (const column of COLUMNS) {
+		COLUMNS.forEach((column, index) => {
 			const items = tasks.filter(task => task.status === column.status);
-			const col = el('div', { class: 'column' });
-			const head = el('div', { class: 'col-head' });
-			head.append(el('span', { text: columnLabel(t, column) }), el('span', { text: String(items.length) }));
-			col.append(head);
-			const body = el('div', { class: 'col-body' });
-			for (const task of items) {
-				const card = el('div', { class: 'card' });
-				card.append(el('div', { class: 'card-title', text: task.title }));
-				card.append(el('div', { class: 'card-meta', text: task.assigneeName ? task.assigneeName : '' }));
-				const acts = el('div', { class: 'card-acts' });
-				const run = el('button', { class: 'tiny', type: 'button', text: t.sendToAgents, onclick: () => invoke('team.runTask', { taskId: task.id }).catch(() => undefined) });
-				run.disabled = task.status === 'done';
-				acts.append(run);
-				card.append(acts);
-				body.append(card);
-			}
-			col.append(body);
+			const cards = items.map(task => teamCard(t, task, index, s));
+			const add = el('button', { class: 'col-add', type: 'button', html: KB_ICONS.plus + '<span>' + t.kbAddHere + '</span>', onclick: () => {
+				document.getElementById('newTaskStatus').value = column.status;
+				const input = document.getElementById('newTaskTitle');
+				if (input.focus) { input.focus(); }
+			} });
+			const col = kbColumn('team:' + column.key, column.key, columnLabel(t, column), items.length, cards, add);
+			col.addEventListener('dragover', event => { if (event.preventDefault) { event.preventDefault(); } col.classList.add('drag-over'); });
+			col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
+			col.addEventListener('drop', event => {
+				if (event.preventDefault) { event.preventDefault(); }
+				col.classList.remove('drag-over');
+				const taskId = event.dataTransfer ? event.dataTransfer.getData('text/plain') : '';
+				if (taskId) { moveTeamTask(taskId, column.status); }
+			});
 			board.append(col);
-		}
+		});
 		host.append(board);
+		if (query && tasks.length === 0) { host.append(el('div', { class: 'kb-empty', text: t.kbNothingFound })); }
+	}
+
+	function highlight(text, query) {
+		const node = el('span', {});
+		const value = String(text || '');
+		const at = query ? value.toLowerCase().indexOf(query) : -1;
+		if (at < 0) { node.textContent = value; return node; }
+		append(node, [document.createTextNode ? document.createTextNode(value.slice(0, at)) : value.slice(0, at), el('mark', { text: value.slice(at, at + query.length) }), document.createTextNode ? document.createTextNode(value.slice(at + query.length)) : value.slice(at + query.length)]);
+		return node;
+	}
+
+	function teamCard(t, task, columnIndex, s) {
+		const query = String(ui.boardQuery || '').trim().toLowerCase();
+		const card = el('div', { class: 'card', draggable: 'true', dataset: { task: task.id } });
+		card.setAttribute('draggable', 'true');
+		card.addEventListener('dragstart', event => {
+			if (event.dataTransfer) { event.dataTransfer.setData('text/plain', task.id); event.dataTransfer.effectAllowed = 'move'; }
+			card.classList.add('dragging');
+		});
+		card.addEventListener('dragend', () => card.classList.remove('dragging'));
+		const title = el('div', { class: 'card-title' });
+		title.append(highlight(task.title, query));
+		const top = el('div', { class: 'card-top' });
+		top.append(title);
+		card.append(top);
+		if (task.description) { card.append(el('div', { class: 'card-desc', text: String(task.description).replace(/\s+/g, ' ').slice(0, 220) })); }
+		const meta = el('div', { class: 'card-meta' });
+		if (task.assigneeName) {
+			const who = el('span', { class: 'who' });
+			who.append(el('span', { class: 'ava', style: 'background:' + avatarColor(task.assigneeName), text: initials(task.assigneeName) }), el('span', { text: task.assigneeName }));
+			meta.append(who);
+		} else {
+			meta.append(el('span', { text: t.kbUnassigned }));
+		}
+		if (task.dueAt) {
+			const due = new Date(task.dueAt);
+			if (!Number.isNaN(due.getTime())) {
+				const overdue = task.status !== 'done' && due.getTime() < Date.now();
+				meta.append(el('span', { class: 'chip due' + (overdue ? ' overdue' : ''), text: (overdue ? t.kbOverdue : t.kbDue) + ' ' + due.toLocaleDateString(lang() === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short' }) }));
+			}
+		}
+		card.append(meta);
+		const acts = el('div', { class: 'card-acts' });
+		const busy = Boolean(s.running);
+		const run = el('button', { class: 'tiny primary', type: 'button', html: KB_ICONS.play + '<span>' + t.sendToAgents + '</span>', title: busy ? t.kbBusy : t.sendToAgents, onclick: () => invoke('team.runTask', { taskId: task.id }).catch(() => undefined) });
+		run.disabled = task.status === 'done';
+		acts.append(run, el('span', { class: 'grow' }));
+		const prev = COLUMNS[columnIndex - 1];
+		const next = COLUMNS[columnIndex + 1];
+		acts.append(
+			el('button', { class: 'mini', type: 'button', title: t.kbMoveLeft, 'aria-label': t.kbMoveLeft, html: KB_ICONS.left, disabled: !prev, onclick: () => prev && moveTeamTask(task.id, prev.status) }),
+			el('button', { class: 'mini', type: 'button', title: t.kbMoveRight, 'aria-label': t.kbMoveRight, html: KB_ICONS.right, disabled: !next, onclick: () => next && moveTeamTask(task.id, next.status) }),
+		);
+		card.append(acts);
+		return card;
+	}
+
+	/** Смена статуса задачи Team: оптимистично переносим карточку, при отказе — откат и подпись. */
+	function moveTeamTask(taskId, status) {
+		const t = T();
+		const s = state();
+		const tasks = (s.team && s.team.tasks) || [];
+		const task = tasks.find(item => item.id === taskId);
+		if (!task || task.status === status) { return; }
+		const before = task.status;
+		task.status = status;
+		render();
+		const note = document.getElementById('addTaskNote');
+		invoke('team.moveTask', { taskId, status })
+			.then(result => {
+				const ok = !result || result.ok !== false;
+				if (!ok) { task.status = before; render(); }
+				note.className = ok ? 'ok-text' : 'err-text';
+				note.textContent = ok ? t.kbMoved : t.kbMoveFailed;
+			})
+			.catch(() => { task.status = before; render(); note.className = 'err-text'; note.textContent = t.kbMoveFailed; });
 	}
 
 	/**
@@ -1711,7 +2035,7 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 			for (const item of list) {
 				const row = el('div', { class: 'row-item' });
 				row.append(el('span', { text: item.node }));
-				row.append(el('span', { class: 'muted', text: fmtMs(item.durationMs) + ' · $' + Number(item.cost || 0).toFixed(4) + ' · ' + fmtTok(item.tokens || 0) + ' tok' }));
+				row.append(el('span', { class: 'muted', text: fmtMs(item.durationMs) + ' · $' + Number(item.cost || 0).toFixed(4) + ' · ' + fmtTok(item.tokens || 0) + ' ' + T().tokShort }));
 				card.append(row);
 			}
 			tops.append(card);
@@ -2069,6 +2393,7 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 	document.getElementById('btnCheckKeys').addEventListener('click', () => invoke('keys.checkAll', {}).catch(() => undefined));
 	document.getElementById('keySourceFilter').addEventListener('change', event => { keySourceFilter = event.target.value; renderModels(); });
 	document.getElementById('btnTeamRefresh').addEventListener('click', () => invoke('team.refresh', {}).catch(() => undefined));
+	document.getElementById('boardSearch').addEventListener('input', event => dispatch({ type: 'boardQuery', payload: event.target.value }));
 	document.getElementById('btnAddTask').addEventListener('click', () => addBoardTask());
 	// Enter в поле задачи создаёт её же: иначе пришлось бы тянуться к кнопке.
 	document.getElementById('newTaskTitle').addEventListener('keydown', event => {
@@ -2081,6 +2406,12 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 	// F6/F7/F8 — пауза/продолжение/остановка. Дублируют биндинги VS Code
 	// на случай, когда фокус во webview и команда сюда не дошла.
 	window.addEventListener('keydown', event => {
+		// Alt+1…5 — быстрый переход по вкладкам.
+		if (event.altKey && !event.ctrlKey && !event.metaKey && /^[1-5]$/.test(event.key)) {
+			if (event.preventDefault) { event.preventDefault(); }
+			dispatch({ type: 'tab', payload: ['run', 'board', 'models', 'trace', 'log'][Number(event.key) - 1] });
+			return;
+		}
 		const command = { F6: 'pause', F7: 'resume', F8: 'cancel' }[event.key];
 		if (!command) { return; }
 		event.preventDefault();

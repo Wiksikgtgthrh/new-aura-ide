@@ -251,8 +251,8 @@ test('панель: профиль бюджета применяется и по
 		const list = registry.get('planList');
 		assert.equal(list.children.length, 2, 'по строке на ноду плана');
 		const text = textOf(list);
-		assert.ok(text.includes('HIGH'), 'тир-бейдж high виден');
-		assert.ok(text.includes('LOW'), 'тир-бейдж low виден');
+		assert.ok(text.includes('ВЫС'), 'тир-бейдж high виден по-русски');
+		assert.ok(text.includes('НИЗ'), 'тир-бейдж low виден по-русски');
 	});
 
 	test('панель: деталь ноды показывает цель и шлёт node.restart', () => {
@@ -295,8 +295,8 @@ test('панель: профиль бюджета применяется и по
 		const seg = findEl(registry.get('modelsBody'), node => node.className === 'seg');
 		assert.ok(seg, 'сегмент-контрол отрисован');
 		assert.equal(seg.children.length, 3, 'три кнопки тиров');
-		const low = seg.children.find(button => button.textContent === 'LOW');
-		assert.ok(low, 'кнопка LOW есть');
+		const low = seg.children.find(button => button.textContent === 'НИЗ');
+		assert.ok(low, 'кнопка «НИЗ» есть');
 		low.click();
 		const invoke = posted.find(message => message.payload && message.payload.command === 'keys.setTier');
 		assert.ok(invoke, 'панель вызвала keys.setTier');

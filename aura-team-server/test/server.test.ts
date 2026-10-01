@@ -175,7 +175,9 @@ test('событие ленты удаляется только владельц
 		stillThere: stillThere.some(event => event.id === first.id),
 		removed: removed.statusCode,
 		goneAfterDelete: !after.some(event => event.id === first.id),
-		deleteAudited: after.some(event => event.action === 'activity.delete'),
+		// След удаления остаётся в журнале аудита, но не засоряет ленту команды.
+		deleteAudited: Boolean(database.prepare("SELECT 1 FROM audit_log WHERE action='activity.delete' AND target_id=? AND team_id IS NULL").get(String(first.id))),
+		deleteNotInFeed: !after.some(event => event.action === 'activity.delete'),
 		deletedTwice: twice.statusCode,
 	}, {
 		hasId: true,
@@ -184,6 +186,7 @@ test('событие ленты удаляется только владельц
 		removed: 200,
 		goneAfterDelete: true,
 		deleteAudited: true,
+		deleteNotInFeed: true,
 		deletedTwice: 404,
 	});
 	await app.close();

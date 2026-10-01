@@ -109,13 +109,13 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 	animation: slideDown .3s var(--ease);
 }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.brand-logo {
-	width: 30px; height: 30px; border-radius: 9px; flex: none;
-	display: grid; place-items: center;
-	background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 35%, var(--bg)));
-	box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 40%, transparent);
+/* Вместо иконки — словесный знак: «Team» акцентным градиентом. */
+.wordmark {
+	font-size: 15px; font-weight: 750; letter-spacing: -.2px; line-height: 1;
+	background: linear-gradient(100deg, var(--text) 10%, var(--accent) 95%);
+	-webkit-background-clip: text; background-clip: text; color: transparent;
+	padding-left: 8px;
 }
-.brand-logo svg { width: 17px; height: 17px; }
 .brand-name { font-weight: 600; font-size: 13px; letter-spacing: .2px; display: flex; align-items: center; gap: 8px; }
 .badge {
 	font-size: 10px; font-weight: 600; letter-spacing: .4px;
@@ -596,6 +596,13 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 	background: color-mix(in srgb, var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow)) 16%, transparent);
 	color: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow));
 }
+.key-badge.ok {
+	background: color-mix(in srgb, var(--vscode-testing-iconPassed, var(--vscode-charts-green)) 16%, transparent);
+	color: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+}
+.key-route { margin-top: 6px; font-size: 11px; font-family: var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.key-error { margin-top: 6px; font-size: 11px; line-height: 1.4; color: var(--vscode-errorForeground); background: color-mix(in srgb, var(--vscode-errorForeground) 8%, transparent); border-radius: 6px; padding: 5px 8px; }
+.key-card[hidden] { display: none; }
 .key-badge.unknown {
 	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 	color: var(--muted);
@@ -910,8 +917,8 @@ details.card.code-fold[open] > summary { margin-bottom: 6px; color: var(--text);
 /* ---------- Экран регистрации ---------- */
 .auth-wrap { max-width: 440px; margin: 6vh auto 0; animation: fadeUp .4s var(--ease); }
 .auth-card { padding: 26px; }
-.auth-logo { width: 52px; height: 52px; border-radius: 15px; display: grid; place-items: center; background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 30%, var(--bg))); margin: 0 auto 14px; box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 45%, transparent); animation: popIn .4s var(--ease); }
-.auth-logo svg { width: 26px; height: 26px; }
+.auth-logo { display: flex; justify-content: center; margin: 0 auto 14px; animation: popIn .4s var(--ease); }
+.auth-logo .wordmark { font-size: 30px; letter-spacing: -.6px; padding: 0; }
 .auth-card h1 { text-align: center; font-size: 19px; font-weight: 800; letter-spacing: -.3px; }
 .auth-card .sub { text-align: center; color: var(--muted); font-size: 12.5px; margin: 6px 0 22px; }
 .auth-tabs { display: flex; gap: 6px; background: color-mix(in srgb, var(--muted) 14%, transparent); padding: 4px; border-radius: 10px; margin: 0 0 18px; }
@@ -951,10 +958,7 @@ details.card.code-fold[open] > summary { margin-bottom: 6px; color: var(--text);
 <div id="app">
 	<header class="topbar">
 		<div class="brand">
-			<div class="brand-logo">
-				<svg viewBox="0 0 24 24" fill="none"><path d="M12 2l7.5 4.5v9L12 20l-7.5-4.5v-9L12 2z" stroke="white" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 8.5v7M8.7 10.6l6.6 3M15.3 10.6l-6.6 3" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
-			</div>
-			<div class="brand-name">Team <span id="connBadge" class="badge">&nbsp;</span></div>
+			<div class="brand-name"><span class="wordmark">Team</span> <span id="connBadge" class="badge">&nbsp;</span></div>
 		</div>
 		<div class="top-right">
 			<button id="avatarBtn" class="avatar" data-tt="profile"></button>
@@ -1078,6 +1082,7 @@ const DICT = {
 			disable: 'Отключить',
 			exportKeys: 'Экспорт',
 		prioHigh: 'Высокий', prioMedium: 'Средний', prioLow: 'Низкий',
+		keyBaseUrl: 'Base URL', keyBaseUrlHint: 'Шлюз или прокси (OpenRouter, свой сервер…). Пусто — адрес провайдера.', keyModel: 'Модель', keyModelHint: 'Нужна для проверки шлюзов без /models и как модель по умолчанию.', keyNewValue: 'Новый ключ', keyNewValueHint: 'Оставьте пустым, чтобы не менять.', keyLimited: 'Лимит', keyOkPing: 'Работает', keyChecked: 'Проверен', keyNeverChecked: 'Не проверялся', keyCleanupNone: 'Отключённых ключей нет',
 		prioHint: 'Приоритет: высокий / средний / низкий', prioGroup: 'Приоритет',
 		ping: 'Пинг', pingCheck: 'Проверить ключ', pingOk: 'Отвечает', pingFail: 'Не отвечает', pingUnknown: 'Пинг: —', pingMs: '{0} мс', toChat: 'В чат',
 		importFromApi: 'Импорт из API', importFromApiSub: 'Выберите ключи из плагина API для копирования в банк команды.',
@@ -1262,6 +1267,7 @@ const DICT = {
 			disable: 'Disable',
 			exportKeys: 'Export',
 		prioHigh: 'High', prioMedium: 'Medium', prioLow: 'Low',
+		keyBaseUrl: 'Base URL', keyBaseUrlHint: 'Gateway or proxy (OpenRouter, your own server…). Empty — provider address.', keyModel: 'Model', keyModelHint: 'Used to check gateways without /models and as the default model.', keyNewValue: 'New key', keyNewValueHint: 'Leave empty to keep the current key.', keyLimited: 'Rate limited', keyOkPing: 'Working', keyChecked: 'Checked', keyNeverChecked: 'Never checked', keyCleanupNone: 'No disabled keys',
 		prioHint: 'Priority: high / medium / low', prioGroup: 'Priority',
 		ping: 'Ping', pingCheck: 'Check key', pingOk: 'Alive', pingFail: 'No response', pingUnknown: 'Ping: —', pingMs: '{0} ms', toChat: 'Chat',
 		importFromApi: 'Import from API', importFromApiSub: 'Pick keys from the API plugin to copy into the team bank.',
@@ -1832,7 +1838,7 @@ function renderAuth() {
 	// Только серверная регистрация/вход: локальный демо-блок убран.
 	return `<div class="auth-wrap">
 		<div class="card auth-card">
-			<div class="auth-logo"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2l7.5 4.5v9L12 20l-7.5-4.5v-9L12 2z" stroke="white" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 8.5v7M8.7 10.6l6.6 3M15.3 10.6l-6.6 3" stroke="white" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+			<div class="auth-logo"><span class="wordmark">Team</span></div>
 			<h1>${esc(T('loginTitle'))}</h1>
 			<div class="sub">${esc(T('loginSub'))}</div>
 			${loginFormHtml()}
@@ -3460,26 +3466,41 @@ function providerGlyph(provider) {
 	return `<svg viewBox="0 0 24 24" fill="none"><path d="M12 12a3.2 3.2 0 1 0 0-6.4A3.2 3.2 0 0 0 12 12zm0 0v6.4M12 9.6h6.4" stroke="white" stroke-width="1.7" stroke-linecap="round"/></svg>`;
 }
 /* Приоритет: high / medium / low → подпись и цвет. */
+/* Приоритет на сервере — число 0..1000, МЕНЬШЕ — ВЫШЕ (прокси берёт ORDER BY priority ASC).
+   Раньше UI писал «высокий» = 200 и читал только строки 'high'/'2' — все ключи выглядели «средними»,
+   а «высокий» на деле уходил в конец очереди. */
+const PRIO_VALUE = { high: 10, medium: 100, low: 500 };
 function priorityMeta(priority) {
 	const p = String(priority ?? 'medium').toLowerCase();
-	if (p === 'high' || p === '2') { return { id: 'high', label: T('prioHigh'), cls: 'ok' }; }
-	if (p === 'low' || p === '0') { return { id: 'low', label: T('prioLow'), cls: 'off' }; }
-	return { id: 'medium', label: T('prioMedium'), cls: 'warn' };
+	const n = Number(p);
+	const id = p === 'high' || p === 'low' || p === 'medium' ? p
+		: Number.isFinite(n) ? (n < 50 ? 'high' : n >= 200 ? 'low' : 'medium') : 'medium';
+	return id === 'high' ? { id, label: T('prioHigh'), cls: 'ok' } : id === 'low' ? { id, label: T('prioLow'), cls: 'off' } : { id, label: T('prioMedium'), cls: 'warn' };
 }
 function priorityWeight(priority) {
-	const meta = priorityMeta(priority);
-	return meta.id === 'high' ? 0 : meta.id === 'medium' ? 100 : 200;
+	const n = Number(priority);
+	return Number.isFinite(n) ? n : PRIO_VALUE[priorityMeta(priority).id];
 }
+/* Состояние ключа для бейджа и фильтра: ok / warn (лимит, медленный) / error / unknown / disabled. */
+function keyHealth(key) {
+	if (key.disabledAt) { return 'disabled'; }
+	if (key.ok == null) { return 'unknown'; }
+	if (!key.ok) { return 'error'; }
+	if (key.lastStatus === 429 || (key.pingMs ?? 0) > 3000) { return 'warn'; }
+	return 'ok';
+}
+function hostOf(url) { try { const u = new URL(url); return u.host + (u.pathname === '/' ? '' : u.pathname); } catch { return String(url || ''); } }
 function groupName(groupId) {
 	if (!groupId) { return null; }
 	const g = (state.keyGroups ?? []).find(x => x.id === groupId);
 	return g ? g.name : null;
 }
+const keyFilterState = { provider: '', status: '', q: '' };
 function renderKeys() {
 	const keys = [...(state.keys ?? [])].sort((a, b) => priorityWeight(a.priority) - priorityWeight(b.priority) || String(a.provider).localeCompare(String(b.provider)));
 	const providersList = providersCache;
-	const healthyCount = keys.filter(k => k.ok === true && !k.disabledAt).length;
-	const problemCount = keys.length - healthyCount;
+	/* «Не отвечают» — только реально упавшие проверки; непроверенные и отключённые сюда не входят. */
+	const problemCount = keys.filter(k => keyHealth(k) === 'error').length;
 	const keysSub = `${keys.length} ${esc(T('keysCount'))}` + (problemCount > 0 ? ` · <span class="must-answer">${problemCount} ${esc(T('keysNotResponding'))}</span>` : '');
 	const keyCardHtml = keys.map((key) => {
 		const provider = String(key.provider ?? '').toLowerCase();
@@ -3493,13 +3514,19 @@ function renderKeys() {
 		const idAttr = esc(key.id);
 		const nameAttr = esc(key.label);
 		const keyHint = esc(key.keyHint ?? '');
-		const showStatus = key.disabledAt || key.ok === false || key.ok == null;
-		const statusCls = key.disabledAt ? 'error' : key.ok === false ? 'error' : 'unknown';
-		const statusText = key.disabledAt ? esc(T('disabled')) : key.ok === false ? esc(T('pingFail')) : esc(T('pingUnknown'));
-		const statusTitle = key.disabledAt ? esc(T('disabled'))
-			: key.ok === false ? esc(T('pingFail')) + (key.lastCheckedAt ? ' · ' + esc(timeAgoStr(key.lastCheckedAt)) : '')
-			: esc(T('pingUnknown')) + (key.lastCheckedAt ? ' · ' + esc(timeAgoStr(key.lastCheckedAt)) : '');
-		return `<article class="key-card" tabindex="0" aria-labelledby="kc-${idAttr}-name" data-key-id="${idAttr}">
+		const health = keyHealth(key);
+		const showStatus = true;
+		const statusCls = health === 'disabled' ? 'unknown' : health;
+		const pingText = key.pingMs != null ? ' · ' + T('pingMs').replace('{0}', String(key.pingMs)) : '';
+		const statusText = esc(health === 'disabled' ? T('disabled')
+			: health === 'error' ? T('pingFail')
+				: health === 'warn' ? (key.lastStatus === 429 ? T('keyLimited') : T('keyOkPing') + pingText)
+					: health === 'ok' ? T('keyOkPing') + pingText : T('pingUnknown'));
+		const statusTitle = esc((key.lastError || (health === 'unknown' ? T('keyNeverChecked') : statusText.replace(/&[a-z]+;/g, '')))
+			+ (key.lastCheckedAt ? ' · ' + T('keyChecked').toLowerCase() + ' ' + timeAgoStr(key.lastCheckedAt) : ''));
+		const routeText = [key.baseUrl ? hostOf(key.baseUrl) : '', key.model || ''].filter(Boolean).join(' · ');
+		const searchText = [key.label, provider, key.keyHint, key.baseUrl, key.model, groupName(key.groupId)].filter(Boolean).join(' ').toLowerCase();
+		return `<article class="key-card" tabindex="0" aria-labelledby="kc-${idAttr}-name" data-key-id="${idAttr}" data-health="${health}" data-provider="${esc(provider)}" data-search="${esc(searchText)}">
 			<div class="key-card-header">
 				<span class="provider-dot" style="background:${dotColor}" title="${esc(provider)}" aria-hidden="true"></span>
 				<div class="key-card-top">
@@ -3508,8 +3535,10 @@ function renderKeys() {
 				</div>
 				${showStatus ? `<span class="key-badge ${statusCls}" title="${statusTitle}">${statusText}</span>` : ''}
 			</div>
+			${routeText ? `<div class="key-route" title="${esc(key.baseUrl || '')}">${esc(routeText)}</div>` : ''}
+			${health === 'error' && key.lastError ? `<div class="key-error">${esc(key.lastError)}</div>` : ''}
 			<div class="key-card-footer">
-				<span class="key-meta">${esc(metaRole)} · ${esc(prio.label)}</span>
+				<span class="key-meta">${esc(metaRole)} · ${esc(prio.label)}${groupName(key.groupId) ? ' · ' + esc(groupName(key.groupId)) : ''}</span>
 				<div class="key-actions">
 					<button class="key-act" data-action="use" data-key="${idAttr}" title="${esc(T('useInChat'))}" aria-label="${esc(T('useInChat'))}">${esc(T('actUse'))}</button>
 					<button class="key-act" data-action="ping" data-key="${idAttr}" title="${esc(T('pingCheck'))}" aria-label="${esc(T('pingCheck'))}">${esc(T('actPing'))}</button>
@@ -3565,8 +3594,28 @@ function renderKeys() {
 		</div>`}</div>
 	</div>`;
 }
-function wireKeys() {
+function wireKeys(prevSearch = '') {
 	let moreMenu = null;
+	/* Поиск и фильтры тулбара: раньше были только разметкой и ничего не фильтровали. */
+	const searchInput = document.getElementById('keysSearch');
+	const providerFilter = document.getElementById('keysProviderFilter');
+	const statusFilter = document.getElementById('keysStatusFilter');
+	const applyKeyFilters = () => {
+		const q = (searchInput?.value ?? '').trim().toLowerCase();
+		const prov = providerFilter?.value ?? '';
+		const st = statusFilter?.value ?? '';
+		document.querySelectorAll('.key-card').forEach((card) => {
+			const visible = (!q || (card.dataset.search ?? '').includes(q)) && (!prov || card.dataset.provider === prov) && (!st || card.dataset.health === st);
+			card.hidden = !visible;
+		});
+	};
+	if (searchInput && (prevSearch || keyFilterState.q)) { searchInput.value = prevSearch || keyFilterState.q; }
+	if (providerFilter) { providerFilter.value = keyFilterState.provider; }
+	if (statusFilter) { statusFilter.value = keyFilterState.status; }
+	searchInput?.addEventListener('input', () => { keyFilterState.q = searchInput.value; applyKeyFilters(); });
+	providerFilter?.addEventListener('change', () => { keyFilterState.provider = providerFilter.value; applyKeyFilters(); });
+	statusFilter?.addEventListener('change', () => { keyFilterState.status = statusFilter.value; applyKeyFilters(); });
+	applyKeyFilters();
 	const hideMoreMenu = () => { if (moreMenu && moreMenu.parentNode) { moreMenu.remove(); } moreMenu = null; };
 
 	// Меню «Ещё» в тулбаре
@@ -3594,11 +3643,13 @@ function wireKeys() {
 		moreMenu.querySelector('[data-menu-act="cleanup"]').addEventListener('click', async () => {
 			await hideMoreMenu();
 			if (state.demoMode) { toast(T('demo')); return; }
-			const before = state.keys?.length ?? 0;
-			state.keys = (state.keys ?? []).filter(k => !k.disabledAt);
-			const deleted = before - (state.keys?.length ?? 0);
-			toast(`${T('deleted')}: ${deleted}`, 'ok');
-			reRenderKeys();
+			/* Раньше ключи убирались только из локального списка (и падали на несуществующем reRenderKeys) —
+			   после обновления они возвращались. Теперь удаляем отключённые на сервере. */
+			const inactive = (state.keys ?? []).filter(k => k.disabledAt);
+			if (!inactive.length) { toast(T('keyCleanupNone')); return; }
+			let deleted = 0;
+			for (const k of inactive) { try { await svc('auraTeam.deleteApiKey', [k]); deleted++; } catch { /* остальные продолжаем */ } }
+			toast(`${T('deleted')}: ${deleted}`, deleted ? 'ok' : 'err');
 		});
 		moreMenu.querySelector('[data-menu-act="newGroup"]').addEventListener('click', async () => {
 			await hideMoreMenu();
@@ -3628,7 +3679,8 @@ function wireKeys() {
 		try {
 			const results = await svc('auraTeam.checkAllKeys', []);
 			const okCount = (results ?? []).filter((r) => r.ok).length;
-			toast(`${T('pingOk')}: ${okCount}/${results?.length ?? 0}`, okCount === results?.length ? 'ok' : 'err');
+			const firstFail = (results ?? []).find((r) => !r.ok);
+			toast(`${T('pingOk')}: ${okCount}/${results?.length ?? 0}` + (firstFail?.error ? ' · ' + firstFail.error : ''), okCount === results?.length ? 'ok' : 'err');
 		} catch (err) { toast(err?.message || T('pingFail'), 'err'); }
 		btn.disabled = false;
 		btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none"><path d="M17 2l4 4-9 9H6v-4l9-9z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
@@ -3705,7 +3757,10 @@ function wireKeys() {
 						<div class="field"><label>${esc(T('keyRole'))}</label><select data-key-edit-role>${['dev', 'maintainer', 'viewer'].map((r) => `<option value="${r}" ${r === key.accessRole ? 'selected' : ''}>${esc(T('role' + cap(r)))}</option>`).join('')}</select></div>
 						<div class="field"><label>${esc(T('keyPriority'))}</label><select data-key-edit-prio>${[['high', 'prioHigh'], ['medium', 'prioMedium'], ['low', 'prioLow']].map(([v, k]) => `<option value="${v}" ${priorityMeta(key.priority).id === v ? 'selected' : ''}>${esc(T(k))}</option>`).join('')}</select></div>
 					</div>
-					<div class="field"><label>${esc(T('keyGroup'))}</label><select data-key-edit-group><option value="">—</option>${groups.map((g) => `<option value="${esc(g.id)}" ${g.id === key.groupId ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></div>`,
+					<div class="field"><label>${esc(T('keyGroup'))}</label><select data-key-edit-group><option value="">—</option>${groups.map((g) => `<option value="${esc(g.id)}" ${g.id === key.groupId ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></div>
+					<div class="field"><label>${esc(T('keyBaseUrl'))}</label><input data-key-edit-base value="${esc(key.baseUrl || '')}" placeholder="https://openrouter.ai/api/v1" spellcheck="false"><div class="hint">${esc(T('keyBaseUrlHint'))}</div></div>
+					<div class="field"><label>${esc(T('keyModel'))}</label><input data-key-edit-model value="${esc(key.model || '')}" placeholder="gpt-4o-mini" spellcheck="false"><div class="hint">${esc(T('keyModelHint'))}</div></div>
+					<div class="field"><label>${esc(T('keyNewValue'))}</label><input data-key-edit-value type="password" autocomplete="off" placeholder="${esc(key.keyHint || '')}"><div class="hint">${esc(T('keyNewValueHint'))}</div></div>`,
 				onAction: async (overlay) => {
 					const label = overlay.querySelector('[data-key-edit-label]')?.value?.trim();
 					if (!label) { toast(T('keyName'), 'err'); return true; }
@@ -3713,8 +3768,11 @@ function wireKeys() {
 					await svc('auraTeam.updateApiKey', [key.id, {
 						label,
 						accessRole: overlay.querySelector('[data-key-edit-role]')?.value,
-						priority: prioVal === 'high' ? 200 : prioVal === 'low' ? 50 : 100,
-						groupId: overlay.querySelector('[data-key-edit-group]')?.value || null
+						priority: PRIO_VALUE[prioVal] ?? 100,
+						groupId: overlay.querySelector('[data-key-edit-group]')?.value || null,
+						baseUrl: overlay.querySelector('[data-key-edit-base]')?.value?.trim() || null,
+						model: overlay.querySelector('[data-key-edit-model]')?.value?.trim() || null,
+						...(overlay.querySelector('[data-key-edit-value]')?.value?.trim() ? { value: overlay.querySelector('[data-key-edit-value]').value.trim() } : {})
 					}]);
 					toast(T('saved'), 'ok');
 					return false;
@@ -3731,7 +3789,7 @@ function wireKeys() {
 			btn.textContent = '…';
 			try {
 				const res = await svc('auraTeam.pingKey', [keyId]);
-				toast(res?.ok ? `${T('pingOk')}: ${res.pingMs} ms` : `${T('pingFail')} (HTTP ${res?.status ?? 0})`, res?.ok ? 'ok' : 'err');
+				toast(res?.ok ? `${res.limited ? T('keyLimited') : T('pingOk')}: ${T('pingMs').replace('{0}', String(res.pingMs))}` : (res?.error || `${T('pingFail')} (HTTP ${res?.status ?? 0})`), res?.ok ? 'ok' : 'err');
 			} catch (err) { toast(err?.message || T('pingFail'), 'err'); }
 			btn.disabled = false;
 			btn.textContent = prevLabel;
@@ -3800,6 +3858,8 @@ function openAddKeyModal() {
 				<div class="field"><label>${esc(T('keyPriority'))}</label><select data-add-prio>${[['high', 'prioHigh'], ['medium', 'prioMedium'], ['low', 'prioLow']].map(([v, k], i) => `<option value="${v}" ${i === 1 ? 'selected' : ''}>${esc(T(k))}</option>`).join('')}</select></div>
 			</div>
 			<div class="field"><label>${esc(T('keyGroup'))}</label><select data-add-group><option value="">—</option>${groups.map((g) => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('')}</select></div>
+			<div class="field"><label>${esc(T('keyBaseUrl'))}</label><input data-add-base placeholder="https://openrouter.ai/api/v1" spellcheck="false"><div class="hint">${esc(T('keyBaseUrlHint'))}</div></div>
+			<div class="field"><label>${esc(T('keyModel'))}</label><input data-add-model placeholder="gpt-4o-mini" spellcheck="false"><div class="hint">${esc(T('keyModelHint'))}</div></div>
 			<div class="field"><a class="linklike" data-open-import>${esc(T('importFromApi'))} →</a><div class="hint">${esc(T('importFromApiSub'))}</div></div>`,
 		onAction: async (overlay) => {
 			const label = overlay.querySelector('[data-add-label]')?.value?.trim();
@@ -3811,8 +3871,10 @@ function openAddKeyModal() {
 				label, value,
 				provider: overlay.querySelector('[data-add-provider]')?.value,
 				accessRole: overlay.querySelector('[data-add-role]')?.value,
-				priority: prioVal === 'high' ? '200' : prioVal === 'low' ? '50' : '100',
-				groupId: overlay.querySelector('[data-add-group]')?.value || undefined
+				priority: String(PRIO_VALUE[prioVal] ?? 100),
+				groupId: overlay.querySelector('[data-add-group]')?.value || undefined,
+				baseUrl: overlay.querySelector('[data-add-base]')?.value?.trim() || undefined,
+				model: overlay.querySelector('[data-add-model]')?.value?.trim() || undefined
 			}]);
 			toast(T('saved'), 'ok');
 			return false;

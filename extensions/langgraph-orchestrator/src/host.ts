@@ -500,6 +500,7 @@ export class OrchestratorHost implements vscode.Disposable {
 			case 'team.refresh': return this.refreshTeamBoard();
 			case 'team.runTask': return this.runTeamTaskById(String(args.taskId ?? ''));
 			case 'team.createTask': return this.createTeamTask(String(args.title ?? ''), String(args.status ?? 'todo'));
+			case 'team.moveTask': return this.moveTeamTask(String(args.taskId ?? ''), String(args.status ?? ''));
 			case 'toolCache.clear': this.toolCache.clear(); return { cleared: true };
 			case 'toolCache.stats': return { entries: this.toolCache.size() };
 			case 'budget.update': return this.updateBudget(args);
@@ -1305,6 +1306,20 @@ export class OrchestratorHost implements vscode.Disposable {
 		}
 		await this.refreshTeamBoard();
 		return { ok: true };
+	}
+
+	/** Перетаскивание карточки в канбане панели: меняем статус задачи на доске Team. */
+	private async moveTeamTask(taskId: string, status: string): Promise<{ ok: boolean; reason?: 'unavailable' | 'rejected' }> {
+		if (!this.bridge.available) {
+			return { ok: false, reason: 'unavailable' };
+		}
+		const columns: TeamTaskStatus[] = ['todo', 'doing', 'review', 'done'];
+		if (!taskId || !columns.includes(status as TeamTaskStatus)) {
+			return { ok: false, reason: 'rejected' };
+		}
+		const ok = await this.bridge.updateTask(taskId, { status });
+		await this.refreshTeamBoard();
+		return ok ? { ok: true } : { ok: false, reason: 'rejected' };
 	}
 
 	/**

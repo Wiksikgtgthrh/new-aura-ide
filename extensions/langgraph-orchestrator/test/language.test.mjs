@@ -143,8 +143,7 @@ test('в русском словаре панели нет забытых анг
 	const value = (dict, path) => path.split('.').reduce((node, key) => node[key], dict);
 	const ru = leafPaths(dicts.ru);
 	const allowed = new Set([
-		'tiers.high', 'tiers.mid', 'tiers.low',
-		'plannerAuto', 'nodeDiff',
+		// Сокращения единиц совпадают по смыслу, но не по написанию — белый список пуст.
 	]);
 
 	const forgotten = ru.filter(path => !allowed.has(path) && value(dicts.ru, path) === value(dicts.en, path));

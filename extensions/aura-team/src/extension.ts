@@ -15,7 +15,7 @@ import { branchNameForTask, taskRefInMessage } from './git/branchName';
 import { AdminOverview, TeamRole } from './types';
 import { TeamSyncService } from './git/teamSync';
 import { ProfileManager } from './profile';
-import { AuraState, BoardSnapshot, KeyGroup, Profile, Project, Session, TaskStatus, TeamActivityEvent, TeamApiKey, TeamSummary, TeamTask } from './types';
+import { AuraState, BoardSnapshot, KeyGroup, Profile, Project, Session, TaskStatus, TeamActivityEvent, TeamApiKey, TeamApiKeyChanges, TeamSummary, TeamTask } from './types';
 import { AuraTeamPublicApi, PUBLIC_API_VERSION, TeamTaskChanges } from './publicApi';
 import { AuraTeamPanelProvider } from './webview/panelProvider';
 import { ARCHIVE_FILTERS, humanBytes, isArchiveName, suggestedArchiveName } from './archives/rules';
@@ -259,23 +259,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 		// Скрытие локальное: перерисовываем из уже загруженного состояния, без похода на сервер.
 		await broadcast();
 	});
-	// Удаление события для всей команды: только owner/maintainer, с явным подтверждением.
+	// Удаление события для всей команды: владелец/мейнтейнер проекта или глобальный админ.
+	// Без модального подтверждения — строка плавно схлопывается в сайдбаре сразу по клику.
 	register('auraTeam.deleteActivity', async (eventId?: number | string) => {
 		const id = Number(eventId);
 		if (!Number.isSafeInteger(id) || id <= 0) { return; }
 		const me = (state.summary?.members ?? []).find(member => member.id === state.session?.user.id)?.role ?? '';
-		if (me !== 'owner' && me !== 'maintainer') {
+		if (me !== 'owner' && me !== 'maintainer' && !state.session?.admin) {
 			void vscode.window.showWarningMessage(vscode.l10n.t('Only the owner or a maintainer can delete activity.'));
+			await broadcast();
 			return;
 		}
-		const deleteLabel = vscode.l10n.t('Delete');
-		const confirmed = await vscode.window.showWarningMessage(
-			vscode.l10n.t('Delete this activity entry for the whole team? This cannot be undone.'),
-			{ modal: true },
-			deleteLabel,
-		);
-		if (confirmed !== deleteLabel) { return; }
-		await api.deleteActivity(requireTeam(state), id);
+		try {
+			await api.deleteActivity(requireTeam(state), id);
+		} catch (error) {
+			void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error));
+		}
 		await refresh();
 	});
 	register('auraTeam.undismissAllActivity', async () => {
@@ -324,6 +323,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 		if (!value || value.length < 8) { return value; }
 		return value.slice(0, 3) + '…' + value.slice(-4);
 	};
+	// Старый сервер отдаёт last_ok как 1/0 — UI сравнивает строго с true/false, из-за чего
+	// рабочие ключи считались «не отвечают». Приводим к boolean на входе.
+	const normalizeKey = (k: TeamApiKey): TeamApiKey => ({ ...k, keyHint: maskKey(k.keyHint), ok: k.ok === null || k.ok === undefined ? null : Boolean(k.ok) });
 
 	const doRefresh = async (): Promise<void> => {
 		const prevBoard = state.board;
@@ -340,7 +342,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 			const teamId = state.teamId;
 			const [board, keys, keyGroups, activity, summary] = await Promise.all([
 				teamId ? api.getBoard(teamId) : undefined,
-				teamId ? api.listApiKeys(teamId).then(items => items.map(k => ({ ...k, keyHint: maskKey(k.keyHint) }))) : undefined,
+				teamId ? api.listApiKeys(teamId).then(items => items.map(normalizeKey)) : undefined,
 				teamId ? api.listKeyGroups(teamId).catch(() => undefined) : undefined,
 				teamId ? api.getActivity(teamId).catch(() => undefined) : undefined,
 				teamId ? api.getSummary(teamId).catch(() => undefined) : undefined
@@ -773,7 +775,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 		await refresh();
 		return updated;
 	});
-	register('auraTeam.storeApiKey', async (key?: { provider?: string; accessRole?: string; label?: string; priority?: string; value?: string; groupId?: string }) => {
+	register('auraTeam.storeApiKey', async (key?: { provider?: string; accessRole?: string; label?: string; priority?: string; value?: string; groupId?: string; baseUrl?: string; model?: string }) => {
 		const provider = key?.provider ?? await vscode.window.showQuickPick(['openai', 'anthropic'], { placeHolder: vscode.l10n.t('Provider') });
 		const accessRole = key?.accessRole ?? await vscode.window.showQuickPick(['owner', 'maintainer', 'dev', 'viewer'], { placeHolder: vscode.l10n.t('Minimum role allowed to use this key') });
 		if (!provider || !accessRole) { return; }
@@ -783,7 +785,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 		if (!Number.isInteger(priority) || priority < 0 || priority > 1000) { throw new Error(vscode.l10n.t('Priority must be an integer from 0 to 1000.')); }
 		const value = key?.value ?? await vscode.window.showInputBox({ prompt: vscode.l10n.t('API key'), password: true, ignoreFocusOut: true });
 		if (!value) { return; }
-		await api.storeApiKey(requireTeam(state), provider, value, accessRole, label, priority, key?.groupId);
+		await api.storeApiKey(requireTeam(state), provider, value, accessRole, label, priority, key?.groupId, { baseUrl: key?.baseUrl, model: key?.model });
 		vscode.window.showInformationMessage(vscode.l10n.t('The API key is encrypted on the server.'));
 		await refresh();
 	});
@@ -848,7 +850,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 				}
 				if (!provider) { outcome.skipped.push({ name, reason: 'no-provider', detail: exported.provider }); continue; }
 				const label = entry.label || name;
-				await api.storeApiKey(teamId, provider.id, exported.value, 'dev', label, mapAuraPriority(entry.priority ?? item.priority), entry.groupId);
+				// base URL и модель переносим вместе с ключом: проверка и прокси идут туда же, куда ходит плагин API,
+				// а не на api.openai.com (из-за этого рабочие ключи шлюзов помечались «не отвечает»).
+				await api.storeApiKey(teamId, provider.id, exported.value, 'dev', label, mapAuraPriority(entry.priority ?? item.priority), entry.groupId, { baseUrl: exported.baseUrl ?? item.baseUrl, model: exported.model ?? item.model });
 				outcome.imported++;
 				remembered[entry.id] = { label, at: new Date().toISOString() };
 			} catch (error) {
@@ -956,7 +960,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 		await api.deleteApiKey(requireTeam(state), key.id);
 		await refresh();
 	});
-	register('auraTeam.updateApiKey', async (keyId?: string, changes?: { label?: string; accessRole?: string; priority?: number; groupId?: string | null }) => {
+	register('auraTeam.updateApiKey', async (keyId?: string, changes?: TeamApiKeyChanges) => {
 		if (!keyId || !changes) { return; }
 		await api.updateApiKey(requireTeam(state), String(keyId), changes);
 		await refresh();
@@ -987,7 +991,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 	// Проверить все ключи параллельно: обновляем снапшот и отдаём результаты в UI.
 	register('auraTeam.checkAllKeys', async () => {
 		const results = await api.checkAllKeys(requireTeam(state));
-		try { state.keys = (await api.listApiKeys(requireTeam(state))).map(k => ({ ...k, keyHint: maskKey(k.keyHint) })); } catch { /* не критично */ }
+		try { state.keys = (await api.listApiKeys(requireTeam(state))).map(normalizeKey); } catch { /* не критично */ }
 		await broadcast();
 		return results;
 	});
@@ -1382,6 +1386,8 @@ button:focus-visible, [tabindex]:focus-visible { outline: 1px solid var(--vscode
 #root { height: 100%; overflow-y: auto; padding: 0 var(--sp-2); }
 
 /* ---------- единая сетка строки (A3): все строки панели — 20px | 1fr | auto ---------- */
+.ev-row { overflow: hidden; transition: height .24s ease, min-height .24s ease, opacity .2s ease, transform .2s ease, padding .24s ease; }
+.ev-row.removing { height: 0 !important; min-height: 0; opacity: 0; transform: translateX(8px); padding-top: 0; padding-bottom: 0; pointer-events: none; }
 .row {
 \tdisplay: grid;
 \tgrid-template-columns: 20px minmax(0, 1fr) auto;
@@ -1644,6 +1650,8 @@ async function collapseRow(row) {
 }
 /* C5: тост с полоской-таймером; несколько удалений подряд — один тост со счётчиком */
 const pendingDeletes = [];
+/* события, удалённые для команды: не воскрешаем, пока сервер не подтвердит */
+const deletedEvents = new Set();
 let undoTimer;
 /* C5: тост с полоской-таймером; несколько удалений подряд — один тост со счётчиком.
    Запрос уходит на сервер сразу (там soft-delete в корзину): раньше он откладывался
@@ -2146,8 +2154,9 @@ function updateLists() {
 \tconst dismissed = new Set(state.dismissedActivity ?? []);
 \tconst key = (ev) => ev.createdAt + '|' + ev.action + '|' + ev.userId;
 \tconst me = members.find((m) => m.id === u.id);
-	const canDeleteEvents = Boolean(me && (me.role === 'owner' || me.role === 'maintainer'));
-	const feedAll = (state.activity ?? []).filter(ev => !dismissed.has(key(ev)));
+	const canDeleteEvents = Boolean((me && (me.role === 'owner' || me.role === 'maintainer')) || state.session?.admin);
+	const deletedEv = deletedEvents;
+	const feedAll = (state.activity ?? []).filter(ev => !dismissed.has(key(ev)) && !deletedEv.has(String(ev.id)));
 	const hiddenEvents = (state.activity ?? []).length - feedAll.length;
 	const restoreFeedBtn = document.getElementById('restoreFeedBtn');
 	if (restoreFeedBtn) {
@@ -2251,13 +2260,23 @@ function bindListHandlers() {
 			/* мгновенно убираем строку локально: скрытие локальное, сервер не нужен */
 			const evHideKey = dismissBtn.dataset.dismissEv;
 			state.dismissedActivity = [...(state.dismissedActivity ?? []), evHideKey];
-			dismissBtn.closest('.ev-row')?.remove();
+			const hideRow = dismissBtn.closest('.ev-row');
+			if (hideRow) { hideRow.style.height = hideRow.offsetHeight + 'px'; hideRow.offsetHeight; hideRow.classList.add('removing'); setTimeout(() => hideRow.remove(), 260); }
 			vscode.postMessage({ type: 'invoke', command: 'auraTeam.dismissActivity', args: [evHideKey] });
 			return;
 		}
 \t\tconst delEvBtn = e.target.closest('[data-del-event]');
 		if (delEvBtn) {
 			e.stopPropagation();
+			deletedEvents.add(String(delEvBtn.dataset.delEvent));
+			const delRow = delEvBtn.closest('.ev-row');
+			if (delRow && !delRow.classList.contains('removing')) {
+				/* плавное схлопывание: фиксируем высоту, затем анимируем в 0 */
+				delRow.style.height = delRow.offsetHeight + 'px';
+				delRow.offsetHeight;
+				delRow.classList.add('removing');
+				setTimeout(() => delRow.remove(), 260);
+			}
 			vscode.postMessage({ type: 'invoke', command: 'auraTeam.deleteActivity', args: [delEvBtn.dataset.delEvent] });
 			return;
 		}

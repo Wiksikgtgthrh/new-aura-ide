@@ -325,13 +325,15 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 	// Удаление события из ленты: owner/maintainer (обычный участник может только скрыть у себя).
 	app.delete<{ Params: { teamId: string; eventId: string } }>('/v1/teams/:teamId/activity/:eventId', async (request, reply) => {
 		const user = await userId(request);
-		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		if (!isAdmin(user)) {
+			try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		}
 		const eventId = Number(request.params.eventId);
 		if (!Number.isSafeInteger(eventId) || eventId <= 0) { return reply.badRequest('Invalid event id'); }
 		const result = database.prepare('DELETE FROM audit_log WHERE id=? AND team_id=?').run(eventId, request.params.teamId);
 		if (result.changes !== 1) { return reply.notFound(); }
-		// Удаление события само попадает в аудит: кто и что убрал — видно всем.
-		audit(user, 'activity.delete', request.params.teamId, 'activity', String(eventId));
+		// Аудит без team_id: след остаётся в журнале, но не засоряет ленту команды.
+		audit(user, 'activity.delete', undefined, 'activity', String(eventId), { teamId: request.params.teamId });
 		broadcast(request.params.teamId, 'activity.changed');
 		return { ok: true };
 	});

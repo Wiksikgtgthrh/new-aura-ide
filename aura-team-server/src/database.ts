@@ -8,7 +8,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { config } from './config.js';
 import { secretDigest } from './security.js';
-import { roleAtLeast, type Role } from './features.js';
+import { FEATURE_IDS, roleAtLeast, type Role } from './features.js';
 
 mkdirSync(config.dataDir, { recursive: true });
 export const database = new Database(join(config.dataDir, 'aura-team.db'));
@@ -53,6 +53,11 @@ for (const [name, definition] of [
 	['ping_ms', 'INTEGER'],
 	['last_checked_at', 'TEXT'],
 	['last_ok', 'INTEGER'],
+	// Настройки как в плагине Aura API: свой base URL (шлюз/прокси) и модель ключа.
+	['base_url', 'TEXT'],
+	['model', 'TEXT'],
+	['last_status', 'INTEGER'],
+	['last_error', 'TEXT'],
 ] as const) {
 	if (!apiKeyColumns.has(name)) { database.exec(`ALTER TABLE api_keys ADD COLUMN ${name} ${definition}`); }
 }
@@ -111,8 +116,8 @@ export interface EntitlementRow {
 	feature: string;
 	grantedAt: string;
 	note: string;
-	/** 'account' — выдано аккаунту, 'team' — унаследовано от команды с нужной ролью. */
-	source: 'account' | 'team';
+	/** 'account' — выдано аккаунту, 'team' — унаследовано от команды, 'admin' — право администратора. */
+	source: 'account' | 'team' | 'admin';
 	/** Для командной выдачи: откуда именно пришло право. */
 	teamId?: string;
 	teamName?: string;
@@ -137,6 +142,10 @@ export function entitlementsOf(userId: string): EntitlementRow[] {
 		.filter(row => roleAtLeast(row.my_role, (row.min_role || 'dev') as Role))
 		.map(row => ({ feature: row.feature, grantedAt: row.granted_at, note: row.note, source: 'team' as const, teamId: row.team_id, teamName: row.team_name, minRole: row.min_role }));
 	const byFeature = new Map<string, EntitlementRow>();
+	// Администратору открыты все закрытые возможности без отдельной выдачи.
+	if (isAdmin(userId)) {
+		for (const feature of FEATURE_IDS) { byFeature.set(feature, { feature, grantedAt: '', note: 'administrator', source: 'admin' }); }
+	}
 	for (const row of [...inherited, ...own]) { byFeature.set(row.feature, row); }
 	return [...byFeature.values()].sort((a, b) => a.feature.localeCompare(b.feature));
 }
@@ -202,7 +211,20 @@ export function redeemAdminCode(code: string, userId: string): boolean {
 }
 
 export function isAdmin(userId: string): boolean {
-	return Boolean(database.prepare('SELECT 1 FROM admins WHERE user_id=?').get(userId));
+	if (database.prepare('SELECT 1 FROM admins WHERE user_id=?').get(userId)) { return true; }
+	return isBootstrapAdmin(userId);
+}
+
+/**
+ * Почта из AURA_ADMIN_EMAILS — администратор с первого входа. Запись в admins
+ * создаётся сразу, чтобы аккаунт был виден в админ-панели и его нельзя было «потерять».
+ */
+function isBootstrapAdmin(userId: string): boolean {
+	if (config.adminEmails.length === 0) { return false; }
+	const row = database.prepare('SELECT email FROM users WHERE id=?').get(userId) as { email: string } | undefined;
+	if (!row || !config.adminEmails.includes(row.email.trim().toLowerCase())) { return false; }
+	grantAdmin(userId, 'bootstrap from AURA_ADMIN_EMAILS');
+	return true;
 }
 
 export function grantAdmin(userId: string, note = ''): void {

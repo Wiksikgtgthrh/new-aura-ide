@@ -21,7 +21,7 @@ export interface Entitlement {
 	feature: string;
 	grantedAt: string;
 	note: string;
-	source?: 'account' | 'team';
+	source?: 'account' | 'team' | 'admin';
 	teamId?: string;
 	teamName?: string;
 	minRole?: TeamRole;
@@ -68,7 +68,9 @@ export interface TeamSummary {
 	myTasks: Array<{ id: string; title: string; status: TaskStatus; dueAt?: string; subtasks?: { done: number; total: number } }>;
 	projects: Array<{ id: string; name: string; defaultBranch: string; gitUrl?: string }>;
 }
-export interface TeamApiKey { id: string; label: string; keyHint: string; provider: string; accessRole: TeamRole; priority: number; groupId?: string | null; pingMs?: number | null; ok?: boolean | null; lastCheckedAt?: string | null; disabledAt?: string; createdAt: string; }
+export interface TeamApiKey { id: string; label: string; keyHint: string; provider: string; accessRole: TeamRole; priority: number; groupId?: string | null; pingMs?: number | null; ok?: boolean | null; lastCheckedAt?: string | null; baseUrl?: string | null; model?: string | null; lastStatus?: number | null; lastError?: string | null; disabledAt?: string; createdAt: string; }
+/** Правка ключа банка: те же настройки, что в плагине Aura API (base URL, модель, замена секрета). */
+export interface TeamApiKeyChanges { label?: string; accessRole?: string; priority?: number; groupId?: string | null; baseUrl?: string | null; model?: string | null; value?: string; }
 export interface KeyGroup { id: string; name: string; priority: number; createdAt: string; }
 
 export interface Tokens { accessToken: string; refreshToken: string; expiresIn: number; }

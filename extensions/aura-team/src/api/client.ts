@@ -10,7 +10,7 @@ import { basename } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { AdminOverview, AdminTeamRow, AdminUserRow, AgggAgentBundle, BoardSnapshot, DeviceAuthorization, GatedFeature, KeyGroup, Session, TaskStatus, TeamActivityEvent, TeamApiKey, TeamSummary, TeamTask, TeamRole, Tokens } from '../types';
+import { AdminOverview, AdminTeamRow, AdminUserRow, AgggAgentBundle, BoardSnapshot, DeviceAuthorization, GatedFeature, KeyGroup, Session, TaskStatus, TeamActivityEvent, TeamApiKey, TeamApiKeyChanges, TeamSummary, TeamTask, TeamRole, Tokens } from '../types';
 import { contentTypeHeader } from './headers';
 import { fileNameFromDisposition } from './disposition';
 
@@ -215,22 +215,22 @@ export class AuraApiClient implements vscode.Disposable {
 	changeRole(teamId: string, memberId: string, role: string): Promise<void> { return this.request(`/v1/teams/${teamId}/members/${memberId}`, { method: 'PATCH', body: JSON.stringify({ role }) }); }
 	removeMember(teamId: string, memberId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/members/${memberId}`, { method: 'DELETE' }); }
 	fetchLimits(teamId: string): Promise<{ archiveMaxBytes: number; archiveTtlDays: number; proxyRequestsPerDay: number }> { return this.request(`/v1/teams/${teamId}/limits`); }
-	checkAllKeys(teamId: string): Promise<Array<{ keyId: string; ok: boolean; status: number; pingMs: number }>> { return this.request(`/v1/teams/${teamId}/keys/check`, { method: 'POST', body: '{}' }); }
+	checkAllKeys(teamId: string): Promise<Array<{ keyId: string; ok: boolean; status: number; pingMs: number; error?: string; limited?: boolean }>> { return this.request(`/v1/teams/${teamId}/keys/check`, { method: 'POST', body: '{}' }); }
 	listProviders(teamId: string): Promise<Array<{ id: string; name: string; origin: string; builtin: boolean }>> { return this.request(`/v1/teams/${teamId}/providers`); }
 	/** Регистрация openai-совместимого шлюза: нужна при импорте ключей со своим baseUrl. */
 	createProvider(teamId: string, draft: { name: string; origin: string; authScheme: 'bearer'; allowedPaths: Array<{ method: string; path: string }>; probePath?: string }): Promise<{ id: string }> { return this.request(`/v1/teams/${teamId}/providers`, { method: 'POST', body: JSON.stringify(draft) }); }
 	fetchUsage(teamId: string): Promise<{ limitPerUserPerDay: number; usedToday: number; remainingToday: number; perDay: Array<{ day: string; requests: number }>; perUser: Array<{ userId: string; name: string; requests: number }>; perKey: Array<{ keyId: string; label: string; provider: string; requests: number }> }> { return this.request(`/v1/teams/${teamId}/usage`); }
 	createProject(teamId: string, name: string, gitUrl: string, defaultBranch: string): Promise<void> { return this.request(`/v1/teams/${teamId}/projects`, { method: 'POST', body: JSON.stringify({ name, gitUrl, defaultBranch }) }); }
 	createTask(teamId: string, title: string, status: TaskStatus = 'todo', assigneeId?: string): Promise<TeamTask> { return this.request(`/v1/teams/${teamId}/tasks`, { method: 'POST', body: JSON.stringify({ title, status, ...(assigneeId ? { assigneeId } : {}) }) }); }
-	storeApiKey(teamId: string, provider: string, value: string, accessRole: string, label: string, priority: number, groupId?: string): Promise<void> { return this.request(`/v1/teams/${teamId}/keys`, { method: 'POST', body: JSON.stringify({ provider, value, accessRole, label, priority, groupId }) }); }
+	storeApiKey(teamId: string, provider: string, value: string, accessRole: string, label: string, priority: number, groupId?: string, extra?: { baseUrl?: string; model?: string }): Promise<void> { return this.request(`/v1/teams/${teamId}/keys`, { method: 'POST', body: JSON.stringify({ provider, value, accessRole, label, priority, groupId, baseUrl: extra?.baseUrl, model: extra?.model }) }); }
 	listApiKeys(teamId: string): Promise<TeamApiKey[]> { return this.request(`/v1/teams/${teamId}/keys`); }
 	disableApiKey(teamId: string, keyId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/keys/${keyId}`, { method: 'DELETE' }); }
 	enableApiKey(teamId: string, keyId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/keys/${keyId}/enable`, { method: 'POST', body: '{}' }); }
 	deleteApiKey(teamId: string, keyId: string): Promise<void> { return this.request(`/v1/teams/${teamId}/keys/${keyId}/remove`, { method: 'DELETE' }); }
-	updateApiKey(teamId: string, keyId: string, changes: { label?: string; accessRole?: string; priority?: number; groupId?: string | null }): Promise<void> { return this.request(`/v1/teams/${teamId}/keys/${keyId}`, { method: 'PATCH', body: JSON.stringify(changes) }); }
+	updateApiKey(teamId: string, keyId: string, changes: TeamApiKeyChanges): Promise<void> { return this.request(`/v1/teams/${teamId}/keys/${keyId}`, { method: 'PATCH', body: JSON.stringify(changes) }); }
 	listKeyGroups(teamId: string): Promise<KeyGroup[]> { return this.request(`/v1/teams/${teamId}/key-groups`); }
 	createKeyGroup(teamId: string, name: string, priority: number): Promise<KeyGroup> { return this.request(`/v1/teams/${teamId}/key-groups`, { method: 'POST', body: JSON.stringify({ name, priority }) }); }
-	pingKey(teamId: string, keyId: string): Promise<{ ok: boolean; status: number; pingMs: number }> { return this.request(`/v1/teams/${teamId}/keys/${keyId}/ping`, { method: 'POST', body: '{}' }); }
+	pingKey(teamId: string, keyId: string): Promise<{ ok: boolean; status: number; pingMs: number; error?: string; limited?: boolean }> { return this.request(`/v1/teams/${teamId}/keys/${keyId}/ping`, { method: 'POST', body: '{}' }); }
 	uploadArchive(teamId: string, name: string, projectName: string, bytes: Uint8Array, projectId?: string): Promise<{ id: string; projectId: string; expiresAt: string }> {
 		const form = new FormData();
 		form.append('file', new Blob([bytes]), name);

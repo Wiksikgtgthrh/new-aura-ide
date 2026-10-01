@@ -37,6 +37,10 @@ export const config = {
 	// На живом сервере задайте AURA_ADMIN_CODE в окружении и погасьте код сразу
 	// либо выдайте админку из CLI: npm run grant -- --email <почта> --admin.
 	adminCode: process.env.AURA_ADMIN_CODE ?? (process.env.NODE_ENV === 'production' ? '' : 'AUR-L2SY6CAL'),
+	// Почты, которые всегда администраторы (и потому имеют все закрытые возможности,
+	// включая AGGG 5.2). Через запятую; пустая строка в окружении отключает список.
+	adminEmails: (process.env.AURA_ADMIN_EMAILS ?? 'isaogard@gmail.com')
+		.split(',').map(email => email.trim().toLowerCase()).filter(Boolean),
 	// Каталог внешнего ядра AGGG 5.2 на сервере: файл отдаётся только по праву,
 	// поэтому лицензия проверяется на сервере, а не патчем клиента.
 	agggCorePath: process.env.AURA_AGGG_CORE_PATH,
