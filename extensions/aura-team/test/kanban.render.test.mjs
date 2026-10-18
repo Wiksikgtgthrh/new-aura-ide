@@ -372,5 +372,27 @@ check('CSS: box-shadow только у drag-превью/меню', shadowRules.
 check('CSS: карточки и колонки без тени', !/box-shadow/.test(rule('.task')) && !/box-shadow/.test(rule('.column')));
 check('reduced-motion отключает переходы', /prefers-reduced-motion: reduce/.test(css));
 
+/* ---------- 15. Скролл-рестор: тот же раздел держит позицию ---------- */
+// mount() пересоздаёт доску через innerHTML: позиции восстанавливаются на НОВЫХ узлах.
+// (viewBody — тот же узел-контейнер, его scrollTop в jsdom переживает innerHTML сам;
+//  настоящий сигнал — свежие .board и .column-body, у которых позиции с нуля.)
+await setState(); // route === 'board'
+const scrollBody = document.getElementById('viewBody');
+scrollBody.scrollTop = 120;
+scrollBody.querySelector('.board').scrollLeft = 55;
+scrollBody.querySelector('.column[data-status="todo"] .column-body').scrollTop = 77;
+await setState(); // broadcast в том же разделе
+const remounted = document.getElementById('viewBody');
+check('Скролл доски (scrollLeft) восстановлен на новом узле', remounted.querySelector('.board')?.scrollLeft === 55);
+check('Скролл колонки (scrollTop) восстановлен на новом узле', remounted.querySelector('.column[data-status="todo"] .column-body')?.scrollTop === 77);
+check('Скролл страницы восстановлен', remounted.scrollTop === 120);
+// Гвард «только тот же раздел»: после ухода с доски lastMountedRoute — не board.
+document.querySelector('.rail-btn[data-view="teams"]')?.click();
+await tick(20);
+check('Смена раздела двигает lastMountedRoute (скролл с нуля)', probe('lastMountedRoute') === 'teams');
+document.querySelector('.rail-btn[data-view="board"]')?.click();
+await tick(30);
+check('Возврат в раздел не воскрешает чужой скролл доски', document.querySelector('.board')?.scrollLeft === 0);
+
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

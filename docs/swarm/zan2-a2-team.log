@@ -1,0 +1,360 @@
+[0m
+> build · glm-5.3-prime
+[0m→ [0mRead docs/swarm/DONE-a2-team-fix.md 
+[0m→ [0mRead docs/swarm/ZAN-zan-a2-team.md 
+> build · glm-5.3-prime
+[0m→ [0mRead docs/swarm/DONE-a2-team.md 
+[0m→ [0mRead extensions/aura-team/test 
+> build · glm-5.3-prime
+[0m→ [0mRead extensions/aura-team/test/invite.modal.test.mjs 
+[0m→ [0mRead extensions/aura-team/test/run-all.mjs 
+> build · glm-5.3-prime
+[0m→ [0mRead extensions/aura-team/test/kanban.render.test.mjs 
+> build · glm-5.3-prime
+Теперь читаю код `template.html`, который новые тесты обязаны покрывать.
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[offset=1655, limit=80][0m
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[offset=1800, limit=50][0m
+> build · glm-5.3-prime
+Код совпадает с заявленным. Теперь мои живые прогоны — сначала точечные тесты, параллельно смотрю extension.ts.
+[0m$ [0mnode test/invite.modal.test.mjs; echo "EXIT=$?"
+ok   открытие меню запрашивает текущий код
+  ok   модалка показывает активный код
+  ok   кнопка «Пересоздать» на месте
+  ok   кнопка блокируется сразу (до ответа сервера)
+  ok   даблклик шлёт ровно один revoke
+  ok   create не уходит до ответа revoke
+  ok   после revoke уходит createInvite (цепочка одним кликом)
+  ok   новый код ушёл в буфер обмена
+  ok   тост «скопировано» показан
+  ok   модалка перезапросила код после пересоздания
+  ok   переоткрытая модалка показывает новый код
+  ok   при {cancelled} createInvite не уходит
+  ok   при {cancelled} модалка не переоткрывается
+  ok   при {cancelled} старый код на месте
+  ok   кнопка разблокирована после отмены
+  ok   без кода показана кнопка генерации
+  ok   кнопка генерации блокируется в полёте
+  ok   даблклик по генерации шлёт один createInvite
+  ok   сгенерированный код ушёл в буфер
+  ok   после генерации модалка перезапросила код
+  ok   модалка показывает свежий код
+  ok   copy-кнопка кладёт код в буфер
+
+ALL CHECKS PASSED
+EXIT=0
+[0m$ [0mnode test/kanban.render.test.mjs; echo "EXIT=$?"
+ok   plural: 1 → задача
+  ok   plural: 2 → задачи
+  ok   plural: 5 → задач
+  ok   plural: 11 → задач
+  ok   plural: 21 → задача
+  ok   plural: 101 → задача
+  ok   plural: 22 → задачи
+  ok   shortText: пусто и один символ отбрасываются
+  ok   Подзаголовок доски: «5 задач · 1 моя · 1 просрочено»
+  ok   Односимвольное имя команды не рендерится («висящая w»)
+  ok   Пустая колонка: нет узла .col-empty
+  ok   Пустая колонка: нет текста-подсказки в покое
+  ok   Пустая колонка: подсказка не показана без перетаскивания
+  ok   Пустая колонка: есть тело колонки
+  ok   .board-root занимает всю высоту
+  ok   .board — grid с горизонтальным скроллом
+  ok   .column-body скроллится, а не страница
+  ok   Колонки — auto minmax(260px, 1fr)
+  ok   #boardHost растёт в колонке flex
+  ok   #boardHost перенимает ограничение высоты
+  ok   Контролы тулбара — без вертикального padding
+  ok   Тулбар переносится на узкой ширине
+  ok   .column без border
+  ok   Дроп-зона — вся колонка: нет .col-empty и вложенного бокса
+  ok   Карточка — article с aria-label
+  ok   Описание, повторяющее заголовок, не рендерится
+  ok   Реальное описание рендерится
+  ok   Описание обрезается line-clamp
+  ok   Меню ⋮ скрыто до hover/focus
+  ok   Просроченная задача видна на карточке
+  ok   Просрочка не только через фильтр: чип содержит текст
+  ok   Карточка плоская: без box-shadow
+  ok   Hover карточки — только border-color
+  ok   Тулбар — одна строка
+  ok   Поиск в тулбаре
+  ok   Фильтр исполнителя — выпадашка с подписью
+  ok   Тогл «Просроченные» с aria-pressed
+  ok   Корзина — icon-кнопка в тулбаре
+  ok   Не осталось отдельной строки под корзину
+  ok   Живой регион для объявлений есть
+  ok   Кнопка обновления просит состояние (ready)
+  ok   Space берёт карточку
+  ok   Взятие объявлено
+  ok   Стрелка переносит карточку в соседнюю колонку (до фиксации)
+  ok   Перемещение объявлено
+  ok   Space фиксирует перенос: задача в колонке «В работе»
+  ok   С клавиатуры задачу можно перенести между колонками
+  ok   dragstart помечает карточку .dragging
+  ok   При перетаскивании раздвигается плейсхолдер
+  ok   Подсказка/подсветка ровно в одной колонке
+  ok   Бросок переносит задачу
+  ok   После дропа плейсхолдер убран
+  ok   После дропа подсветка снята
+  ok   Создание инлайн: три задачи без единого клика мышью после первого
+  ok   Инлайн-форма автофокусится и остаётся открытой
+  ok   Создание задачи не открывает модалку
+  ok   Кнопка «+ Задача» — ghost, без рамки
+  ok   Карточка появляется до ответа сервера
+  ok   Временная карточка не перетаскивается
+  ok   Временная карточка не открывает панель деталей
+  ok   Создание ушло на сервер
+  ok   Поле ввода не пересоздаётся и держит фокус
+  ok   Ответ сервера снимает временную карточку
+  ok   Настоящая задача встала на её место
+  ok   Поля ввода не задвоились
+  ok   Временная карточка не висит вечно
+  ok   Совпавшее имя снимает временную, а не настоящую
+  ok   Клик по карточке открывает боковую панель справа
+  ok   Это не модалка
+  ok   Панель закрывается
+  ok   Нет confirm()-модалки при удалении
+  ok   Undo-тост показан
+  ok   Запрос удаления уходит сразу
+  ok   Карточка уезжает из DOM
+  ok   «Отменить» возвращает задачу
+  ok   «Отменить» восстанавливает задачу на сервере
+  ok   Отмена не задваивает карточку
+  ok   Удалённая задача не возвращается при broadcast состояния
+  ok   «Очистить выполненные» удаляет сразу
+  ok   Выполненные ушли с доски
+  ok   Отмена очистки возвращает обе задачи
+  ok   Пустая доска: одно пустое состояние
+  ok   Пустая доска: колонок-пустышек нет
+  ok   Пустая доска: есть кнопка создания
+  ok   Карточка показывает прогресс «1/5»
+  ok   На карточке не больше трёх подзадач
+  ok   Лишние подзадачи свёрнуты в «+2»
+  ok   Отмеченная подзадача видна как done
+  ok   Чекбоксы подзадач не попадают в текст описания карточки
+  ok   Отметка на карточке поднимает прогресс до «2/5»
+  ok   Отметка сохраняется в описании как markdown-чекбокс
+  ok   В панели есть блок подзадач
+  ok   В панели все пять подзадач
+  ok   Панель показывает прогресс подзадач
+  ok   Поле описания в панели содержит только прозу
+  ok   Отметка в панели меняет прогресс на карточке
+  ok   Панель и карточка не расходятся
+  ok   Подзадача добавляется из панели
+  ok   Прогресс учитывает новую подзадачу «2/6»
+  ok   После добавления фокус остаётся в поле
+  ok   Подзадача удаляется
+  ok   Прогресс пересчитан «1/5»
+  ok   parseSubtasks отделяет прозу, считает всего и выполненные
+  ok   composeDescription собирает markdown-чекбоксы
+  ok   Расширение читает тот же формат подзадач, что пишет доска
+  ok   Описание из одних чекбоксов не оставляет пустой абзац
+  ok   Карточка с двумя подзадачами без свёртки
+  ok   Прогресс «0/2»
+  ok   CSS: карточка не получила тень и с подзадачами
+  ok   FLIP: снимок геометрии по id задачи
+  ok   FLIP: переезд карточек после перерисовки
+  ok   FLIP: render() снимает и проигрывает переезд
+  ok   Счётчики колонок прокручиваются
+  ok   Плейсхолдер раздвигает соседей через FLIP
+  ok   Плейсхолдер растёт из нуля
+  ok   Анимации уважают prefers-reduced-motion
+  ok   CSS: поле даты со своим индикатором
+  ok   CSS: нативный индикатор календаря скрыт
+  ok   CSS: иконка календаря акцентная, а не чёрная
+  ok   Иконка календаря есть в наборе
+  ok   Поле даты в панели деталей — с иконкой
+  ok   Быстрые пресеты дедлайна в панели
+  ok   Пресеты дат — единый хелпер
+  ok   CSS: нет хардкод-цветов (#)
+  ok   CSS: нет rgb(
+  ok   CSS: нет градиентов
+  ok   CSS: нет uppercase
+  ok   CSS: нет !important
+  ok   CSS: нет translateY(-1px)
+  ok   CSS: нет бесконечных анимаций
+  ok   CSS: box-shadow только у drag-превью/меню
+  ok   CSS: карточки и колонки без тени
+  ok   reduced-motion отключает переходы
+  ok   Скролл доски (scrollLeft) восстановлен на новом узле
+  ok   Скролл колонки (scrollTop) восстановлен на новом узле
+  ok   Скролл страницы восстановлен
+  ok   Смена раздела двигает lastMountedRoute (скролл с нуля)
+  ok   Возврат в раздел не воскрешает чужой скролл доски
+
+ALL CHECKS PASSED
+EXIT=0
+> build · glm-5.3-prime
+Точечные тесты зелёные у меня тоже. Полный прогон + сверка номеров строк в extension.ts.
+[0m$ [0mnode test/run-all.mjs 2>&1 | tail -60; echo "EXIT=${PIPESTATUS[0]}"
+Command moved to the background (shell ID: sh_15053222e002c9AJMw3GIreJA0).
+Output is streaming to: C:\Users\Wiks\.local\share\opencode\shell\c32a7f649aca4a9d5714efd16858bcf2d5026f73\sh_15053222e002c9AJMw3GIreJA0.out
+[0m→ [0mRead extensions/aura-orca/src/extension.ts [90m[limit=10, offset=298][0m
+> build · glm-5.3-prime
+[0m→ [0mRead extensions/aura-orca/src/extension.ts [90m[limit=8, offset=366][0m
+[0m→ [0mRead extensions/aura-team/src/extension.ts [90m[limit=18, offset=372][0m
+> build · glm-5.3-prime
+Номера строк бьются: 301-304, 370, 376, 387. Теперь счётчик EN-ключей и «код не менялся».
+[0m$ [0mcd /c/new-aura-ide/vscode-main && git diff HEAD -- extensions/aura-team/package.nls.json | grep -E '^\+' | grep -v '^\+\+\+' | head -25; echo "---"; git diff HEAD --stat -- extensions/aura-team/src extensions/aura-orca/src extensions/langgraph-orchestrator/src | tail -5; echo "---untracked---"; git status --porcelain extensions/aura-team/test docs/swarm | head -30
+---
+warning: in the working copy of 'extensions/langgraph-orchestrator/src/host.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'extensions/langgraph-orchestrator/src/panel/template.html', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'extensions/langgraph-orchestrator/src/tools/index.ts', LF will be replaced by CRLF the next time Git touches it
+ extensions/aura-team/src/webview/template.html     | 142 ++++++--
+ extensions/langgraph-orchestrator/src/host.ts      | 157 ++++++++-
+ .../langgraph-orchestrator/src/panel/template.html | 377 +++++++++++++++++++--
+ .../langgraph-orchestrator/src/tools/index.ts      |  98 +++++-
+ 11 files changed, 879 insertions(+), 114 deletions(-)
+---untracked---
+ M extensions/aura-team/test/kanban.render.test.mjs
+ M extensions/aura-team/test/manifest.test.mjs
+ M extensions/aura-team/test/sidebar-syntax.test.mjs
+?? docs/swarm/
+?? extensions/aura-team/test/invite.modal.test.mjs
+> build · glm-5.3-prime
+[0m$ [0mcd /c/new-aura-ide/vscode-main && git status --porcelain extensions/aura-team/ extensions/aura-orca/ extensions/langgraph-orchestrator/ | grep -v test/ ; echo "=== nls diff ==="; git diff HEAD -- extensions/aura-team/package.nls.json | head -40
+M extensions/aura-orca/package.json
+ M extensions/aura-orca/src/extension.ts
+ M extensions/aura-team/package-lock.json
+ M extensions/aura-team/package.json
+ M extensions/aura-team/package.nls.json
+ M extensions/aura-team/src/api/client.ts
+ M extensions/aura-team/src/extension.ts
+ M extensions/aura-team/src/git/service.ts
+ M extensions/aura-team/src/git/teamSync.ts
+ M extensions/aura-team/src/git/workflow.ts
+ M extensions/aura-team/src/webview/panelProvider.ts
+ M extensions/aura-team/src/webview/template.html
+ M extensions/langgraph-orchestrator/src/host.ts
+ M extensions/langgraph-orchestrator/src/panel/template.html
+ M extensions/langgraph-orchestrator/src/tools/index.ts
+?? extensions/aura-orca/package-lock.json
+?? extensions/aura-team/package.nls.ru.json
+?? extensions/aura-team/tmp-regions.txt
+?? extensions/langgraph-orchestrator/patch-kanban.py
+?? extensions/langgraph-orchestrator/src/harness/
+=== nls diff ===
+diff --git a/extensions/aura-team/package.nls.json b/extensions/aura-team/package.nls.json
+index 9fba73c3..219f8df3 100644
+--- a/extensions/aura-team/package.nls.json
++++ b/extensions/aura-team/package.nls.json
+@@ -41,5 +41,20 @@
+ 	"command.push": "Push",
+ 	"command.pull": "Pull & Rebase",
+ 	"command.checkout": "Switch Branch",
+-	"command.getState": "Get State (internal)"
++	"command.getState": "Get State (internal)",
++	"command.inviteOpen": "Invite to Team",
++	"command.syncNow": "Sync Now",
++	"command.toggleAutoPush": "Toggle Auto-Push",
++	"category.team": "Team",
++	"customEditor.displayName": "Team",
++	"configuration.autoStartServer": "Automatically start the local team server if it is not running (only for localhost serverUrl)",
++	"configuration.syncMode": "Auto-sync mode after saving files",
++	"configuration.syncMode.off": "Off — commits only manually",
++	"configuration.syncMode.ask": "Ask — after saving files, suggest a commit message (Enter — commit and push, Esc — postpone)",
++	"configuration.syncMode.auto": "Automatic — commit and push without asking",
++	"configuration.syncAutoPush": "Automatically commit and push all changes after saving files (legacy — use auraTeam.sync.mode)",
++	"configuration.syncIntervalSeconds": "How often to pull changes from GitHub (seconds)",
++	"configuration.syncCommitTemplate": "Commit message template for auto-push. Supports {files} and {date}",
++	"configuration.gitTestCommand": "Command for the 'Run tests' button in the team process (empty — detect automatically: npm test, cargo test, go test, pytest, make test)",
++	"configuration.uiLanguage.auto": "Aura language switch (aura.language), otherwise the IDE language"
+ }
+> build · glm-5.3-prime
+15 новых ключей + тронутый `command.getState` — бьётся. Проверяю mtime: что после прошлого ревью трогались только тесты и доки.
+[0m$ [0mcd /c/new-aura-ide/vscode-main && ls -la --time-style=full-iso extensions/aura-team/test/*.mjs extensions/aura-team/src/extension.ts extensions/aura-team/src/webview/template.html extensions/aura-orca/src/extension.ts extensions/langgraph-orchestrator/src/tools/index.ts docs/swarm/*.md 2>/dev/null | awk '{print $6, $7, $9}'; echo "=== now ==="; date +"%F %T"
+2026-10-18 21:11:24.042508600 docs/swarm/DONE-a2-n8n-fix.md
+2026-10-18 21:11:24.042004700 docs/swarm/DONE-a2-n8n-low.md
+2026-10-18 21:11:39.959249400 docs/swarm/DONE-a2-team-fix.md
+2026-10-18 21:11:10.315851100 docs/swarm/DONE-a2-team.md
+2026-10-18 06:23:33.696075800 docs/swarm/DONE-b1.md
+2026-10-18 07:13:48.523632600 docs/swarm/DONE-b1fix.md
+2026-10-18 08:36:10.928420900 docs/swarm/DONE-b1fix2.md
+2026-10-18 05:21:41.728541800 docs/swarm/DONE-b2.md
+2026-10-18 21:01:06.376251500 docs/swarm/PROMPT-a2-n8n-fix.md
+2026-10-18 09:12:17.827900900 docs/swarm/PROMPT-a2-n8n-low.md
+2026-10-18 21:01:06.296853800 docs/swarm/PROMPT-a2-team-fix.md
+2026-10-18 09:12:17.808895700 docs/swarm/PROMPT-a2-team.md
+2026-10-18 04:59:32.471892600 docs/swarm/PROMPT-b1-kotlin-emulator.md
+2026-10-18 07:04:32.790838000 docs/swarm/PROMPT-b1fix.md
+2026-10-18 08:27:44.697120500 docs/swarm/PROMPT-b1fix2.md
+2026-10-18 04:59:32.603877900 docs/swarm/PROMPT-b2-n8n-market.md
+2026-10-18 04:50:35.568761700 docs/swarm/PROMPT-explorer.md
+2026-10-18 20:35:21.375207600 docs/swarm/PROMPT-zan-a2-n8n.md
+2026-10-18 20:35:21.259101200 docs/swarm/PROMPT-zan-a2-team.md
+2026-10-18 06:30:01.623148600 docs/swarm/PROMPT-zan-b1.md
+2026-10-18 05:48:43.211361800 docs/swarm/PROMPT-zan-b2.md
+2026-10-18 21:41:50.485421400 docs/swarm/PROMPT-zan2-a2-n8n.md
+2026-10-18 21:41:50.396951100 docs/swarm/PROMPT-zan2-a2-team.md
+2026-10-18 07:53:09.822816400 docs/swarm/PROMPT-zan2-b1.md
+2026-10-18 08:45:32.989232200 docs/swarm/PROMPT-zan3-b1.md
+2026-10-18 04:57:32.823068700 docs/swarm/REVIEW-AURA.md
+2026-10-18 06:46:43.322359800 docs/swarm/ZAN-b1.md
+2026-10-18 06:04:04.059462500 docs/swarm/ZAN-b2.md
+2026-10-18 20:52:08.533569300 docs/swarm/ZAN-zan-a2-n8n.md
+2026-10-18 20:44:23.034970300 docs/swarm/ZAN-zan-a2-team.md
+2026-10-18 08:10:28.538305000 docs/swarm/ZAN-zan2-b1.md
+2026-10-18 08:49:05.271250200 docs/swarm/ZAN-zan3-b1.md
+2026-10-18 09:51:05.744290200 extensions/aura-orca/src/extension.ts
+2026-10-18 09:42:08.569810400 extensions/aura-team/src/extension.ts
+2026-10-18 09:47:21.464316600 extensions/aura-team/src/webview/template.html
+2026-10-01 05:24:18.234289000 extensions/aura-team/test/admin.render.test.mjs
+2026-10-01 05:24:18.234289000 extensions/aura-team/test/api-headers.test.mjs
+2026-10-01 05:24:18.367838000 extensions/aura-team/test/archives-rules.test.mjs
+2026-10-01 05:24:18.367838000 extensions/aura-team/test/aura-language.test.mjs
+2026-10-01 05:24:18.367838000 extensions/aura-team/test/commands-wired.test.mjs
+2026-10-01 05:24:18.367838000 extensions/aura-team/test/demo-mode.test.mjs
+2026-10-01 05:24:18.367838000 extensions/aura-team/test/git-branch-name.test.mjs
+2026-10-01 05:47:44.694363100 extensions/aura-team/test/git-workflow.test.mjs
+2026-10-01 05:47:44.694363100 extensions/aura-team/test/git.render.test.mjs
+2026-10-18 21:08:45.383001700 extensions/aura-team/test/invite.modal.test.mjs
+2026-10-01 05:24:18.383246400 extensions/aura-team/test/invite.sidebar.test.mjs
+2026-10-18 21:09:13.257590800 extensions/aura-team/test/kanban.render.test.mjs
+2026-10-01 05:24:18.383246400 extensions/aura-team/test/keys-import.test.mjs
+2026-10-18 09:39:40.717931000 extensions/aura-team/test/manifest.test.mjs
+2026-10-01 05:24:18.391771200 extensions/aura-team/test/refresh-batching.test.mjs
+2026-10-01 05:24:18.391771200 extensions/aura-team/test/run-all.mjs
+2026-10-01 05:24:18.391771200 extensions/aura-team/test/server-integration.test.mjs
+2026-10-02 04:02:19.305203900 extensions/aura-team/test/sidebar-syntax.test.mjs
+2026-10-01 05:24:18.391771200 extensions/aura-team/test/sidebar.render.test.mjs
+2026-10-18 09:52:58.135670500 extensions/langgraph-orchestrator/src/tools/index.ts
+=== now ===
+2026-10-18 21:43:39
+> build · glm-5.3-prime
+Полный прогон у меня: **ALL 19 STEPS PASSED, exit 0** — совпадает с заявленным. Добиваю оставшиеся сверки: tsc по orca/orchestrator, семантика `{cancelled}` в extension.ts, диапазоны AURA-026 и deleteArchive.
+[0m$ [0mnode ../../node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json; echo "ORCA_EXIT=$?"; cd ../langgraph-orchestrator && node ../../node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json; echo "ORCH_EXIT=$?"
+Command moved to the background (shell ID: sh_15054c886001dgtJE2Lc5ylyyI).
+Output is streaming to: C:\Users\Wiks\.local\share\opencode\shell\c32a7f649aca4a9d5714efd16858bcf2d5026f73\sh_15054c886001dgtJE2Lc5ylyyI.out
+[0m→ [0mRead extensions/aura-team/src/extension.ts [90m[limit=16, offset=805][0m
+> build · glm-5.3-prime
+[0m→ [0mRead extensions/aura-team/src/extension.ts [90m[limit=35, offset=332][0m
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=14, offset=3321][0m
+> build · glm-5.3-prime
+tsc по orca и orchestrator — оба exit 0. Последняя сверка: `svc()` в шаблоне — что тест реально идёт через invoke-путь, а не демо-мок.
+[0m✱ [0mGrep "async function svc|type: 'invoke'|postMessage" [90min extensions/aura-team/src/webview/template.html · 3 matches[0m
+> build · glm-5.3-prime
+Все сверки закрыты: `svc` шлёт настоящий `type:'invoke'` (template.html:1487), тест идёт через реальный путь. Пишу вердикт.
+[0m← [0mWrite docs/swarm/ZAN-zan2-a2-team.md
+Created file successfully: docs/swarm/ZAN-zan2-a2-team.md
+> build · glm-5.3-prime
+Готово: `docs/swarm/ZAN-zan2-a2-team.md`.
+
+**Вердикт: ACCEPT.**
+
+Суть проверки — я не поверил ни одной цифре из DONE-fix, а перепроверил каждую своим действием:
+
+| Заявка fix-отчёта | Моя проверка | Итог |
+|---|---|---|
+| run-all → 19 steps, exit 0 | прогнал | 19/19, exit 0 ✓ |
+| invite.modal → 22/22 | прогнал + пересчитал проверки | 22 ok, exit 0 ✓ |
+| kanban секция 15, 5 новых | прогнал + пересчитал | 5/5 ✓ |
+| «гоняет именно wireInviteActions» | читал код + тест | тест кликает настоящую кнопку шаблона через реальный `svc()`-invoke (1487), не мок ✓ |
+| `{cancelled}` честно | extension.ts:812-816 | resolved `{ok:false, cancelled:true}` — тест моделирует ровно это ✓ |
+| 15 новых EN | git diff | ровно 15 + тронутый `getState` ✓ |
+| 376/387, 301-304, 370 | чтение по строкам | все четыре бьются ✓ |
+| «код не менялся» | mtime + якоря | src-файлы 09:39-09:52, фикс тронул только тесты и доки; якоря строк из прошлого ревью не сдвинулись ✓ |
+| orca/orchestrator tsc «в силе» | перепрогнал | 0 / 0 ✓ |
+
+Ключевое: прошлый блокер — «покрыто invite-тестами» — закрыт не отпиской, а настоящим тестом на изменённый путь. Вранья в новом отчёте не нашёл.
+
+Остаточное (не блокеры, зафиксировано в ревью): модальный send-гард `[data-invite-user]` и deleteArchive — по-прежнему без тестового покрытия, в минимум не входили; ±2 строки косметики в диапазонах DONE.

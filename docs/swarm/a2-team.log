@@ -1,0 +1,2025 @@
+[0m
+> build · kimi-k3
+Принято, сэр. Задача ясна: полировка трёх расширений по пунктам REVIEW-AURA. Начинаю с основания — читаю ревью и смотрю структуру контуров.
+[0m→ [0mRead extensions/aura-team 
+[0m→ [0mRead docs/swarm/REVIEW-AURA.md 
+[0m→ [0mRead extensions/aura-orca 
+[0m→ [0mRead extensions/langgraph-orchestrator 
+> build · kimi-k3
+Ревью изучено. Теперь смотрю целевые файлы — манифесты aura-team и главные extension.ts всех трёх контуров.
+[0m→ [0mRead extensions/aura-team/package.json 
+[0m→ [0mRead extensions/aura-team/package.nls.json 
+[0m→ [0mRead extensions/aura-team/src/extension.ts [90m[limit=800][0m
+[0m→ [0mRead extensions/aura-orca/src/extension.ts 
+> build · kimi-k3
+Манифест aura-team частично на ключах, но с жёсткими строками. Теперь — orchestrator, хвост extension.ts aura-team и референсы nls из orca.
+[0m→ [0mRead extensions/aura-team/src/extension.ts [90m[offset=784][0m
+[0m→ [0mRead extensions/aura-team/src 
+[0m→ [0mRead extensions/aura-orca/package.nls.ru.json 
+[0m→ [0mRead extensions/langgraph-orchestrator/src/extension.ts 
+> build · kimi-k3
+Картина проясняется: AURA-019 и AURA-021, судя по коду, уже закрыты (statusBar в subscriptions на строке 70, `installedCache.delete` на 447) — проверю это при верификации. Теперь смотрю webview aura-team (канбан, инвайты), teamSync и место вызова runHeadless в оркестраторе.
+[0m→ [0mRead extensions/aura-team/src/webview 
+[0m→ [0mRead extensions/aura-team/test 
+[0m→ [0mRead extensions/aura-team/src/git/teamSync.ts 
+[0m✱ [0mGrep "runHeadless" [90min extensions/langgraph-orchestrator/src · 3 matches[0m
+> build · kimi-k3
+Есть тесты — их контракты важны. Читаю manifest/канбан/инвайт-тесты, webview-провайдер и точку вызова runHeadless в оркестраторе.
+[0m→ [0mRead extensions/aura-team/src/webview/panelProvider.ts 
+[0m→ [0mRead extensions/aura-team/test/manifest.test.mjs 
+[0m→ [0mRead extensions/langgraph-orchestrator/src/tools/index.ts [90m[offset=530, limit=80][0m
+[0m$ [0mwc -l extensions/aura-team/src/webview/template.html extensions/aura-team/test/kanban.render.test.mjs extensions/aura-team/test/invite.sidebar.test.mjs extensions/aura-team/test/run-all.mjs extensions/aura-team/src/git/service.ts extensions/aura-orca/package.json
+4801 extensions/aura-team/src/webview/template.html
+   376 extensions/aura-team/test/kanban.render.test.mjs
+   247 extensions/aura-team/test/invite.sidebar.test.mjs
+    34 extensions/aura-team/test/run-all.mjs
+   761 extensions/aura-team/src/git/service.ts
+    48 extensions/aura-orca/package.json
+  6267 total
+> build · kimi-k3
+template.html — 4800 строк, вся вкладка Team. Беру хирургически: тесты канбана/инвайтов (контракты), точки DnD и удаления в шаблоне, события GitService.
+[0m→ [0mRead extensions/aura-team/test/kanban.render.test.mjs 
+[0m→ [0mRead extensions/aura-team/test/invite.sidebar.test.mjs 
+[0m✱ [0mGrep "onDidChange|EventEmitter" [90min extensions/aura-team/src/git/service.ts · 0 matches[0m
+> build · kimi-k3
+Тесты дают жёсткие контракты (manifest.test требует `category === 'Team'` дословно — это учту при русификации). Теперь смотрю, как устроены категории у соседей, и где в template.html живут доска и инвайты.
+[0m→ [0mRead extensions/aura-orca/package.json 
+[0m→ [0mRead extensions/langgraph-orchestrator/package.nls.ru.json 
+[0m✱ [0mGrep "scrollTop|scrollIntoView|dragover|dragstart|data-drop|addEventListener\('drag" [90min extensions/aura-team/src/webview/template.html · 6 matches[0m
+[0m✱ [0mGrep "data-status=|COLUMN|columns =|STATUSES" [90min extensions/aura-team/src/webview/template.html · 9 matches[0m
+> build · kimi-k3
+Теперь читаю канбан-регион шаблона и DnD-логику, плюс ищу секцию инвайтов во вкладке.
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[offset=2280, limit=130][0m
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[offset=2500, limit=180][0m
+[0m✱ [0mGrep "invite|Invite" [90min extensions/aura-team/src/webview/template.html · 40 matches[0m
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=130, offset=1630][0m
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=200, offset=2680][0m
+> build · kimi-k3
+Вижу структуру. Проверяю: какие деструктивы имеют подтверждение, как устроен render() доски (источник прыжков скролла) и хвост demo() для инвайтов.
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=80, offset=1760][0m
+[0m✱ [0mGrep "confirmAction\(|deleteArchive|joinTeam|function render\(|function mount\(|scrollLeft" [90min extensions/aura-team/src/webview/template.html · 18 matches[0m
+> build · kimi-k3
+Нашёл две реальные точки: `mount()` стирает скролл колонок (прыжки при DnD), а `deleteArchive` (строка 3285) — единственный деструктив без подтверждения. Смотрю контекст этих мест и join-флоу.
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=40, offset=3268][0m
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=50, offset=4760][0m
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=30, offset=3850][0m
+> build · kimi-k3
+Смотрю, как устроен лог оркестратора (куда попадают logInfo) и импорты tools/index.ts — для честного heartbeat.
+[0m→ [0mRead extensions/langgraph-orchestrator/src/tools/index.ts [90m[limit=70][0m
+[0m→ [0mRead extensions/langgraph-orchestrator/src/util/log.ts 
+> build · kimi-k3
+[0m✱ [0mGrep "onDidChangeState|progress|statusLine" [90min extensions/langgraph-orchestrator/src · 28 matches[0m
+[0m✱ [0mGrep "logInfo\(|logWarn\(" [90min extensions/langgraph-orchestrator/src · 20 matches[0m
+> build · kimi-k3
+[0m✱ [0mGrep "tab-log|logLines|appendLog|'log'" [90min extensions/langgraph-orchestrator/src · 15 matches[0m
+> build · kimi-k3
+[0m✱ [0mGrep "constructor|class .*Tools|appendLog|onLog|private readonly" [90min extensions/langgraph-orchestrator/src/tools/index.ts · 1 match[0m
+> build · kimi-k3
+[0m→ [0mRead extensions/langgraph-orchestrator/src/tools/index.ts [90m[limit=60, offset=285][0m
+> build · kimi-k3
+Всё ясно, начинаю реализацию. Последняя разведка — GitService (для инвалидации gitCache по событию):
+[0m✱ [0mGrep "get repository|repositories|onDidOpenRepository|gitExtension|getAPI" [90min extensions/aura-team/src/git/service.ts · 2 matches[0m
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-team/src/git/service.ts [90m[limit=45][0m
+> build · kimi-k3
+Проверяю типы git-API (onDidOpenRepository / state.onDidChange) в локальной декларации:
+[0m✱ [0mGrep "onDidOpenRepository|onDidChange|interface API|interface RepositoryState" [90min extensions/aura-team/src/git/git.d.ts · 2 matches[0m
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-team/src/git/git.d.ts [90m[limit=45, offset=10][0m
+> build · kimi-k3
+Типы подтверждены. Проверяю, где живут runtime-переводы `vscode.l10n.t` для aura-team (нужно для новых строк агрегатора):
+[0m$ [0mls extensions/aura-team/l10n 2>/dev/null; ls extensions/aura-team/ | head -30; grep -rn '"l10n"' extensions/aura-team/package.json extensions/aura-orca/package.json extensions/langgraph-orchestrator/package.json 2>/dev/null; find extensions/aura-team -maxdepth 2 -name '*l10n*' -not -path '*/node_modules/*' 2>/dev/null
+README.md
+assets
+media
+node_modules
+out
+package-lock.json
+package.json
+package.nls.json
+src
+test
+tmp-regions.txt
+tsconfig.json
+tsconfig.tsbuildinfo
+> build · kimi-k3
+Прежде чем править — базовая линия: тесты aura-team и tsc по трём расширениям.
+[0m$ [0mcd extensions/aura-team && node test/run-all.mjs 2>&1 | tail -20
+ok   фокус остаётся в поле поиска после обновления состояния
+  ok   набранный текст не сбрасывается
+  ok   строка каталога переиспользуется, а не пересоздаётся
+  ok   секцию можно закрыть
+  ok   отзыв кода уходит на сервер
+  ok   до ответа сервера код остаётся на месте
+  ok   после отзыва показано пустое состояние с кнопкой создания
+  ok   новый код появляется вместо пустого состояния
+  ok   кнопка копирования вернулась и работает
+  ok   Diff-обновление: строка t1 — тот же DOM-узел
+  ok   Фокус сохранён после broadcast
+  ok   Смена статуса: data-state обновился
+  ok   Смена статуса: старый текст кросфейдится (2 слоя)
+  ok   Diff-обновление: прогресс подзадач пересчитан
+  ok   Diff-обновление: счётчик не дублируется
+  ok   Diff-обновление: исчезнувшие подзадачи убирают счётчик
+
+ALL CHECKS PASSED
+
+ALL 18 STEPS PASSED
+> build · kimi-k3
+[93m[1m! [0mpermission requested: external_directory (C:/new-aura-ide/aura-orca/*, C:/new-aura-ide/langgraph-orchestrator/*); auto-rejecting
+[0m✗ [0mcd extensions/aura-team && npx tsc --noEmit -p tsconfig.json 2>&1 | tail -5; echo "=== aura-team tsc exit: $? ==="; cd ../aura-orca && npx tsc --noEmit -p tsconfig.json 2>&1 | tail -5; echo "=== aura-orca tsc exit: $? ==="; cd ../langgraph-orchestrator && npx tsc --noEmit -p tsconfig.json 2>&1 | tail -5; echo "=== langgraph tsc exit: $? ===" failed
+[91m[1mError: [0mUnable to execute command: cd extensions/aura-team && npx tsc --noEmit -p tsconfig.json 2>&1 | tail -5; echo "=== aura-team tsc exit: $? ==="; cd ../aura-orca && npx tsc --noEmit -p tsconfig.json 2>&1 | tail -5; echo "=== aura-orca tsc exit: $? ==="; cd ../langgraph-orchestrator && npx tsc --noEmit -p tsconfig.json 2>&1 | tail -5; echo "=== langgraph tsc exit: $? ==="
+> build · kimi-k3
+Разобью на отдельные команды:
+[0m$ [0mcd extensions/langgraph-orchestrator && npx tsc --noEmit -p tsconfig.json && echo TSC-ORCH-CLEAN
+npm warn Unknown user config "msvs_spectre_mitigation". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+node:internal/modules/cjs/loader:1568
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\new-aura-ide\vscode-main\extensions\node_modules\typescript\bin\tsc'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1142:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)
+    at Module._load (node:internal/modules/cjs/loader:1341:5)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.21.0
+[0m$ [0mcd extensions/aura-team && npx tsc --noEmit -p tsconfig.json && echo TSC-TEAM-CLEAN
+npm warn Unknown user config "msvs_spectre_mitigation". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+node:internal/modules/cjs/loader:1568
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\new-aura-ide\vscode-main\extensions\node_modules\typescript\bin\tsc'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1142:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)
+    at Module._load (node:internal/modules/cjs/loader:1341:5)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.21.0
+[0m$ [0mcd extensions/aura-orca && npx tsc --noEmit -p tsconfig.json && echo TSC-ORCA-CLEAN
+npm warn Unknown user config "msvs_spectre_mitigation". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+node:internal/modules/cjs/loader:1568
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\new-aura-ide\vscode-main\extensions\node_modules\typescript\bin\tsc'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1142:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)
+    at Module._load (node:internal/modules/cjs/loader:1341:5)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.21.0
+> build · kimi-k3
+npx цепляется за несуществующий `extensions/node_modules`. Корневой typescript на месте?
+[0m$ [0mls node_modules/typescript/bin/tsc 2>/dev/null && node node_modules/typescript/bin/tsc --version
+(no output)
+> build · kimi-k3
+[0m$ [0mls node_modules | head -5; echo ---; ls extensions/aura-team/node_modules 2>/dev/null | head -10; echo ---; where tsc 2>/dev/null; npm ls -g typescript 2>/dev/null | head -3
+@anthropic-ai
+@azure
+@azure-rest
+@babel
+@bcoe
+---
+@asamuzakjp
+@bramus
+@csstools
+@exodus
+@types
+bidi-js
+css-tree
+data-urls
+decimal.js
+entities
+---
+C:\Users\Wiks\AppData\Roaming\npm\tsc
+C:\Users\Wiks\AppData\Roaming\npm\tsc.cmd
+C:\Users\Wiks\AppData\Roaming\npm
+├─┬ typescript-language-server@6.0.0
+│ └── typescript@5.9.3 -> .\node_modules\typescript
+> build · kimi-k3
+[0m$ [0mls -d node_modules/typescript 2>&1; ls node_modules/.bin/tsc* 2>&1 | head -3; ls -d extensions/aura-team/node_modules/typescript 2>&1
+node_modules/typescript
+node_modules/.bin/tsc
+node_modules/.bin/tsc.cmd
+node_modules/.bin/tsc.ps1
+ls: cannot access 'extensions/aura-team/node_modules/typescript': No such file or directory
+> build · kimi-k3
+[0m$ [0mls node_modules/typescript/bin/ 2>&1; ls node_modules/typescript/lib/tsc.js 2>&1
+tsc6
+node_modules/typescript/lib/tsc.js
+> build · kimi-k3
+[0m$ [0mnode node_modules/typescript/lib/tsc.js --noEmit -p extensions/aura-orca/tsconfig.json && echo TSC-ORCA-CLEAN
+TSC-ORCA-CLEAN
+[0m$ [0mnode node_modules/typescript/lib/tsc.js --noEmit -p extensions/langgraph-orchestrator/tsconfig.json && echo TSC-ORCH-CLEAN
+TSC-ORCH-CLEAN
+[0m$ [0mnode node_modules/typescript/lib/tsc.js --version && node node_modules/typescript/lib/tsc.js --noEmit -p extensions/aura-team/tsconfig.json && echo TSC-TEAM-CLEAN
+Version 6.0.3
+TSC-TEAM-CLEAN
+> build · kimi-k3
+База зелёная (TS 6.0.3, три tsconfig чисто, 18 тестов aura-team проходят). Приступаю к правкам.
+
+**AURA-018 + AURA-027: package.json aura-team** — увожу все литералы на %ключи% и поднимаю минимум интервала:
+[0m✗ [0mEdit extensions/aura-team/package.json failed
+[91m[1mError: [0mCould not find oldString in extensions/aura-team/package.json. It must match exactly, including whitespace and indentation.
+[0m← [0mEdit extensions/aura-team/package.json
+Index: extensions/aura-team/package.json
+===================================================================
+--- extensions/aura-team/package.json
++++ extensions/aura-team/package.json
+@@ -369,9 +369,9 @@
+ 				"icon": "$(sync)"
+ 			},
+ 			{
+ 				"command": "auraTeam.toggleAutoPush",
+-				"title": "Toggle Auto-Push",
++				"title": "%command.toggleAutoPush%",
+ 				"category": "Team",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			}
+ 		],
+
+[0m✗ [0mEdit extensions/aura-team/package.json failed
+[91m[1mError: [0mCould not find oldString in extensions/aura-team/package.json. It must match exactly, including whitespace and indentation.
+[0m✗ [0mEdit extensions/aura-team/package.json failed
+[91m[1mError: [0mCould not find oldString in extensions/aura-team/package.json. It must match exactly, including whitespace and indentation.
+[0m← [0mEdit extensions/aura-team/package.json
+Index: extensions/aura-team/package.json
+===================================================================
+--- extensions/aura-team/package.json
++++ extensions/aura-team/package.json
+@@ -141,238 +141,238 @@
+ 		"commands": [
+ 			{
+ 				"command": "auraTeam.open",
+ 				"title": "%command.open%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true",
+ 				"icon": "$(project)"
+ 			},
+ 			{
+ 				"command": "auraTeam.openProfile",
+ 				"title": "%command.openProfile%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true",
+ 				"icon": "$(account)"
+ 			},
+ 			{
+ 				"command": "auraTeam.signIn",
+ 				"title": "%command.signIn%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.signOut",
+ 				"title": "%command.signOut%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.changePassword",
+ 				"title": "%command.changePassword%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.selectTeam",
+ 				"title": "%command.selectTeam%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.connectGitHub",
+ 				"title": "%command.connectGitHub%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.connectAuraApi",
+ 				"title": "%command.connectAuraApi%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.refresh",
+ 				"title": "%command.refresh%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.createTeam",
+ 				"title": "%command.createTeam%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.joinTeam",
+ 				"title": "%command.joinTeam%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.createInvite",
+ 				"title": "%command.createInvite%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.changeRole",
+ 				"title": "%command.changeRole%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.createProject",
+ 				"title": "%command.createProject%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.createTask",
+ 				"title": "%command.createTask%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.storeApiKey",
+ 				"title": "%command.storeApiKey%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.disableApiKey",
+ 				"title": "%command.disableApiKey%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.uploadArchive",
+ 				"title": "%command.uploadArchive%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.downloadArchive",
+ 				"title": "%command.downloadArchive%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.openBoard",
+ 				"title": "%command.openBoard%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true",
+ 				"icon": "$(project)"
+ 			},
+ 			{
+ 				"command": "auraTeam.toggleSimpleMode",
+ 				"title": "%command.toggleSimpleMode%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true",
+ 				"icon": "$(settings-gear)"
+ 			},
+ 			{
+ 				"command": "auraTeam.getProject",
+ 				"title": "%command.getProject%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true",
+ 				"icon": "$(repo-clone)"
+ 			},
+ 			{
+ 				"command": "auraTeam.saveWork",
+ 				"title": "%command.saveWork%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true",
+ 				"icon": "$(cloud-upload)"
+ 			},
+ 			{
+ 				"command": "auraTeam.updateProject",
+ 				"title": "%command.updateProject%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true",
+ 				"icon": "$(sync)"
+ 			},
+ 			{
+ 				"command": "auraTeam.undoChanges",
+ 				"title": "%command.undoChanges%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.revertLastCommit",
+ 				"title": "%command.revertLastCommit%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.restoreFile",
+ 				"title": "%command.restoreFile%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.relink",
+ 				"title": "%command.relink%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.history",
+ 				"title": "%command.history%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.commitAll",
+ 				"title": "%command.commitAll%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true",
+ 				"icon": "$(check)"
+ 			},
+ 			{
+ 				"command": "auraTeam.push",
+ 				"title": "%command.push%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true",
+ 				"icon": "$(cloud-upload)"
+ 			},
+ 			{
+ 				"command": "auraTeam.pull",
+ 				"title": "%command.pull%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true",
+ 				"icon": "$(cloud-download)"
+ 			},
+ 			{
+ 				"command": "auraTeam.checkout",
+ 				"title": "%command.checkout%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true",
+ 				"icon": "$(git-branch)"
+ 			},
+ 			{
+ 				"command": "auraTeam.getState",
+ 				"title": "%command.getState%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.invite.open",
+ 				"title": "Пригласить в команду",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true",
+ 				"icon": "$(person-add)"
+ 			},
+ 			{
+ 				"command": "auraTeam.syncNow",
+ 				"title": "Sync Now",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true",
+ 				"icon": "$(sync)"
+ 			},
+ 			{
+ 				"command": "auraTeam.toggleAutoPush",
+ 				"title": "%command.toggleAutoPush%",
+-				"category": "Team",
++				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			}
+ 		],
+ 		"menus": {
+
+[0m← [0mEdit extensions/aura-team/package.json
+Index: extensions/aura-team/package.json
+===================================================================
+--- extensions/aura-team/package.json
++++ extensions/aura-team/package.json
+@@ -355,9 +355,9 @@
+ 				"enablement": "auraPlugin.aura-team.enabled == true"
+ 			},
+ 			{
+ 				"command": "auraTeam.invite.open",
+-				"title": "Пригласить в команду",
++				"title": "%command.inviteOpen%",
+ 				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true",
+ 				"icon": "$(person-add)"
+ 			},
+
+[0m← [0mEdit extensions/aura-team/package.json
+Index: extensions/aura-team/package.json
+===================================================================
+--- extensions/aura-team/package.json
++++ extensions/aura-team/package.json
+@@ -362,9 +362,9 @@
+ 				"icon": "$(person-add)"
+ 			},
+ 			{
+ 				"command": "auraTeam.syncNow",
+-				"title": "Sync Now",
++				"title": "%command.syncNow%",
+ 				"category": "%category.team%",
+ 				"enablement": "auraPlugin.aura-team.enabled == true",
+ 				"icon": "$(sync)"
+ 			},
+
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-team/package.json [90m[offset=42, limit=95][0m
+> build · kimi-k3
+Файл использует табы и, возможно, смешанные окончания строк — сделаю более мелкие и надёжные правки по одной строке:
+[0m← [0mEdit extensions/aura-team/package.json
+Index: extensions/aura-team/package.json
+===================================================================
+--- extensions/aura-team/package.json
++++ extensions/aura-team/package.json
+@@ -41,9 +41,9 @@
+ 				},
+ 				"auraTeam.autoStartServer": {
+ 					"type": "boolean",
+ 					"default": true,
+-					"description": "Automatically start the local team server if it is not running (only for localhost serverUrl)"
++					"description": "%configuration.autoStartServer%"
+ 				},
+ 				"auraTeam.sync.mode": {
+ 					"type": "string",
+ 					"enum": [
+
+[0m✗ [0mEdit extensions/aura-team/package.json failed
+[91m[1mError: [0mCould not find oldString in extensions/aura-team/package.json. It must match exactly, including whitespace and indentation.
+[0m← [0mEdit extensions/aura-team/package.json
+Index: extensions/aura-team/package.json
+===================================================================
+--- extensions/aura-team/package.json
++++ extensions/aura-team/package.json
+@@ -56,9 +56,9 @@
+ 						"Спросить — после сохранения файлов предложить сообщение коммита (Enter — коммит и пуш, Esc — отложить)",
+ 						"Автоматически — коммитить и пушить без вопроса"
+ 					],
+ 					"default": "off",
+-					"description": "Режим автосинка после сохранения файлов"
++					"description": "%configuration.syncMode%"
+ 				},
+ 				"auraTeam.sync.autoPush": {
+ 					"type": "boolean",
+ 					"default": false,
+
+[0m← [0mEdit extensions/aura-team/package.json
+Index: extensions/aura-team/package.json
+===================================================================
+--- extensions/aura-team/package.json
++++ extensions/aura-team/package.json
+@@ -61,9 +61,9 @@
+ 				},
+ 				"auraTeam.sync.autoPush": {
+ 					"type": "boolean",
+ 					"default": false,
+-					"description": "Automatically commit and push all changes after saving files (legacy — use auraTeam.sync.mode)"
++					"description": "%configuration.syncAutoPush%"
+ 				},
+ 				"auraTeam.sync.intervalSeconds": {
+ 					"type": "number",
+ 					"default": 120,
+
+[0m✗ [0mEdit extensions/aura-team/package.json failed
+[91m[1mError: [0mCould not find oldString in extensions/aura-team/package.json. It must match exactly, including whitespace and indentation.
+[0m← [0mEdit extensions/aura-team/package.json
+Index: extensions/aura-team/package.json
+===================================================================
+--- extensions/aura-team/package.json
++++ extensions/aura-team/package.json
+@@ -72,9 +72,9 @@
+ 				},
+ 				"auraTeam.sync.commitTemplate": {
+ 					"type": "string",
+ 					"default": "wip: {files}",
+-					"description": "Commit message template for auto-push. Supports {files} and {date}"
++					"description": "%configuration.syncCommitTemplate%"
+ 				},
+ 				"auraTeam.git.testCommand": {
+ 					"type": "string",
+ 					"default": "",
+
+[0m← [0mEdit extensions/aura-team/package.json
+Index: extensions/aura-team/package.json
+===================================================================
+--- extensions/aura-team/package.json
++++ extensions/aura-team/package.json
+@@ -77,9 +77,9 @@
+ 				},
+ 				"auraTeam.git.testCommand": {
+ 					"type": "string",
+ 					"default": "",
+-					"description": "Команда для кнопки «Запустить тесты» в командном процессе (пусто — определить автоматически: npm test, cargo test, go test, pytest, make test)"
++					"description": "%configuration.gitTestCommand%"
+ 				},
+ 				"auraTeam.simpleMode": {
+ 					"type": "boolean",
+ 					"default": true,
+
+[0m← [0mEdit extensions/aura-team/package.json
+Index: extensions/aura-team/package.json
+===================================================================
+--- extensions/aura-team/package.json
++++ extensions/aura-team/package.json
+@@ -97,9 +97,9 @@
+ 						"ru",
+ 						"en"
+ 					],
+ 					"enumDescriptions": [
+-						"Aura language switch (aura.language), otherwise the IDE language",
++						"%configuration.uiLanguage.auto%",
+ 						"Русский",
+ 						"English"
+ 					],
+ 					"default": "auto",
+
+[0m✗ [0mEdit extensions/aura-team/package.json failed
+[91m[1mError: [0mCould not find oldString in extensions/aura-team/package.json. It must match exactly, including whitespace and indentation.
+> build · kimi-k3
+3 правки снова не совпали. Посмотрю сырые байты (табы/CRLF) в проблемных местах:
+[0m$ [0msed -n '54,58p;67,72p;129,133p' extensions/aura-team/package.json | cat -A | head -40
+^I^I^I^I^I"enumDescriptions": [$
+^I^I^I^I^I^I"M-PM-^RM-QM-^KM-PM-:M-PM-;M-QM-^NM-QM-^GM-PM-5M-PM-=M-PM-> M-bM-^@M-^T M-PM-:M-PM->M-PM-<M-PM-<M-PM-8M-QM-^BM-QM-^K M-QM-^BM-PM->M-PM-;M-QM-^LM-PM-:M-PM-> M-PM-2M-QM-^@M-QM-^CM-QM-^GM-PM-=M-QM-^CM-QM-^N",$
+^I^I^I^I^I^I"M-PM-!M-PM-?M-QM-^@M-PM->M-QM-^AM-PM-8M-QM-^BM-QM-^L M-bM-^@M-^T M-PM-?M-PM->M-QM-^AM-PM-;M-PM-5 M-QM-^AM-PM->M-QM-^EM-QM-^@M-PM-0M-PM-=M-PM-5M-PM-=M-PM-8M-QM-^O M-QM-^DM-PM-0M-PM-9M-PM-;M-PM->M-PM-2 M-PM-?M-QM-^@M-PM-5M-PM-4M-PM-;M-PM->M-PM-6M-PM-8M-QM-^BM-QM-^L M-QM-^AM-PM->M-PM->M-PM-1M-QM-^IM-PM-5M-PM-=M-PM-8M-PM-5 M-PM-:M-PM->M-PM-<M-PM-<M-PM-8M-QM-^BM-PM-0 (Enter M-bM-^@M-^T M-PM-:M-PM->M-PM-<M-PM-<M-PM-8M-QM-^B M-PM-8 M-PM-?M-QM-^CM-QM-^H, Esc M-bM-^@M-^T M-PM->M-QM-^BM-PM-;M-PM->M-PM-6M-PM-8M-QM-^BM-QM-^L)",$
+^I^I^I^I^I^I"M-PM-^PM-PM-2M-QM-^BM-PM->M-PM-<M-PM-0M-QM-^BM-PM-8M-QM-^GM-PM-5M-QM-^AM-PM-:M-PM-8 M-bM-^@M-^T M-PM-:M-PM->M-PM-<M-PM-<M-PM-8M-QM-^BM-PM-8M-QM-^BM-QM-^L M-PM-8 M-PM-?M-QM-^CM-QM-^HM-PM-8M-QM-^BM-QM-^L M-PM-1M-PM-5M-PM-7 M-PM-2M-PM->M-PM-?M-QM-^@M-PM->M-QM-^AM-PM-0"$
+^I^I^I^I^I],$
+^I^I^I^I"auraTeam.sync.intervalSeconds": {$
+^I^I^I^I^I"type": "number",$
+^I^I^I^I^I"default": 120,$
+^I^I^I^I^I"minimum": 15,$
+^I^I^I^I^I"description": "How often to pull changes from GitHub (seconds)"$
+^I^I^I^I},$
+^I^I"customEditors": [$
+^I^I^I{$
+^I^I^I^I"viewType": "auraTeam.panel",$
+^I^I^I^I"displayName": "Team",$
+^I^I^I^I"selector": [$
+> build · kimi-k3
+Вижу — неверное количество табов. Исправляю с точными отступами:
+[0m✗ [0mEdit extensions/aura-team/package.json failed
+[91m[1mError: [0mCould not find oldString in extensions/aura-team/package.json. It must match exactly, including whitespace and indentation.
+> build · kimi-k3
+[0m← [0mEdit extensions/aura-team/package.json
+Index: extensions/aura-team/package.json
+===================================================================
+--- extensions/aura-team/package.json
++++ extensions/aura-team/package.json
+@@ -51,11 +51,11 @@
+ 						"ask",
+ 						"auto"
+ 					],
+ 					"enumDescriptions": [
+-						"Выключено — коммиты только вручную",
+-						"Спросить — после сохранения файлов предложить сообщение коммита (Enter — коммит и пуш, Esc — отложить)",
+-						"Автоматически — коммитить и пушить без вопроса"
++						"%configuration.syncMode.off%",
++						"%configuration.syncMode.ask%",
++						"%configuration.syncMode.auto%"
+ 					],
+ 					"default": "off",
+ 					"description": "%configuration.syncMode%"
+ 				},
+
+[0m← [0mEdit extensions/aura-team/package.json
+Index: extensions/aura-team/package.json
+===================================================================
+--- extensions/aura-team/package.json
++++ extensions/aura-team/package.json
+@@ -66,10 +66,10 @@
+ 				},
+ 				"auraTeam.sync.intervalSeconds": {
+ 					"type": "number",
+ 					"default": 120,
+-					"minimum": 15,
+-					"description": "How often to pull changes from GitHub (seconds)"
++					"minimum": 60,
++					"description": "%configuration.syncIntervalSeconds%"
+ 				},
+ 				"auraTeam.sync.commitTemplate": {
+ 					"type": "string",
+ 					"default": "wip: {files}",
+
+[0m← [0mEdit extensions/aura-team/package.json
+Index: extensions/aura-team/package.json
+===================================================================
+--- extensions/aura-team/package.json
++++ extensions/aura-team/package.json
+@@ -128,9 +128,9 @@
+ 		},
+ 		"customEditors": [
+ 			{
+ 				"viewType": "auraTeam.panel",
+-				"displayName": "Team",
++				"displayName": "%customEditor.displayName%",
+ 				"selector": [
+ 					{
+ 						"filenamePattern": "*.aura-team"
+ 					}
+
+> build · kimi-k3
+Все правки package.json применены. Проверяю валидность JSON и отсутствие оставшихся литералов:
+[0m$ [0mnode -e "const p=require('./extensions/aura-team/package.json'); console.log('JSON OK');" && grep -n '"category": "Team"' extensions/aura-team/package.json; grep -c '%category.team%' extensions/aura-team/package.json
+JSON OK
+37
+> build · kimi-k3
+[0m$ [0mgrep -n '": "[^"%{[]*[A-Za-zА-Яа-я]' extensions/aura-team/package.json | grep -vE '"(id|name|command|viewType|filenamePattern|icon|when|type|default|enum|publisher|displayName|version|engines|categories|activationEvents|main|contributes|configuration|title|properties|description|enumDescriptions|commands|viewsContainers|activitybar|views|customEditors|selector|menus|keybindings|languages|scopeName|path|patterns|repository|bugs|homepage|license|keywords|author|scripts|dependencies|devDependencies)"\s*:' | grep -E '"(title|description|category|displayName|name)"' | head -30
+(no output)
+> build · kimi-k3
+[0m$ [0mgrep -nE '"(title|description|displayName|category)": "[^%]' extensions/aura-team/package.json | head -20; echo ---; grep -n '"[А-Яа-я]' extensions/aura-team/package.json | head -10
+---
+102:						"Русский",
+> build · kimi-k3
+Все пользовательские строки — ключи, кроме намеренных эндонимов «Русский»/«English». Читаю текущий package.nls.json:
+[0m→ [0mRead extensions/aura-team/package.nls.json 
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-team/test/manifest.test.mjs 
+> build · kimi-k3
+Понял контракт. Сначала сверю оригинальные заголовки через git diff (чтобы EN-тексты ключей совпали с исходными литералами):
+[0m$ [0mgit -C extensions/aura-team diff package.json | grep -E '^[-+].*(title|description|displayName|category|enumDesc|minimum)' | head -80
+-					"description": "Automatically start the local team server if it is not running (only for localhost serverUrl)"
++					"description": "%configuration.autoStartServer%"
+-					"description": "Режим автосинка после сохранения файлов"
++					"description": "%configuration.syncMode%"
+-					"description": "Automatically commit and push all changes after saving files (legacy — use auraTeam.sync.mode)"
++					"description": "%configuration.syncAutoPush%"
+-					"minimum": 15,
+-					"description": "How often to pull changes from GitHub (seconds)"
++					"minimum": 60,
++					"description": "%configuration.syncIntervalSeconds%"
+-					"description": "Commit message template for auto-push. Supports {files} and {date}"
++					"description": "%configuration.syncCommitTemplate%"
+-					"description": "Команда для кнопки «Запустить тесты» в командном процессе (пусто — определить автоматически: npm test, cargo test, go test, pytest, make test)"
++					"description": "%configuration.gitTestCommand%"
+-					"enumDescriptions": ["Aura language switch (aura.language), otherwise the IDE language", "Русский", "English"],
++					"enumDescriptions": [
+-				"displayName": "Team",
++				"displayName": "%customEditor.displayName%",
+-			{ "command": "auraTeam.open", "title": "%command.open%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(project)" },
+-			{ "command": "auraTeam.openProfile", "title": "%command.openProfile%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(account)" },
+-			{ "command": "auraTeam.signIn", "title": "%command.signIn%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.signOut", "title": "%command.signOut%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.changePassword", "title": "%command.changePassword%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.selectTeam", "title": "%command.selectTeam%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.connectGitHub", "title": "%command.connectGitHub%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.connectAuraApi", "title": "%command.connectAuraApi%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.refresh", "title": "%command.refresh%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.createTeam", "title": "%command.createTeam%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.joinTeam", "title": "%command.joinTeam%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.createInvite", "title": "%command.createInvite%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.changeRole", "title": "%command.changeRole%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.createProject", "title": "%command.createProject%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.createTask", "title": "%command.createTask%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.storeApiKey", "title": "%command.storeApiKey%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.disableApiKey", "title": "%command.disableApiKey%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.uploadArchive", "title": "%command.uploadArchive%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.downloadArchive", "title": "%command.downloadArchive%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.openBoard", "title": "%command.openBoard%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(project)" },
+-			{ "command": "auraTeam.toggleSimpleMode", "title": "%command.toggleSimpleMode%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(settings-gear)" },
+-			{ "command": "auraTeam.getProject", "title": "%command.getProject%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(repo-clone)" },
+-			{ "command": "auraTeam.saveWork", "title": "%command.saveWork%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(cloud-upload)" },
+-			{ "command": "auraTeam.updateProject", "title": "%command.updateProject%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(sync)" },
+-			{ "command": "auraTeam.undoChanges", "title": "%command.undoChanges%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.revertLastCommit", "title": "%command.revertLastCommit%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.restoreFile", "title": "%command.restoreFile%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.relink", "title": "%command.relink%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.history", "title": "%command.history%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.commitAll", "title": "%command.commitAll%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(check)" },
+-			{ "command": "auraTeam.push", "title": "%command.push%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(cloud-upload)" },
+-			{ "command": "auraTeam.pull", "title": "%command.pull%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(cloud-download)" },
+-			{ "command": "auraTeam.checkout", "title": "%command.checkout%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(git-branch)" },
+-			{ "command": "auraTeam.getState", "title": "%command.getState%", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" },
+-			{ "command": "auraTeam.invite.open", "title": "Пригласить в команду", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(person-add)" },
+-			{ "command": "auraTeam.syncNow", "title": "Sync Now", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true", "icon": "$(sync)" },
+-			{ "command": "auraTeam.toggleAutoPush", "title": "Toggle Auto-Push", "category": "Team", "enablement": "auraPlugin.aura-team.enabled == true" }
++				"title": "%command.open%",
++				"category": "%category.team%",
++				"title": "%command.openProfile%",
++				"category": "%category.team%",
++				"title": "%command.signIn%",
++				"category": "%category.team%",
++				"title": "%command.signOut%",
++				"category": "%category.team%",
++				"title": "%command.changePassword%",
++				"category": "%category.team%",
++				"title": "%command.selectTeam%",
++				"category": "%category.team%",
++				"title": "%command.connectGitHub%",
++				"category": "%category.team%",
++				"title": "%command.connectAuraApi%",
++				"category": "%category.team%",
++				"title": "%command.refresh%",
++				"category": "%category.team%",
++				"title": "%command.createTeam%",
++				"category": "%category.team%",
++				"title": "%command.joinTeam%",
++				"category": "%category.team%",
++				"title": "%command.createInvite%",
++				"category": "%category.team%",
++				"title": "%command.changeRole%",
+> build · kimi-k3
+Оригиналы подтверждены. Расширяю EN nls и создаю RU:
+[0m← [0mEdit extensions/aura-team/package.nls.json
+Index: extensions/aura-team/package.nls.json
+===================================================================
+--- extensions/aura-team/package.nls.json
++++ extensions/aura-team/package.nls.json
+@@ -40,6 +40,21 @@
+ 	"command.commitAll": "Commit All & Push",
+ 	"command.push": "Push",
+ 	"command.pull": "Pull & Rebase",
+ 	"command.checkout": "Switch Branch",
+-	"command.getState": "Get State (internal)"
++	"command.getState": "Get State (internal)",
++	"command.inviteOpen": "Invite to Team",
++	"command.syncNow": "Sync Now",
++	"command.toggleAutoPush": "Toggle Auto-Push",
++	"category.team": "Team",
++	"customEditor.displayName": "Team",
++	"configuration.autoStartServer": "Automatically start the local team server if it is not running (only for localhost serverUrl)",
++	"configuration.syncMode": "Auto-sync mode after saving files",
++	"configuration.syncMode.off": "Off — commits only manually",
++	"configuration.syncMode.ask": "Ask — after saving files, suggest a commit message (Enter — commit and push, Esc — postpone)",
++	"configuration.syncMode.auto": "Automatic — commit and push without asking",
++	"configuration.syncAutoPush": "Automatically commit and push all changes after saving files (legacy — use auraTeam.sync.mode)",
++	"configuration.syncIntervalSeconds": "How often to pull changes from GitHub (seconds)",
++	"configuration.syncCommitTemplate": "Commit message template for auto-push. Supports {files} and {date}",
++	"configuration.gitTestCommand": "Command for the 'Run tests' button in the team process (empty — detect automatically: npm test, cargo test, go test, pytest, make test)",
++	"configuration.uiLanguage.auto": "Aura language switch (aura.language), otherwise the IDE language"
+ }
+
+> build · kimi-k3
+Теперь полный RU-файл со всеми ключами:
+[0m← [0mWrite extensions/aura-team/package.nls.ru.json
+Created file successfully: extensions/aura-team/package.nls.ru.json
+> build · kimi-k3
+Теперь патч теста манифеста — резолв %key% для категории:
+[0m← [0mEdit extensions/aura-team/test/manifest.test.mjs
+Index: extensions/aura-team/test/manifest.test.mjs
+===================================================================
+--- extensions/aura-team/test/manifest.test.mjs
++++ extensions/aura-team/test/manifest.test.mjs
+@@ -64,9 +64,11 @@
+ // интерфейс; здесь достаточно префикса — внутренние вложенные id (auraTeam.invite.open)
+ // допустимы и зарегистрированы.
+ const badlyNamed = declared.filter(id => !/^auraTeam\.[a-z]/.test(id));
+ check('все объявленные команды в пространстве аура-Тим', badlyNamed.length === 0, badlyNamed);
+-const outsideCategory = commands.filter(command => command.category !== 'Team').map(command => command.command);
++// Категория может быть nls-ключом (%category.team%) — сравниваем уже разрешённый текст.
++const resolveNls = value => String(value ?? '').replace(/%([A-Za-z0-9_.]+)%/g, (match, key) => en[key] ?? match);
++const outsideCategory = commands.filter(command => resolveNls(command.category) !== 'Team').map(command => command.command);
+ check('у всех команд категория Team (иначе палитра перемешает их с чужими)', outsideCategory.length === 0, outsideCategory);
+ const withoutEnablement = commands.filter(command => !String(command.enablement ?? '').includes('auraPlugin.aura-team.enabled')).map(command => command.command);
+ check('все команды спрятаны, когда плагин выключен', withoutEnablement.length === 0, withoutEnablement);
+ 
+
+> build · kimi-k3
+[0m$ [0mnode test/manifest.test.mjs 2>&1 | tail -20
+ok   все ключи %…% из package.json есть в package.nls.json (58)
+  ok   в package.nls.json нет мёртвых ключей (58)
+  ok   package.nls.ru.json покрывает те же ключи, что и английский
+  ok   идентификаторы команд уникальны (37)
+  ok   все объявленные команды в пространстве аура-Тим
+  ok   у всех команд категория Team (иначе палитра перемешает их с чужими)
+  ok   все команды спрятаны, когда плагин выключен
+  ok   каждая команда из манифеста зарегистрирована в коде
+  ok   события onCommand ссылаются на живые команды (11)
+  ok   main указывает на собранный out/
+  ok   main: файл существует после сборки (иначе расширение не загрузится)
+  ok   представления привязаны к существующему контейнеру
+  ok   представление сайдбара существует и включается по контексту
+
+ALL CHECKS PASSED
+> build · kimi-k3
+AURA-018 закрыт, манифест-тест зелёный. Переходу к extension.ts (AURA-024/025/026):
+[0m→ [0mRead extensions/aura-team/src/extension.ts [90m[limit=120, offset=1][0m
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-team/src/extension.ts [90m[limit=140, offset=185][0m
+> build · kimi-k3
+Смотрю GitService — нужен доступ к репозиториям для инвалидации кэша (AURA-025):
+[0m$ [0mgrep -n "repositories\|onDidChange\|getSnapshot\|class GitService\|private git\|state\b" extensions/aura-team/src/git/service.ts | head -30; echo ===; grep -n "repositories\|onDidChange\|Repository\b" extensions/aura-team/src/git/git.d.ts | head -20
+18:export class GitService {
+31:	get repository(): Repository | undefined { return this.api.repositories[0]; }
+52:	async getSnapshot(): Promise<GitSnapshot | undefined> {
+56:			...repository.state.indexChanges.map(change => ({ path: vscode.workspace.asRelativePath(change.uri, false), kind: 'index' as const })),
+57:			...repository.state.workingTreeChanges.map(change => ({ path: vscode.workspace.asRelativePath(change.uri, false), kind: 'working' as const })),
+58:			...repository.state.untrackedChanges.map(change => ({ path: vscode.workspace.asRelativePath(change.uri, false), kind: 'untracked' as const }))
+73:			branch: repository.state.HEAD?.name ?? '',
+74:			remotes: repository.state.remotes.map(remote => remote.name),
+97:		const branch = repository.state.HEAD?.name ?? 'HEAD';
+105:		const untracked = repository.state.untrackedChanges.some(change => vscode.workspace.asRelativePath(change.uri, false) === filePath);
+132:		const current = repository.state.HEAD?.name ?? '';
+160:		const dirty = [...repository.state.workingTreeChanges, ...repository.state.indexChanges, ...repository.state.untrackedChanges];
+193:		const paths = [...repo.state.workingTreeChanges, ...repo.state.untrackedChanges].map(change => change.uri.fsPath);
+194:		if (paths.length === 0 && repo.state.indexChanges.length === 0) { throw new Error(vscode.l10n.t('There are no changes to save.')); }
+202:		return { hash: commit.hash, message, remoteUrl: repo.state.remotes.find(remote => remote.name === 'origin')?.fetchUrl };
+210:		const stagedNotSelected = repository.state.indexChanges.map(change => change.uri.fsPath).filter(p => !selectedPaths.includes(p));
+215:		const toAdd = selectedPaths.filter(p => !repository.state.indexChanges.some(change => change.uri.fsPath === p));
+223:		return { hash: commit.hash, message, remoteUrl: repository.state.remotes.find(remote => remote.name === 'origin')?.fetchUrl };
+248:		for (const change of repository.state.indexChanges) { changesByPath.set(change.uri.fsPath, { change, source: vscode.l10n.t('All Changes in Staged File'), picked: true }); }
+249:		for (const change of repository.state.workingTreeChanges) { changesByPath.set(change.uri.fsPath, { change, source: vscode.l10n.t('All Changes in File'), picked: true }); }
+250:		for (const change of repository.state.untrackedChanges) { changesByPath.set(change.uri.fsPath, { change, source: vscode.l10n.t('New File'), picked: false }); }
+267:		const stagedPaths = repository.state.indexChanges.map(change => change.uri.fsPath);
+278:		return { hash: commit.hash, message, remoteUrl: repository.state.remotes.find(remote => remote.name === 'origin')?.fetchUrl };
+305:			...repository.state.indexChanges,
+306:			...repository.state.workingTreeChanges,
+307:			...repository.state.untrackedChanges
+313:		const paths = [...repository.state.indexChanges, ...repository.state.workingTreeChanges].map(change => change.uri.fsPath);
+362:		const hasOrigin = repository.state.remotes.some(remote => remote.name === 'origin');
+417:		return this.repository?.state.HEAD?.name || 'main';
+427:		return Boolean(this.repository?.state.remotes.some(remote => remote.name === 'origin'));
+===
+11:export interface Repository {
+13:	readonly state: { readonly HEAD?: Branch; readonly remotes: readonly { name: string; fetchUrl?: string }[]; readonly mergeChanges: readonly Change[]; readonly indexChanges: readonly Change[]; readonly workingTreeChanges: readonly Change[]; readonly untrackedChanges: readonly Change[]; readonly onDidChange: Event<void> };
+28:	readonly repositories: Repository[];
+> build · kimi-k3
+API ясен. Применяю AURA-024/025/026 в extension.ts:
+[0m← [0mEdit extensions/aura-team/src/extension.ts
+Index: extensions/aura-team/src/extension.ts
+===================================================================
+--- extensions/aura-team/src/extension.ts
++++ extensions/aura-team/src/extension.ts
+@@ -5,9 +5,9 @@
+ 
+ import * as vscode from 'vscode';
+ import { spawn } from 'node:child_process';
+ import { randomUUID } from 'node:crypto';
+-import { existsSync, readFileSync } from 'node:fs';
++import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+ import { join, dirname } from 'node:path';
+ import { AuraApiClient } from './api/client';
+ import { GITHUB_TOKEN_KEY, connectGitHub, createGithubRepo, disconnectGitHub, hasGitHubToken, listGithubRepos, pickAndCloneGithubRepo } from './auth/github';
+ import { matchTeamProvider, mapAuraPriority, providerDraftFrom, importLabelOf, summarizeImport, type AuraApiKey, type AuraApiKeyExport, type ImportOutcome } from './keys/importMapping';
+
+[0m← [0mEdit extensions/aura-team/src/extension.ts
+Index: extensions/aura-team/src/extension.ts
+===================================================================
+--- extensions/aura-team/src/extension.ts
++++ extensions/aura-team/src/extension.ts
+@@ -40,8 +40,19 @@
+ 	try { url = new URL(configured); } catch { return; }
+ 	if (!['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) { return; }
+ 	const probe = async (): Promise<boolean> => fetch(`${url.origin}/health`, { signal: AbortSignal.timeout(1500) }).then(r => r.ok).catch(() => false);
+ 	if (await probe()) { return; }
++	// Прошлое окно могло оставить живой сервер-сироту, который не отвечает (завис
++	// или потерял порт): гасим его по pid-файлу перед повторным запуском, иначе
++	// плодим процессы на каждый запуск IDE.
++	const pidFile = join(context.globalStorageUri.fsPath, '.aura-team-server.pid');
++	const killPid = (pid: number): void => { try { process.kill(pid); } catch { /* уже мёртв */ } };
++	try {
++		const stale = Number(readFileSync(pidFile, 'utf8').trim());
++		if (Number.isInteger(stale) && stale > 0 && stale !== process.pid) {
++			try { process.kill(stale, 0); killPid(stale); output.appendLine(`[server] killed stale server pid ${stale}`); } catch { /* процесса уже нет */ }
++		}
++	} catch { /* pid-файла ещё нет */ }
+ 	// Ищем aura-team-server/scripts/start-local.mjs вверх по дереву каталогов
+ 	// (в репозитории — <root>/aura-team-server рядом с <root>/extensions).
+ 	let dir = context.extensionPath;
+ 	let serverRoot: string | undefined;
+
+[0m← [0mEdit extensions/aura-team/src/extension.ts
+Index: extensions/aura-team/src/extension.ts
+===================================================================
+--- extensions/aura-team/src/extension.ts
++++ extensions/aura-team/src/extension.ts
+@@ -73,11 +73,20 @@
+ 	child.unref();
+ 	// Ждём до 10 секунд, пока сервер начнёт отвечать.
+ 	for (let i = 0; i < 20; i++) {
+ 		await new Promise(resolve => setTimeout(resolve, 500));
+-		if (await probe()) { output.appendLine(`[server] local server is up at ${url.origin}`); return; }
++		if (await probe()) {
++			// pid пишем только после успешного probe: иначе следующее окно убьёт
++			// чужой здоровый сервер по устаревшему файлу.
++			if (child.pid) { try { mkdirSync(dirname(pidFile), { recursive: true }); writeFileSync(pidFile, String(child.pid)); } catch { /* pid-файл не критичен */ } }
++			output.appendLine(`[server] local server is up at ${url.origin}`);
++			return;
++		}
+ 	}
+ 	output.appendLine('[server] local server did not start within 10s');
++	// Не оставляем сироту: недостартовавший сервер дождётся следующего окна и
++	// будет убит как stale по pid-файлу, а этот экземпляр гасим сразу.
++	if (child.pid) { killPid(child.pid); }
+ }
+ 
+ export async function activate(context: vscode.ExtensionContext): Promise<AuraTeamPublicApi> {
+ 	const output = vscode.window.createOutputChannel('Team');
+
+> build · kimi-k3
+[0m← [0mEdit extensions/aura-team/src/extension.ts
+Index: extensions/aura-team/src/extension.ts
+===================================================================
+--- extensions/aura-team/src/extension.ts
++++ extensions/aura-team/src/extension.ts
+@@ -214,9 +214,31 @@
+ 		{ id: 'k2', label: 'Anthropic team key', keyHint: 'sk-ant-…Q9m', provider: 'anthropic', accessRole: 'maintainer', priority: 200, createdAt: new Date(Date.now() - 1 * 864e5).toISOString() }
+ 	]);
+ 
+ 	// Кэш git-снапшота: buildState() вызывается часто (каждый broadcast), а git log — дорогой.
++	// TTL 10 с + сброс по событию репозитория: после commit/checkout/изменения файлов
++	// state.onDidChange срабатывает и панель не показывает устаревшую ветку до 10 секунд.
++	const GIT_CACHE_TTL_MS = 10_000;
+ 	let gitCache: { at: number; value: Awaited<ReturnType<GitService['getSnapshot']>> } | undefined;
++	const watchedGitRepos = new WeakSet<object>();
++	const watchGitRepo = (): void => {
++		const repo = git?.repository;
++		if (!repo || watchedGitRepos.has(repo)) { return; }
++		watchedGitRepos.add(repo);
++		context.subscriptions.push(repo.state.onDidChange(() => { gitCache = undefined; }));
++	};
++	const gitSnapshot = async (): Promise<AuraState['git']> => {
++		if (!git) { return undefined; }
++		if (gitCache && Date.now() - gitCache.at < GIT_CACHE_TTL_MS) { return gitCache.value; }
++		try {
++			const value = await gitSvc().getSnapshot();
++			gitCache = { at: Date.now(), value };
++			watchGitRepo();
++			return value;
++		} catch {
++			return undefined;
++		}
++	};
+ 	// Подзадачи живут markdown-чекбоксами в описании задачи, а /summary описаний не отдаёт:
+ 	// добираем прогресс из уже загруженной доски, чтобы сайдбар читался без открытия карточки.
+ 	const subtaskProgress = (description?: string): { done: number; total: number } | undefined => {
+ 		let done = 0, total = 0;
+
+[0m← [0mEdit extensions/aura-team/src/extension.ts
+Index: extensions/aura-team/src/extension.ts
+===================================================================
+--- extensions/aura-team/src/extension.ts
++++ extensions/aura-team/src/extension.ts
+@@ -260,9 +260,9 @@
+ 		session: state.session,
+ 		teamId: state.teamId,
+ 		board: state.board,
+ 		keys: state.keys,
+-		git: git ? ((gitCache && Date.now() - gitCache.at < 2000) ? gitCache.value : await gitSvc().getSnapshot().then(value => { gitCache = { at: Date.now(), value }; return value; }).catch(() => undefined)) : undefined,
++		git: await gitSnapshot(),
+ 		activity: state.activity,
+ 		dismissedActivity: dismissedActivity(),
+ 		summary: withSubtaskProgress(state.summary),
+ 		// Демо активно и при живой демо-сессии (сервер не ответил на refresh): без этого
+
+> build · kimi-k3
+Теперь AURA-026 — агрегатор тостов:
+[0m← [0mEdit extensions/aura-team/src/extension.ts
+Index: extensions/aura-team/src/extension.ts
+===================================================================
+--- extensions/aura-team/src/extension.ts
++++ extensions/aura-team/src/extension.ts
+@@ -330,8 +330,39 @@
+ 		await context.globalState.update(DISMISSED_KEY, []);
+ 		await refresh();
+ 	});
+ 
++	// Агрегатор тостов: при шквале событий (импорт, массовое назначение задач) IDE
++	// засыпало пользователя десятками уведомлений. Первый тост — сразу, дальше за
++	// окно 5 с всё собирается в один «сообщение (+N more)», с потолком backlog 10.
++	const TOAST_WINDOW_MS = 5000;
++	const TOAST_BACKLOG_CAP = 10;
++	let toastWindowOpen = false;
++	let toastBacklog: string[] = [];
++	let toastOverflow = 0;
++	let toastTimer: ReturnType<typeof setTimeout> | undefined;
++	const flushToasts = (): void => {
++		toastTimer = undefined;
++		toastWindowOpen = false;
++		const backlog = toastBacklog;
++		toastBacklog = [];
++		const extra = backlog.length - 1 + toastOverflow;
++		toastOverflow = 0;
++		if (!backlog.length) { return; }
++		const text = extra > 0 ? vscode.l10n.t('{0} (+{1} more)', backlog[0], extra) : backlog[0];
++		void vscode.window.showInformationMessage(text);
++	};
++	const notifyToast = (message: string): void => {
++		if (!toastWindowOpen) {
++			toastWindowOpen = true;
++			void vscode.window.showInformationMessage(message);
++			toastTimer = setTimeout(flushToasts, TOAST_WINDOW_MS);
++			return;
++		}
++		if (toastBacklog.length < TOAST_BACKLOG_CAP) { toastBacklog.push(message); } else { toastOverflow++; }
++	};
++	context.subscriptions.push({ dispose: () => { if (toastTimer) { clearTimeout(toastTimer); toastTimer = undefined; } } });
++
+ 	// Уведомления IDE: новые задачи, назначенные на тебя, и свежие события команды.
+ 	let lastNotifiedActivityId: string | undefined;
+ 	const notifyOnChanges = (previousBoard: BoardSnapshot | undefined, previousActivity: TeamActivityEvent[] | undefined): void => {
+ 		const me = state.session?.user.id;
+
+[0m← [0mEdit extensions/aura-team/src/extension.ts
+Index: extensions/aura-team/src/extension.ts
+===================================================================
+--- extensions/aura-team/src/extension.ts
++++ extensions/aura-team/src/extension.ts
+@@ -372,9 +372,9 @@
+ 					const onOther = previousBoard.tasks.some(prev => prev.id === task.id);
+ 					if (onOther || !previousBoard.tasks.some(prev => prev.id === task.id)) {
+ 						// Назначена тебе (ранее была без тебя) или создана сразу на тебя.
+ 						if (previousBoard.tasks.some(prev => prev.id === task.id && prev.assigneeId !== me) || !previousBoard.tasks.some(prev => prev.id === task.id)) {
+-							void vscode.window.showInformationMessage(vscode.l10n.t('📋 Task assigned to you: {0}', task.title));
++							notifyToast(vscode.l10n.t('📋 Task assigned to you: {0}', task.title));
+ 						}
+ 					}
+ 				}
+ 			}
+
+[0m← [0mEdit extensions/aura-team/src/extension.ts
+Index: extensions/aura-team/src/extension.ts
+===================================================================
+--- extensions/aura-team/src/extension.ts
++++ extensions/aura-team/src/extension.ts
+@@ -383,9 +383,9 @@
+ 		if (previousActivity && state.activity?.length) {
+ 			const fresh = state.activity.filter(ev => !previousActivity.some(prev => prev.createdAt === ev.createdAt && prev.action === ev.action) && ev.userId !== me);
+ 			if (fresh.length) {
+ 				const first = fresh[0];
+-				void vscode.window.showInformationMessage(vscode.l10n.t('🔔 {0}: {1}', first.userName, first.action));
++				notifyToast(vscode.l10n.t('🔔 {0}: {1}', first.userName, first.action));
+ 			}
+ 		}
+ 		lastNotifiedActivityId = state.activity?.[0]?.targetId ?? lastNotifiedActivityId;
+ 	};
+
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-team/src/git/teamSync.ts [90m[limit=20, offset=50][0m
+> build · kimi-k3
+[0m← [0mEdit extensions/aura-team/src/git/teamSync.ts
+Index: extensions/aura-team/src/git/teamSync.ts
+===================================================================
+--- extensions/aura-team/src/git/teamSync.ts
++++ extensions/aura-team/src/git/teamSync.ts
+@@ -58,9 +58,10 @@
+ 	}
+ 
+ 	private restartTimer(): void {
+ 		if (this.timer) { clearInterval(this.timer); }
+-		const seconds = Math.max(15, vscode.workspace.getConfiguration('auraTeam').get<number>('sync.intervalSeconds', 120));
++		// Кламп согласован с minimum в package.json (60 с): чаще — долбёжка GitHub API.
++		const seconds = Math.max(60, vscode.workspace.getConfiguration('auraTeam').get<number>('sync.intervalSeconds', 120));
+ 		this.timer = setInterval(() => void this.autoPull(), seconds * 1000);
+ 	}
+ 
+ 	private render(state: 'idle' | 'busy' | 'ok' | 'error' | 'offline'): void {
+
+> build · kimi-k3
+[0m$ [0mcd extensions/aura-team && node ../../node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json && echo TSC-OK
+TSC-OK
+> build · kimi-k3
+aura-team компилируется. Переходу к template.html — kanban mount() и invite-поток:
+[0m$ [0mgrep -n "function mount\|lastMountedRoute\|viewBody\|column-body\|scrollTop\|scrollLeft" extensions/aura-team/src/webview/template.html | head -30
+368:.view-wrap.view-board, .view-wrap.view-board #viewBody { min-height: 0; }
+369:.view-wrap.view-board #viewBody { height: 100%; }
+413:.column-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2); }
+414:.column-body::after { content: ''; display: none; height: 46px; border-radius: var(--r-card); background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent); }
+415:.column.drop-hint .column-body::after { display: block; }
+416:.column.collapsed .column-body { display: none; }
+925:#viewBody > .card + .card,
+926:#viewBody > .card + details.card,
+927:#viewBody > details.card + .card { margin-top: 14px; }
+1074:	<main id="view" class="view-wrap"><div id="viewBody"></div></main>
+1786:const viewBody = () => document.getElementById('viewBody');
+1790:function mount(html) {
+1792:	const body = viewBody();
+1838:	if (route === 'keys') { void Promise.all([ensureUsage(), ensureProviders()]).then(() => { if (route === 'keys') { const prev = viewBody()?.querySelector('#keysSearch')?.value ?? ''; const active = document.activeElement; const sel = active?.tagName === 'SELECT' ? active.id : ''; const scroll = viewBody()?.scrollTop ?? 0; const focusId = active?.dataset?.key ?? (active?.type === 'checkbox' && active?.closest?.('.key-card') ? (active.closest('.key-card')?.dataset?.keyId ?? '') : ''); mount(renderKeys()); wireKeys(prev, active, sel, scroll, focusId); } }); return mount(renderKeys()); }
+2345:			<div class="column-body" data-status="${id}">${cards}${addBtn}</div>
+2572:	document.querySelectorAll('.column-body').forEach((body) => {
+2598:	const list = [...card.closest('.column-body').querySelectorAll('.task')];
+2603:	const bodies = [...document.querySelectorAll('.column-body')];
+2604:	const body = bodies[bodies.indexOf(card.closest('.column-body')) + (key === 'ArrowRight' ? 1 : -1)];
+2616:	const body = card.closest('.column-body');
+2625:		const bodies = [...document.querySelectorAll('.column-body')];
+2642:	const body = card.closest('.column-body');
+2768:	const body = document.querySelector(`.column-body[data-status="${inlineDraft.status}"]`) || document.getElementById('boardHost');
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=65, offset=1784][0m
+> build · kimi-k3
+[0m$ [0mgrep -n 'class="board\|boardHost\|\.board {\|\.board{' extensions/aura-team/src/webview/template.html | head
+373:#boardHost { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+398:.board { flex: 1 1 auto; min-height: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(260px, 1fr); gap: var(--sp-3); overflow-x: auto; overflow-y: hidden; padding-bottom: var(--sp-1); }
+2237:	const toolbar = `<div class="board-toolbar">
+2238:			<input class="board-search" data-kanban-search type="search" placeholder="${esc(T('searchPh'))}" value="${esc(kanban.search)}" aria-label="${esc(T('searchPh'))}">
+2239:			<select class="board-assignee" data-kanban-assignee aria-label="${esc(T('assignee'))}">${assigneeOpts}</select>
+2240:			<button class="board-toggle ${kanban.overdueOnly ? 'on' : ''}" data-kanban-overdue aria-pressed="${kanban.overdueOnly ? 'true' : 'false'}" title="${esc(T('overdueToggle'))}">${BOARD_ICONS.warn}${esc(T('overdueToggle'))}</button>
+2241:			<span class="board-spacer"></span>
+2245:	return `<div class="board-root">
+2247:			<div class="board-head-row">
+2249:					<div class="board-h1">${esc(T('navBoard'))}</div>
+> build · kimi-k3
+[0m← [0mEdit extensions/aura-team/src/webview/template.html
+Index: extensions/aura-team/src/webview/template.html
+===================================================================
+--- extensions/aura-team/src/webview/template.html
++++ extensions/aura-team/src/webview/template.html
+@@ -1786,12 +1786,36 @@
+ const viewBody = () => document.getElementById('viewBody');
+ const badgeEl = () => document.getElementById('connBadge');
+ const avatarBtn = () => document.getElementById('avatarBtn');
+ 
++// Канбан перерисовывается целиком на каждый broadcast (innerHTML), и без
++// восстановления скролла длинные колонки/доска прыгали наверх у пользователя
++// под руками. Скролл сохраняем только внутри того же раздела: смена route —
++// честный переход, там скролл с нуля.
++let lastMountedRoute = null;
++
+ function mount(html) {
+ 	const keepInlineFocus = inlineFocusInForm();
+ 	const body = viewBody();
++	let scrollSnapshot = null;
++	if (lastMountedRoute === route) {
++		scrollSnapshot = {
++			body: body.scrollTop,
++			board: body.querySelector('.board')?.scrollLeft ?? 0,
++			columns: new Map([...body.querySelectorAll('.column-body[data-status]')].map((el) => [el.dataset.status, el.scrollTop]))
++		};
++	}
+ 	body.innerHTML = html;
++	if (scrollSnapshot) {
++		body.scrollTop = scrollSnapshot.body;
++		const board = body.querySelector('.board');
++		if (board) { board.scrollLeft = scrollSnapshot.board; }
++		body.querySelectorAll('.column-body[data-status]').forEach((el) => {
++			const top = scrollSnapshot.columns.get(el.dataset.status);
++			if (top) { el.scrollTop = top; }
++		});
++	}
++	lastMountedRoute = route;
+ 	// перезапуск анимации входа
+ 	const wrap = document.getElementById('view');
+ 	wrap.style.animation = 'none';
+ 	wrap.offsetHeight;
+
+> build · kimi-k3
+Теперь подтверждение удаления архива:
+[0m$ [0mgrep -n "deleteArchive\|confirmAction" extensions/aura-team/src/webview/template.html | head -20
+1738:	} else if (command === 'auraTeam.deleteArchive') {
+2430:		confirmAction(`${T('removeMember')} · ${m.displayName}`, async () => {
+3309:		try { await demo('auraTeam.deleteArchive', [b.dataset.delArchive]); state.archivesLoaded = false; state.archives = []; await ensureArchives(); render(); } catch (err) { toast(err.message, 'err'); }
+3635:		confirmAction(`${T('discardFile')} · ${path}`, async () => {
+3653:						confirmAction(T('resetHardConfirm'), async () => {
+3731:	revertBtn?.addEventListener('click', () => confirmAction(T('revert'), async () => { await demo('auraTeam.revertLastCommit', [true]); }));
+3807:	document.getElementById('btnFlowMergeLocal')?.addEventListener('click', demoOr(() => confirmAction(fmt('tfMergeLocal', flow.data?.base || 'main'), async () => {
+3830:		confirmAction(fmt('tfRevertPrConfirm', number), async () => {
+3847:		confirmAction(fmt('tfRevertCommitConfirm', hash.slice(0, 8)), async () => {
+3880:function confirmAction(label, job) {
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=30, offset=3295][0m
+> build · kimi-k3
+[0m$ [0mgrep -n "'deleteArchive'\|deleteArchive:\|delArchive\b" extensions/aura-team/src/webview/template.html | head; sed -n '3890,3905p' extensions/aura-team/src/webview/template.html
+3309:		try { await demo('auraTeam.deleteArchive', [b.dataset.delArchive]); state.archivesLoaded = false; state.archives = []; await ensureArchives(); render(); } catch (err) { toast(err.message, 'err'); }
+	const p = String(provider || '').toLowerCase();
+	if (p.includes('anthropic')) { return '#d97757'; }
+	if (p.includes('google') || p.includes('gemini')) { return '#4285F4'; }
+	if (p.includes('deepseek')) { return '#4d6bfe'; }
+	if (p.includes('openrouter')) { return '#8b5cf6'; }
+	return '#10b981';
+}
+function providerGlyph(provider) {
+	return `<svg viewBox="0 0 24 24" fill="none"><path d="M12 12a3.2 3.2 0 1 0 0-6.4A3.2 3.2 0 0 0 12 12zm0 0v6.4M12 9.6h6.4" stroke="white" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+}
+/* Приоритет: high / medium / low → подпись и цвет. */
+/* Приоритет на сервере — число 0..1000, МЕНЬШЕ — ВЫШЕ (прокси берёт ORDER BY priority ASC).
+   Раньше UI писал «высокий» = 200 и читал только строки 'high'/'2' — все ключи выглядели «средними»,
+   а «высокий» на деле уходил в конец очереди. */
+const PRIO_VALUE = { high: 10, medium: 100, low: 500 };
+function priorityMeta(priority) {
+> build · kimi-k3
+[0m$ [0msed -n '3880,3890p' extensions/aura-team/src/webview/template.html; grep -n "delArchive\|deleteArchive'" extensions/aura-team/src/webview/template.html | head; grep -n "archiveDelete\|'delete'\|del:" extensions/aura-team/src/webview/template.html | head
+function confirmAction(label, job) {
+	openModal({
+		title: T('sure'), sub: label, actionText: T('yesKeep'), danger: true,
+		body: `<div class="sub">${esc(label)}</div>`,
+		onAction: async (overlay) => { await job(); return false; }
+	});
+}
+
+/* ---------- Банк ключей ---------- */
+function providerColor(provider) {
+	const p = String(provider || '').toLowerCase();
+1738:	} else if (command === 'auraTeam.deleteArchive') {
+3309:		try { await demo('auraTeam.deleteArchive', [b.dataset.delArchive]); state.archivesLoaded = false; state.archives = []; await ensureArchives(); render(); } catch (err) { toast(err.message, 'err'); }
+1165:		keyBaseUrl: 'Base URL', keyBaseUrlHint: 'Шлюз или прокси (OpenRouter, свой сервер…). Пусто — адрес провайдера.', keyModel: 'Модель', keyModelHint: 'Нужна для проверки шлюзов без /models и как модель по умолчанию.', keyNewValue: 'Новый ключ', keyNewValueHint: 'Оставьте пустым, чтобы не менять.', keyLimited: 'Лимит', keyOkPing: 'Работает', keyChecked: 'Проверен', keyNeverChecked: 'Не проверялся', keyCleanupNone: 'Отключённых ключей нет',
+1364:		keyBaseUrl: 'Base URL', keyBaseUrlHint: 'Gateway or proxy (OpenRouter, your own server…). Empty — provider address.', keyModel: 'Model', keyModelHint: 'Used to check gateways without /models and as the default model.', keyNewValue: 'New key', keyNewValueHint: 'Leave empty to keep the current key.', keyLimited: 'Rate limited', keyOkPing: 'Working', keyChecked: 'Checked', keyNeverChecked: 'Never checked', keyCleanupNone: 'No disabled keys',
+3037:			${canDeleteTask(task) ? `<button class="btn danger sm" data-detail-delete>${esc(T('delete'))}</button>` : ''}
+3094:		${canDelete ? `<button class="qa-row danger-text" data-qa-delete>🗑 ${esc(T('delete'))}</button>` : ''}`;
+3150:			<div class="mt12"><button class="btn danger-text sm" style="background:none" data-delete-task="${esc(task.id)}" ${canDeleteTask(task) ? '' : 'hidden'}>${esc(T('delete'))}</button></div>`,
+3255:					${canMaintainBoard() ? `<button class="btn ghost sm danger-text" data-del-archive="${esc(a.id)}" style="white-space:nowrap">${esc(T('delete'))}</button>` : ''}
+3707:				${b.current ? '' : `<button class="btn sm ghost right" data-pick-branch="${esc(b.name)}">switch</button><button class="btn sm ghost" data-del-branch="${esc(b.name)}" title="${esc(T('delete'))}">×</button>`}
+4207:						model: overlay.querySelector('[data-key-edit-model]')?.value?.trim() || null,
+4264:				title: T('deleteKey'), sub: `${T('deleteForeverHint')} «${esc(key.label)}»`, actionText: T('delete'), danger: true,
+4328:				model: overlay.querySelector('[data-add-model]')?.value?.trim() || undefined
+> build · kimi-k3
+[0m← [0mEdit extensions/aura-team/src/webview/template.html
+Index: extensions/aura-team/src/webview/template.html
+===================================================================
+--- extensions/aura-team/src/webview/template.html
++++ extensions/aura-team/src/webview/template.html
+@@ -3303,11 +3303,16 @@
+ 		e.stopPropagation();
+ 		const archive = (state.archives ?? []).find((a) => a.id === b.dataset.dlArchive);
+ 		if (archive) { void downloadArchiveById(archive); }
+ 	}));
+-	document.querySelectorAll('[data-del-archive]').forEach((b) => b.addEventListener('click', async (e) => {
++	document.querySelectorAll('[data-del-archive]').forEach((b) => b.addEventListener('click', (e) => {
+ 		e.stopPropagation();
+-		try { await demo('auraTeam.deleteArchive', [b.dataset.delArchive]); state.archivesLoaded = false; state.archives = []; await ensureArchives(); render(); } catch (err) { toast(err.message, 'err'); }
++		// Удаление архива необратимо (в отличие от undo-тоста при удалении задачи):
++		// без подтверждения один промах по кнопке сносил файл команды безвозвратно.
++		const archive = (state.archives ?? []).find((a) => a.id === b.dataset.delArchive);
++		confirmAction(`${T('delete')} · ${archive?.name ?? b.dataset.delArchive}`, async () => {
++			try { await demo('auraTeam.deleteArchive', [b.dataset.delArchive]); state.archivesLoaded = false; state.archives = []; await ensureArchives(); render(); } catch (err) { toast(err.message, 'err'); }
++		});
+ 	}));
+ 	document.querySelectorAll('[data-download]').forEach((b) => b.addEventListener('click', async () => {
+ 		const project = state.board?.projects.find((p) => p.id === b.dataset.download);
+ 		if (project?.archiveId) { await demo('auraTeam.downloadArchive', [project]); }
+
+> build · kimi-k3
+Теперь invite-поток — модалка «Пересоздать»:
+[0m$ [0mgrep -n "wireInviteActions\|regenerate\|inviteRegen\|Пересоздать\|revokeInvite\|createInvite" extensions/aura-team/src/webview/template.html | head -20
+1106:		inviteGenNew: 'Создать новый код', inviteRegen: 'Пересоздать',
+1107:		inviteRegenHint: 'После пересоздания старый код перестанет работать.',
+1305:		inviteGenNew: 'Create new code', inviteRegen: 'Regenerate',
+1306:		inviteRegenHint: 'After regenerating, the old code stops working.',
+1648:						<button class="btn ghost sm danger-text" data-revoke-invite>${esc(T('inviteRegen'))}</button></div>
+1649:						<div class="hint">${esc(T('inviteRegenHint'))}</div>`
+1654:			const res = await demo('auraTeam.createInvite', []);
+1666:		const res = await demo('auraTeam.createInvite', []);
+1670:	wireInviteActions(overlay);
+1672:function wireInviteActions(overlay) {
+1676:		await demo('auraTeam.revokeInvite', []);
+1718:	} else if (command === 'auraTeam.createInvite') {
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=75, offset=1628][0m
+> build · kimi-k3
+[0m$ [0mgrep -n "revokeInvite" extensions/aura-team/src/extension.ts
+585:			if (id === 'auraTeam.revokeInvite') { return { ok: true }; }
+812:	register('auraTeam.revokeInvite', async () => {
+817:		await api.revokeInvite(requireTeam(state));
+2087:	on('inviteRevokeBtn', () => { void revokeInvite(); });
+2159:async function revokeInvite() {
+2161:	try { result = await invokeRemote('auraTeam.revokeInvite', []); } catch (err) { toastText(err.message); return; }
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-team/src/extension.ts [90m[limit=14, offset=810][0m
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=14, offset=1694][0m
+> build · kimi-k3
+[0m← [0mEdit extensions/aura-team/src/webview/template.html
+Index: extensions/aura-team/src/webview/template.html
+===================================================================
+--- extensions/aura-team/src/webview/template.html
++++ extensions/aura-team/src/webview/template.html
+@@ -1662,21 +1662,35 @@
+ 	search?.addEventListener('input', () => renderInviteList(overlay, search.value.trim()));
+ 	renderInviteList(overlay, '');
+ 	const genBtn = overlay.querySelector('[data-gen-invite]');
+ 	genBtn?.addEventListener('click', async () => {
+-		const res = await demo('auraTeam.createInvite', []);
+-		if (res?.code) { inviteCache = res; copyText(res.code); toast(T('copied'), 'ok'); }
+-		closeAndReopen();
++		// Защита от даблклика: пока запрос в полёте, кнопка мертва — иначе два клика
++		// создавали два кода и первый тут же отзывался вторым.
++		genBtn.disabled = true;
++		try {
++			const res = await demo('auraTeam.createInvite', []);
++			if (res?.code) { inviteCache = res; copyText(res.code); toast(T('copied'), 'ok'); }
++			closeAndReopen();
++		} catch (err) { toast(String(err && err.message || err), 'err'); genBtn.disabled = false; }
+ 	});
+ 	wireInviteActions(overlay);
+ }
+ function wireInviteActions(overlay) {
+ 	overlay.querySelectorAll('[data-copy-invite]').forEach((btn) => btn.addEventListener('click', (e) => copyText(e.currentTarget.dataset.copyInvite)));
+ 	const revoke = overlay.querySelector('[data-revoke-invite]');
+ 	revoke?.addEventListener('click', async () => {
+-		await demo('auraTeam.revokeInvite', []);
+-		inviteCache = { code: null };
+-		closeAndReopen();
++		// Кнопка называется «Пересоздать», но раньше только отзывала код — человек
++		// оставался без работающей ссылки. Теперь честно: отозвать → выдать новый.
++		// Если в подтверждении расширения нажали «Отмена» ({cancelled}) — не трогаем ничего.
++		revoke.disabled = true;
++		try {
++			const revoked = await demo('auraTeam.revokeInvite', []);
++			if (revoked?.cancelled) { return; }
++			const res = await demo('auraTeam.createInvite', []);
++			inviteCache = res?.code ? res : { code: null };
++			if (res?.code) { copyText(res.code); toast(T('copied'), 'ok'); }
++			closeAndReopen();
++		} catch (err) { toast(String(err && err.message || err), 'err'); } finally { revoke.disabled = false; }
+ 	});
+ }
+ async function closeAndReopen() { document.getElementById('modalRoot').querySelectorAll('.overlay').forEach((o) => o.remove()); await openInviteMenu(); }
+ async function renderInviteList(overlay, q) {
+
+> build · kimi-k3
+Гард на персональные приглашения:
+[0m✗ [0mEdit extensions/aura-team/src/webview/template.html failed
+[91m[1mError: [0mCould not find oldString in extensions/aura-team/src/webview/template.html. It must match exactly, including whitespace and indentation.
+> build · kimi-k3
+[0m$ [0msed -n '1694,1706p' extensions/aura-team/src/webview/template.html | cat -A | cut -c1-80
+}$
+async function closeAndReopen() { document.getElementById('modalRoot').querySele
+async function renderInviteList(overlay, q) {$
+^Iconst list = overlay.querySelector('[data-invite-list]');$
+^Iif (!list) { return; }$
+^Ilist.innerHTML = `<div class="hint">${esc(T('loading'))}</div>`;$
+^Ilet users = [];$
+^Itry { users = await demo('auraTeam.directory', [q]) || []; } catch { users = [
+^I^Ilist.innerHTML = users.length === 0 ? `<div class="hint">${esc(T('inviteNobo
+^I^I^I<div class="invite-user" data-uid="${esc(u.id)}" data-uname="${esc(u.displ
+^I^I^I^I<span class="avatar sm" style="background:${esc(avatarColor(u.id))}">${e
+^I^I^I^I<span class="invite-user-name">${esc(u.displayName)}${u.email ? ` <span 
+^I^I^I^I${u.inTeam ? `<span class="pill">${esc(T('inTeam'))}</span>` : `<button
+> build · kimi-k3
+[0m$ [0mgrep -n "data-invite-user" extensions/aura-team/src/webview/template.html
+1706:				${u.inTeam ? `<span class="pill">${esc(T('inTeam'))}</span>` : `<button class="btn ghost sm" data-invite-user="${esc(u.id)}">${esc(T('inviteSend'))}</button>`}
+1708:		list.querySelectorAll('[data-invite-user]').forEach((btn) => btn.addEventListener('click', async (e) => {
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=15, offset=1708][0m
+> build · kimi-k3
+[0m← [0mEdit extensions/aura-team/src/webview/template.html
+Index: extensions/aura-team/src/webview/template.html
+===================================================================
+--- extensions/aura-team/src/webview/template.html
++++ extensions/aura-team/src/webview/template.html
+@@ -1709,13 +1709,15 @@
+ 			const row = e.currentTarget.closest('[data-uid]');
+ 			e.stopPropagation();
+ 			// Отправляем персональное приглашение выбранному человеку, а не копируем
+ 			// код команды: кнопка называлась «Пригласить», но раньше никого не приглашала.
++			btn.disabled = true; // даблклик не шлёт второе приглашение
+ 			try {
+ 				await demo('auraTeam.sendInvite', [row.dataset.uid]);
+ 				toast(`${esc(row.dataset.uname)}: ${T('inviteSentPersonal')}`, 'ok');
+ 			} catch (error) {
+ 				toast(String(error && error.message || error), '');
++				btn.disabled = false;
+ 			}
+ 		}));
+ }
+ 
+
+> build · kimi-k3
+Прогоняю тесты aura-team:
+[0m$ [0mcd extensions/aura-team && node test/run-all.mjs 2>&1 | tail -25
+ok   кандидат без приглашения — кнопка активна
+  ok   отправка идёт с id пользователя
+  ok   кнопка сразу показывает «Приглашён»
+  ok   ошибка отправки откатывает кнопку
+  ok   поиск отправляется после debounce
+  ok   фокус остаётся в поле поиска после обновления состояния
+  ok   набранный текст не сбрасывается
+  ok   строка каталога переиспользуется, а не пересоздаётся
+  ok   секцию можно закрыть
+  ok   отзыв кода уходит на сервер
+  ok   до ответа сервера код остаётся на месте
+  ok   после отзыва показано пустое состояние с кнопкой создания
+  ok   новый код появляется вместо пустого состояния
+  ok   кнопка копирования вернулась и работает
+  ok   Diff-обновление: строка t1 — тот же DOM-узел
+  ok   Фокус сохранён после broadcast
+  ok   Смена статуса: data-state обновился
+  ok   Смена статуса: старый текст кросфейдится (2 слоя)
+  ok   Diff-обновление: прогресс подзадач пересчитан
+  ok   Diff-обновление: счётчик не дублируется
+  ok   Diff-обновление: исчезнувшие подзадачи убирают счётчик
+
+ALL CHECKS PASSED
+
+ALL 18 STEPS PASSED
+> build · kimi-k3
+aura-team зелёный. Переходу к aura-orca (AURA-022/023/032):
+[0m→ [0mRead extensions/aura-orca/src/extension.ts [90m[limit=100, offset=40][0m
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-orca/src/extension.ts [90m[limit=80, offset=140][0m
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-orca/src/extension.ts [90m[limit=90, offset=220][0m
+> build · kimi-k3
+[0m$ [0msed -n '1,39p' extensions/aura-orca/src/extension.ts; echo ===; grep -n "onDidDispose\|panel =" extensions/aura-orca/src/extension.ts | head
+/*---------------------------------------------------------------------------------------------
+ *  Orca — CLI-агенты во вкладках-терминалах.
+ *
+ *  Claude Code, Codex, Gemini CLI, Qwen Code, opencode, Aider (или своя команда)
+ *  запускаются в терминалах-вкладках редактора: интерактивно или задачей «без участия».
+ *  Каждый агент может работать в своей ветке (git worktree), чтобы несколько агентов
+ *  шли параллельно и не мешали друг другу. Ключи, base URL и модель задаются в
+ *  настройках CLI (ключ — в SecretStorage) или берутся из плагина API Keys.
+ *  Оркестратор вызывает агентов через команду auraOrca.runHeadless.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as vscode from 'vscode';
+import { ChildProcess, exec, execFile, spawn } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { promisify } from 'node:util';
+import { CliId, CliPreset, CliSettings, PRESETS, binaryOf, buildArgs, buildEnv, commandLine, maskSecret, presetById, quoteCmd, shellKindOf, slug, stripAnsi, tail } from './presets';
+import { WorktreeInfo, Worktrees } from './worktree';
+
+const execFileAsync = promisify(execFile);
+const execAsync = promisify(exec);
+const SETTINGS_KEY = 'auraOrca.cliSettings';
+const secretKey = (id: string): string => `auraOrca.key.${id}`;
+
+type Mode = 'interactive' | 'headless';
+type Status = 'starting' | 'running' | 'exited' | 'failed' | 'idle';
+
+interface Session {
+	id: string;
+	cli: CliId;
+	title: string;
+	mode: Mode;
+	cwd: string;
+	task?: string;
+	worktree?: WorktreeInfo;
+	status: Status;
+	exitCode?: number;
+	startedAt: number;
+===
+339:		panel = vscode.window.createWebviewPanel('auraOrca.panel', 'Orca', vscode.ViewColumn.One, { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')] });
+345:		panel.onDidDispose(() => { panel = undefined; }, undefined, context.subscriptions);
+> build · kimi-k3
+Применяю AURA-022/023/032 в aura-orca:
+[0m← [0mEdit extensions/aura-orca/src/extension.ts
+Index: extensions/aura-orca/src/extension.ts
+===================================================================
+--- extensions/aura-orca/src/extension.ts
++++ extensions/aura-orca/src/extension.ts
+@@ -10,9 +10,9 @@
+  *--------------------------------------------------------------------------------------------*/
+ 
+ import * as vscode from 'vscode';
+ import { ChildProcess, exec, execFile, spawn } from 'node:child_process';
+-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
++import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+ import { tmpdir } from 'node:os';
+ import { dirname, join } from 'node:path';
+ import { promisify } from 'node:util';
+ import { CliId, CliPreset, CliSettings, PRESETS, binaryOf, buildArgs, buildEnv, commandLine, maskSecret, presetById, quoteCmd, shellKindOf, slug, stripAnsi, tail } from './presets';
+
+[0m← [0mEdit extensions/aura-orca/src/extension.ts
+Index: extensions/aura-orca/src/extension.ts
+===================================================================
+--- extensions/aura-orca/src/extension.ts
++++ extensions/aura-orca/src/extension.ts
+@@ -135,8 +135,11 @@
+ 		if (terminal.shellIntegration) { send(); return; }
+ 		const listener = vscode.window.onDidChangeTerminalShellIntegration(event => {
+ 			if (event.terminal === terminal) { listener.dispose(); send(); }
+ 		});
++		// AURA-022: слушатель жил до выстрела или таймаута, но не до деактивации
++		// расширения — при выключенном плагине оставался висеть на окне.
++		context.subscriptions.push(listener);
+ 		setTimeout(() => { listener.dispose(); send(); }, 3000);
+ 	};
+ 
+ 	/** Задача без участия: процесс с живым выводом в псевдотерминале и кодом выхода. */
+
+[0m← [0mEdit extensions/aura-orca/src/extension.ts
+Index: extensions/aura-orca/src/extension.ts
+===================================================================
+--- extensions/aura-orca/src/extension.ts
++++ extensions/aura-orca/src/extension.ts
+@@ -56,8 +56,16 @@
+ 	const worktrees = new Worktrees(gitPath, log);
+ 	const sessions: Session[] = [];
+ 	let panel: vscode.WebviewPanel | undefined;
+ 	const installedCache = new Map<string, { at: number; path?: string }>();
++	// AURA-023: temp-папки снапшотов для vscode.changes (openChanges). Раньше
++	// копились в %TEMP% навсегда — чистим при закрытии панели и деактивации.
++	const tempDirs = new Set<string>();
++	const cleanupTempDirs = (): void => {
++		for (const dir of tempDirs) { try { rmSync(dir, { recursive: true, force: true }); } catch { /* занято/нет прав */ } }
++		tempDirs.clear();
++	};
++	context.subscriptions.push({ dispose: cleanupTempDirs });
+ 
+ 	/* ---------------- Настройки CLI ---------------- */
+ 	const allSettings = (): Record<string, CliSettings> => context.globalState.get<Record<string, CliSettings>>(SETTINGS_KEY, {});
+ 	const settingsOf = (id: string): CliSettings => allSettings()[id] ?? {};
+
+[0m← [0mEdit extensions/aura-orca/src/extension.ts
+Index: extensions/aura-orca/src/extension.ts
+===================================================================
+--- extensions/aura-orca/src/extension.ts
++++ extensions/aura-orca/src/extension.ts
+@@ -287,8 +287,9 @@
+ 		if (!session.worktree) { throw new Error(vscode.l10n.t('This agent works in the main folder — see Source Control.')); }
+ 		const changes = await worktrees.changes(session.worktree);
+ 		if (changes.files.length === 0) { void vscode.window.showInformationMessage(vscode.l10n.t('The agent has not changed any files yet.')); return; }
+ 		const dir = mkdtempSync(join(tmpdir(), 'orca-base-'));
++		tempDirs.add(dir);
+ 		const entries: [vscode.Uri, vscode.Uri | undefined, vscode.Uri | undefined][] = [];
+ 		for (const file of changes.files.slice(0, 80)) {
+ 			const current = vscode.Uri.file(join(session.worktree.path, file.path));
+ 			let original: vscode.Uri | undefined;
+
+[0m← [0mEdit extensions/aura-orca/src/extension.ts
+Index: extensions/aura-orca/src/extension.ts
+===================================================================
+--- extensions/aura-orca/src/extension.ts
++++ extensions/aura-orca/src/extension.ts
+@@ -353,9 +353,9 @@
+ 		const nonce = newId() + newId();
+ 		panel.webview.html = readFileSync(join(context.extensionPath, 'media', 'panel.html'), 'utf8')
+ 			.split('__NONCE__').join(nonce)
+ 			.split('__CSP__').join(panel.webview.cspSource);
+-		panel.onDidDispose(() => { panel = undefined; }, undefined, context.subscriptions);
++		panel.onDidDispose(() => { panel = undefined; cleanupTempDirs(); }, undefined, context.subscriptions);
+ 		panel.webview.onDidReceiveMessage(async (message: { type?: string; id?: number; command?: string; args?: unknown[] }) => {
+ 			if (message?.type === 'ready') { await pushState(); return; }
+ 			if (message?.type !== 'invoke' || !message.command) { return; }
+ 			const handler = handlers.get(message.command);
+
+> build · kimi-k3
+По решению cleanup вызывается и в openChanges (перед новым снапшотом, чтобы %TEMP% не пух внутри сессии):
+[0m← [0mEdit extensions/aura-orca/src/extension.ts
+Index: extensions/aura-orca/src/extension.ts
+===================================================================
+--- extensions/aura-orca/src/extension.ts
++++ extensions/aura-orca/src/extension.ts
+@@ -286,8 +286,10 @@
+ 	const openChanges = async (session: Session): Promise<void> => {
+ 		if (!session.worktree) { throw new Error(vscode.l10n.t('This agent works in the main folder — see Source Control.')); }
+ 		const changes = await worktrees.changes(session.worktree);
+ 		if (changes.files.length === 0) { void vscode.window.showInformationMessage(vscode.l10n.t('The agent has not changed any files yet.')); return; }
++		// Снапшоты прошлого просмотра больше не нужны — новый diff их заменяет.
++		cleanupTempDirs();
+ 		const dir = mkdtempSync(join(tmpdir(), 'orca-base-'));
+ 		tempDirs.add(dir);
+ 		const entries: [vscode.Uri, vscode.Uri | undefined, vscode.Uri | undefined][] = [];
+ 		for (const file of changes.files.slice(0, 80)) {
+
+> build · kimi-k3
+Теперь AURA-032 — heartbeat в startHeadless:
+[0m← [0mEdit extensions/aura-orca/src/extension.ts
+Index: extensions/aura-orca/src/extension.ts
+===================================================================
+--- extensions/aura-orca/src/extension.ts
++++ extensions/aura-orca/src/extension.ts
+@@ -174,8 +174,17 @@
+ 				session.child = child;
+ 				session.status = 'running';
+ 				void pushState();
+ 				child.stdin?.end();
++				// AURA-032: долгий молчаливый запуск выглядел зависшим. Раз в 30 с
++				// тусклая строка «работает Ns, вывод X КБ» — видно, что процесс жив,
++				// без редизайна протокола.
++				const heartbeat = setInterval(() => {
++					const seconds = Math.round((Date.now() - session.startedAt) / 1000);
++					const kb = Math.round(session.output.length / 1024);
++					echo(`\x1b[2m… ♥ ${vscode.l10n.t('running for {0}s, output {1} KB', seconds, kb)}\x1b[0m\n`);
++					log(`[heartbeat] ${session.title}: ${seconds}s, ${kb} KB`);
++				}, 30_000);
+ 				const onData = (chunk: Buffer): void => {
+ 					const text = chunk.toString('utf8');
+ 					echo(text);
+ 					session.output = tail(session.output + stripAnsi(text), 200_000);
+
+[0m← [0mEdit extensions/aura-orca/src/extension.ts
+Index: extensions/aura-orca/src/extension.ts
+===================================================================
+--- extensions/aura-orca/src/extension.ts
++++ extensions/aura-orca/src/extension.ts
+@@ -193,8 +193,9 @@
+ 				child.stderr?.on('data', onData);
+ 				const timer = timeoutMs > 0 ? setTimeout(() => { echo(`\n\x1b[33m⏱ timeout ${Math.round(timeoutMs / 1000)}s\x1b[0m\n`); child.kill(); }, timeoutMs) : undefined;
+ 				child.on('error', error => {
+ 					if (timer) { clearTimeout(timer); }
++					clearInterval(heartbeat);
+ 					const message = (error as NodeJS.ErrnoException).code === 'ENOENT' ? vscode.l10n.t('{0} is not installed or not in PATH.', binary) : String(error);
+ 					echo(`\n\x1b[31m${message}\x1b[0m\n`);
+ 					finish(session, undefined, message);
+ 					resolveDone();
+
+[0m← [0mEdit extensions/aura-orca/src/extension.ts
+Index: extensions/aura-orca/src/extension.ts
+===================================================================
+--- extensions/aura-orca/src/extension.ts
++++ extensions/aura-orca/src/extension.ts
+@@ -201,8 +201,9 @@
+ 					resolveDone();
+ 				});
+ 				child.on('close', code => {
+ 					if (timer) { clearTimeout(timer); }
++					clearInterval(heartbeat);
+ 					echo(`\n\x1b[2m— ${vscode.l10n.t('finished, exit code {0}', String(code ?? '?'))} —\x1b[0m\n`);
+ 					finish(session, code ?? undefined);
+ 					resolveDone();
+ 				});
+
+> build · kimi-k3
+[0m$ [0mnode node_modules/typescript/lib/tsc.js --noEmit -p extensions/aura-orca/tsconfig.json && echo ORCA-TSC-OK
+ORCA-TSC-OK
+> build · kimi-k3
+Orca компилируется. Теперь AURA-033 в оркестраторе:
+[0m→ [0mRead extensions/langgraph-orchestrator/src/tools/index.ts [90m[limit=70, offset=535][0m
+> build · kimi-k3
+[0m$ [0mgrep -n "getState\|runHeadless" extensions/aura-orca/src/extension.ts | head; echo ===; grep -n "logInfo\|log(" extensions/langgraph-orchestrator/src/tools/index.ts | head -5
+9: *  Оркестратор вызывает агентов через команду auraOrca.runHeadless.
+386:	register('auraOrca.getState', buildState);
+498:	register('auraOrca.runHeadless', async (input?: { agent?: string; task?: string; cwd?: string; title?: string; timeoutMs?: number }) => {
+===
+9:import { logInfo } from '../util/log';
+339:				logInfo(`tool ${def.name} cache hit`);
+345:			logInfo(`tool ${def.name} ok (${output.length} chars)`);
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-orca/src/extension.ts [90m[limit=40, offset=380][0m
+> build · kimi-k3
+[0m$ [0mgrep -n "buildState" extensions/aura-orca/src/extension.ts | head -3; sed -n '/const buildState/,/^\t};/p' extensions/aura-orca/src/extension.ts | head -20
+336:	const buildState = async () => ({
+344:		try { await panel.webview.postMessage({ type: 'state', state: await buildState() }); } catch { /* панель закрыта */ }
+386:	register('auraOrca.getState', buildState);
+	const buildState = async () => ({
+		language: uiLanguage(),
+		workspace: workspaceCwd() ?? '',
+		clis: await cliState(),
+		sessions: sessions.map(serializeSession)
+	});
+	const pushState = async (): Promise<void> => {
+		if (!panel) { return; }
+		try { await panel.webview.postMessage({ type: 'state', state: await buildState() }); } catch { /* панель закрыта */ }
+	};
+> build · kimi-k3
+[0m← [0mEdit extensions/langgraph-orchestrator/src/tools/index.ts
+Index: extensions/langgraph-orchestrator/src/tools/index.ts
+===================================================================
+--- extensions/langgraph-orchestrator/src/tools/index.ts
++++ extensions/langgraph-orchestrator/src/tools/index.ts
+@@ -565,15 +565,34 @@
+ 		if (!commands.includes('auraOrca.runHeadless')) {
+ 			throw new Error('agent.cli: the Orca plugin is not installed or disabled (Market → Orca)');
+ 		}
+ 		const timeoutMs = Math.min(Math.max(Number(input.timeoutMs) || CLI_AGENT_TIMEOUT_MS, 10_000), 3_600_000);
+-		const result = await vscode.commands.executeCommand<{ ok: boolean; exitCode?: number | null; error?: string; output?: string } | undefined>('auraOrca.runHeadless', {
+-			agent: input.agent ? String(input.agent) : undefined,
+-			task,
+-			cwd: this.baseDir(cwd),
+-			title: task.slice(0, 60),
+-			timeoutMs,
+-		});
++		const title = task.slice(0, 60);
++		// AURA-033: долгий headless-запуск молчал — живой агент не отличался от
++		// зависшего. Пока ждём результат, раз в 20 с пишем в лог аптайм и объём
++		// вывода сессии Orca (матчим по точному заголовку, который сами же задали).
++		const heartbeat = setInterval(() => {
++			void vscode.commands.executeCommand<{ sessions?: { title: string; status: string; startedAt?: number; output?: string }[] } | undefined>('auraOrca.getState')
++				.then(state => {
++					const session = state?.sessions?.find(item => item.title === title);
++					if (!session) { return; }
++					const uptime = session.startedAt ? Math.round((Date.now() - session.startedAt) / 1000) : 0;
++					logInfo(`agent.cli heartbeat: "${title}" ${session.status}, uptime ${uptime}s, output ${Math.round((session.output ?? '').length / 1024)} KB`);
++				})
++				.catch(() => { /* Orca недоступна — молчим */ });
++		}, 20_000);
++		let result: { ok: boolean; exitCode?: number | null; error?: string; output?: string } | undefined;
++		try {
++			result = await vscode.commands.executeCommand<typeof result>('auraOrca.runHeadless', {
++				agent: input.agent ? String(input.agent) : undefined,
++				task,
++				cwd: this.baseDir(cwd),
++				title,
++				timeoutMs,
++			});
++		} finally {
++			clearInterval(heartbeat);
++		}
+ 		if (!result) {
+ 			throw new Error('agent.cli: Orca returned no result');
+ 		}
+ 		const output = String(result.output ?? '');
+
+> build · kimi-k3
+[0m$ [0mnode node_modules/typescript/lib/tsc.js --noEmit -p extensions/langgraph-orchestrator/tsconfig.json && echo ORCH-TSC-OK
+extensions/langgraph-orchestrator/src/tools/index.ts(581,6): error TS2339: Property 'catch' does not exist on type 'PromiseLike<void>'.
+> build · kimi-k3
+`executeCommand` возвращает Thenable без `.catch` — через второй аргумент `.then`:
+[0m← [0mEdit extensions/langgraph-orchestrator/src/tools/index.ts
+Index: extensions/langgraph-orchestrator/src/tools/index.ts
+===================================================================
+--- extensions/langgraph-orchestrator/src/tools/index.ts
++++ extensions/langgraph-orchestrator/src/tools/index.ts
+@@ -576,10 +576,9 @@
+ 					const session = state?.sessions?.find(item => item.title === title);
+ 					if (!session) { return; }
+ 					const uptime = session.startedAt ? Math.round((Date.now() - session.startedAt) / 1000) : 0;
+ 					logInfo(`agent.cli heartbeat: "${title}" ${session.status}, uptime ${uptime}s, output ${Math.round((session.output ?? '').length / 1024)} KB`);
+-				})
+-				.catch(() => { /* Orca недоступна — молчим */ });
++				}, () => { /* Orca недоступна — молчим */ });
+ 		}, 20_000);
+ 		let result: { ok: boolean; exitCode?: number | null; error?: string; output?: string } | undefined;
+ 		try {
+ 			result = await vscode.commands.executeCommand<typeof result>('auraOrca.runHeadless', {
+
+> build · kimi-k3
+[0m$ [0mnode node_modules/typescript/lib/tsc.js --noEmit -p extensions/langgraph-orchestrator/tsconfig.json && echo ORCH-TSC-OK; node node_modules/typescript/lib/tsc.js --noEmit -p extensions/aura-team/tsconfig.json && echo TEAM-TSC-OK; node node_modules/typescript/lib/tsc.js --noEmit -p extensions/aura-orca/tsconfig.json && echo ORCA-TSC-OK
+ORCH-TSC-OK
+TEAM-TSC-OK
+ORCA-TSC-OK
+> build · kimi-k3
+Все три компилируются. Верифицирую AURA-019/021 (по разведке — уже исправлены):
+[0m$ [0msed -n '60,80p' extensions/langgraph-orchestrator/src/extension.ts; echo ===; sed -n '440,455p' extensions/aura-orca/src/extension.ts
+await openPanel();
+			await host?.runTeamTaskById(String(taskId ?? ''));
+		}),
+	);
+
+	const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 90);
+	statusBar.command = 'auraOrchestrator.open';
+	statusBar.text = '$(symbol-misc) Оркестратор';
+	statusBar.tooltip = 'LangGraph Оркестратор — открыть панель';
+	statusBar.show();
+	context.subscriptions.push(statusBar);
+	context.subscriptions.push(host.onDidChangeState(state => {
+		statusBar.text = state.running
+			? (state.paused ? '$(debug-pause) Оркестратор' : '$(sync~spin) Оркестратор')
+			: '$(symbol-misc) Оркестратор';
+	}));
+
+	logInfo('langgraph-orchestrator activated');
+}
+
+export function deactivate(): void {
+===
+	});
+
+	/* Настройки CLI */
+	register('auraOrca.saveCliSettings', async (id?: string, value?: CliSettings & { apiKey?: string; clearKey?: boolean }) => {
+		const preset = presetById(id);
+		if (!preset || !value) { throw new Error(vscode.l10n.t('Unknown CLI agent: {0}', String(id))); }
+		const { apiKey, clearKey, ...rest } = value;
+		const clean: CliSettings = {};
+		for (const [key, raw] of Object.entries(rest) as [keyof CliSettings, string | undefined][]) {
+			const text = typeof raw === 'string' ? raw.trim() : raw;
+			if (text) { (clean as Record<string, string>)[key] = text; }
+		}
+		if (clean.baseUrl && !/^https?:\/\//i.test(clean.baseUrl)) { throw new Error(vscode.l10n.t('Base URL must start with http:// or https://')); }
+		if (clean.keyEnv && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(clean.keyEnv)) { throw new Error(vscode.l10n.t('Invalid environment variable name.')); }
+		await saveSettings(preset.id, clean);
+		if (clearKey) { await context.secrets.delete(secretKey(preset.id)); }
+> build · kimi-k3
+[0m$ [0mgrep -n "installedCache.delete" extensions/aura-orca/src/extension.ts
+457:		installedCache.delete(binaryOf(preset, clean));
+472:		installedCache.delete(binary);
+> build · kimi-k3
+AURA-019/021 подтверждены — оба уже на месте. Сверяюсь с REVIEW-AURA.md для точных формулировок в DONE:
+[0m$ [0mgrep -n "AURA-01[89]\|AURA-02[1-7]\|AURA-03[23]" docs/swarm/REVIEW-AURA.md | head -20
+30:| AURA-018 | high | aura-team | package.json:1 | **Нет `package.nls.ru.json`** — все команды/категории по-английски при русской локали IDE | Создать `package.nls.ru.json` с переводом 45+ команд |
+31:| AURA-019 | high | langgraph-orchestrator | src/extension.ts:67 | `createStatusBarItem` не в `context.subscriptions` — утечка статус-бара при деактивации | `context.subscriptions.push(statusBar)` |
+33:| AURA-021 | medium | aura-orca | src/extension.ts:92 | `installedCache` TTL 60с — после `checkCli` кэш не инвалидируется | `installedCache.delete(binary)` перед проверкой |
+34:| AURA-022 | medium | aura-orca | src/extension.ts:136 | `onDidChangeTerminalShellIntegration` не в subscriptions — утечка при деактивации | Добавить listener в `context.subscriptions` |
+35:| AURA-023 | medium | aura-orca | src/extension.ts:279 | `mkdtempSync` без очистки — утечка временных папок на диске | `fs.rmSync(dir, { recursive: true })` при закрытии панели |
+36:| AURA-024 | medium | aura-team | src/extension.ts:61 | `autoStartLocalServer` без PID-файла — битый сервер плодит zombie-процессы | Добавить лок-файл `.aura-team-server.pid` |
+37:| AURA-025 | medium | aura-team | src/extension.ts:198 | `gitCache` TTL 2с — каждый broadcast дёргает `git log` | Увеличить TTL до 10-15с |
+38:| AURA-026 | low | aura-team | src/extension.ts:293 | WS-лавина = спам тостов `showInformationMessage` без агрегации | Дебаунс тостов 5с+, агрегировать события |
+39:| AURA-027 | low | aura-team | package.json:71 | `sync.intervalSeconds` min=15с — агрессивный автопулл | Поднять минимум до 60с |
+171:| AURA-032 | medium | `auraOrca.runHeadless` принимает timeoutMs от оркестратора, но дефолт 15 мин — при зависшем CLI оркестратор ждёт весь таймаут, нет механизма heartbeat/ ping | src/extension.ts:477 |
+172:| AURA-033 | medium | Оркестратор шлёт задачу в orca, но не может узнать прогресс до завершения — `runHeadless` возвращает результат только после `session.done`. Для длинных задач UX «чёрный ящик» | src/extension.ts:478-480 |
+183:| 3 | AURA-018 | 🔴 high | aura-team без русской локализации package.json |
+185:| 5 | AURA-019 | 🔴 high | Утечка statusBar в langgraph-orchestrator |
+189:| 9 | AURA-024 | 🟡 medium | aura-team zombie-процессы сервера |
+190:| 10 | AURA-025 | 🟡 medium | aura-team gitCache TTL 2с — лишняя нагрузка |
+231:**Слабые стороны:** AURA-019, AURA-020, AURA-033
+247:**Слабые стороны:** AURA-018, AURA-024–027
+264:**Слабые стороны:** AURA-021–023
+> build · kimi-k3
+[0m$ [0mgrep -n "aura-team-server.pid\|killPid\|GIT_CACHE_TTL_MS\|notifyToast\|TOAST_WINDOW_MS" extensions/aura-team/src/extension.ts | head; echo ===; grep -n "Math.max(60" extensions/aura-team/src/git/teamSync.ts; grep -n '"minimum"' extensions/aura-team/package.json; echo ===; grep -n "lastMountedRoute\|scrollSnapshot" extensions/aura-team/src/webview/template.html | head -5; grep -n "confirmAction(\`\${T('delete')}" extensions/aura-team/src/webview/template.html; echo ===; grep -n "tempDirs\|cleanupTempDirs\|heartbeat\|push(listener)" extensions/aura-orca/src/extension.ts | head; echo ===; grep -n "heartbeat" extensions/langgraph-orchestrator/src/tools/index.ts
+47:	const pidFile = join(context.globalStorageUri.fsPath, '.aura-team-server.pid');
+48:	const killPid = (pid: number): void => { try { process.kill(pid); } catch { /* уже мёртв */ } };
+52:			try { process.kill(stale, 0); killPid(stale); output.appendLine(`[server] killed stale server pid ${stale}`); } catch { /* процесса уже нет */ }
+88:	if (child.pid) { killPid(child.pid); }
+220:	const GIT_CACHE_TTL_MS = 10_000;
+231:		if (gitCache && Date.now() - gitCache.at < GIT_CACHE_TTL_MS) { return gitCache.value; }
+337:	const TOAST_WINDOW_MS = 5000;
+354:	const notifyToast = (message: string): void => {
+358:			toastTimer = setTimeout(flushToasts, TOAST_WINDOW_MS);
+376:							notifyToast(vscode.l10n.t('📋 Task assigned to you: {0}', task.title));
+===
+63:		const seconds = Math.max(60, vscode.workspace.getConfiguration('auraTeam').get<number>('sync.intervalSeconds', 120));
+70:					"minimum": 60,
+===
+1810:let lastMountedRoute = null;
+1815:	let scrollSnapshot = null;
+1816:	if (lastMountedRoute === route) {
+1817:		scrollSnapshot = {
+1824:	if (scrollSnapshot) {
+3328:		confirmAction(`${T('delete')} · ${archive?.name ?? b.dataset.delArchive}`, async () => {
+===
+62:	const tempDirs = new Set<string>();
+63:	const cleanupTempDirs = (): void => {
+64:		for (const dir of tempDirs) { try { rmSync(dir, { recursive: true, force: true }); } catch { /* занято/нет прав */ } }
+65:		tempDirs.clear();
+67:	context.subscriptions.push({ dispose: cleanupTempDirs });
+149:		context.subscriptions.push(listener);
+181:				const heartbeat = setInterval(() => {
+185:					log(`[heartbeat] ${session.title}: ${seconds}s, ${kb} KB`);
+197:					clearInterval(heartbeat);
+205:					clearInterval(heartbeat);
+===
+573:		const heartbeat = setInterval(() => {
+579:					logInfo(`agent.cli heartbeat: "${title}" ${session.status}, uptime ${uptime}s, output ${Math.round((session.output ?? '').length / 1024)} KB`);
+592:			clearInterval(heartbeat);
+> build · kimi-k3
+Всё на месте. Пишу DONE-a2-team.md:
+[0m← [0mWrite docs/swarm/DONE-a2-team.md
+Created file successfully: docs/swarm/DONE-a2-team.md
+> build · kimi-k3
+[0m$ [0mwc -l docs/swarm/DONE-a2-team.md; git status --short | head -20
+22 docs/swarm/DONE-a2-team.md
+ M ORCHESTRATOR.md
+ M aura-team-server/deploy/Caddyfile
+ M aura-team-server/deploy/server-setup.sh
+ M aura-team-server/scripts/start-local.mjs
+ M aura-team-server/src/config.ts
+ M aura-team-server/src/routes/aggg.ts
+ M aura-team-server/src/routes/auth.ts
+ M aura-team-server/src/routes/keys.ts
+ M aura-team-server/src/routes/teams.ts
+ M aura-team-server/src/server.ts
+ M aura-team-server/test/admin.test.ts
+ M aura-team-server/test/key-probe.test.ts
+ M aura-team-server/test/server.test.ts
+ M build/gulpfile.extensions.ts
+ M build/lib/asar.ts
+ M build/lib/preLaunch.ts
+ M extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+ M extensions/aura-kotlin/src/android.ts
+ M extensions/aura-kotlin/src/deviceScreen.ts
+ M extensions/aura-orca/package.json
+> build · kimi-k3
+Готово. Все пункты REVIEW-AURA закрыты, 22-строчный DONE лежит в `docs/swarm/DONE-a2-team.md`.
+
+**Вердикт:**
+
+| Зона | Результат |
+|---|---|
+| AURA-018 (l10n) | Полный %keys%-манифест + EN-ключи + новый `package.nls.ru.json` (58 ключей); manifest.test научился резолвить `%category.team%` — зелёный |
+| AURA-019/021 | Уже были исправлены в коде — подтвердил глазами (statusBar в subscriptions; `installedCache.delete`) |
+| AURA-022/023 (orca) | Listener в subscriptions; temp-папки чистятся (Set + rmSync при новом просмотре, закрытии панели, деактивации) |
+| AURA-024/025/026/027 (team) | PID-файл в globalStorage с убийством stale-зомби; gitCache 10с + сброс по `state.onDidChange`; агрегатор тостов «(+N more)»; кламп 60с в коде и манифесте |
+| AURA-032/033 (heartbeat) | Orca рисует dim-строку `… ♥ работает Ns, вывод X КБ` каждые 30с; оркестратор поллит `auraOrca.getState` каждые 20с и пишет в лог |
+| Kanban/invite | mount() сохраняет скролл колонок/доски при перерисовке; deleteArchive через confirmAction; «Пересоздать» честно revoke→create с `{cancelled}}`-обработкой и анти-даблклик гардами |
+
+**Проверки:** `tsc --noEmit` чисто для всех трёх расширений; `node test/run-all.mjs` в aura-team — ALL 18 STEPS PASSED. Не проверено: живая IDE-сессия (heartbeat/тосты вживую). Коммитов нет — всё в рабочем дереве, как требовалось.

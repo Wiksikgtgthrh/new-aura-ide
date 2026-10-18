@@ -1,0 +1,729 @@
+[0m
+> build · glm-5.3-prime
+[0m→ [0mRead docs/swarm 
+[0m→ [0mRead docs/swarm/DONE-a3.md 
+[0m→ [0mRead docs/swarm/REVIEW-AURA.md 
+> build · glm-5.3-prime
+[0m→ [0mRead docs/swarm/PROMPT-a3-i18n-mem.md 
+[0m→ [0mRead docs/swarm/ZAN-zan-a2-team.md 
+[0m$ [0mcd /c/new-aura-ide/vscode-main && git status --porcelain | head -50 && echo "---LOG---" && git log --oneline -15
+M ORCHESTRATOR.md
+ M aura-team-server/deploy/Caddyfile
+ M aura-team-server/deploy/server-setup.sh
+ M aura-team-server/scripts/start-local.mjs
+ M aura-team-server/src/config.ts
+ M aura-team-server/src/routes/aggg.ts
+ M aura-team-server/src/routes/auth.ts
+ M aura-team-server/src/routes/keys.ts
+ M aura-team-server/src/routes/teams.ts
+ M aura-team-server/src/server.ts
+ M aura-team-server/test/admin.test.ts
+ M aura-team-server/test/key-probe.test.ts
+ M aura-team-server/test/server.test.ts
+ M build/gulpfile.extensions.ts
+ M build/lib/asar.ts
+ M build/lib/preLaunch.ts
+ M extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+ M extensions/aura-kotlin/src/android.ts
+ M extensions/aura-kotlin/src/avdForm.ts
+ M extensions/aura-kotlin/src/deviceScreen.ts
+ M extensions/aura-orca/package.json
+ M extensions/aura-orca/src/extension.ts
+ M extensions/aura-serverkit/package.json
+ M extensions/aura-team/package-lock.json
+ M extensions/aura-team/package.json
+ M extensions/aura-team/package.nls.json
+ M extensions/aura-team/src/api/client.ts
+ M extensions/aura-team/src/extension.ts
+ M extensions/aura-team/src/git/service.ts
+ M extensions/aura-team/src/git/teamSync.ts
+ M extensions/aura-team/src/git/workflow.ts
+ M extensions/aura-team/src/webview/panelProvider.ts
+ M extensions/aura-team/src/webview/template.html
+ M extensions/aura-team/test/kanban.render.test.mjs
+ M extensions/aura-team/test/manifest.test.mjs
+ M extensions/aura-team/test/sidebar-syntax.test.mjs
+ M extensions/langgraph-orchestrator/src/host.ts
+ M extensions/langgraph-orchestrator/src/panel/template.html
+ M extensions/langgraph-orchestrator/src/tools/index.ts
+ M extensions/langgraph-orchestrator/test/panel-preview.mjs
+ M src/vs/base/node/nls.ts
+ M src/vs/monaco.d.ts
+ M src/vs/workbench/browser/parts/editor/editorGroupWatermark.ts
+ M src/vs/workbench/browser/parts/editor/media/editorgroupview.css
+ M src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css
+ M src/vs/workbench/contrib/aggg/browser/aggg.contribution.ts
+ M src/vs/workbench/contrib/aggg/browser/agggVersionWidget.ts
+ M src/vs/workbench/contrib/aggg/common/agggEntitlements.ts
+ M src/vs/workbench/contrib/aggg/test/common/agggEntitlements.test.ts
+ M src/vs/workbench/contrib/auraApi/browser/auraApi.contribution.ts
+---LOG---
+2b4ad587 orca: плагин Orca — CLI-агенты (Claude Code, Codex, Gemini, Qwen, opencode, Aider) во вкладках-терминалах, worktree на агента, настройки ключей/base URL/модели, инструмент agent.cli для оркестратора
+f02516bb team: командный процесс GitHub по кнопкам — своя ветка, свежий main, тесты, графический дифф, PR, слияние, откат
+4be44e73 team+orchestrator: канбан агентов, полный русский, проверка ключей, удаление событий, админ
+92f18435 build: sync allowScripts pins with locked versions; fix approve-scripts spawn on Windows
+2afc5bfb orchestrator: рабочий запуск сайдкара и новый UI панели; api: редизайн менеджера ключей
+d3771cc3 team: редизайн профиля поверх актуального кода
+5e17e88a Merge remote-tracking branch 'wiks/main'
+8a4c761a wip: локальные изменения
+29f2533a team: переработан экран профиля — секции в стиле настроек, спокойный UI
+c65f914d kotlin: ship Kotlin Language Server with the extension, Android panel UI and Gradle task provider
+4834e3f3 core: auraApi/auraMarket workbench updates and build config for new extensions
+af6e2a7e team: kanban polish, git workflow upgrades, invite menu, key management
+eb4c3fc0 team-server: task history, soft delete, reorder, archives list, key editing, presence heartbeat
+ba9fc3eb serverkit: extract ServerKit into an installable marketplace extension
+2f54017c kotlin: LSP integration, classpath from Gradle/Maven, JDWP debug adapter and Android tooling
+> build · glm-5.3-prime
+Читаю логи и код. Сначала — что делал билдер a3, зона b1 (чтобы не спутать следы) и предмет проверки.
+[0m→ [0mRead docs/swarm/PROMPT-zan-a3.md 
+[0m→ [0mRead docs/swarm/a3.log 
+[0m→ [0mRead docs/swarm/ZAN-b1.md 
+> build · glm-5.3-prime
+Лог билдера прочитан наполовину. Дочитываю хвост a3.log и параллельно беру предмет — avdForm.ts целиком, l10n-механизм и aggg-agent.
+[0m→ [0mRead docs/swarm/a3.log [90m[offset=820][0m
+[0m→ [0mRead extensions/aura-kotlin/src/avdForm.ts 
+> build · glm-5.3-prime
+avdForm.ts сверен с таблицей DONE. Теперь — l10n-механизм, бандл, aggg-agent, serverkit и aura-team построчно.
+[0m→ [0mRead extensions/aura-kotlin/l10n/bundle.l10n.ru.json [90m[offset=160][0m
+[0m→ [0mRead extensions/aura-kotlin/src/l10n.ts 
+> build · glm-5.3-prime
+`tr()` — Russian-first, всегда RU из бандла, фолбэк — английский ключ. Значит, если ключа нет в бандле — юзер увидит английский. DONE утверждает, что два ключа «существовали в бандле». Проверяю это, а также компилированный `out/avdForm.js` (у b1 был блокер со стейл-билдом — не тот ли случай тут).
+[0m$ [0mcd /c/new-aura-ide/vscode-main && echo "=== git diff HEAD bundle.l10n.ru.json (stat) ===" && git diff HEAD --stat -- extensions/aura-kotlin/l10n/bundle.l10n.ru.json extensions/aura-kotlin/src/avdForm.ts extensions/aura-kotlin/src/android.ts && echo "=== git diff HEAD avdForm.ts full ===" && git diff HEAD -- extensions/aura-kotlin/src/avdForm.ts | head -120
+=== git diff HEAD bundle.l10n.ru.json (stat) ===
+ extensions/aura-kotlin/l10n/bundle.l10n.ru.json | 22 ++++++++++++-
+ extensions/aura-kotlin/src/android.ts           |  9 ++++--
+ extensions/aura-kotlin/src/avdForm.ts           | 43 ++++++++++++-------------
+ 3 files changed, 49 insertions(+), 25 deletions(-)
+=== git diff HEAD avdForm.ts full ===
+diff --git a/extensions/aura-kotlin/src/avdForm.ts b/extensions/aura-kotlin/src/avdForm.ts
+index 1cfa191e..3d31b809 100644
+--- a/extensions/aura-kotlin/src/avdForm.ts
++++ b/extensions/aura-kotlin/src/avdForm.ts
+@@ -35,8 +35,7 @@ export class AvdCreateForm {
+ 			{ enableScripts: true, retainContextWhenHidden: true },
+ 		);
+ 		this.panel.iconPath = new vscode.ThemeIcon('device-mobile');
+-		const nonce = String(Date.now()) + '-' + Math.floor(Math.random() * 1e9);
+-		this.panel.webview.html = this.html(nonce);
++		this.panel.webview.html = this.html(crypto.randomUUID());
+ 		this.panel.onDidDispose(() => { if (AvdCreateForm.current === this) { AvdCreateForm.current = undefined; } });
+ 		this.panel.webview.onDidReceiveMessage(message => void this.onMessage(message));
+ 	}
+@@ -109,12 +108,12 @@ export class AvdCreateForm {
+ 		void this.panel.webview.postMessage({ type: 'init', data });
+ 	}
+ 
+-	// Форма статичная: строки только русские (продукт Russian-first), скрипт под nonce.
++	// Форма: строки через tr()-ключи (Russian-first через bundle.l10n.ru.json), скрипт под nonce.
+ 	private html(nonce: string): string {
+ 		return `<!doctype html><html><head><meta charset="utf-8">
+ <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+ <meta name="viewport" content="width=device-width, initial-scale=1">
+-<title>Новый эмулятор</title>
++<title>${tr('New emulator')}</title>
+ <style>
+ :root {
+ 	--sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+@@ -205,35 +204,35 @@ input[type=text]:focus, select:focus {
+ }
+ </style></head><body>
+ <div class="shell">
+-	<h1>Новый эмулятор (AVD)</h1>
+-	<p class="sub">Модель телефона, версия Android и имя — эмулятор появится в панели Android.</p>
++	<h1>${tr('New emulator (AVD)')}</h1>
++	<p class="sub">${tr('Phone model, Android version and name — the emulator will appear in the Android panel.')}</p>
+ 
+ 	<div class="banner error" id="bannerError"></div>
+ 	<div class="banner ok" id="bannerOk"></div>
+ 
+ 	<div class="card" id="form" style="display:none">
+ 		<div class="field">
+-			<label for="profile">Модель устройства</label>
++			<label for="profile">${tr('Device model')}</label>
+ 			<select id="profile"></select>
+ 		</div>
+ 		<div class="field">
+-			<label for="image">Системный образ</label>
++			<label for="image">${tr('System image')}</label>
+ 			<select id="image"></select>
+ 			<span class="hint" id="archHint"></span>
+ 		</div>
+ 		<div class="field api-row" id="apiRow">
+-			<label for="api">API-уровень для скачивания</label>
++			<label for="api">${tr('API level to download')}</label>
+ 			<input type="text" id="api" value="35" maxlength="2" inputmode="numeric">
+-			<span class="hint">Образ скачается через sdkmanager (~1 ГБ), лицензии подтверждаются автоматически.</span>
++			<span class="hint">${tr('Image will be downloaded via sdkmanager (~1 GB), licenses are accepted automatically.')}</span>
+ 		</div>
+ 		<div class="field">
+-			<label for="name">Имя эмулятора</label>
++			<label for="name">${tr('Emulator name')}</label>
+ 			<input type="text" id="name" maxlength="40">
+-			<span class="hint">Буквы, цифры, точка, дефис и подчёркивание.</span>
++			<span class="hint">${tr('Letters, digits, dot, dash and underscore.')}</span>
+ 		</div>
+-		<label class="check"><input type="checkbox" id="startAfter" checked> Запустить эмулятор после создания</label>
++		<label class="check"><input type="checkbox" id="startAfter" checked> ${tr('Start emulator after creation')}</label>
+ 		<div class="actions">
+-			<button class="btn" id="btnCreate">Создать эмулятор</button>
++			<button class="btn" id="btnCreate">${tr('Create emulator')}</button>
+ 			<div class="status" id="status"><span class="spinner"></span><span id="statusText"></span></div>
+ 		</div>
+ 	</div>
+@@ -281,8 +280,8 @@ function fillForm(data) {
+ 	if (pixel >= 0) { $('profile').selectedIndex = pixel; }
+ 	const sorted = [...data.images].sort((a, b) => Number(apiOf(b)) - Number(apiOf(a)));
+ 	$('image').innerHTML = sorted.map(i => '<option value="' + i + '">API ' + apiOf(i) + ' · ' + i + '</option>').join('')
+-		+ '<option value="">Скачать новый образ…</option>';
+-	$('archHint').textContent = 'Архитектура: ' + data.arch;
++		+ '<option value="">${tr('Download new system image…')}</option>';
++	$('archHint').textContent = '${tr('Architecture:')} ' + data.arch;
+ 	$('loading').style.display = 'none';
+ 	$('form').style.display = '';
+ 	suggestName();
+@@ -299,12 +298,12 @@ $('name').addEventListener('input', () => { state.nameTouched = true; });
+ $('btnCreate').addEventListener('click', () => {
+ 	if (state.busy) { return; }
+ 	const name = $('name').value.trim();
+-	if (!/^[\\w.-]+$/.test(name)) { showBanner('bannerError', 'Имя: только буквы, цифры, точка, дефис и подчёркивание.'); return; }
++	if (!/^[\\w.-]+$/.test(name)) { showBanner('bannerError', '${tr('Name: only letters, digits, dot, dash and underscore.')}'); return; }
+ 	const image = $('image').value;
+ 	const api = $('api').value.trim();
+-	if (!image && !/^\\d{2}$/.test(api)) { showBanner('bannerError', 'API-уровень — две цифры, например 35.'); return; }
++	if (!image && !/^\\d{2}$/.test(api)) { showBanner('bannerError', '${tr('API level — two digits, e.g. 35.')}'); return; }
+ 	setBusy(true);
+-	setStatus(image ? 'Создание эмулятора…' : 'Скачивание системного образа…');
++	setStatus(image ? '${tr('Creating emulator…')}' : '${tr('Downloading system image…')}');
+ 	vscode.postMessage({
+ 		type: 'create',
+ 		profileId: $('profile').value,
+@@ -321,17 +320,17 @@ window.addEventListener('message', (event) => {
+ 		if (msg.data.ok) { fillForm(msg.data); }
+ 		else {
+ 			$('loading').style.display = 'none';
+-			showBanner('bannerError', msg.data.error || 'Не удалось получить данные SDK.');
++			showBanner('bannerError', msg.data.error || '${tr('Failed to get SDK data.')}');
+ 		}
+ 	} else if (msg.type === 'status') {
+ 		setStatus(msg.text);
+ 	} else if (msg.type === 'error') {
+ 		setBusy(false);
+-		showBanner('bannerError', msg.text || 'Ошибка создания эмулятора.');
++		showBanner('bannerError', msg.text || '${tr('Emulator creation error.')}');
+ 	} else if (msg.type === 'done') {
+ 		setBusy(false);
+ 		setStatus('');
+-		showBanner('bannerOk', 'Эмулятор «' + msg.name + '» создан и уже в списке панели Android.');
++		showBanner('bannerOk', '${tr('Emulator "{0}" has been created and is now in the Android panel list.')}'.replace('{0}', msg.name));
+[0m$ [0mcd /c/new-aura-ide/vscode-main && echo "=== bundle keys check ===" && grep -n "New emulator (AVD)" extensions/aura-kotlin/l10n/bundle.l10n.ru.json; grep -n "Download new system image" extensions/aura-kotlin/l10n/bundle.l10n.ru.json; echo "=== total keys ===" && node -e "const b=require('./extensions/aura-kotlin/l10n/bundle.l10n.ru.json'); console.log('keys:', Object.keys(b).length); console.log('has AVD key:', 'New emulator (AVD)' in b); console.log('has Download key:', 'Download new system image…' in b);" && echo "=== out/avdForm.js state ===" && ls -la extensions/aura-kotlin/out/avdForm.js 2>/dev/null; grep -c "tr(" extensions/aura-kotlin/out/avdForm.js 2>/dev/null; grep -n "randomUUID\|Date.now" extensions/aura-kotlin/out/avdForm.js 2>/dev/null | head -5; echo "=== out dir listing ===" && ls -la extensions/aura-kotlin/out/ | head -30
+=== bundle keys check ===
+158:	"New emulator (AVD)": "Новый эмулятор (AVD)",
+98:	"Download new system image…": "Скачать новый системный образ…",
+=== total keys ===
+keys: 187
+has AVD key: true
+has Download key: true
+=== out/avdForm.js state ===
+-rw-r--r-- 1 Wiks 197121 18312 Oct 18 08:47 extensions/aura-kotlin/out/avdForm.js
+0
+56:        const nonce = String(Date.now()) + '-' + Math.floor(Math.random() * 1e9);
+=== out dir listing ===
+total 444
+drwxr-xr-x 1 Wiks 197121     0 Oct 18 08:34 .
+drwxr-xr-x 1 Wiks 197121     0 Oct 18 07:11 ..
+-rw-r--r-- 1 Wiks 197121 52439 Oct 18 08:47 android.js
+-rw-r--r-- 1 Wiks 197121 18312 Oct 18 08:47 avdForm.js
+-rw-r--r-- 1 Wiks 197121 34150 Oct 18 08:47 classpath.js
+-rw-r--r-- 1 Wiks 197121 34700 Oct 18 08:47 debugAdapter.js
+-rw-r--r-- 1 Wiks 197121 38835 Oct 18 08:47 deviceScreen.js
+-rw-r--r-- 1 Wiks 197121 11755 Oct 18 08:47 extension.js
+-rw-r--r-- 1 Wiks 197121 14659 Oct 18 08:47 gradle.js
+-rw-r--r-- 1 Wiks 197121 16088 Oct 18 08:47 javaInstall.js
+-rw-r--r-- 1 Wiks 197121 20040 Oct 18 08:47 javaLsp.js
+-rw-r--r-- 1 Wiks 197121 10939 Oct 18 08:47 javaProject.js
+-rw-r--r-- 1 Wiks 197121 21228 Oct 18 08:47 javaSources.js
+-rw-r--r-- 1 Wiks 197121 10089 Oct 18 08:47 javaUris.js
+-rw-r--r-- 1 Wiks 197121 18832 Oct 18 08:47 jdwp.js
+-rw-r--r-- 1 Wiks 197121  2830 Oct 18 08:47 l10n.js
+-rw-r--r-- 1 Wiks 197121  6247 Oct 18 08:47 lsp.js
+-rw-r--r-- 1 Wiks 197121 36309 Oct 18 08:47 lspClient.js
+-rw-r--r-- 1 Wiks 197121 16913 Oct 18 08:47 lspInstall.js
+-rw-r--r-- 1 Wiks 197121 15192 Oct 18 08:47 projectWizard.js
+-rw-r--r-- 1 Wiks 197121 16258 Oct 18 08:47 ui.js
+-rw-r--r-- 1 Wiks 197121  9672 Oct 18 08:47 zipMember.js
+> build · glm-5.3-prime
+Первый серьёзный сигнал: `out/avdForm.js` — 0 вхождений `tr(`, внутри старый `Date.now()`-nonce. Компилят от 08:47 не содержит правок a3. Проверяю: стейл-билд подтверждается? Когда гонялся a3? Что с aggg-agent в git?
+[0m$ [0mcd /c/new-aura-ide/vscode-main && echo "=== android.ts diff HEAD ===" && git diff HEAD -- extensions/aura-kotlin/src/android.ts; echo "=== android.ts logcat area now ===" && sed -n '655,680p' extensions/aura-kotlin/src/android.ts
+=== android.ts diff HEAD ===
+diff --git a/extensions/aura-kotlin/src/android.ts b/extensions/aura-kotlin/src/android.ts
+index 3f6f262b..6380b258 100644
+--- a/extensions/aura-kotlin/src/android.ts
++++ b/extensions/aura-kotlin/src/android.ts
+@@ -463,8 +463,13 @@ export class AndroidPanel implements vscode.Disposable {
+ 	async screenSize(device: string): Promise<{ width: number; height: number } | undefined> {
+ 		try {
+ 			const text = await this.adb('-s', device, 'shell', 'wm', 'size');
+-			const match = /(\d+)x(\d+)/.exec(text);
+-			if (match) { return { width: Number(match[1]), height: Number(match[2]) }; }
++			// Берём последнее совпадение: при заданном Override size действующий размер буфера —
++			// именно он, а Physical size (первая строка) тогда не актуален. Оба значения wm
++			// отдаёт в НАТИВНОЙ ориентации устройства — после поворота оси местами НЕ меняются,
++			// поэтому результат годится для раскладки, но не как размер для screenrecord --size.
++			const matches = [...text.matchAll(/(\d+)x(\d+)/g)];
++			const last = matches[matches.length - 1];
++			if (last) { return { width: Number(last[1]), height: Number(last[2]) }; }
+ 		} catch { /* устройство недоступно */ }
+ 		return undefined;
+ 	}
+=== android.ts logcat area now ===
+		} catch (error) {
+			vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error));
+			return;
+		}
+		this.logcat = child;
+		// Данные и выход старого процесса после kill() ещё какое-то время приходят: без этой
+		// проверки в панель попадали строки уже заменённого потока и чужих приложений.
+		const isCurrent = () => this.watching && this.logcat === child;
+		child.stdout?.on('data', (chunk: Buffer) => {
+			if (!isCurrent()) { return; }
+			const fresh = chunk.toString().split(/\r?\n/).filter(line => line.trim());
+			if (!fresh.length) { return; }
+			this.logcatBuffer.push(...fresh);
+			if (this.logcatBuffer.length > 20_000) { this.logcatBuffer = this.logcatBuffer.slice(-15_000); }
+			void this.logcatPanel?.webview.postMessage({ command: 'append', lines: fresh });
+		});
+		child.stderr?.on('data', (chunk: Buffer) => {
+			const text = chunk.toString().trim();
+			if (text) { this.output.appendLine(`[logcat] ${text}`); }
+		});
+		child.on('exit', () => {
+			if (!isCurrent()) { return; }
+			const line = tr('[logcat] stream ended');
+			this.logcatBuffer.push(line);
+			void this.logcatPanel?.webview.postMessage({ command: 'append', lines: [line] });
+		});
+[0m$ [0mcd /c/new-aura-ide/vscode-main && echo "=== stale check: Russian in out/avdForm.js ===" && grep -c "Новый эмулятор\|Модель устройства\|Создать эмулятор" extensions/aura-kotlin/out/avdForm.js; echo "=== mtimes ===" && ls -la --time-style=full-iso extensions/aura-kotlin/src/avdForm.ts extensions/aura-kotlin/out/avdForm.js extensions/aura-kotlin/l10n/bundle.l10n.ru.json extensions/aura-kotlin/out/deviceScreen.js docs/swarm/DONE-a3.md docs/swarm/a3.log docs/swarm/DONE-b1fix2.md 2>/dev/null; echo "=== aggg-agent in git? ===" && git status --porcelain -- extensions/aggg-agent/ ; git ls-files extensions/aggg-agent/ | head -5; echo "=== untracked (all) ===" && git status --porcelain | grep "^??" | head -30
+=== stale check: Russian in out/avdForm.js ===
+4
+=== mtimes ===
+-rw-r--r-- 1 Wiks 197121  7397 2026-10-18 22:20:06.396946800 +0300 docs/swarm/DONE-a3.md
+-rw-r--r-- 1 Wiks 197121  3622 2026-10-18 08:36:10.928420900 +0300 docs/swarm/DONE-b1fix2.md
+-rw-r--r-- 1 Wiks 197121 64772 2026-10-18 22:20:24.226645600 +0300 docs/swarm/a3.log
+-rw-r--r-- 1 Wiks 197121 19277 2026-10-18 22:18:22.186444800 +0300 extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+-rw-r--r-- 1 Wiks 197121 18312 2026-10-18 08:47:33.337242600 +0300 extensions/aura-kotlin/out/avdForm.js
+-rw-r--r-- 1 Wiks 197121 38835 2026-10-18 08:47:33.431508300 +0300 extensions/aura-kotlin/out/deviceScreen.js
+-rw-r--r-- 1 Wiks 197121 16243 2026-10-18 22:17:55.833373600 +0300 extensions/aura-kotlin/src/avdForm.ts
+=== aggg-agent in git? ===
+=== untracked (all) ===
+?? classes.jar
+?? docs/swarm/
+?? extensions/aura-harness/
+?? extensions/aura-orca/package-lock.json
+?? extensions/aura-serverkit/package.nls.ru.json
+?? extensions/aura-team/package.nls.ru.json
+?? extensions/aura-team/test/invite.modal.test.mjs
+?? extensions/aura-team/tmp-regions.txt
+?? extensions/langgraph-orchestrator/patch-kanban.py
+?? extensions/langgraph-orchestrator/src/harness/
+?? extensions/n8n-panel/
+> build · glm-5.3-prime
+Два факта: `src/avdForm.ts` правлен в 22:17, компилят — 08:47. AURA-016/017 живут только в исходнике. aggg-agent в git вообще не виден — проверяю игнор и содержимое. Дальше — serverkit, aura-team, диффы бандла.
+[0m$ [0mcd /c/new-aura-ide/vscode-main && echo "=== bundle diff HEAD exact ===" && git diff HEAD -- extensions/aura-kotlin/l10n/bundle.l10n.ru.json | grep -E "^[+-]" | grep -v "^[+-][+-]" | head -30; echo "=== count added keys ===" && git diff HEAD -- extensions/aura-kotlin/l10n/bundle.l10n.ru.json | grep -E "^\+" | grep -v "^\+\+\+" | grep -c '": "'
+=== bundle diff HEAD exact ===
++	"Live video stream": "Живой видеопоток",
++	"Screenshot stream (fallback)": "Поток скриншотов (фолбэк)",
+-	"Kotlin Language Server needs JDK {0}+, but no suitable Java was found (PATH points to an older one). Install a JDK 11+ or set auraKotlin.javaPath to it — for example, the JBR bundled with Android Studio.": "Kotlin Language Server требует JDK {0}+, а подходящая Java не найдена (в PATH — старая версия). Установите JDK 11+ или укажите путь к ней в auraKotlin.javaPath — например, к JBR из состава Android Studio."
++	"Kotlin Language Server needs JDK {0}+, but no suitable Java was found (PATH points to an older one). Install a JDK 11+ or set auraKotlin.javaPath to it — for example, the JBR bundled with Android Studio.": "Kotlin Language Server требует JDK {0}+, а подходящая Java не найдена (в PATH — старая версия). Установите JDK 11+ или укажите путь к ней в auraKotlin.javaPath — например, к JBR из состава Android Studio.",
++	"New emulator": "Новый эмулятор",
++	"Phone model, Android version and name — the emulator will appear in the Android panel.": "Модель телефона, версия Android и имя — эмулятор появится в панели Android.",
++	"Device model": "Модель устройства",
++	"System image": "Системный образ",
++	"API level to download": "API-уровень для скачивания",
++	"Image will be downloaded via sdkmanager (~1 GB), licenses are accepted automatically.": "Образ скачается через sdkmanager (~1 ГБ), лицензии подтверждаются автоматически.",
++	"Emulator name": "Имя эмулятора",
++	"Letters, digits, dot, dash and underscore.": "Буквы, цифры, точка, дефис и подчёркивание.",
++	"Start emulator after creation": "Запустить эмулятор после создания",
++	"Create emulator": "Создать эмулятор",
++	"Architecture:": "Архитектура:",
++	"Name: only letters, digits, dot, dash and underscore.": "Имя: только буквы, цифры, точка, дефис и подчёркивание.",
++	"API level — two digits, e.g. 35.": "API-уровень — две цифры, например 35.",
++	"Creating emulator…": "Создание эмулятора…",
++	"Downloading system image…": "Скачивание системного образа…",
++	"Failed to get SDK data.": "Не удалось получить данные SDK.",
++	"Emulator creation error.": "Ошибка создания эмулятора.",
++	"Emulator \"{0}\" has been created and is now in the Android panel list.": "Эмулятор «{0}» создан и уже в списке панели Android."
+=== count added keys ===
+0
+[0m$ [0mcd /c/new-aura-ide/vscode-main && echo "=== aggg ignore? ===" && git check-ignore -v extensions/aggg-agent/out/extension.js; ls -la extensions/aggg-agent/ extensions/aggg-agent/out/ 2>/dev/null; echo "=== aggg-agent/out/extension.js key spots ===" && sed -n '55,70p' extensions/aggg-agent/out/extension.js && echo "..." && sed -n '320,332p' extensions/aggg-agent/out/extension.js && echo "=== grep alignment/slice ===" && grep -n "StatusBarAlignment\|slice(-" extensions/aggg-agent/out/extension.js
+=== aggg ignore? ===
+.gitignore:14:/extensions/**/out/	extensions/aggg-agent/out/extension.js
+extensions/aggg-agent/:
+total 92
+drwxr-xr-x 1 Wiks 197121     0 Sep  7 03:52 .
+drwxr-xr-x 1 Wiks 197121     0 Oct  6 21:00 ..
+drwxr-xr-x 1 Wiks 197121     0 Sep  6 21:59 out
+-rw-r--r-- 1 Wiks 197121 45339 Sep  6 21:59 tsconfig.tsbuildinfo
+
+extensions/aggg-agent/out/:
+total 48
+drwxr-xr-x 1 Wiks 197121     0 Sep  6 21:59 .
+drwxr-xr-x 1 Wiks 197121     0 Sep  7 03:52 ..
+-rw-r--r-- 1 Wiks 197121 15453 Oct 18 22:18 extension.js
+-rw-r--r-- 1 Wiks 197121 28081 Sep  6 21:59 extension.js.map
+=== aggg-agent/out/extension.js key spots ===
+let outputChannel;
+let statusItem;
+let installPromise;
+let sanitizedLog = '';
+function activate(context) {
+    outputChannel = vscode.window.createOutputChannel(vscode.l10n.t('AGGG Agent'));
+    statusItem = vscode.window.createStatusBarItem('status.aggg.agent', vscode.StatusBarAlignment.Left, 90);
+    statusItem.name = vscode.l10n.t('AGGG Agent');
+    statusItem.command = TOGGLE_COMMAND;
+    context.subscriptions.push(outputChannel, statusItem, vscode.commands.registerCommand(TOGGLE_COMMAND, () => toggle(context)), vscode.commands.registerCommand(INSTALL_COMMAND, () => install(context, true)), vscode.commands.registerCommand(SYSTEM_SETUP_COMMAND, () => runSystemSetup(context)), vscode.commands.registerCommand(BUG_REPORT_COMMAND, () => createBugReport(context)), vscode.workspace.onDidChangeConfiguration(event => {
+        if (event.affectsConfiguration(`${CONFIGURATION_SECTION}.${ENABLED_SETTING}`)) {
+            updateStatusItem();
+            if (isEnabled()) {
+                void install(context, false).catch(() => undefined);
+            }
+        }
+...
+    await vscode.window.showTextDocument(document, { preview: false });
+}
+function appendLog(value, line = true) {
+    const rendered = line ? `${value}\n` : value;
+    outputChannel.append(rendered);
+    const redacted = sanitizeForReport(rendered);
+    sanitizedLog = `${sanitizedLog}${redacted}`.slice(-10_000);
+}
+function sanitizeForReport(value) {
+    let sanitized = value;
+    const privatePaths = [os.homedir(), ...(vscode.workspace.workspaceFolders?.map(folder => folder.uri.fsPath) ?? [])];
+    for (const privatePath of privatePaths) {
+        if (privatePath) {
+=== grep alignment/slice ===
+61:    statusItem = vscode.window.createStatusBarItem('status.aggg.agent', vscode.StatusBarAlignment.Left, 90);
+326:    sanitizedLog = `${sanitizedLog}${redacted}`.slice(-10_000);
+> build · glm-5.3-prime
+aggg-agent: строки 61/326/64-65 — всё подтверждено. Бандл: 2 ключа от b1fix2 + 18 от a3, «существовали в бандле» — правда. Теперь serverkit и aura-team.
+[0m$ [0mcd /c/new-aura-ide/vscode-main && echo "=== serverkit nls.ru ===" && cat extensions/aura-serverkit/package.nls.ru.json; echo; echo "=== serverkit nls.json (EN) ===" && cat extensions/aura-serverkit/package.nls.json; echo; echo "=== serverkit package.json (nls refs) ===" && grep -n "%\|displayName\|description" extensions/aura-serverkit/package.json | head -40
+=== serverkit nls.ru ===
+{
+	"displayName": "ServerKit",
+	"description": "ServerKit — панель управления сервером: деплой приложений, базы данных, Docker-контейнеры и мониторинг прямо из IDE.",
+	"configuration.title": "ServerKit",
+	"configuration.serverUrl": "URL развернутого ServerKit (панель управления сервером)",
+	"container.title": "ServerKit",
+	"view.home": "ServerKit",
+	"command.openDashboard": "Открыть панель управления",
+	"command.checkStatus": "Проверить статус сервера"
+}
+=== serverkit nls.json (EN) ===
+{
+	"displayName": "ServerKit",
+	"description": "ServerKit — панель управления сервером: деплой приложений, базы данных, Docker-контейнеры и мониторинг прямо из IDE.",
+	"configuration.title": "ServerKit",
+	"configuration.serverUrl": "URL развернутого ServerKit (панель управления сервером)",
+	"container.title": "ServerKit",
+	"view.home": "ServerKit",
+	"command.openDashboard": "Открыть панель управления",
+	"command.checkStatus": "Проверить статус сервера"
+}
+
+=== serverkit package.json (nls refs) ===
+3:	"displayName": "%displayName%",
+4:	"description": "%description%",
+20:			"title": "%configuration.title%",
+25:					"description": "%configuration.serverUrl%"
+30:			{ "command": "auraServerkit.openDashboard", "title": "%command.openDashboard%", "category": "ServerKit", "icon": "$(server)" },
+31:			{ "command": "auraServerkit.checkStatus", "title": "%command.checkStatus%", "category": "ServerKit" }
+[0m$ [0mcd /c/new-aura-ide/vscode-main && echo "=== aura-team ext.ts around 410-435 ===" && sed -n '405,435p' extensions/aura-team/src/extension.ts && echo "=== demoBoardCache all refs ===" && grep -n "demoBoardCache" extensions/aura-team/src/extension.ts && echo "=== demoBoardCache diff attribution ===" && git diff HEAD -- extensions/aura-team/src/extension.ts | grep -n "demoBoardCache" 
+=== aura-team ext.ts around 410-435 ===
+	context.subscriptions.push(api.onDidChange(() => {
+		if (wsRefreshTimer) { clearTimeout(wsRefreshTimer); }
+		wsRefreshTimer = setTimeout(() => { wsRefreshTimer = undefined; void refresh(); }, 1000);
+	}));
+	/** Маскировать значение ключа: первые 3 символа + … + последние 4 символа. */
+	const maskKey = (value: string): string => {
+		// Короткие значения не отдаём как есть — иначе keyHint короткого ключа = весь ключ.
+		if (!value || value.length < 8) { return '•••'; }
+		return value.slice(0, 3) + '…' + value.slice(-4);
+	};
+	// Старый сервер отдаёт last_ok как 1/0 — UI сравнивает строго с true/false, из-за чего
+	// рабочие ключи считались «не отвечают». Приводим к boolean на входе.
+	const normalizeKey = (k: TeamApiKey): TeamApiKey => ({ ...k, keyHint: maskKey(k.keyHint), ok: k.ok === null || k.ok === undefined ? null : Boolean(k.ok) });
+
+	const doRefresh = async (): Promise<void> => {
+		const prevBoard = state.board;
+		const prevActivity = state.activity;
+		try {
+			state.session = await api.getSession();
+			state.demo = false;
+			demoBoardCache = undefined;
+			state.teamId = state.teamId && state.session.teams.some(team => team.id === state.teamId) ? state.teamId : state.session.teams[0]?.id;
+			// Пять независимых чтений — одним залпом. По очереди это пять сетевых кругов
+			// подряд: на удалённом сервере (40–60 мс на запрос) обновление доски ждало
+			// ~270 мс вместо ~100 мс. Последователен ровно один шаг — teamId выше.
+			// Ошибки ведут себя как раньше: getBoard и listApiKeys валят обновление
+			// (и включается демо-фолбэк), остальные три глотают сбой сами.
+			const teamId = state.teamId;
+			const [board, keys, keyGroups, activity, summary] = await Promise.all([
+				teamId ? api.getBoard(teamId) : undefined,
+				teamId ? api.listApiKeys(teamId).then(items => items.map(normalizeKey)) : undefined,
+=== demoBoardCache all refs ===
+173:	let demoBoardCache: BoardSnapshot | undefined;
+193:		if (demoBoardCache) { return demoBoardCache; }
+194:		demoBoardCache = ({
+209:		return demoBoardCache;
+425:			demoBoardCache = undefined;
+=== demoBoardCache diff attribution ===
+189:+			demoBoardCache = undefined;
+> build · glm-5.3-prime
+serverkit: nls.json (EN-база) и nls.ru.json — **идентичный русский текст**. Это не «образец aura-team» (там EN-база + RU-перевод). Проверяю: коммитится ли это, кто трогал package.json, и мёртвые ли ключи container.title/view.home.
+[0m$ [0mcd /c/new-aura-ide/vscode-main && echo "=== full serverkit package.json ===" && cat extensions/aura-serverkit/package.json && echo "=== HEAD version of nls.json (first 5 lines) ===" && git show HEAD:extensions/aura-serverkit/package.nls.json | head -6 && echo "=== diff of serverkit package.json ===" && git diff HEAD -- extensions/aura-serverkit/package.json | head -40
+=== full serverkit package.json ===
+{
+	"name": "aura-serverkit",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.1.0",
+	"publisher": "aura",
+	"license": "MIT",
+	"engines": { "vscode": "^1.100.0" },
+	"activationEvents": [
+		"onCommand:auraServerkit.openDashboard",
+		"onCommand:auraServerkit.checkStatus"
+	],
+	"main": "./out/extension",
+	"scripts": {
+		"compile": "gulp compile-extension:aura-serverkit",
+		"watch": "gulp watch-extension:aura-serverkit"
+	},
+	"contributes": {
+		"configuration": {
+			"title": "%configuration.title%",
+			"properties": {
+				"auraServerkit.serverUrl": {
+					"type": "string",
+					"default": "https://serverkit.auraide.xyz",
+					"description": "%configuration.serverUrl%"
+				}
+			}
+		},
+		"commands": [
+			{ "command": "auraServerkit.openDashboard", "title": "%command.openDashboard%", "category": "ServerKit", "icon": "$(server)" },
+			{ "command": "auraServerkit.checkStatus", "title": "%command.checkStatus%", "category": "ServerKit" }
+		]
+	},
+	"devDependencies": {
+		"@types/node": "24.x"
+	}
+}
+=== HEAD version of nls.json (first 5 lines) ===
+{
+	"displayName": "ServerKit",
+	"description": "ServerKit — панель управления сервером: деплой приложений, базы данных, Docker-контейнеры и мониторинг прямо из IDE.",
+	"configuration.title": "ServerKit",
+	"configuration.serverUrl": "URL развернутого ServerKit (панель управления сервером)",
+	"container.title": "ServerKit",
+=== diff of serverkit package.json ===
+diff --git a/extensions/aura-serverkit/package.json b/extensions/aura-serverkit/package.json
+index 32350487..fe1c3cdc 100644
+--- a/extensions/aura-serverkit/package.json
++++ b/extensions/aura-serverkit/package.json
+@@ -4,7 +4,6 @@
+ 	"description": "%description%",
+ 	"version": "0.1.0",
+ 	"publisher": "aura",
+-	"icon": "media/serverkit.svg",
+ 	"license": "MIT",
+ 	"engines": { "vscode": "^1.100.0" },
+ 	"activationEvents": [
+[0m$ [0mcd /c/new-aura-ide/vscode-main && echo "=== uiLanguage resolution in aura-team ===" && grep -rn "uiLanguage" extensions/aura-team/src/ | head -20 && echo "=== aura.language refs ===" && grep -rn "aura\.language\|'aura'\|\"aura\"" extensions/aura-team/src/extension.ts extensions/langgraph-orchestrator/src/ 2>/dev/null | grep -i "language\|getConfiguration" | head -15 && echo "=== core declaration of aura.language? ===" && grep -rn "aura.language" src/vs/ 2>/dev/null | head -5; grep -rln "\"aura\"" src/vs/workbench/contrib/ 2>/dev/null | head -5
+=== uiLanguage resolution in aura-team ===
+extensions/aura-team/src/extension.ts:129:	const uiLanguage = (): string => {
+extensions/aura-team/src/extension.ts:130:		const setting = vscode.workspace.getConfiguration('auraTeam').get<string>('uiLanguage', 'auto');
+extensions/aura-team/src/extension.ts:277:		uiLanguage: uiLanguage(),
+extensions/aura-team/src/extension.ts:287:		if (e.affectsConfiguration('aura.language') || e.affectsConfiguration('auraTeam.uiLanguage')) {
+extensions/aura-team/src/extension.ts:1792:const t = (k) => (I18N[(state?.uiLanguage === 'en') ? 'en' : 'ru'] ?? I18N.ru)[k];
+extensions/aura-team/src/extension.ts:1823:\tconst ru = state?.uiLanguage !== 'en';
+extensions/aura-team/src/extension.ts:2209:\t\t\t['board', state.uiLanguage === 'en' ? 'Kanban & tasks' : 'Канбан и задачи', 'checklist'],
+extensions/aura-team/src/extension.ts:2210:\t\t\t['git', state.uiLanguage === 'en' ? 'Projects & Git' : 'Проекты и Git', 'sourceControl'],
+extensions/aura-team/src/extension.ts:2211:\t\t\t['files', state.uiLanguage === 'en' ? 'Files' : 'Файлы', 'files'],
+extensions/aura-team/src/extension.ts:2212:\t\t\t['keys', state.uiLanguage === 'en' ? 'Team keys' : 'Ключи команды', 'key'],
+extensions/aura-team/src/types.ts:126:	uiLanguage?: string;
+extensions/aura-team/src/webview/template.html:1470:// Язык — из state.uiLanguage (настройка team.ui.language, по умолчанию русский).
+extensions/aura-team/src/webview/template.html:1519:		if (typeof message.state?.uiLanguage === 'string') {
+extensions/aura-team/src/webview/template.html:1520:			const raw = message.state.uiLanguage;
+=== aura.language refs ===
+extensions/aura-team/src/extension.ts:127:	// Язык UI Team: 'auto' — сначала общий переключатель aura.language (он один на всю
+extensions/aura-team/src/extension.ts:132:		const aura = vscode.workspace.getConfiguration('aura').get<string>('language', 'auto');
+extensions/aura-team/src/extension.ts:284:	// Общий переключатель языка: смена aura.language перерисовывает панель Team сразу,
+extensions/aura-team/src/extension.ts:287:		if (e.affectsConfiguration('aura.language') || e.affectsConfiguration('auraTeam.uiLanguage')) {
+extensions/langgraph-orchestrator/src/host.ts:297:			if (e.affectsConfiguration('aura.language')) {
+extensions/langgraph-orchestrator/src/host.ts:1552: * Общий переключатель языка Aura (настройка ядра IDE aura.language).
+extensions/langgraph-orchestrator/src/host.ts:1558:	const value = vscode.workspace.getConfiguration('aura').get<string>('language', 'auto');
+extensions/langgraph-orchestrator/src/util/config.ts:123:		// По умолчанию 'auto': панель следует общему переключателю Aura (aura.language),
+extensions/langgraph-orchestrator/src/util/language.ts:12: * разрешается сначала общим переключателем aura.language, потом языком
+extensions/langgraph-orchestrator/src/util/language.ts:15: * Третий аргумент — настройка aura.language: одна на весь IDE, поэтому 'auto'
+=== core declaration of aura.language? ===
+src/vs/workbench/contrib/auraI18n/browser/auraLanguage.contribution.ts:2: *  Aura — язык интерфейса: настройка aura.language, команда выбора и индикатор
+src/vs/workbench/contrib/auraI18n/browser/auraLanguage.contribution.ts:29:export const AURA_LANGUAGE_PICK_COMMAND_ID = 'aura.language.pick';
+src/vs/workbench/contrib/auraI18n/browser/auraLanguage.contribution.ts:44:				localize('aura.language.auto', "Follow the language of the IDE (--locale or the OS locale)."),
+src/vs/workbench/contrib/auraI18n/browser/auraLanguage.contribution.ts:45:				localize('aura.language.ru', "Russian interface of Aura: market, plugin cards, panels."),
+src/vs/workbench/contrib/auraI18n/browser/auraLanguage.contribution.ts:46:				localize('aura.language.en', "English interface of Aura: market, plugin cards, panels."),
+> build · glm-5.3-prime
+aura.language-механизм подтверждён по коду (aura-team:129/132/287, host.ts:297/1552-1558, ядро: auraI18n.contribution). Серверkit: 2 из 8 ключей мёртвые (container.title, view.home не в манифесте), nls.json в HEAD уже русский. Теперь гейты — прогоняю сам.
+[0m$ [0mcd /c/new-aura-ide/vscode-main && echo "=== node --check aggg-agent ===" && node --check extensions/aggg-agent/out/extension.js && echo "SYNTAX_OK exit=$?" ; echo "=== tsc versions ===" && ls node_modules/typescript/lib/tsc.js 2>/dev/null && node node_modules/typescript/lib/tsc.js --version
+=== node --check aggg-agent ===
+SYNTAX_OK exit=0
+=== tsc versions ===
+node_modules/typescript/lib/tsc.js
+Version 6.0.3
+[0m$ [0mcd /c/new-aura-ide/vscode-main && echo "=== aura-kotlin tsc noEmit ===" && node node_modules/typescript/lib/tsc.js --noEmit -p extensions/aura-kotlin/tsconfig.json; echo "exit=$?"
+=== aura-kotlin tsc noEmit ===
+exit=0
+> build · glm-5.3-prime
+[0m$ [0mcd /c/new-aura-ide/vscode-main && echo "=== aura-team tsc noEmit ===" && node node_modules/typescript/lib/tsc.js --noEmit -p extensions/aura-team/tsconfig.json; echo "exit=$?"; echo "=== aura-serverkit tsc noEmit ===" && node node_modules/typescript/lib/tsc.js --noEmit -p extensions/aura-serverkit/tsconfig.json; echo "exit=$?"; echo "=== uiLanguage enum in package.json ===" && grep -A8 "uiLanguage" extensions/aura-team/package.json | head -12
+=== aura-team tsc noEmit ===
+exit=0
+=== aura-serverkit tsc noEmit ===
+exit=0
+=== uiLanguage enum in package.json ===
+				"auraTeam.uiLanguage": {
+					"type": "string",
+					"enum": [
+						"auto",
+						"ru",
+						"en"
+					],
+					"enumDescriptions": [
+						"%configuration.uiLanguage.auto%",
+						"Русский",
+						"English"
+					],
+> build · glm-5.3-prime
+Гейты tsc/node--check воспроизведены. Теперь полный тест-прогон aura-team (DONE заявляет 19/19).
+[0m$ [0mcd /c/new-aura-ide/vscode-main/extensions/aura-team && node test/run-all.mjs 2>&1 | tail -25; echo "---"; cd /c/new-aura-ide/vscode-main/extensions/aura-team && node test/run-all.mjs 2>&1 | grep -cE "^=== " ; echo "steps-count-above"
+ok   кандидат без приглашения — кнопка активна
+  ok   отправка идёт с id пользователя
+  ok   кнопка сразу показывает «Приглашён»
+  ok   ошибка отправки откатывает кнопку
+  ok   поиск отправляется после debounce
+  ok   фокус остаётся в поле поиска после обновления состояния
+  ok   набранный текст не сбрасывается
+  ok   строка каталога переиспользуется, а не пересоздаётся
+  ok   секцию можно закрыть
+  ok   отзыв кода уходит на сервер
+  ok   до ответа сервера код остаётся на месте
+  ok   после отзыва показано пустое состояние с кнопкой создания
+  ok   новый код появляется вместо пустого состояния
+  ok   кнопка копирования вернулась и работает
+  ok   Diff-обновление: строка t1 — тот же DOM-узел
+  ok   Фокус сохранён после broadcast
+  ok   Смена статуса: data-state обновился
+  ok   Смена статуса: старый текст кросфейдится (2 слоя)
+  ok   Diff-обновление: прогресс подзадач пересчитан
+  ok   Diff-обновление: счётчик не дублируется
+  ok   Diff-обновление: исчезнувшие подзадачи убирают счётчик
+
+ALL CHECKS PASSED
+
+ALL 19 STEPS PASSED
+---
+19
+steps-count-above
+> build · glm-5.3-prime
+19/19 воспроизведено. Добиваю последние проверки: mtime deviceScreen.ts, tsconfig outDir, @types/node в devDeps aura-kotlin, sourcemap aggg-agent (вдруг исходник recoverable).
+[0m$ [0mcd /c/new-aura-ide/vscode-main && echo "=== mtimes aura-kotlin src ===" && ls -la --time-style=full-iso extensions/aura-kotlin/src/deviceScreen.ts extensions/aura-kotlin/src/android.ts extensions/aura-kotlin/src/avdForm.ts && echo "=== tsconfig ===" && cat extensions/aura-kotlin/tsconfig.json && echo "=== devDeps ===" && grep -A6 "devDependencies" extensions/aura-kotlin/package.json && echo "=== aggg map sourcesContent? ===" && node -e "const m=require('./extensions/aggg-agent/out/extension.js.map'); console.log('sources:', m.sources); console.log('has sourcesContent:', !!m.sourcesContent);" 2>&1 | head -5
+=== mtimes aura-kotlin src ===
+-rw-r--r-- 1 Wiks 197121 47754 2026-10-18 08:33:29.561784900 +0300 extensions/aura-kotlin/src/android.ts
+-rw-r--r-- 1 Wiks 197121 16243 2026-10-18 22:17:55.833373600 +0300 extensions/aura-kotlin/src/avdForm.ts
+-rw-r--r-- 1 Wiks 197121 35179 2026-10-18 08:32:55.746945400 +0300 extensions/aura-kotlin/src/deviceScreen.ts
+=== tsconfig ===
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"rootDir": "./src",
+		"outDir": "./out",
+		"types": ["node"],
+		"typeRoots": ["../aura-team/node_modules/@types"]
+	},
+	"include": ["src/**/*", "../../src/vscode-dts/vscode.d.ts"]
+}
+=== devDeps ===
+	"devDependencies": { "@types/node": "24.x" }
+}
+=== aggg map sourcesContent? ===
+C:\new-aura-ide\vscode-main\extensions\aggg-agent\out\extension.js.map:1
+{"version":3,"file":"extension.js","sourceRoot":"","sources":["../src/extension.ts"],"names":[],"mappings":"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","sourcesContent":["/*---------------------------------------------------------------------------------------------\r\n *  Copyright (c) Microsoft Corporation. All rights reserved.\r\n *  Licensed under the MIT License. See License.txt in the project root for license information.\r\n *--------------------------------------------------------------------------------------------*/\r\n\r\nimport { promises as fs } from 'fs';\r\nimport { spawn } from 'child_process';\r\nimport * as os from 'os';\r\nimport * as path from 'path';\r\nimport * as vscode from 'vscode';\r\n\r\nconst CONFIGURATION_SECTION = 'aggg.agent';\r\nconst ENABLED_SETTING = 'enabled';\r\nconst TOGGLE_COMMAND = 'aggg.agent.toggle';\r\nconst INSTALL_COMMAND = 'aggg.agent.install';\r\nconst SYSTEM_SETUP_COMMAND = 'aggg.agent.runSystemSetup';\r\nconst BUG_REPORT_COMMAND = 'aggg.agent.createBugReport';\r\nconst INSTALL_STATE_KEY = 'installedVersion';\r\nconst CHECK_TIMEOUT_MS = 2 * 60 * 1000;\r\nconst SETUP_TIMEOUT_MS = 30 * 60 * 1000;\r\n\r\ninterface PythonCommand {\r\n\treadonly executable: string;\r\n\treadonly prefixArguments: readonly string[];\r\n}\r\n\r\ninterface BundleDeployment {\r\n\tcommit(): Promise<void>;\r\n\trollback(): Promise<void>;\r\n}\r\n\r\nlet outputChannel: vscode.OutputChannel;\r\nlet statusItem: vscode.StatusBarItem;\r\nlet installPromise: Promise<void> | undefined;\r\nlet sanitizedLog = '';\r\n\r\nexport function activate(context: vscode.ExtensionContext): void {\r\n\toutputChannel = vscode.window.createOutputChannel(vscode.l10n.t('AGGG Agent'));\r\n\tstatusItem = vscode.window.createStatusBarItem('status.aggg.agent', vscode.StatusBarAlignment.Left, 90);\r\n\tstatusItem.name = vscode.l10n.t('AGGG Agent');\r\n\tstatusItem.command = TOGGLE_COMMAND;\r\n\r\n\tcontext.subscriptions.push(\r\n\t\toutputChannel,\r\n\t\tstatusItem,\r\n\t\tvscode.commands.registerCommand(TOGGLE_COMMAND, () => toggle(context)),\r\n\t\tvscode.commands.registerCommand(INSTALL_COMMAND, () => install(context, true)),\r\n\t\tvscode.commands.registerCommand(SYSTEM_SETUP_COMMAND, () => runSystemSetup(context)),\r\n\t\tvscode.commands.registerCommand(BUG_REPORT_COMMAND, () => createBugReport(context)),\r\n\t\tvscode.workspace.onDidChangeConfiguration(event => {\r\n\t\t\tif (event.affectsConfiguration(`${CONFIGURATION_SECTION}.${ENABLED_SETTING}`)) {\r\n\t\t\t\tupdateStatusItem();\r\n\t\t\t\tif (isEnabled()) {\r\n\t\t\t\t\tvoid install(context, false).catch(() => undefined);\r\n\t\t\t\t}\r\n\t\t\t}\r\n\t\t}),\r\n\t);\r\n\r\n\tupdateStatusItem();\r\n\tif (isEnabled()) {\r\n\t\tvoid install(context, false).catch(() => undefined);\r\n\t}\r\n}\r\n\r\nfunction isEnabled(): boolean {\r\n\treturn vscode.workspace.getConfiguration(CONFIGURATION_SECTION).get<boolean>(ENABLED_SETTING, false);\r\n}\r\n\r\nfunction updateStatusItem(): void {\r\n\tconst enabled = isEnabled();\r\n\tstatusItem.text = enabled ? '$(shield) AGGG: On' : '$(shield) AGGG: Off';\r\n\tstatusItem.tooltip = enabled\r\n\t\t? vscode.l10n.t('AGGG instructions are active globally for every chat model. Click to disable.')\r\n\t\t: vscode.l10n.t('AGGG instructions are disabled. Click to install and enable globally.');\r\n\tstatusItem.show();\r\n}\r\n\r\nasync function toggle(context: vscode.ExtensionContext): Promise<void> {\r\n\tconst nextEnabled = !isEnabled();\r\n\tif (nextEnabled) {\r\n\t\ttry {\r\n\t\t\tawait install(context, false);\r\n\t\t} catch {\r\n\t\t\treturn;\r\n\t\t}\r\n\t}\r\n\r\n\tawait vscode.workspace.getConfiguration(CONFIGURATION_SECTION).update(\r\n\t\tENABLED_SETTING,\r\n\t\tnextEnabled,\r\n\t\tvscode.ConfigurationTarget.Global,\r\n\t);\r\n\tvoid vscode.window.showInformationMessage(nextEnabled\r\n\t\t? vscode.l10n.t('AGGG Agent is enabled globally for all chat models.')\r\n\t\t: vscode.l10n.t('AGGG Agent is disabled.'));\r\n}\r\n\r\nasync function install(context: vscode.ExtensionContext, force: boolean): Promise<void> {\r\n\tif (installPromise) {\r\n\t\treturn installPromise;\r\n\t}\r\n\r\n\tinstallPromise = installImpl(context, force).finally(() => {\r\n\t\tinstallPromise = undefined;\r\n\t});\r\n\treturn installPromise;\r\n}\r\n\r\nasync function installImpl(context: vscode.ExtensionContext, force: boolean): Promise<void> {\r\n\tconst sourceRoot = path.join(context.extensionPath, 'resources', 'aggg2');\r\n\tconst targetRoot = path.join(context.globalStorageUri.fsPath, 'aggg2');\r\n\tconst version = (await fs.readFile(path.join(sourceRoot, 'VERSION'), 'utf8')).trim();\r\n\tconst deployedVersion = await readVersion(path.join(targetRoot, 'VERSION'));\r\n\tif (!force && context.globalState.get<string>(INSTALL_STATE_KEY) === version && deployedVersion === version) {\r\n\t\treturn;\r\n\t}\r\n\r\n\tawait vscode.window.withProgress({\r\n\t\tlocation: vscode.ProgressLocation.Notification,\r\n\t\ttitle: vscode.l10n.t('Installing AGGG Agent {0}', version),\r\n\t\tcancellable: true,\r\n\t}, async (_progress, token) => {\r\n\t\toutputChannel.clear();\r\n\t\tsanitizedLog = '';\r\n\t\toutputChannel.show(true);\r\n\t\tappendLog(vscode.l10n.t('Deploying the bundled agent to {0}', targetRoot));\r\n\t\tconst deployment = await deployBundle(sourceRoot, targetRoot, token);\r\n\r\n\t\ttry {\r\n\t\t\tawait runSetup(targetRoot, token, true);\r\n\t\t} catch (error) {\r\n\t\t\ttry {\r\n\t\t\t\tawait deployment.rollback();\r\n\t\t\t} catch (rollbackError) {\r\n\t\t\t\tappendLog(vscode.l10n.t('Failed to restore the previous installation: {0}', rollbackError instanceof Error ? rollbackError.message : String(rollbackError)));\r\n\t\t\t}\r\n\t\t\tconst message = error instanceof Error ? error.message : String(error);\r\n\t\t\tappendLog(vscode.l10n.t('Installation failed: {0}', message));\r\n\t\t\tawait createBugReport(context, message);\r\n\t\t\tvoid vscode.window.showErrorMessage(vscode.l10n.t('AGGG Agent installation failed. A bug report draft was opened.'));\r\n\t\t\tthrow error;\r\n\t\t}\r\n\r\n\t\tawait context.globalState.update(INSTALL_STATE_KEY, version);\r\n\t\tawait deployment.commit();\r\n\t\tappendLog(vscode.l10n.t('AGGG Agent deployment and setup validation completed.'));\r\n\t\tvoid vscode.window.showInformationMessage(vscode.l10n.t('AGGG Agent {0} is installed.', version));\r\n\t});\r\n}\r\n\r\nasync function deployBundle(sourceRoot: string, targetRoot: string, token: vscode.CancellationToken): Promise<BundleDeployment> {\r\n\tconst temporaryRoot = `${targetRoot}.installing`;\r\n\tconst backupRoot = `${targetRoot}.previous`;\r\n\tawait fs.mkdir(path.dirname(targetRoot), { recursive: true });\r\n\tawait fs.rm(temporaryRoot, { recursive: true, force: true });\r\n\tawait fs.rm(backupRoot, { recursive: true, force: true });\r\n\tawait fs.cp(sourceRoot, temporaryRoot, { recursive: true });\r\n\tif (token.isCancellationRequested) {\r\n\t\tawait fs.rm(temporaryRoot, { recursive: true, force: true });\r\n\t\tthrow new Error(vscode.l10n.t('Installation was cancelled.'));\r\n\t}\r\n\r\n\tlet hadPreviousInstallation = false;\r\n\ttry {\r\n\t\tawait fs.rename(targetRoot, backupRoot);\r\n\t\thadPreviousInstallation = true;\r\n\t} catch (error) {\r\n\t\tif (!isFileNotFoundError(error)) {\r\n\t\t\tthrow error;\r\n\t\t}\r\n\t}\r\n\r\n\ttry {\r\n\t\tawait fs.rename(temporaryRoot, targetRoot);\r\n\t} catch (error) {\r\n\t\tif (hadPreviousInstallation) {\r\n\t\t\tawait fs.rename(backupRoot, targetRoot);\r\n\t\t}\r\n\t\tthrow error;\r\n\t}\r\n\r\n\treturn {\r\n\t\tcommit: () => fs.rm(backupRoot, { recursive: true, force: true }),\r\n\t\trollback: async () => {\r\n\t\t\tawait fs.rm(targetRoot, { recursive: true, force: true });\r\n\t\t\tif (hadPreviousInstallation) {\r\n\t\t\t\tawait fs.rename(backupRoot, targetRoot);\r\n\t\t\t}\r\n\t\t},\r\n\t};\r\n}\r\n\r\nfunction isFileNotFoundError(error: unknown): error is NodeJS.ErrnoException {\r\n\treturn error instanceof Error && 'code' in error && error.code === 'ENOENT';\r\n}\r\n\r\nasync function runSystemSetup(context: vscode.ExtensionContext): Promise<void> {\r\n\tconst proceed = await vscode.window.showWarningMessage(\r\n\t\tvscode.l10n.t('AGGG system setup can download dependencies and modify user-level shell, agent, MCP, Git hook, and tool configuration. It runs only the reviewed setup entry point; external harnesses and unrelated scripts are not run automatically. Continue?'),\r\n\t\t{ modal: true },\r\n\t\tvscode.l10n.t('Run Setup'),\r\n\t);\r\n\tif (!proceed) {\r\n\t\treturn;\r\n\t}\r\n\r\n\tawait install(context, false);\r\n\tconst targetRoot = path.join(context.globalStorageUri.fsPath, 'aggg2');\r\n\tawait vscode.window.withProgress({\r\n\t\tlocation: vscode.ProgressLocation.Notification,\r\n\t\ttitle: vscode.l10n.t('Running AGGG System Setup'),\r\n\t\tcancellable: true,\r\n\t}, async (_progress, token) => {\r\n\t\ttry {\r\n\t\t\tawait runSetup(targetRoot, token, false);\r\n\t\t\tvoid vscode.window.showInformationMessage(vscode.l10n.t('AGGG system setup completed.'));\r\n\t\t} catch (error) {\r\n\t\t\tconst message = error instanceof Error ? error.message : String(error);\r\n\t\t\tawait createBugReport(context, message);\r\n\t\t\tvoid vscode.window.showErrorMessage(vscode.l10n.t('AGGG system setup failed. A bug report draft was opened.'));\r\n\t\t}\r\n\t});\r\n}\r\n\r\nasync function runSetup(targetRoot: string, token: vscode.CancellationToken, checkOnly: boolean): Promise<void> {\r\n\tconst commands: readonly PythonCommand[] = process.platform === 'win32'\r\n\t\t? [\r\n\t\t\t{ executable: 'py', prefixArguments: ['-3'] },\r\n\t\t\t{ executable: 'python', prefixArguments: [] },\r\n\t\t\t{ executable: 'python3', prefixArguments: [] },\r\n\t\t]\r\n\t\t: [\r\n\t\t\t{ executable: 'python3', prefixArguments: [] },\r\n\t\t\t{ executable: 'python', prefixArguments: [] },\r\n\t\t];\r\n\r\n\tlet lastError: Error | undefined;\r\n\tfor (const command of commands) {\r\n\t\ttry {\r\n\t\t\tawait runProcess(command, targetRoot, token, checkOnly);\r\n\t\t\treturn;\r\n\t\t} catch (error) {\r\n\t\t\tlastError = error instanceof Error ? error : new Error(String(error));\r\n\t\t\tif (!lastError.message.includes('ENOENT')) {\r\n\t\t\t\tthrow lastError;\r\n\t\t\t}\r\n\t\t}\r\n\t}\r\n\r\n\tthrow lastError ?? new Error(vscode.l10n.t('Python 3 was not found.'));\r\n}\r\n\r\nfunction runProcess(command: PythonCommand, targetRoot: string, token: vscode.CancellationToken, checkOnly: boolean): Promise<void> {\r\n\treturn new Promise((resolve, reject) => {\r\n\t\tconst child = spawn(command.executable, [\r\n\t\t\t...command.prefixArguments,\r\n\t\t\tpath.join('scripts', 'setup.py'),\r\n\t\t\t...(checkOnly ? ['--check'] : []),\r\n\t\t], {\r\n\t\t\tcwd: targetRoot,\r\n\t\t\tenv: { ...process.env, PYTHONUTF8: '1' },\r\n\t\t\twindowsHide: true,\r\n\t\t});\r\n\r\n\t\tchild.stdout.on('data', (chunk: Buffer) => appendLog(chunk.toString('utf8'), false));\r\n\t\tchild.stderr.on('data', (chunk: Buffer) => appendLog(chunk.toString('utf8'), false));\r\n\t\tconst timeout = setTimeout(() => child.kill(), checkOnly ? CHECK_TIMEOUT_MS : SETUP_TIMEOUT_MS);\r\n\t\tconst cancellation = token.onCancellationRequested(() => child.kill());\r\n\t\tlet settled = false;\r\n\t\tconst finish = (error?: Error) => {\r\n\t\t\tif (settled) {\r\n\t\t\t\treturn;\r\n\t\t\t}\r\n\t\t\tsettled = true;\r\n\t\t\tclearTimeout(timeout);\r\n\t\t\tcancellation.dispose();\r\n\t\t\terror ? reject(error) : resolve();\r\n\t\t};\r\n\r\n\t\tchild.once('error', error => {\r\n\t\t\tfinish(error);\r\n\t\t});\r\n\t\tchild.once('exit', (code, signal) => {\r\n\t\t\tif (token.isCancellationRequested) {\r\n\t\t\t\tfinish(new Error(vscode.l10n.t('Installation was cancelled.')));\r\n\t\t\t} else if (signal) {\r\n\t\t\t\tfinish(new Error(vscode.l10n.t('Setup timed out and was stopped.')));\r\n\t\t\t} else if (code === 0) {\r\n\t\t\t\tfinish();\r\n\t\t\t} else {\r\n\t\t\t\tfinish(new Error(vscode.l10n.t('Setup exited with code {0}.', code ?? -1)));\r\n\t\t\t}\r\n\t\t});\r\n\t});\r\n}\r\n\r\nasync function createBugReport(context: vscode.ExtensionContext, failure?: string): Promise<void> {\r\n\tconst bundledVersion = await readVersion(path.join(context.extensionPath, 'resources', 'aggg2', 'VERSION'));\r\n\tconst installedVersion = await readVersion(path.join(context.globalStorageUri.fsPath, 'aggg2', 'VERSION'));\r\n\tconst report = [\r\n\t\t'# AGGG Agent Bug Report',\r\n\t\t'',\r\n\t\t'## Summary',\r\n\t\tfailure ? sanitizeForReport(failure) : '<Describe what went wrong>',\r\n\t\t'',\r\n\t\t'## Steps to Reproduce',\r\n\t\t'1. ',\r\n\t\t'2. ',\r\n\t\t'',\r\n\t\t'## Environment',\r\n\t\t`- Aura IDE: ${vscode.version}`,\r\n\t\t`- OS: ${os.type()} ${os.release()} (${os.arch()})`,\r\n\t\t`- Bundled AGGG: ${bundledVersion}`,\r\n\t\t`- Installed AGGG: ${installedVersion}`,\r\n\t\t`- Global mode: ${isEnabled() ? 'enabled' : 'disabled'}`,\r\n\t\t'',\r\n\t\t'## Expected Behavior',\r\n\t\t'',\r\n\t\t'## Actual Behavior',\r\n\t\t'',\r\n\t\t'## Recent Sanitized Setup Log',\r\n\t\t'```text',\r\n\t\tsanitizedLog || '<No setup log captured>',\r\n\t\t'```',\r\n\t\t'',\r\n\t\t'> Review this draft for private data before sending it to the AGGG developer.',\r\n\t].join('\\n');\r\n\tconst document = await vscode.workspace.openTextDocument({ language: 'markdown', content: report });\r\n\tawait vscode.window.showTextDocument(document, { preview: false });\r\n}\r\n\r\nfunction appendLog(value: string, line = true): void {\r\n\tconst rendered = line ? `${value}\\n` : value;\r\n\toutputChannel.append(rendered);\r\n\tconst redacted = sanitizeForReport(rendered);\r\n\tsanitizedLog = `${sanitizedLog}${redacted}`.slice(-32_000);\r\n}\r\n\r\nfunction sanitizeForReport(value: string): string {\r\n\tlet sanitized = value;\r\n\tconst privatePaths = [os.homedir(), ...(vscode.workspace.workspaceFolders?.map(folder => folder.uri.fsPath) ?? [])];\r\n\tfor (const privatePath of privatePaths) {\r\n\t\tif (privatePath) {\r\n\t\t\tsanitized = sanitized.replace(new RegExp(escapeRegExp(privatePath), 'gi'), '<private-path>');\r\n\t\t}\r\n\t}\r\n\treturn sanitized\r\n\t\t.replace(/(authorization\\s*:\\s*(?:bearer|basic)\\s+)\\S+/gi, '$1<redacted>')\r\n\t\t.replace(/((?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|password|passwd|secret|cookie)\\s*[=:]\\s*[\"']?)[^\\s,\"'}]+/gi, '$1<redacted>')\r\n\t\t.replace(/(--(?:api[_-]?key|token|password|secret)(?:=|\\s+))\\S+/gi, '$1<redacted>')\r\n\t\t.replace(/([?&](?:api[_-]?key|token|password|secret)=)[^&#\\s]+/gi, '$1<redacted>')\r\n\t\t.replace(/\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b/gi, '<private-email>')\r\n\t\t.replace(/\\b(?:[A-F0-9]{40,}|[A-Za-z0-9_-]{48,})\\b/g, '<redacted-value>');\r\n}\r\n\r\nfunction escapeRegExp(value: string): string {\r\n\treturn value.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\r\n}\r\n\r\nasync function readVersion(filename: string): Promise<string> {\r\n\ttry {\r\n\t\treturn (await fs.readFile(filename, 'utf8')).trim();\r\n\t} catch {\r\n\t\treturn 'not installed';\r\n\t}\r\n}\r\n"]}
+          ^
+
+SyntaxError: Unexpected token ':'
+> build · glm-5.3-prime
+sourcemap aggg-agent содержит полный исходник — AURA-030 подтверждается даже на уровне исходника (StatusBarAlignment.Left и старый `slice(-32_000)`). Последние точечные проверки перед вердиктом.
+[0m$ [0mcd /c/new-aura-ide/vscode-main && echo "=== serverkit nls.json vs nls.ru.json identical? ===" && diff extensions/aura-serverkit/package.nls.json extensions/aura-serverkit/package.nls.ru.json && echo "IDENTICAL"; echo "=== aura-kotlin tsconfig pre-existing? ===" && git diff HEAD -- extensions/aura-kotlin/tsconfig.json | head -5; git diff HEAD --stat -- extensions/aura-kotlin/tsconfig.json; echo "=== serverkit media dir ===" && ls extensions/aura-serverkit/media/ 2>&1; echo "=== out/avdForm.js stale proof ===" && grep -n "Новый эмулятор\|nonce" extensions/aura-kotlin/out/avdForm.js | head -8; echo "=== package.json main ===" && grep -n '"main"' extensions/aura-kotlin/package.json
+=== serverkit nls.json vs nls.ru.json identical? ===
+1,10c1,10
+< {
+< 	"displayName": "ServerKit",
+< 	"description": "ServerKit — панель управления сервером: деплой приложений, базы данных, Docker-контейнеры и мониторинг прямо из IDE.",
+< 	"configuration.title": "ServerKit",
+< 	"configuration.serverUrl": "URL развернутого ServerKit (панель управления сервером)",
+< 	"container.title": "ServerKit",
+< 	"view.home": "ServerKit",
+< 	"command.openDashboard": "Открыть панель управления",
+< 	"command.checkStatus": "Проверить статус сервера"
+< }
+---
+> {
+> 	"displayName": "ServerKit",
+> 	"description": "ServerKit — панель управления сервером: деплой приложений, базы данных, Docker-контейнеры и мониторинг прямо из IDE.",
+> 	"configuration.title": "ServerKit",
+> 	"configuration.serverUrl": "URL развернутого ServerKit (панель управления сервером)",
+> 	"container.title": "ServerKit",
+> 	"view.home": "ServerKit",
+> 	"command.openDashboard": "Открыть панель управления",
+> 	"command.checkStatus": "Проверить статус сервера"
+> }
+\ No newline at end of file
+=== aura-kotlin tsconfig pre-existing? ===
+=== serverkit media dir ===
+serverkit.svg
+=== out/avdForm.js stale proof ===
+56:        const nonce = String(Date.now()) + '-' + Math.floor(Math.random() * 1e9);
+57:        this.panel.webview.html = this.html(nonce);
+135:    // Форма статичная: строки только русские (продукт Russian-first), скрипт под nonce.
+136:    html(nonce) {
+138:<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+140:<title>Новый эмулятор</title>
+231:	<h1>Новый эмулятор (AVD)</h1>
+265:<script nonce="${nonce}">
+=== package.json main ===
+9:	"main": "./out/extension.js",
+> build · glm-5.3-prime
+Все проверки собраны. Быстро проверяю наличие db-tools/findings (база знаний роя) и пишу вердикт.
+[0m$ [0mcd /c/new-aura-ide/vscode-main && ls db-tools/findings.py 2>/dev/null; ls ../db-tools 2>/dev/null; find . -maxdepth 2 -name "findings.py" 2>/dev/null | head -3; echo "---"; ls docs/swarm/ZAN-zan-a3.md 2>/dev/null || echo "no existing ZAN-zan-a3.md"
+---
+no existing ZAN-zan-a3.md
+> build · glm-5.3-prime
+[0m← [0mWrite docs/swarm/ZAN-zan-a3.md
+Created file successfully: docs/swarm/ZAN-zan-a3.md
+> build · glm-5.3-prime
+Готово. Ревью лежит в `docs/swarm/ZAN-zan-a3.md`.
+
+**Вердикт: REQUEST_CHANGES.**
+
+Что нашёл (всё проверено живыми прогонами, не по DONE):
+
+| Пункт | Итог |
+|---|---|
+| Гейты из DONE | Воспроизведены точно: tsc ×3 = exit 0, `node --check` = OK, `run-all.mjs` = **ALL 19 STEPS PASSED** |
+| **Блокер 1** | **AURA-016/017 не в билде.** `out/avdForm.js` от 08:47 (до правок a3 в 22:17): ноль `tr(`, живой `Date.now()`-nonce, хардкод-русский. `--noEmit` билд не обновляет; main → `out/extension.js` — юзер получает старую форму и старый предсказуемый nonce. Тот же класс, что блокер ZAN-1 у b1, который b1fix2 закрыл эмитом, а a3 вскрыл снова |
+| **Блокер 2** | **serverkit-«русификация» — функциональный ноль.** `package.nls.json` (EN-база) русский с коммита, `nls.ru.json` — байт-в-байт копия; плюс 2 из 8 ключей мёртвые (`container.title`, `view.home` — в манифесте нет viewsContainers/views). DONE подаёт как «по образцу aura-team» |
+| Счётчики | «18 жёстких строк» — их **20** (таблица DONE сама на 20 строк; 18 новых ключей + 2 существующих); «172–189» → 171–188; «423» → 425. Та же болезнь, что «16 вместо 15» у a2 |
+| Честные пункты | AURA-030 подтверждён даже сильнее заявленного — восстановил исходник из `extension.js.map` sourcesContent: `StatusBarAlignment.Left` и в исходнике, REVIEW-строка была самопротиворечием. AURA-031 (326), onDidChangeConfiguration (64-65), logcat (667-668, в HEAD), demoBoardCache (425), aura.language-механизм — всё сошлось, атрибуция в диффе чистая, параллельные следы b1fix2/a2 не перепутаны |
+
+Новые проблемы, не из DONE: латентная бомба — интерполяция `tr()` в JS-строки webview-скрипта (перевод с апострофом ломает весь скрипт формы); `aggg-agent/out/` в gitignore — фикс sanitizedLog живёт в неверсионируемом файле; чужой след — из serverkit-манифеста кем-то удалён `icon` при существующем `media/serverkit.svg`.
+
+Минимум к следующей итерации: эмит `tsc -p extensions/aura-kotlin` + доказательство свежести `out/avdForm.js` (grep `randomUUID`/`tr(`), честная формулировка по serverkit, починка счётчиков. После этого — ACCEPT без повторного прогона.

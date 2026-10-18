@@ -1,0 +1,8 @@
+{
+	"displayName": "ServerKit",
+	"description": "ServerKit — панель управления сервером: деплой приложений, базы данных, Docker-контейнеры и мониторинг прямо из IDE.",
+	"configuration.title": "ServerKit",
+	"configuration.serverUrl": "URL развернутого ServerKit (панель управления сервером)",
+	"command.openDashboard": "Открыть панель управления",
+	"command.checkStatus": "Проверить статус сервера"
+}

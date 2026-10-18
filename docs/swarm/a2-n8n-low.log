@@ -1,0 +1,425 @@
+[0m
+> build · qwen3.8-flash
+[0m✱ [0mGlob "extensions/n8n-panel/**/*" [90m8 matches[0m
+[0m✱ [0mGlob "docs/swarm/ZAN-b2.md" [90m1 match[0m
+> build · qwen3.8-flash
+[0m✗ [0mSkill "aggg2-mandatory-reads" failed
+[91m[1mError: [0mUnable to load skill aggg2-mandatory-reads
+> build · qwen3.8-flash
+[0m⚙ [0mexecute {"code":"const r = await tools[\"skills-hub\"].skills_find({query: \"aggg2-mandatory-reads\", limit: 5}); return r;"} 
+[0m✱ [0mGlob "{AGENTS.md,CLAUDE.md,CYCLE.md,docs/canon/*}" [90m1 match[0m
+> build · qwen3.8-flash
+[0m→ [0mRead docs/swarm/ZAN-b2.md 
+[0m→ [0mRead extensions/n8n-panel/extension.js 
+> build · qwen3.8-flash
+[0m→ [0mRead extensions/n8n-panel/package.nls.json 
+[0m→ [0mRead extensions/n8n-panel/package.json 
+[0m→ [0mRead extensions/n8n-panel/package.nls.ru.json 
+> build · qwen3.8-flash
+[0m→ [0mRead extensions/n8n-panel/l10n/bundle.l10n.ru.json 
+> build · qwen3.8-flash
+Пункты понятны. Сверяю механизм `reveal()` по первоисточнику этого же форка (лучше веба) и ищу упоминания старого ключа в папке.
+[0m✱ [0mGrep "reveal\(viewColumn\?: ViewColumn" [90min src/vscode-dts/vscode.d.ts · 1 match[0m
+[0m✱ [0mGrep "n8n\.allowSelfSigned|allowSelfSigned" [90min extensions/n8n-panel · 6 matches[0m
+> build · qwen3.8-flash
+[0m→ [0mRead src/vscode-dts/vscode.d.ts [90m[offset=10125, limit=30][0m
+> build · qwen3.8-flash
+Механизм подтверждён первоисточником форка (`vscode.d.ts:10149` — undefined = текущая колонка). Правлю код.
+[0m← [0mEdit extensions/n8n-panel/extension.js
+Index: extensions/n8n-panel/extension.js
+===================================================================
+--- extensions/n8n-panel/extension.js
++++ extensions/n8n-panel/extension.js
+@@ -13,32 +13,45 @@
+  * webview с retainContextWhenHidden — это и была утечка из AURA-006.
+  */
+ let currentPanel;
+ 
++/** Зан-ревью §5 п.2: голый хост/IP без схемы → автодополняем https://, иначе http.get бросает Invalid URL. */
+ function getUrl() {
+-	const configured = vscode.workspace.getConfiguration('n8nPanel').get('url');
+-	return (configured || '').replace(/\/+$/, '');
++	const configured = (vscode.workspace.getConfiguration('n8nPanel').get('url') || '').trim().replace(/\/+$/, '');
++	if (configured && !/^https?:\/\//i.test(configured)) {
++		return `https://${configured}`;
++	}
++	return configured;
+ }
+ 
+-/** AURA-004: самоподписанные сертификаты — только по явной настройке n8n.allowSelfSigned. */
++/** AURA-004: самоподписанные — только по явной n8nPanel.allowSelfSigned. Зан-ревью §5 п.4: старый ключ n8n.allowSelfSigned читается как фолбэк (софт-миграция). */
+ function isSelfSignedAllowed() {
++	const val = vscode.workspace.getConfiguration('n8nPanel').get('allowSelfSigned');
++	if (typeof val === 'boolean') {
++		return val;
++	}
+ 	return vscode.workspace.getConfiguration('n8n').get('allowSelfSigned', false);
+ }
+ 
+ /** Проверка доступности из extension-хоста (Node): без CORS и ограничений webview. */
+ function checkStatus(url) {
+ 	return new Promise((resolve) => {
+-		const client = url.startsWith('https') ? https : http;
+-		const options = { timeout: STATUS_TIMEOUT_MS };
+-		if (url.startsWith('https')) {
+-			options.rejectUnauthorized = !isSelfSignedAllowed();
++		try {
++			const client = url.startsWith('https') ? https : http;
++			const options = { timeout: STATUS_TIMEOUT_MS };
++			if (url.startsWith('https')) {
++				options.rejectUnauthorized = !isSelfSignedAllowed();
++			}
++			const req = client.get(url, options, (res) => {
++				res.resume();
++				resolve(res.statusCode >= 200 && res.statusCode < 500);
++			});
++			req.on('timeout', () => { req.destroy(); resolve(false); });
++			req.on('error', () => resolve(false));
++		} catch {
++			// синхронный throw (например невалидный URL) = сервер недоступен, не unhandled rejection
++			resolve(false);
+ 		}
+-		const req = client.get(url, options, (res) => {
+-			res.resume();
+-			resolve(res.statusCode >= 200 && res.statusCode < 500);
+-		});
+-		req.on('timeout', () => { req.destroy(); resolve(false); });
+-		req.on('error', () => resolve(false));
+ 	});
+ }
+ 
+ /** AURA-003: nonce на каждый рендер — 'unsafe-inline' из script-src убран. */
+
+> build · qwen3.8-flash
+[0m← [0mEdit extensions/n8n-panel/extension.js
+Index: extensions/n8n-panel/extension.js
+===================================================================
+--- extensions/n8n-panel/extension.js
++++ extensions/n8n-panel/extension.js
+@@ -62,10 +62,15 @@
+ function escapeHtml(s) {
+ 	return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+ }
+ 
++/** Зан-ревью §5 п.3: `</script>` в строке перевода иначе выводит из скрипт-контекста в обход nonce-CSP. */
++function jsonForScript(value) {
++	return JSON.stringify(value).replace(/</g, '\\u003c');
++}
++
+ /** Полная вкладка: iframe + спиннер с прогрессом + фолбэк с кнопкой переподключения. */
+-function tabHtml(url) {
++function tabHtml(url, renderToken) {
+ 	const nonce = cspNonce();
+ 	const strings = {
+ 		loading: vscode.l10n.t('Loading n8n… {0}s'),
+ 		failed: vscode.l10n.t('Could not load n8n at'),
+
+> build · qwen3.8-flash
+[0m← [0mEdit extensions/n8n-panel/extension.js
+Index: extensions/n8n-panel/extension.js
+===================================================================
+--- extensions/n8n-panel/extension.js
++++ extensions/n8n-panel/extension.js
+@@ -103,9 +103,10 @@
+ </div>
+ <iframe id="f" src="${escapeHtml(url)}"></iframe>
+ <script nonce="${nonce}">
+ 	const vscodeApi = acquireVsCodeApi();
+-	const STR = ${JSON.stringify(strings)};
++	const STR = ${jsonForScript(strings)};
++	const RENDER_TOKEN = ${jsonForScript(renderToken)}; // Зан-ревью §5 п.1: per-render токен, сообщения без него — мусор из чужих источников
+ 	const TIMEOUT = ${LOAD_TIMEOUT_MS};
+ 	const frame = document.getElementById('f');
+ 	const loader = document.getElementById('loader');
+ 	const status = document.getElementById('status');
+
+> build · qwen3.8-flash
+[0m← [0mEdit extensions/n8n-panel/extension.js
+Index: extensions/n8n-panel/extension.js
+===================================================================
+--- extensions/n8n-panel/extension.js
++++ extensions/n8n-panel/extension.js
+@@ -157,9 +157,10 @@
+ 		vscodeApi.postMessage({ type: 'reconnect' });
+ 	});
+ 	window.addEventListener('message', (event) => {
+ 		const msg = event.data;
+-		if (msg && msg.type === 'load' && typeof msg.url === 'string' && msg.url) {
++		// Зан-ревью §5 п.1: сверка токена отклоняет postMessage от cross-origin iframe — чужие сообщения отбрасываются.
++		if (msg && msg.type === 'load' && msg.token === RENDER_TOKEN && typeof msg.url === 'string' && msg.url) {
+ 			errurl.textContent = msg.url;
+ 			frame.src = msg.url; // reassignment всегда перезагружает iframe
+ 			startLoading();
+ 		}
+
+[0m← [0mEdit extensions/n8n-panel/extension.js
+Index: extensions/n8n-panel/extension.js
+===================================================================
+--- extensions/n8n-panel/extension.js
++++ extensions/n8n-panel/extension.js
+@@ -210,9 +210,9 @@
+ <body>
+ ${body}
+ <script nonce="${nonce}">
+ 	const vscodeApi = acquireVsCodeApi();
+-	const STR = ${JSON.stringify(strings)};
++	const STR = ${jsonForScript(strings)};
+ 	const openBtn = document.getElementById('open');
+ 	const externalBtn = document.getElementById('external');
+ 	if (openBtn) {
+ 		openBtn.textContent = STR.open;
+
+> build · qwen3.8-flash
+[0m← [0mEdit extensions/n8n-panel/extension.js
+Index: extensions/n8n-panel/extension.js
+===================================================================
+--- extensions/n8n-panel/extension.js
++++ extensions/n8n-panel/extension.js
+@@ -280,9 +280,9 @@
+ 				return;
+ 			}
+ 			// AURA-006: не плодим retained webview — открываем заново существующую вкладку.
+ 			if (currentPanel) {
+-				currentPanel.reveal(vscode.ViewColumn.One);
++				currentPanel.reveal(); // Зан-ревью §5 п.5: без ViewColumn.One — не таскаем вкладку из колонки пользователя
+ 				return;
+ 			}
+ 			const panel = vscode.window.createWebviewPanel(
+ 				'n8nPanel.tab',
+@@ -291,17 +291,19 @@
+ 				{ enableScripts: true, retainContextWhenHidden: true },
+ 			);
+ 			currentPanel = panel;
+ 			panel.onDidDispose(() => { currentPanel = undefined; }, null, context.subscriptions);
++			// Зан-ревью §5 п.1: per-render токен — webview принимает load-сообщения только с ним.
++			const renderToken = crypto.randomBytes(16).toString('hex');
+ 			panel.webview.onDidReceiveMessage((msg) => {
+ 				if (msg && msg.type === 'reconnect') {
+ 					const freshUrl = getUrl();
+ 					if (freshUrl) {
+-						panel.webview.postMessage({ type: 'load', url: freshUrl });
++						panel.webview.postMessage({ type: 'load', url: freshUrl, token: renderToken });
+ 					}
+ 				}
+ 			});
+-			panel.webview.html = tabHtml(url);
++			panel.webview.html = tabHtml(url, renderToken);
+ 			if (!await checkStatus(url)) {
+ 				vscode.window.showWarningMessage(
+ 					vscode.l10n.t('n8n is not responding at {0} — the tab may stay empty.', url),
+ 				);
+
+> build · qwen3.8-flash
+[0m← [0mEdit extensions/n8n-panel/package.json
+Index: extensions/n8n-panel/package.json
+===================================================================
+--- extensions/n8n-panel/package.json
++++ extensions/n8n-panel/package.json
+@@ -33,9 +33,9 @@
+ 					"type": "string",
+ 					"default": "https://94.141.160.70.sslip.io",
+ 					"description": "%configuration.url%"
+ 				},
+-				"n8n.allowSelfSigned": {
++				"n8nPanel.allowSelfSigned": {
+ 					"type": "boolean",
+ 					"default": false,
+ 					"description": "%configuration.allowSelfSigned%"
+ 				}
+
+[0m← [0mEdit extensions/n8n-panel/package.nls.ru.json
+Index: extensions/n8n-panel/package.nls.ru.json
+===================================================================
+--- extensions/n8n-panel/package.nls.ru.json
++++ extensions/n8n-panel/package.nls.ru.json
+@@ -2,9 +2,9 @@
+ 	"displayName": "n8n Panel",
+ 	"description": "Вкладка с веб-интерфейсом вашего n8n",
+ 	"configuration.title": "n8n Panel",
+ 	"configuration.url": "URL вашего инстанса n8n",
+-	"configuration.allowSelfSigned": "Разрешить самоподписанные TLS-сертификаты при проверке статуса сервера n8n. По умолчанию сертификаты проверяются. Правильное решение — добавить свой CA через переменную окружения NODE_EXTRA_CA_CERTS.",
++	"configuration.allowSelfSigned": "Разрешить самоподписанные TLS-сертификаты только при проверке статуса сервера n8n. На загрузку вкладки n8n (iframe) не влияет: браузер проверяет сертификат в ней независимо и недоверенный не откроет. По умолчанию сертификаты проверяются. Правильное решение — добавить свой CA через переменную окружения NODE_EXTRA_CA_CERTS.",
+ 	"command.openTab": "n8n: Открыть n8n",
+ 	"command.openExternal": "n8n: Открыть в браузере",
+ 	"viewsContainer.title": "n8n",
+ 	"view.launcher.name": "Запуск"
+
+[0m← [0mEdit extensions/n8n-panel/package.nls.json
+Index: extensions/n8n-panel/package.nls.json
+===================================================================
+--- extensions/n8n-panel/package.nls.json
++++ extensions/n8n-panel/package.nls.json
+@@ -2,9 +2,9 @@
+ 	"displayName": "n8n Panel",
+ 	"description": "Tab with the web UI of your n8n instance",
+ 	"configuration.title": "n8n Panel",
+ 	"configuration.url": "URL of your n8n instance",
+-	"configuration.allowSelfSigned": "Allow self-signed TLS certificates for the n8n server status check. Default: certificates are verified. For a proper fix prefer adding your CA via the NODE_EXTRA_CA_CERTS environment variable.",
++	"configuration.allowSelfSigned": "Allow self-signed TLS certificates for the n8n server status check only. Does not affect loading the n8n tab (iframe): the browser validates the certificate there independently and will not open an untrusted one. Default: certificates are verified. For a proper fix prefer adding your CA via the NODE_EXTRA_CA_CERTS environment variable.",
+ 	"command.openTab": "n8n: Open n8n",
+ 	"command.openExternal": "n8n: Open in Browser",
+ 	"viewsContainer.title": "n8n",
+ 	"view.launcher.name": "Launcher"
+
+> build · qwen3.8-flash
+[0m$ [0mcd /c/new-aura-ide/vscode-main/extensions/n8n-panel && node --check extension.js && echo CHECK_OK && node -e "const fs=require('fs');const P=(f)=>JSON.parse(fs.readFileSync(f,'utf8'));const p=P('package.json');const a=P('package.nls.json');const b=P('package.nls.ru.json');const l=P('l10n/bundle.l10n.ru.json');const keys=[...p.displayName,''];const manifest=JSON.stringify(p).match(/%[a-zA-Z.]+%/g).filter((v,i,s)=>s.indexOf(v)===i).sort();console.log('JSON x4 OK');console.log('manifest keys',manifest.length,'nls',Object.keys(a).length,'nls.ru',Object.keys(b).length);console.log('diff:',manifest.map(k=>k.slice(1,-1)).filter(k=>!a[k]||!b[k]));console.log('nls-keys-not-in-manifest:',Object.keys(a).filter(k=>!manifest.includes('%'+k+'%')));console.log('l10n keys:',Object.keys(l).length);"
+CHECK_OK
+JSON x4 OK
+manifest keys 9 nls 9 nls.ru 9
+diff: []
+nls-keys-not-in-manifest: []
+l10n keys: 10
+> build · qwen3.8-flash
+Логика на месте. Теперь живая проверка точных кусков кода (извлекаю функции прямо из extension.js, без переписывания) в temp-харнесе:
+[0m← [0mWrite C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-low-harness.cjs
+Created file successfully: C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-low-harness.cjs
+> build · qwen3.8-flash
+[0m$ [0mnode /c/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-low-harness.cjs; echo EXIT=$?
+PASS getUrl bare host -> https
+PASS getUrl http untouched + trim
+PASS getUrl https untouched
+PASS getUrl empty
+PASS checkStatus sync-throw -> false
+PASS checkStatus ok path -> true
+PASS selfsigned new key wins
+PASS selfsigned old-key fallback
+PASS selfsigned default false
+PASS jsonForScript escapes <
+<anonymous_script>:44
+	const nonce = cspNonce();
+	              ^
+
+ReferenceError: cspNonce is not defined
+    at Object.tabHtml (eval at <anonymous> (C:\Users\Wiks\AppData\Local\Temp\opencode\a2-n8n-low-harness.cjs:34:13), <anonymous>:44:16)
+    at C:\Users\Wiks\AppData\Local\Temp\opencode\a2-n8n-low-harness.cjs:73:19
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+Node.js v24.21.0
+EXIT=1
+> build · qwen3.8-flash
+Харнес не захватил `cspNonce` — докидываю в список извлекаемых функций:
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-low-harness.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-low-harness.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-low-harness.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-low-harness.cjs
+@@ -28,9 +28,9 @@
+ const https = { get: (...a) => httpsUsed.get(...a) };
+ const http = { get: (...a) => httpUsed.get(...a) };
+ const LOAD_TIMEOUT_MS = 10000, STATUS_TIMEOUT_MS = 6000;
+ 
+-const fns = ['getUrl', 'isSelfSignedAllowed', 'checkStatus', 'escapeHtml', 'jsonForScript', 'tabHtml', 'launcherHtml']
++const fns = ['getUrl', 'isSelfSignedAllowed', 'checkStatus', 'cspNonce', 'escapeHtml', 'jsonForScript', 'tabHtml', 'launcherHtml']
+ 	.map(extract).join('\n');
+ const mod = new Function('vscode', 'https', 'http', 'crypto', 'LOAD_TIMEOUT_MS', 'STATUS_TIMEOUT_MS',
+ 	fns + '\nreturn {getUrl,isSelfSignedAllowed,checkStatus,jsonForScript,tabHtml,launcherHtml};'
+ )(vscode, https, http, crypto, LOAD_TIMEOUT_MS, STATUS_TIMEOUT_MS);
+
+> build · qwen3.8-flash
+[0m$ [0mnode /c/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-low-harness.cjs; echo EXIT=$?
+PASS getUrl bare host -> https
+PASS getUrl http untouched + trim
+PASS getUrl https untouched
+PASS getUrl empty
+PASS checkStatus sync-throw -> false
+PASS checkStatus ok path -> true
+PASS selfsigned new key wins
+PASS selfsigned old-key fallback
+PASS selfsigned default false
+PASS jsonForScript escapes <
+PASS tabHtml STR has no raw <\/script
+PASS tabHtml embeds RENDER_TOKEN
+FAIL launcherHtml STR escaped
+PASS tab listener gates on token
+PASS forged msg (no token) rejected
+PASS extension msg (with token) accepted
+PASS reveal() no ViewColumn arg
+PASS postMessage load carries token
+PASS nls EN says iframe not affected
+PASS nls RU says iframe not affected
+FAILED 1/20
+EXIT=1
+> build · qwen3.8-flash
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-low-harness.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-low-harness.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-low-harness.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-low-harness.cjs
+@@ -74,9 +74,11 @@
+ 	const rawJson = JSON.stringify({ loading: '</script><b>' });
+ 	T('tabHtml STR has no raw <\\/script', !html.includes(rawJson) && html.includes('\\u003c/script'));
+ 	T('tabHtml embeds RENDER_TOKEN', html.includes('RENDER_TOKEN = "deadbeef0123456789"'));
+ 	const launcherHtml = mod.launcherHtml('https://a.b');
+-	T('launcherHtml STR escaped', !launcherHtml.includes(rawJson) && launcherHtml.includes('\\u003c'));
++	vscode.l10n.t = (s) => s === 'Open n8n' ? '</script><b>' : s;
++	const launcherEvil = mod.launcherHtml('https://a.b');
++	T('launcherHtml STR escaped', !launcherEvil.includes(JSON.stringify({ open: '</script><b>' })) && launcherEvil.includes('\\u003c'));
+ 	vscode.l10n.t = (s) => s;
+ 
+ 	// п.1 webview-обработчик: чужое сообщение отброшено, своё с токеном принято
+ 	const handlerSrc = html.slice(html.indexOf("window.addEventListener('message'"));
+
+> build · qwen3.8-flash
+[0m$ [0mnode /c/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-low-harness.cjs; echo EXIT=$?; node --check extension.js && echo CHECK_OK; git -C /c/new-aura-ide/vscode-main status --short -- extensions/n8n-panel docs/swarm | head -20
+PASS getUrl bare host -> https
+PASS getUrl http untouched + trim
+PASS getUrl https untouched
+PASS getUrl empty
+PASS checkStatus sync-throw -> false
+PASS checkStatus ok path -> true
+PASS selfsigned new key wins
+PASS selfsigned old-key fallback
+PASS selfsigned default false
+PASS jsonForScript escapes <
+PASS tabHtml STR has no raw <\/script
+PASS tabHtml embeds RENDER_TOKEN
+PASS launcherHtml STR escaped
+PASS tab listener gates on token
+PASS forged msg (no token) rejected
+PASS extension msg (with token) accepted
+PASS reveal() no ViewColumn arg
+PASS postMessage load carries token
+PASS nls EN says iframe not affected
+PASS nls RU says iframe not affected
+ALL PASSED (20)
+EXIT=0
+CHECK_OK
+?? docs/swarm/
+?? extensions/n8n-panel/
+> build · qwen3.8-flash
+Все 20 ассертов зелёные. Собираю точные строки для отчёта (валюта роя):
+[0m✱ [0mGrep "RENDER_TOKEN|jsonForScript|token: renderToken|catch \{|https://\$\{configured\}|getConfiguration\('n8n'\)|reveal\(\)|n8nPanel.allowSelfSigned" [90min extensions/n8n-panel/extension.js · 11 matches[0m
+[0m✱ [0mGrep "n8nPanel.allowSelfSigned|Does not affect|не влияет" [90min extensions/n8n-panel · 4 matches[0m
+> build · qwen3.8-flash
+[0m✱ [0mGrep "function tabHtml|const renderToken|const val = vscode.workspace" [90min extensions/n8n-panel/extension.js · 3 matches[0m
+> build · qwen3.8-flash
+Пишу финальный отчёт; параллельно проверяю, есть ли в этом билде db-tools/findings для заноса находок:
+[0m✱ [0mGlob "{db-tools/**,scripts/findings.py,**/findings.py}" [90m0 matches[0m
+> build · qwen3.8-flash
+[0m← [0mWrite docs/swarm/DONE-a2-n8n-low.md
+Created file successfully: docs/swarm/DONE-a2-n8n-low.md
+> build · qwen3.8-flash
+[0m$ [0mwc -l /c/new-aura-ide/vscode-main/docs/swarm/DONE-a2-n8n-low.md && git -C /c/new-aura-ide/vscode-main status --short -- extensions/n8n-panel product.json
+13 /c/new-aura-ide/vscode-main/docs/swarm/DONE-a2-n8n-low.md
+?? extensions/n8n-panel/
+> build · qwen3.8-flash
+Готово: все 6 пунктов Зан-b2 §5 закрыты в `extensions/n8n-panel`, ничего не коммичено (`product.json` чист, папка по-прежнему `??`). Отчёт: `docs/swarm/DONE-a2-n8n-low.md` (13 строк, file:line сверены grep'ом после правок — по Зану п.9 валюта точная).
+
+**По пунктам:**
+
+| # | Что сделано | Где |
+|---|---|---|
+| 1 | per-render токен: `randomBytes(16).hex` вшивается в HTML, `{type:'load'}` без `token` отбрасывается | extension.js:296, :108, :162, :301 |
+| 2 | try/catch в executor checkStatus + `https://` для голого хоста в getUrl | extension.js:50, :18-23 |
+| 3 | `jsonForScript` = stringify + `\u003c`, применён к STR в обоих webview и токену | extension.js:67-69, :107, :108, :214 |
+| 4 | `n8nPanel.allowSelfSigned` в манифесте; старый `n8n.allowSelfSigned` читается фолбэком | package.json:37, extension.js:28-32 |
+| 5 | `reveal()` без ViewColumn — проверено по d.ts форка:10149 (undefined = текущая колонка) | extension.js:284 |
+| 6 | «только проверка статуса, на загрузку вкладки (iframe) не влияет» — EN и RU | package.nls.json:6, package.nls.ru.json:6 |
+
+**Проверка:** `node --check` OK; JSON ×4 парсятся; манифест-ключи 9↔9↔9, l10n 10 цел; живой прогон точных функций из extension.js (извлечение исходника, не переписывание) — 20/20 ассертов: sync-throw резолвится false, форд-сообщение без токена отбросилось, `</script><b>` в l10n-значении не выходит из скрипт-контекста, миграция фолбэчится.
+
+**Честные оговорки:**
+- aggg2-mandatory-reads не установлен в этом билде (`tool.execution` ошибка), db-tools/findings.py в воркспейсе нет — находки легли только в DONE-файл; веб-ресёрч заменён первоисточниками форка (vscode.d.ts) — для этого репо это и есть истина, как постановил сам Зан.
+- НЕ проверено глазами: рендер renamed-ключа в UI настроек и живой n8n — нужен запуск IDE; в dev-режиме nls всё равно EN (Зан §5 п.7).
+
+Харнес лежал в temp и удалён не был, но в отчёте как evidence не значится — по выводу Зана §6.

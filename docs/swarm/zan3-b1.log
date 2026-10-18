@@ -1,0 +1,318 @@
+[0m
+> build · glm-5.3-prime
+> build · glm-5.3-prime
+[0m→ [0mRead docs/swarm/ZAN-zan2-b1.md 
+[0m→ [0mRead docs/swarm/DONE-b1fix2.md 
+> build · glm-5.3-prime
+Читаю оба документа. Теперь — код. Сначала `deviceScreen.ts` целиком, потом `android.ts` вокруг заявленной строки.
+[0m→ [0mRead extensions/aura-kotlin/src/deviceScreen.ts 
+[0m→ [0mRead extensions/aura-kotlin/src/android.ts [90m[offset=440, limit=50][0m
+> build · glm-5.3-prime
+Код прочитан построчно. Теперь — смоук-скрипт: читаю его целиком (проверить, что билдер не ослабил мои тесты), смотрю каталог docs/swarm и git-статус зоны.
+[0m→ [0mRead docs/swarm/zan2-b1-smoke.cjs 
+[0m$ [0mls -la "C:/new-aura-ide/vscode-main/docs/swarm/" && echo "---GIT STATUS ZONE---" && cd "C:/new-aura-ide/vscode-main" && git status --porcelain extensions/aura-kotlin/ && echo "---GIT STATUS ALL (для следов параллельного билдера)---" && git status --porcelain | head -50
+total 525
+drwxr-xr-x 1 Wiks 197121     0 Oct 18 08:45 .
+drwxr-xr-x 1 Wiks 197121     0 Oct 18 04:35 ..
+-rw-r--r-- 1 Wiks 197121  4562 Oct 18 06:23 DONE-b1.md
+-rw-r--r-- 1 Wiks 197121  2914 Oct 18 07:13 DONE-b1fix.md
+-rw-r--r-- 1 Wiks 197121  3622 Oct 18 08:36 DONE-b1fix2.md
+-rw-r--r-- 1 Wiks 197121  4635 Oct 18 05:21 DONE-b2.md
+-rw-r--r-- 1 Wiks 197121  3024 Oct 18 04:59 PROMPT-b1-kotlin-emulator.md
+-rw-r--r-- 1 Wiks 197121  1166 Oct 18 07:04 PROMPT-b1fix.md
+-rw-r--r-- 1 Wiks 197121  1399 Oct 18 08:27 PROMPT-b1fix2.md
+-rw-r--r-- 1 Wiks 197121  2733 Oct 18 04:59 PROMPT-b2-n8n-market.md
+-rw-r--r-- 1 Wiks 197121  3463 Oct 18 04:50 PROMPT-explorer.md
+-rw-r--r-- 1 Wiks 197121  2700 Oct 18 06:30 PROMPT-zan-b1.md
+-rw-r--r-- 1 Wiks 197121  2421 Oct 18 05:48 PROMPT-zan-b2.md
+-rw-r--r-- 1 Wiks 197121  1466 Oct 18 07:53 PROMPT-zan2-b1.md
+-rw-r--r-- 1 Wiks 197121  1092 Oct 18 08:45 PROMPT-zan3-b1.md
+-rw-r--r-- 1 Wiks 197121 26789 Oct 18 04:57 REVIEW-AURA.md
+-rw-r--r-- 1 Wiks 197121 16996 Oct 18 06:46 ZAN-b1.md
+-rw-r--r-- 1 Wiks 197121 14015 Oct 18 06:04 ZAN-b2.md
+-rw-r--r-- 1 Wiks 197121 20824 Oct 18 08:10 ZAN-zan2-b1.md
+-rw-r--r-- 1 Wiks 197121 44337 Oct 18 06:24 b1.log
+-rw-r--r-- 1 Wiks 197121 36469 Oct 18 07:14 b1fix.log
+-rw-r--r-- 1 Wiks 197121 31160 Oct 18 08:36 b1fix2.log
+-rw-r--r-- 1 Wiks 197121 53233 Oct 18 05:22 b2.log
+-rw-r--r-- 1 Wiks 197121 37132 Oct 18 04:57 explorer-aura.log
+-rwxr-xr-x 1 Wiks 197121   300 Oct 18 06:13 run-b1-restart.sh
+-rwxr-xr-x 1 Wiks 197121   293 Oct 18 04:59 run-b1.sh
+-rwxr-xr-x 1 Wiks 197121   281 Oct 18 07:04 run-b1fix.sh
+-rwxr-xr-x 1 Wiks 197121   276 Oct 18 08:27 run-b1fix2.sh
+-rwxr-xr-x 1 Wiks 197121   284 Oct 18 04:59 run-b2.sh
+-rwxr-xr-x 1 Wiks 197121   282 Oct 18 06:30 run-zan-b1.sh
+-rwxr-xr-x 1 Wiks 197121   307 Oct 18 05:49 run-zan-b2.sh
+-rwxr-xr-x 1 Wiks 197121   287 Oct 18 07:52 run-zan2-b1.sh
+-rwxr-xr-x 1 Wiks 197121   287 Oct 18 08:45 run-zan3-b1.sh
+-rw-r--r-- 1 Wiks 197121 46373 Oct 18 06:46 zan-b1.log
+-rw-r--r-- 1 Wiks 197121 37093 Oct 18 06:04 zan-b2.log
+-rwxr-xr-x 1 Wiks 197121  8247 Oct 18 08:08 zan2-b1-smoke.cjs
+-rw-r--r-- 1 Wiks 197121 52091 Oct 18 08:10 zan2-b1.log
+-rw-r--r-- 1 Wiks 197121   853 Oct 18 08:46 zan3-b1.log
+---GIT STATUS ZONE---
+ M extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+ M extensions/aura-kotlin/src/android.ts
+ M extensions/aura-kotlin/src/deviceScreen.ts
+---GIT STATUS ALL (для следов параллельного билдера)---
+ M ORCHESTRATOR.md
+ M aura-team-server/deploy/Caddyfile
+ M aura-team-server/deploy/server-setup.sh
+ M aura-team-server/scripts/start-local.mjs
+ M aura-team-server/src/config.ts
+ M aura-team-server/src/routes/aggg.ts
+ M aura-team-server/src/routes/auth.ts
+ M aura-team-server/src/routes/keys.ts
+ M aura-team-server/src/routes/teams.ts
+ M aura-team-server/src/server.ts
+ M aura-team-server/test/admin.test.ts
+ M aura-team-server/test/key-probe.test.ts
+ M aura-team-server/test/server.test.ts
+ M build/gulpfile.extensions.ts
+ M build/lib/asar.ts
+ M build/lib/preLaunch.ts
+ M extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+ M extensions/aura-kotlin/src/android.ts
+ M extensions/aura-kotlin/src/deviceScreen.ts
+ M extensions/aura-orca/package.json
+ M extensions/aura-serverkit/package.json
+ M extensions/aura-team/package-lock.json
+ M extensions/aura-team/package.json
+ M extensions/aura-team/src/api/client.ts
+ M extensions/aura-team/src/extension.ts
+ M extensions/aura-team/src/git/service.ts
+ M extensions/aura-team/src/git/workflow.ts
+ M extensions/aura-team/src/webview/panelProvider.ts
+ M extensions/aura-team/src/webview/template.html
+ M extensions/aura-team/test/sidebar-syntax.test.mjs
+ M extensions/langgraph-orchestrator/src/host.ts
+ M extensions/langgraph-orchestrator/src/panel/template.html
+ M extensions/langgraph-orchestrator/src/tools/index.ts
+ M extensions/langgraph-orchestrator/test/panel-preview.mjs
+ M src/vs/base/node/nls.ts
+ M src/vs/monaco.d.ts
+ M src/vs/workbench/browser/parts/editor/editorGroupWatermark.ts
+ M src/vs/workbench/browser/parts/editor/media/editorgroupview.css
+ M src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css
+ M src/vs/workbench/contrib/aggg/browser/aggg.contribution.ts
+ M src/vs/workbench/contrib/aggg/browser/agggVersionWidget.ts
+ M src/vs/workbench/contrib/aggg/common/agggEntitlements.ts
+ M src/vs/workbench/contrib/aggg/test/common/agggEntitlements.test.ts
+ M src/vs/workbench/contrib/auraApi/browser/auraApi.contribution.ts
+ M src/vs/workbench/contrib/auraApi/browser/auraApiTools.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiChatTools.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiKeys.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiModel.ts
+ M src/vs/workbench/contrib/auraI18n/browser/auraLanguage.contribution.ts
+ M src/vs/workbench/contrib/auraMarket/browser/auraMarketEditorPane.ts
+> build · glm-5.3-prime
+Смоук-скрипт целый: тест-логика не ослаблена (S2 требует `true` при first_mb=0, S1 — кадры из конвейера), гоняет собранный `out/deviceScreen.js`. Дата правки скрипта 08:08 — раньше DONE (08:36), подгонки под результат не видно. Git-статус зоны: ровно 3 файла, чужие зоны не задеты.
+
+Прогоняю смоук и tsc параллельно, проверяю .js.map:
+[0m$ [0mcd "C:/new-aura-ide/vscode-main" && node docs/swarm/zan2-b1-smoke.cjs 2>&1; echo "SMOKE_EXIT=$?"
+PASS S2 isFirstSlice(first_mb=0)===true — buf[headerEnd] — это NAL-заголовок (F|NRI|Type), а не slice header
+PASS S2b isFirstSlice(first_mb=1)===false
+PASS S1 кадров >= 3 (AU-парсер жив) — фактически 3: видео в webview не поедет вообще
+PASS S1b многослайсный кадр не разрезан — кадр3 = слайс А + слайс Б в одном AU
+PASS S1c video-config отправлен — кодек-строка из SPS
+PASS S1d первый AU key, остальные delta
+PASS S3 после трёх fallbackToImages ровно один image-луп (ZAN-5) — макс. параллельных captureScreen в стабильном окне: 1
+PASS S4 start() до ready не стартует стрим (ZAN-9) — streaming=false, captures=0
+PASS S4b после ready start() стартует
+PASS S5 CSP default-src none
+PASS S5b script nonce
+PASS S5c avc-плацебо удалено
+PASS S5d MODE_TITLES через data-атрибуты
+PASS S5e node --check webview-скрипта
+
+ИТОГ: все проверки зелёные
+SMOKE_EXIT=0
+[0m$ [0mcd "C:/new-aura-ide/vscode-main" && npx tsc --noEmit -p extensions/aura-kotlin/tsconfig.json 2>&1; echo "TSC_EXIT=$?" && ls extensions/aura-kotlin/out/ 2>/dev/null | head -30 && echo "---js.map files---" && find extensions/aura-kotlin/out -name "*.js.map" 2>/dev/null | wc -l && echo "---dates---" && ls -la extensions/aura-kotlin/out/deviceScreen.js extensions/aura-kotlin/src/deviceScreen.ts
+npm warn Unknown project config "disturl". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "target". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "ms_build_id". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "runtime". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "build_from_source". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "timeout". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown user config "msvs_spectre_mitigation". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+TSC_EXIT=0
+android.js
+avdForm.js
+classpath.js
+debugAdapter.js
+deviceScreen.js
+extension.js
+gradle.js
+javaInstall.js
+javaLsp.js
+javaProject.js
+javaSources.js
+javaUris.js
+jdwp.js
+l10n.js
+lsp.js
+lspClient.js
+lspInstall.js
+projectWizard.js
+ui.js
+zipMember.js
+---js.map files---
+0
+---dates---
+-rw-r--r-- 1 Wiks 197121 38835 Oct 18 08:34 extensions/aura-kotlin/out/deviceScreen.js
+-rw-r--r-- 1 Wiks 197121 35179 Oct 18 08:32 extensions/aura-kotlin/src/deviceScreen.ts
+> build · glm-5.3-prime
+Смоук 14/14 exit 0, tsc exit 0, .js.map — 0. Теперь проверяю эмит построчно (не верю номерам строк из DONE — сверяю сам) и пересобираю для контроля детерминированности, параллельно смотрю диффы зоны:
+[0m$ [0mcd "C:/new-aura-ide/vscode-main" && md5sum extensions/aura-kotlin/out/deviceScreen.js && grep -n "headerEnd + 1" extensions/aura-kotlin/out/deviceScreen.js && echo "---skipUntilKey---" && grep -n "skipUntilKey" extensions/aura-kotlin/out/deviceScreen.js && echo "---configure count---" && grep -n "configure" extensions/aura-kotlin/out/deviceScreen.js && echo "---rotated---" && grep -n "this.rotated\|rotated = " extensions/aura-kotlin/out/deviceScreen.js && echo "---setMode in output callback---" && grep -n "setMode('video')" extensions/aura-kotlin/out/deviceScreen.js && echo "---img load layout---" && grep -n "addEventListener('load'" extensions/aura-kotlin/out/deviceScreen.js
+caab414acac0afb0b36df17985a8c843 *extensions/aura-kotlin/out/deviceScreen.js
+281:     *  с first_mb_in_slice начинается байтом позже — читаем buf[headerEnd + 1]. */
+283:        return headerEnd + 1 < buf.length && (buf[headerEnd + 1] & 0x80) !== 0;
+---skipUntilKey---
+491:	let skipUntilKey = false; // перегрузка декодера: дропаем всё до первого ключевого кадра
+531:		skipUntilKey = false;
+558:		if (!skipUntilKey && decoder.decodeQueueSize > 60) {
+564:			skipUntilKey = true;
+574:		if (skipUntilKey) {
+576:			skipUntilKey = false; // ключевой кадр дошёл — декодируем с чистого декодера
+---configure count---
+345:    /** Кодек-строка avc1.PPCCLL для VideoDecoder.configure из первых байт SPS. */
+490:	let lastCodec = null;    // кодек последнего configure — нужен для повторного configure после reset()
+552:		decoder.configure({ codec: codec, optimizeForLatency: true });
+560:			// включая конфигурацию (state → "unconfigured"), поэтому без повторного
+561:			// configure следующий decode() гарантированно бросит InvalidStateError.
+567:				decoder.configure({ codec: lastCodec, optimizeForLatency: true });
+---rotated---
+77:    rotated = false;
+216:                    void this.startVideo(this.rotated);
+366:        this.rotated = true; // действует и на 180-с автоперезапуски: --size после поворота вреден
+---setMode in output callback---
+542:				if (mode !== 'video') { setMode('video'); }
+---img load layout---
+702:	img.addEventListener('load', layout);
+[0m$ [0mcd "C:/new-aura-ide/vscode-main" && git diff --stat extensions/aura-kotlin/ && echo "===L10N DIFF===" && git diff extensions/aura-kotlin/l10n/bundle.l10n.ru.json | head -60 && echo "===ANDROID DIFF (контекст 466)===" && git diff extensions/aura-kotlin/src/android.ts | head -40
+warning: in the working copy of 'extensions/aura-kotlin/src/deviceScreen.ts', LF will be replaced by CRLF the next time Git touches it
+ extensions/aura-kotlin/l10n/bundle.l10n.ru.json |   2 +
+ extensions/aura-kotlin/src/android.ts           |   9 +-
+ extensions/aura-kotlin/src/deviceScreen.ts      | 539 +++++++++++++++++++++---
+ 3 files changed, 500 insertions(+), 50 deletions(-)
+===L10N DIFF===
+diff --git a/extensions/aura-kotlin/l10n/bundle.l10n.ru.json b/extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+index f38b67c2..652be4fc 100644
+--- a/extensions/aura-kotlin/l10n/bundle.l10n.ru.json
++++ b/extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+@@ -110,6 +110,8 @@
+ 	"Type text…": "Ввести текст…",
+ 	"Send": "Отправить",
+ 	"Device offline — reconnecting…": "Устройство офлайн — переподключение…",
++	"Live video stream": "Живой видеопоток",
++	"Screenshot stream (fallback)": "Поток скриншотов (фолбэк)",
+ 	"File {0} already exists.": "Файл {0} уже существует.",
+ 	"Open a workspace first.": "Сначала откройте workspace.",
+ 	"File template": "Шаблон файла",
+===ANDROID DIFF (контекст 466)===
+diff --git a/extensions/aura-kotlin/src/android.ts b/extensions/aura-kotlin/src/android.ts
+index 3f6f262b..6380b258 100644
+--- a/extensions/aura-kotlin/src/android.ts
++++ b/extensions/aura-kotlin/src/android.ts
+@@ -463,8 +463,13 @@ export class AndroidPanel implements vscode.Disposable {
+ 	async screenSize(device: string): Promise<{ width: number; height: number } | undefined> {
+ 		try {
+ 			const text = await this.adb('-s', device, 'shell', 'wm', 'size');
+-			const match = /(\d+)x(\d+)/.exec(text);
+-			if (match) { return { width: Number(match[1]), height: Number(match[2]) }; }
++			// Берём последнее совпадение: при заданном Override size действующий размер буфера —
++			// именно он, а Physical size (первая строка) тогда не актуален. Оба значения wm
++			// отдаёт в НАТИВНОЙ ориентации устройства — после поворота оси местами НЕ меняются,
++			// поэтому результат годится для раскладки, но не как размер для screenrecord --size.
++			const matches = [...text.matchAll(/(\d+)x(\d+)/g)];
++			const last = matches[matches.length - 1];
++			if (last) { return { width: Number(last[1]), height: Number(last[2]) }; }
+ 		} catch { /* устройство недоступно */ }
+ 		return undefined;
+ 	}
+> build · glm-5.3-prime
+Эмит содержит все заявленные правки, номера строк из DONE совпали с реальными (out:283, 491–576, 552/567). Диффы зоны чистые, чужие зоны не тронуты.
+
+Финальный контроль — детерминированность эмита (пересборка, md5 до/после) и tsconfig на sourceMap:
+[0m$ [0mcd "C:/new-aura-ide/vscode-main" && grep -n "sourceMap\|outDir" extensions/aura-kotlin/tsconfig.json && echo "---rebuild---" && npx tsc -p extensions/aura-kotlin/tsconfig.json 2>&1; echo "TSC_EMIT_EXIT=$?" && md5sum extensions/aura-kotlin/out/deviceScreen.js && ls -la extensions/aura-kotlin/out/deviceScreen.js && find extensions/aura-kotlin/out -name "*.js.map" | wc -l
+5:		"outDir": "./out",
+---rebuild---
+npm warn Unknown project config "disturl". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "target". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "ms_build_id". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "runtime". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "build_from_source". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "timeout". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown user config "msvs_spectre_mitigation". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+TSC_EMIT_EXIT=0
+caab414acac0afb0b36df17985a8c843 *extensions/aura-kotlin/out/deviceScreen.js
+-rw-r--r-- 1 Wiks 197121 38835 Oct 18 08:47 extensions/aura-kotlin/out/deviceScreen.js
+0
+> build · glm-5.3-prime
+Всё воспроизвелось: эмит детерминирован (md5 `caab414a…` идентичен до/после пересборки), мапы не регенерятся. Читаю промпт своего задания и лог билдера для сверки заявлений:
+[0m→ [0mRead docs/swarm/PROMPT-zan3-b1.md 
+[0m$ [0mcd "C:/new-aura-ide/vscode-main" && grep -n "exit\|PASS\|FAIL\|js.map\|VideoDecoder" docs/swarm/b1fix2.log | head -40
+17:-rw-r--r-- 1 Wiks 197121 87836 2026-10-15 20:11 android.js.map
+19:-rw-r--r-- 1 Wiks 197121 22708 2026-10-15 20:11 avdForm.js.map
+21:-rw-r--r-- 1 Wiks 197121 64849 2026-10-15 20:11 classpath.js.map
+23:-rw-r--r-- 1 Wiks 197121 64159 2026-10-15 20:11 debugAdapter.js.map
+25:-rw-r--r-- 1 Wiks 197121 15866 2026-10-15 20:11 deviceScreen.js.map
+27:-rw-r--r-- 1 Wiks 197121 19087 2026-10-15 20:11 extension.js.map
+29:-rw-r--r-- 1 Wiks 197121 23827 2026-10-15 20:11 gradle.js.map
+31:-rw-r--r-- 1 Wiks 197121 26475 2026-10-15 20:11 javaInstall.js.map
+137: 	/** Webview сообщил, что WebCodecs (VideoDecoder) доступен. */
+150: 			if (this.videoFails >= VIDEO_MAX_FAST_FAILS) { this.fallbackToImages(); return; }
+209: 		decoder = new VideoDecoder({
+297: 	vscode.postMessage({ type: 'ready', codecs: typeof VideoDecoder !== 'undefined' });
+340:[0m$ [0mnpx tsc --noEmit -p extensions/aura-kotlin/tsconfig.json; echo "noEmit exit=$?"
+348:noEmit exit=0
+350:[0m$ [0mnpx tsc -p extensions/aura-kotlin/tsconfig.json 2>&1 | grep -v "npm warn"; echo "emit exit=$?"; ls -la --time-style=long-iso extensions/aura-kotlin/out/deviceScreen.js; echo ---; ls extensions/aura-kotlin/out/*.js.map 2>/dev/null | wc -l
+351:emit exit=1
+356:[0m$ [0mnpx tsc -p extensions/aura-kotlin/tsconfig.json 2>/dev/null; echo "emit exit=$?"; rm -f extensions/aura-kotlin/out/*.js.map && echo "stale maps removed: $(ls extensions/aura-kotlin/out/*.js.map 2>/dev/null | wc -l) left"
+357:emit exit=0
+360:[0m$ [0mnode docs/swarm/zan2-b1-smoke.cjs; echo "SMOKE exit=$?"
+361:PASS S2 isFirstSlice(first_mb=0)===true — buf[headerEnd] — это NAL-заголовок (F|NRI|Type), а не slice header
+362:PASS S2b isFirstSlice(first_mb=1)===false
+363:PASS S1 кадров >= 3 (AU-парсер жив) — фактически 3: видео в webview не поедет вообще
+364:PASS S1b многослайсный кадр не разрезан — кадр3 = слайс А + слайс Б в одном AU
+365:PASS S1c video-config отправлен — кодек-строка из SPS
+366:PASS S1d первый AU key, остальные delta
+367:PASS S3 после трёх fallbackToImages ровно один image-луп (ZAN-5) — макс. параллельных captureScreen в стабильном окне: 1
+368:PASS S4 start() до ready не стартует стрим (ZAN-9) — streaming=false, captures=0
+369:PASS S4b после ready start() стартует
+370:PASS S5 CSP default-src none
+371:PASS S5b script nonce
+372:PASS S5c avc-плацебо удалено
+373:PASS S5d MODE_TITLES через data-атрибуты
+374:PASS S5e node --check webview-скрипта
+377:SMOKE exit=0
+379:Все 14 проверок зелёные, exit 0. Сверяю, что правки доехали до эмита, и беру точные строки для отчёта:
+448: 3. **MAJOR: 180-с рестарт после поворота — ЗАКРЫТ.** Флаг `rotated` (:46), ставится в `afterRotate` (:286), exit-рестарт зовёт `startVideo(this.rotated)` (:163) — `--size` после поворота не передаётся до конца сессии.
+467: 8. **Стейл `out/*.js.map` от Oct 15 (minor 7) — ЗАКРЫТ.** sourceMap в tsconfig нет → мапы-сироты; 20 шт. удалены, билд их не регенерит (проверено эмитом).
+477:**Смоук Зана: `node docs/swarm/zan2-b1-smoke.cjs` → exit 0, 14/14 PASS** (было 4 FAIL). `npx tsc --noEmit` → exit 0. Ничего не закоммичено.
+482:3. **MAJOR 180-с рестарт** — флаг `rotated` (:46, ставится в afterRotate :286), exit-рестарт зовёт `startVideo(this.rotated)` (:163) — `--size` после поворота не уходит никогда.
+485:**По остатку:** врущий комментарий `android.ts:466` переписан честно (wm size не поворачивается); `setMode('video')` переехал в первый декодированный кадр (закрывает окно canvas 300×150); `img.addEventListener('load', layout)`; 20 сиротских `.js.map` от Oct 15 удалены (sourceMap в конфиге нет — билд их не регенерит).
+> build · glm-5.3-prime
+Лог билдера совпадает с моим живым прогоном — 14/14, exit 0. Все проверки завершены, пишу вердикт:
+[0m← [0mWrite docs/swarm/ZAN-zan3-b1.md
+Created file successfully: docs/swarm/ZAN-zan3-b1.md
+> build · glm-5.3-prime
+Отчёт записан: `docs/swarm/ZAN-zan3-b1.md`.
+
+**Вердикт: ACCEPT.**
+
+**Что проверил живьём (не по цифрам из DONE):**
+
+| Гейт | Мой результат | Заявка DONE |
+|---|---|---|
+| `npx tsc --noEmit` | exit 0 | exit 0 ✓ |
+| `npx tsc` эмит | exit 0, md5 `caab414a…` идентичен при пересборке | exit 0 ✓ |
+| `node docs/swarm/zan2-b1-smoke.cjs` | **14/14 PASS, exit 0**, S1 «фактически 3» кадра | 14/14 ✓ |
+| `.js.map` | 0 файлов, пересборка не регенерит | 20 удалены ✓ |
+| git-статус зоны | ровно 3 файла, чужие зоны не тронуты | то же ✓ |
+
+**По пунктам:** все 4 из «минимума» закрыты и подтверждены построчно в src + эмите + смоуке — off-by-one (`src:216` → эмит out:283), reset+configure в feedChunk (skipUntilKey, эмит 558–576), флаг `rotated` для 180-с рестарта, порядок приоритета порога тапа. Minor из остатка тоже: комментарий `android.ts:466` теперь говорит правду, `setMode('video')` переехал в output-колбэк первого кадра, `img.addEventListener('load', layout)`, мапы вычищены.
+
+**Вранья в evidence не нашёл** — все номера строк и цифры воспроизвелись. Смоук-скрипт не подгонялся (mtime 08:08 раньше DONE 08:36, тест-логика не ослаблена). Два наблюдения не-блокера: skipUntilKey без тайм-аута на ключ (самовосстановление через 180-с рестарт, риск принят моим же фиксом) и остающийся escape-нит ZAN-10 — DONE его честно признал долгом.
+
+Зона b1 восстановлена: видеотракт снова эмитит кадры, многослайсные AU собираются целиком.

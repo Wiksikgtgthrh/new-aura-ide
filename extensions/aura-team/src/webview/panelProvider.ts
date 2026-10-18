@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { randomUUID } from 'crypto';
 import { AuraState } from '../types';
 
 /**
@@ -51,11 +52,24 @@ export class AuraTeamPanelProvider implements vscode.CustomReadonlyEditorProvide
 		panel.onDidDispose(() => this.panels.delete(panel));
 
 		panel.webview.options = { enableScripts: true };
-		const nonce = String(Date.now()) + '-' + Math.floor(Math.random() * 1e9);
-		let html = fs.readFileSync(path.join(this.extensionUri.fsPath, 'src', 'webview', 'template.html'), 'utf8');
+		// Nonce — единственная защита CSP от инъекций HTML, поэтому только crypto-случайность:
+		// Date.now()+Math.random предсказуем и подбирается.
+		const nonce = randomUUID();
+		// Сборка кладёт шаблон в out/webview, исходник остаётся в src/webview; packaged-поставка
+		// содержит только out/ — читать один src/ означало бы мёртвую вкладку в проде.
+		const templatePath = [path.join(this.extensionUri.fsPath, 'out', 'webview', 'template.html'), path.join(this.extensionUri.fsPath, 'src', 'webview', 'template.html')]
+			.find(candidate => fs.existsSync(candidate));
+		if (!templatePath) { throw new Error('template.html not found in out/webview or src/webview'); }
+		let html = fs.readFileSync(templatePath, 'utf8');
 		html = html.split('__NONCE__').join(nonce);
-		html = html.split('__INITIAL_VIEW__').join(initialView);
-		if (filter) { html = html.split('__INITIAL_FILTER__').join(JSON.stringify(filter).replace(/</g, '\\u003c')); } else { html = html.split('__INITIAL_FILTER__').join('null'); }
+		// __INITIAL_VIEW__ и __INITIAL_FILTER__ подставляются в JS-литералы в одинарных
+		// кавычках: без белого списка и экранирования ' и < строка из postMessage ломает
+		// литерал и исполняет произвольный код в webview.
+		const SAFE_VIEWS = new Set(['teams', 'keys', 'profile', 'board', 'git', 'files', 'admin', 'login', 'register', 'team']);
+		const safeView = SAFE_VIEWS.has(initialView) ? initialView : 'teams';
+		html = html.split('__INITIAL_VIEW__').join(safeView);
+		const filterJson = filter ? JSON.stringify(filter).replace(/</g, '\\u003c').replace(/'/g, '\\u0027') : 'null';
+		html = html.split('__INITIAL_FILTER__').join(filterJson);
 		panel.webview.html = html;
 
 		panel.webview.onDidReceiveMessage(async message => {

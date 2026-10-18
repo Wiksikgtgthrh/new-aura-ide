@@ -608,12 +608,15 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 	color: var(--muted);
 }
 
-/* Подвал карточки */
+/* Подвал карточки: мета — своей строкой, действия и тумблер — ниже.
+   Раньше всё лежало в одну строку, и на узкой карточке 4 кнопки + «Отключить»
+   слеплялись друг с другом. */
 .key-card-footer {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	justify-content: space-between;
-	gap: var(--sp-3);
+	gap: var(--sp-2) var(--sp-3);
 	margin-top: var(--sp-3);
 	padding-top: var(--sp-3);
 	border-top: 1px solid var(--border-soft);
@@ -625,19 +628,21 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 6px;
-	flex: 1;
+	flex: 1 1 100%;
 	min-width: 0;
+	overflow-wrap: anywhere;
 }
 
 /* Действия карточки — всегда видимые ghost-кнопки: скрытый до наведения контент не находят */
 .key-actions {
 	display: flex;
 	align-items: center;
+	flex-wrap: wrap;
 	gap: var(--sp-1);
-	flex: none;
+	flex: 1 1 auto;
 }
 .key-actions .key-act {
-	padding: 3px 10px;
+	padding: 3px 8px;
 	border: 1px solid var(--border);
 	border-radius: var(--r-ctl);
 	background: transparent;
@@ -663,6 +668,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--focus); box-shad
 /* Тумблер — правый нижний, всегда видимый */
 .key-card .switch {
 	flex: none;
+	margin-left: auto;
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
@@ -1102,6 +1108,7 @@ const DICT = {
 		inviteNoCode: 'Активного кода нет — создайте новый.',
 		inviteNobody: 'Никого не найдено.', inTeam: 'уже в команде', inviteSend: 'Пригласить',
 		inviteSentHint: 'код скопирован — отправьте ему', inviteCreateFirst: 'Сначала создайте инвайт-код',
+		inviteSentPersonal: 'приглашение отправлено',
 		noAuraApiPlugin: 'Плагин Aura API не установлен или в нём нет ключей', alreadyImported: 'уже импортирован',
 		newGroupHint: 'Группу можно создать в «Ещё → Новая группа»; ключ попадёт в неё сразу.',
 		'importReason.no-secret': 'в ключе нет сохранённого секрета',
@@ -1272,7 +1279,8 @@ const DICT = {
 		keysCount: 'ключей', keysNotResponding: 'не отвечают', keySearch: 'Поиск ключей…', keyStatus: 'Статус',
 		useInChat: 'В чат', enabled: 'Включён', deleteInactive: 'Удалить неактивные',
 		copyText: 'Список скопирован в буфер', copyFail: 'Не удалось скопировать',
-		actUse: 'В чат', actPing: 'Проверить', actEdit: 'Изменить', actDelete: 'Удалить',
+		actUse: 'В чат', actPing: 'Проверить', actReveal: 'Показать', actEdit: 'Изменить', actDelete: 'Удалить',
+		keyRevealTitle: 'Исходный ключ', keyRevealHint: 'Каждый показ ключа пишется в аудит команды.', keyRevealEmpty: 'У ключа нет сохранённого значения',
 		addKeyTitle: 'Новый ключ', keyValue: 'Значение ключа', keyValuePh: 'sk-…',
 	},
 	en: {
@@ -1299,6 +1307,7 @@ const DICT = {
 		inviteNoCode: 'No active code — create one.',
 		inviteNobody: 'Nobody found.', inTeam: 'already in team', inviteSend: 'Invite',
 		inviteSentHint: 'code copied — send it to them', inviteCreateFirst: 'Create an invite code first',
+		inviteSentPersonal: 'invitation sent',
 		noAuraApiPlugin: 'The Aura API plugin is not installed or has no keys', alreadyImported: 'already imported',
 		newGroupHint: 'Create a group via “More → New group”; the key lands in it right away.',
 		'importReason.no-secret': 'the key has no stored secret',
@@ -1448,8 +1457,8 @@ noFiles: 'No archives yet — upload the first one.',		archiveDone: 'Archive upl
 	usageRemaining: 'Proxy requests left today: {0} of {1}',
 	keysCount: 'keys', keysNotResponding: 'not responding', keySearch: 'Search keys…', keyStatus: 'Status',
 	useInChat: 'Use in chat', enabled: 'Enabled', deleteInactive: 'Delete inactive',
-	copyText: 'List copied to clipboard', copyFail: 'Copy failed',
-	actUse: 'Use in chat', actPing: 'Check', actEdit: 'Edit', actDelete: 'Delete',
+	copyText: 'List copied to clipboard', copyFail: 'Copy failed',		actUse: 'Use in chat', actPing: 'Check', actReveal: 'Show', actEdit: 'Edit', actDelete: 'Delete',
+		keyRevealTitle: 'Original key', keyRevealHint: 'Every reveal is recorded in the team audit.', keyRevealEmpty: 'The key has no stored value',
 	addKeyTitle: 'New key', keyValue: 'Key value', keyValuePh: 'sk-…',
 	noTeamSection: 'Pick a team in "My teams" — its content will appear here.',
 	githubConnected: 'GitHub connected', githubConnect: 'Connect GitHub',
@@ -1654,9 +1663,14 @@ async function openInviteMenu() {
 	renderInviteList(overlay, '');
 	const genBtn = overlay.querySelector('[data-gen-invite]');
 	genBtn?.addEventListener('click', async () => {
-		const res = await demo('auraTeam.createInvite', []);
-		if (res?.code) { inviteCache = res; copyText(res.code); toast(T('copied'), 'ok'); }
-		closeAndReopen();
+		// Защита от даблклика: пока запрос в полёте, кнопка мертва — иначе два клика
+		// создавали два кода и первый тут же отзывался вторым.
+		genBtn.disabled = true;
+		try {
+			const res = await demo('auraTeam.createInvite', []);
+			if (res?.code) { inviteCache = res; copyText(res.code); toast(T('copied'), 'ok'); }
+			closeAndReopen();
+		} catch (err) { toast(String(err && err.message || err), 'err'); genBtn.disabled = false; }
 	});
 	wireInviteActions(overlay);
 }
@@ -1664,9 +1678,18 @@ function wireInviteActions(overlay) {
 	overlay.querySelectorAll('[data-copy-invite]').forEach((btn) => btn.addEventListener('click', (e) => copyText(e.currentTarget.dataset.copyInvite)));
 	const revoke = overlay.querySelector('[data-revoke-invite]');
 	revoke?.addEventListener('click', async () => {
-		await demo('auraTeam.revokeInvite', []);
-		inviteCache = { code: null };
-		closeAndReopen();
+		// Кнопка называется «Пересоздать», но раньше только отзывала код — человек
+		// оставался без работающей ссылки. Теперь честно: отозвать → выдать новый.
+		// Если в подтверждении расширения нажали «Отмена» ({cancelled}) — не трогаем ничего.
+		revoke.disabled = true;
+		try {
+			const revoked = await demo('auraTeam.revokeInvite', []);
+			if (revoked?.cancelled) { return; }
+			const res = await demo('auraTeam.createInvite', []);
+			inviteCache = res?.code ? res : { code: null };
+			if (res?.code) { copyText(res.code); toast(T('copied'), 'ok'); }
+			closeAndReopen();
+		} catch (err) { toast(String(err && err.message || err), 'err'); } finally { revoke.disabled = false; }
 	});
 }
 async function closeAndReopen() { document.getElementById('modalRoot').querySelectorAll('.overlay').forEach((o) => o.remove()); await openInviteMenu(); }
@@ -1676,19 +1699,26 @@ async function renderInviteList(overlay, q) {
 	list.innerHTML = `<div class="hint">${esc(T('loading'))}</div>`;
 	let users = [];
 	try { users = await demo('auraTeam.directory', [q]) || []; } catch { users = []; }
-	list.innerHTML = users.length === 0 ? `<div class="hint">${esc(T('inviteNobody'))}</div>` : users.map((u) => `
-		<div class="invite-user" data-uid="${esc(u.id)}" data-uname="${esc(u.displayName)}">
-			<span class="avatar sm" style="background:${avatarColor(u.id)}">${esc((u.displayName || '?').slice(0, 1).toUpperCase())}</span>
-			<span class="invite-user-name">${esc(u.displayName)}${u.email ? ` <span class="dim">· ${esc(u.email)}</span>` : ''}</span>
-			${u.inTeam ? `<span class="pill">${esc(T('inTeam'))}</span>` : `<button class="btn ghost sm" data-invite-user="${esc(u.id)}">${esc(T('inviteSend'))}</button>`}
-		</div>`).join('');
-	list.querySelectorAll('[data-invite-user]').forEach((btn) => btn.addEventListener('click', (e) => {
-		const row = e.currentTarget.closest('[data-uid]');
-		e.stopPropagation();
-		demo('auraTeam.selectTeam', [state.teamId], false);
-		copyText((inviteCache.code || ''));
-		toast(inviteCache.code ? `${esc(row.dataset.uname)}: ${T('inviteSentHint')}` : T('inviteCreateFirst'), inviteCache.code ? 'ok' : '');
-	}));
+		list.innerHTML = users.length === 0 ? `<div class="hint">${esc(T('inviteNobody'))}</div>` : users.map((u) => `
+			<div class="invite-user" data-uid="${esc(u.id)}" data-uname="${esc(u.displayName)}">
+				<span class="avatar sm" style="background:${esc(avatarColor(u.id))}">${esc((u.displayName || '?').slice(0, 1).toUpperCase())}</span>
+				<span class="invite-user-name">${esc(u.displayName)}${u.email ? ` <span class="dim">· ${esc(u.email)}</span>` : ''}</span>
+				${u.inTeam ? `<span class="pill">${esc(T('inTeam'))}</span>` : `<button class="btn ghost sm" data-invite-user="${esc(u.id)}">${esc(T('inviteSend'))}</button>`}
+			</div>`).join('');
+		list.querySelectorAll('[data-invite-user]').forEach((btn) => btn.addEventListener('click', async (e) => {
+			const row = e.currentTarget.closest('[data-uid]');
+			e.stopPropagation();
+			// Отправляем персональное приглашение выбранному человеку, а не копируем
+			// код команды: кнопка называлась «Пригласить», но раньше никого не приглашала.
+			btn.disabled = true; // даблклик не шлёт второе приглашение
+			try {
+				await demo('auraTeam.sendInvite', [row.dataset.uid]);
+				toast(`${esc(row.dataset.uname)}: ${T('inviteSentPersonal')}`, 'ok');
+			} catch (error) {
+				toast(String(error && error.message || error), '');
+				btn.disabled = false;
+			}
+		}));
 }
 
 /* ---------- Mock для демо-режима ---------- */
@@ -1773,10 +1803,34 @@ const viewBody = () => document.getElementById('viewBody');
 const badgeEl = () => document.getElementById('connBadge');
 const avatarBtn = () => document.getElementById('avatarBtn');
 
+// Канбан перерисовывается целиком на каждый broadcast (innerHTML), и без
+// восстановления скролла длинные колонки/доска прыгали наверх у пользователя
+// под руками. Скролл сохраняем только внутри того же раздела: смена route —
+// честный переход, там скролл с нуля.
+let lastMountedRoute = null;
+
 function mount(html) {
 	const keepInlineFocus = inlineFocusInForm();
 	const body = viewBody();
+	let scrollSnapshot = null;
+	if (lastMountedRoute === route) {
+		scrollSnapshot = {
+			body: body.scrollTop,
+			board: body.querySelector('.board')?.scrollLeft ?? 0,
+			columns: new Map([...body.querySelectorAll('.column-body[data-status]')].map((el) => [el.dataset.status, el.scrollTop]))
+		};
+	}
 	body.innerHTML = html;
+	if (scrollSnapshot) {
+		body.scrollTop = scrollSnapshot.body;
+		const board = body.querySelector('.board');
+		if (board) { board.scrollLeft = scrollSnapshot.board; }
+		body.querySelectorAll('.column-body[data-status]').forEach((el) => {
+			const top = scrollSnapshot.columns.get(el.dataset.status);
+			if (top) { el.scrollTop = top; }
+		});
+	}
+	lastMountedRoute = route;
 	// перезапуск анимации входа
 	const wrap = document.getElementById('view');
 	wrap.style.animation = 'none';
@@ -2272,7 +2326,7 @@ function taskCardHtml(task, board, needle, highlightId) {
 		: '';
 	const stamp = task.updatedAt || task.createdAt;
 	const ava = assignee
-		? `<span class="avatar-16" style="background:${flattenColor(assignee.id)}" title="${esc(assignee.displayName)}">${esc(initials(assignee.displayName))}</span>`
+			? `<span class="avatar-16" style="background:${esc(flattenColor(assignee.id))}" title="${esc(assignee.displayName)}">${esc(initials(assignee.displayName))}</span>`
 		: '';
 	return `<article class="task${dim ? ' dim' : ''}${task.id === highlightId ? ' highlight' : ''}" draggable="${editable ? 'true' : 'false'}" tabindex="0" role="listitem" aria-roledescription="${esc(T('taskCard'))}" aria-label="${esc(task.title)}" data-task="${esc(task.id)}" data-open-task="${esc(task.id)}" data-col="${esc(task.status)}">
 			<div class="task-top">
@@ -2367,7 +2421,7 @@ function renderMembers(board) {
 		</div>
 		<div class="card" style="--i:0">
 			${sorted.map((m, i) => `<div class="member" style="--i:${i}">
-				<div class="avatar-mini" style="background:${flattenColor(m.id === 'demo-me' ? state.profile?.avatarColor : m.id)}00;background:linear-gradient(135deg, ${flattenColor(m.id)}cc, ${flattenColor(m.id)}88)">${esc(initials(m.displayName))}
+				<div class="avatar-mini" style="background:${esc(flattenColor(m.id === 'demo-me' ? state.profile?.avatarColor : m.id))}00;background:linear-gradient(135deg, ${esc(flattenColor(m.id))}cc, ${esc(flattenColor(m.id))}88)">${esc(initials(m.displayName))}
 					<span class="presence ${m.online ? 'live' : 'off'}"></span>
 				</div>
 				<div class="meta">
@@ -3266,9 +3320,14 @@ function wireFiles() {
 		const archive = (state.archives ?? []).find((a) => a.id === b.dataset.dlArchive);
 		if (archive) { void downloadArchiveById(archive); }
 	}));
-	document.querySelectorAll('[data-del-archive]').forEach((b) => b.addEventListener('click', async (e) => {
+	document.querySelectorAll('[data-del-archive]').forEach((b) => b.addEventListener('click', (e) => {
 		e.stopPropagation();
-		try { await demo('auraTeam.deleteArchive', [b.dataset.delArchive]); state.archivesLoaded = false; state.archives = []; await ensureArchives(); render(); } catch (err) { toast(err.message, 'err'); }
+		// Удаление архива необратимо (в отличие от undo-тоста при удалении задачи):
+		// без подтверждения один промах по кнопке сносил файл команды безвозвратно.
+		const archive = (state.archives ?? []).find((a) => a.id === b.dataset.delArchive);
+		confirmAction(`${T('delete')} · ${archive?.name ?? b.dataset.delArchive}`, async () => {
+			try { await demo('auraTeam.deleteArchive', [b.dataset.delArchive]); state.archivesLoaded = false; state.archives = []; await ensureArchives(); render(); } catch (err) { toast(err.message, 'err'); }
+		});
 	}));
 	document.querySelectorAll('[data-download]').forEach((b) => b.addEventListener('click', async () => {
 		const project = state.board?.projects.find((p) => p.id === b.dataset.download);
@@ -3936,6 +3995,7 @@ function renderKeys() {
 				<div class="key-actions">
 					<button class="key-act" data-action="use" data-key="${idAttr}" title="${esc(T('useInChat'))}" aria-label="${esc(T('useInChat'))}">${esc(T('actUse'))}</button>
 					<button class="key-act" data-action="ping" data-key="${idAttr}" title="${esc(T('pingCheck'))}" aria-label="${esc(T('pingCheck'))}">${esc(T('actPing'))}</button>
+					<button class="key-act" data-action="reveal" data-key="${idAttr}" title="${esc(T('actReveal'))}" aria-label="${esc(T('actReveal'))}">${esc(T('actReveal'))}</button>
 					<button class="key-act" data-action="edit" data-key="${idAttr}" title="${esc(T('editKey'))}" aria-label="${esc(T('editKey'))}">${esc(T('actEdit'))}</button>
 					<button class="key-act danger" data-action="delete" data-key="${idAttr}" title="${esc(T('deleteKey'))}" aria-label="${esc(T('deleteKey'))}">${esc(T('actDelete'))}</button>
 				</div>
@@ -4187,6 +4247,24 @@ function wireKeys(prevSearch = '') {
 			} catch (err) { toast(err?.message || T('pingFail'), 'err'); }
 			btn.disabled = false;
 			btn.textContent = prevLabel;
+		});
+
+		// Показать исходный ключ: расшифрованное значение приходит только по явному
+		// запросу, каждый показ пишется в аудит команды (maintainer и выше).
+		card.querySelector('[data-action="reveal"]')?.addEventListener('click', async () => {
+			if (state.demoMode) { toast(T('demo')); return; }
+			try {
+				const value = await svc('auraTeam.revealApiKey', [keyId]) || '';
+				if (!value) { toast(T('keyRevealEmpty'), 'err'); return; }
+				openModal({
+					title: T('keyRevealTitle'), sub: key.label, actionText: T('copy'),
+					body: `<div class="field"><label>${esc(T('keyValue'))}</label><input data-reveal-value value="${esc(value)}" readonly spellcheck="false" autocomplete="off"></div><div class="hint">${esc(T('keyRevealHint'))}</div>`,
+					onAction: async () => {
+						try { await navigator.clipboard.writeText(value); toast(T('copied'), 'ok'); } catch { toast(T('copyFail'), 'err'); }
+						return false;
+					}
+				});
+			} catch (err) { toast(err?.message || T('pingFail'), 'err'); }
 		});
 
 		// Использовать в чате
@@ -4529,7 +4607,7 @@ function renderProfile() {
 	const cam = '<svg class="cam" viewBox="0 0 24 24" fill="none"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-9z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.2" stroke="currentColor" stroke-width="1.6"/></svg>';
 	const copyIco = '<svg viewBox="0 0 24 24" fill="none"><rect x="8" y="8" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M5 15V6a1 1 0 0 1 1-1h9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
 	const photoLabel = p.avatar ? T('changePhoto') : T('addPhoto');
-	const avatarInner = p.avatar ? `<img src="${p.avatar}" alt="">` : `<span class="ini">${esc(initials(p.nickname, 'A'))}</span>`;
+	const avatarInner = p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : `<span class="ini">${esc(initials(p.nickname, 'A'))}</span>`;
 	const desc = p.description || '';
 	const accountRows = [
 		signedIn ? `<div class="p-row"><div><div class="t">${esc(T('pfPassword'))}</div><div class="d">${esc(T('pfPasswordHint'))}</div></div>

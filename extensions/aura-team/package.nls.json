@@ -41,5 +41,20 @@
 	"command.push": "Push",
 	"command.pull": "Pull & Rebase",
 	"command.checkout": "Switch Branch",
-	"command.getState": "Get State (internal)"
+	"command.getState": "Get State (internal)",
+	"command.inviteOpen": "Invite to Team",
+	"command.syncNow": "Sync Now",
+	"command.toggleAutoPush": "Toggle Auto-Push",
+	"category.team": "Team",
+	"customEditor.displayName": "Team",
+	"configuration.autoStartServer": "Automatically start the local team server if it is not running (only for localhost serverUrl)",
+	"configuration.syncMode": "Auto-sync mode after saving files",
+	"configuration.syncMode.off": "Off — commits only manually",
+	"configuration.syncMode.ask": "Ask — after saving files, suggest a commit message (Enter — commit and push, Esc — postpone)",
+	"configuration.syncMode.auto": "Automatic — commit and push without asking",
+	"configuration.syncAutoPush": "Automatically commit and push all changes after saving files (legacy — use auraTeam.sync.mode)",
+	"configuration.syncIntervalSeconds": "How often to pull changes from GitHub (seconds)",
+	"configuration.syncCommitTemplate": "Commit message template for auto-push. Supports {files} and {date}",
+	"configuration.gitTestCommand": "Command for the 'Run tests' button in the team process (empty — detect automatically: npm test, cargo test, go test, pytest, make test)",
+	"configuration.uiLanguage.auto": "Aura language switch (aura.language), otherwise the IDE language"
 }

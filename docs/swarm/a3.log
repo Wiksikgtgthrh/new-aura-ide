@@ -1,0 +1,1032 @@
+[0m
+> build · deepseek-v4-pro
+Сэр, начинаю разбор. Сначала читаю REVIEW-AURA.md, затем разведка файлов.
+[0m→ [0mRead docs/swarm/REVIEW-AURA.md 
+> build · deepseek-v4-pro
+Понял, сэр. Читаю все затронутые файлы параллельно.
+[0m→ [0mRead extensions/aura-kotlin/src/avdForm.ts 
+[0m→ [0mRead extensions/aggg-agent/out/extension.js 
+[0m✱ [0mGlob "extensions/aura-serverkit/**/*" [90m100 matches[0m
+[0m✱ [0mGlob "extensions/aggg-agent/**/*.ts" [90m0 matches[0m
+[0m✱ [0mGlob "extensions/aura-team/package.nls*.json" [90m2 matches[0m
+> build · deepseek-v4-pro
+Теперь читаю референсные файлы для понимания структуры nls.
+[0m→ [0mRead extensions/aura-kotlin/package.nls.ru.json 
+[0m→ [0mRead extensions/aura-team/package.json 
+[0m→ [0mRead extensions/aura-serverkit/package.json 
+[0m→ [0mRead extensions/aura-kotlin/src/l10n.ts 
+[0m→ [0mRead extensions/aura-kotlin/package.nls.json 
+[0m→ [0mRead extensions/aura-team/package.nls.ru.json 
+[0m→ [0mRead extensions/aura-serverkit/package.nls.json 
+> build · deepseek-v4-pro
+[0m✗ [0mRead extensions/aggg-agent/package.json failed
+[91m[1mError: [0mFile not found: C:\new-aura-ide\vscode-main\extensions\aggg-agent\package.json
+[0m→ [0mRead extensions/aura-team/src/extension.ts [90m[offset=140, limit=30][0m
+[0m→ [0mRead extensions/aura-kotlin/src/android.ts [90m[offset=645, limit=40][0m
+[0m✱ [0mGlob "extensions/aura-kotlin/l10n/*" [90m1 match[0m
+> build · deepseek-v4-pro
+[0m→ [0mRead extensions/aura-kotlin/l10n/bundle.l10n.ru.json 
+[0m✱ [0mGrep "demoBoardCache" [90min extensions/aura-team · 4 matches[0m
+[0m✱ [0mGlob "extensions/aggg-agent/*" [90m1 match[0m
+> build · deepseek-v4-pro
+[0m→ [0mRead extensions/aura-team/src/extension.ts [90m[offset=170, limit=50][0m
+[0m✱ [0mGlob "extensions/aggg-agent/**/*" [90m3 matches[0m
+> build · deepseek-v4-pro
+Теперь ищу, где сбрасывается демо-режим и где используется `aura.language`.
+[0m✱ [0mGrep "demoMode|demoBoardCache|signOut|signIn" [90min extensions/aura-team/src/extension.ts · 15 matches[0m
+[0m✱ [0mGrep "aura\.language" [90min extensions · 20 matches[0m
+> build · deepseek-v4-pro
+[0m→ [0mRead extensions/aura-team/src/extension.ts [90m[offset=630, limit=50][0m
+[0m✱ [0mGrep "function refresh|async function refresh" [90min extensions/aura-team/src/extension.ts · 0 matches[0m
+> build · deepseek-v4-pro
+[0m✱ [0mGrep "const refresh =|function refresh|let refresh =" [90min extensions/aura-team/src/extension.ts · 1 match[0m
+> build · deepseek-v4-pro
+[0m→ [0mRead extensions/aura-team/src/extension.ts [90m[offset=396, limit=50][0m
+> build · deepseek-v4-pro
+[0m→ [0mRead extensions/aura-team/src/extension.ts [90m[offset=445, limit=30][0m
+> build · deepseek-v4-pro
+Сэр, полная картина собрана. Приступаю к правкам. Сначала AURA-016 и AURA-017 (avdForm.ts).
+[0m← [0mEdit extensions/aura-kotlin/src/avdForm.ts
+Index: extensions/aura-kotlin/src/avdForm.ts
+===================================================================
+--- extensions/aura-kotlin/src/avdForm.ts
++++ extensions/aura-kotlin/src/avdForm.ts
+@@ -34,10 +34,9 @@
+ 			vscode.ViewColumn.Active,
+ 			{ enableScripts: true, retainContextWhenHidden: true },
+ 		);
+ 		this.panel.iconPath = new vscode.ThemeIcon('device-mobile');
+-		const nonce = String(Date.now()) + '-' + Math.floor(Math.random() * 1e9);
+-		this.panel.webview.html = this.html(nonce);
++		this.panel.webview.html = this.html(crypto.randomUUID());
+ 		this.panel.onDidDispose(() => { if (AvdCreateForm.current === this) { AvdCreateForm.current = undefined; } });
+ 		this.panel.webview.onDidReceiveMessage(message => void this.onMessage(message));
+ 	}
+ 
+
+> build · deepseek-v4-pro
+Теперь AURA-016: замена жёстких русских строк на `tr()`-ключи в HTML-шаблоне. Буду править порциями.
+[0m← [0mEdit extensions/aura-kotlin/src/avdForm.ts
+Index: extensions/aura-kotlin/src/avdForm.ts
+===================================================================
+--- extensions/aura-kotlin/src/avdForm.ts
++++ extensions/aura-kotlin/src/avdForm.ts
+@@ -112,9 +112,9 @@
+ 	private html(nonce: string): string {
+ 		return `<!doctype html><html><head><meta charset="utf-8">
+ <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+ <meta name="viewport" content="width=device-width, initial-scale=1">
+-<title>Новый эмулятор</title>
++<title>${tr('New emulator')}</title>
+ <style>
+ :root {
+ 	--sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+ 	--r-ctl: 6px; --r-card: 10px;
+
+> build · deepseek-v4-pro
+[0m← [0mEdit extensions/aura-kotlin/src/avdForm.ts
+Index: extensions/aura-kotlin/src/avdForm.ts
+===================================================================
+--- extensions/aura-kotlin/src/avdForm.ts
++++ extensions/aura-kotlin/src/avdForm.ts
+@@ -203,10 +203,10 @@
+ 	*, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+ }
+ </style></head><body>
+ <div class="shell">
+-	<h1>Новый эмулятор (AVD)</h1>
+-	<p class="sub">Модель телефона, версия Android и имя — эмулятор появится в панели Android.</p>
++	<h1>${tr('New emulator (AVD)')}</h1>
++	<p class="sub">${tr('Phone model, Android version and name — the emulator will appear in the Android panel.')}</p>
+ 
+ 	<div class="banner error" id="bannerError"></div>
+ 	<div class="banner ok" id="bannerOk"></div>
+ 
+
+> build · deepseek-v4-pro
+[0m← [0mEdit extensions/aura-kotlin/src/avdForm.ts
+Index: extensions/aura-kotlin/src/avdForm.ts
+===================================================================
+--- extensions/aura-kotlin/src/avdForm.ts
++++ extensions/aura-kotlin/src/avdForm.ts
+@@ -211,9 +211,9 @@
+ 	<div class="banner ok" id="bannerOk"></div>
+ 
+ 	<div class="card" id="form" style="display:none">
+ 		<div class="field">
+-			<label for="profile">Модель устройства</label>
++			<label for="profile">${tr('Device model')}</label>
+ 			<select id="profile"></select>
+ 		</div>
+ 		<div class="field">
+ 			<label for="image">Системный образ</label>
+
+> build · deepseek-v4-pro
+[0m← [0mEdit extensions/aura-kotlin/src/avdForm.ts
+Index: extensions/aura-kotlin/src/avdForm.ts
+===================================================================
+--- extensions/aura-kotlin/src/avdForm.ts
++++ extensions/aura-kotlin/src/avdForm.ts
+@@ -215,9 +215,9 @@
+ 			<label for="profile">${tr('Device model')}</label>
+ 			<select id="profile"></select>
+ 		</div>
+ 		<div class="field">
+-			<label for="image">Системный образ</label>
++			<label for="image">${tr('System image')}</label>
+ 			<select id="image"></select>
+ 			<span class="hint" id="archHint"></span>
+ 		</div>
+ 		<div class="field api-row" id="apiRow">
+
+> build · deepseek-v4-pro
+[0m← [0mEdit extensions/aura-kotlin/src/avdForm.ts
+Index: extensions/aura-kotlin/src/avdForm.ts
+===================================================================
+--- extensions/aura-kotlin/src/avdForm.ts
++++ extensions/aura-kotlin/src/avdForm.ts
+@@ -220,11 +220,11 @@
+ 			<select id="image"></select>
+ 			<span class="hint" id="archHint"></span>
+ 		</div>
+ 		<div class="field api-row" id="apiRow">
+-			<label for="api">API-уровень для скачивания</label>
++			<label for="api">${tr('API level to download')}</label>
+ 			<input type="text" id="api" value="35" maxlength="2" inputmode="numeric">
+-			<span class="hint">Образ скачается через sdkmanager (~1 ГБ), лицензии подтверждаются автоматически.</span>
++			<span class="hint">${tr('Image will be downloaded via sdkmanager (~1 GB), licenses are accepted automatically.')}</span>
+ 		</div>
+ 		<div class="field">
+ 			<label for="name">Имя эмулятора</label>
+ 			<input type="text" id="name" maxlength="40">
+
+> build · deepseek-v4-pro
+[0m← [0mEdit extensions/aura-kotlin/src/avdForm.ts
+Index: extensions/aura-kotlin/src/avdForm.ts
+===================================================================
+--- extensions/aura-kotlin/src/avdForm.ts
++++ extensions/aura-kotlin/src/avdForm.ts
+@@ -225,11 +225,11 @@
+ 			<input type="text" id="api" value="35" maxlength="2" inputmode="numeric">
+ 			<span class="hint">${tr('Image will be downloaded via sdkmanager (~1 GB), licenses are accepted automatically.')}</span>
+ 		</div>
+ 		<div class="field">
+-			<label for="name">Имя эмулятора</label>
++			<label for="name">${tr('Emulator name')}</label>
+ 			<input type="text" id="name" maxlength="40">
+-			<span class="hint">Буквы, цифры, точка, дефис и подчёркивание.</span>
++			<span class="hint">${tr('Letters, digits, dot, dash and underscore.')}</span>
+ 		</div>
+ 		<label class="check"><input type="checkbox" id="startAfter" checked> Запустить эмулятор после создания</label>
+ 		<div class="actions">
+ 			<button class="btn" id="btnCreate">Создать эмулятор</button>
+
+> build · deepseek-v4-pro
+[0m← [0mEdit extensions/aura-kotlin/src/avdForm.ts
+Index: extensions/aura-kotlin/src/avdForm.ts
+===================================================================
+--- extensions/aura-kotlin/src/avdForm.ts
++++ extensions/aura-kotlin/src/avdForm.ts
+@@ -229,11 +229,11 @@
+ 			<label for="name">${tr('Emulator name')}</label>
+ 			<input type="text" id="name" maxlength="40">
+ 			<span class="hint">${tr('Letters, digits, dot, dash and underscore.')}</span>
+ 		</div>
+-		<label class="check"><input type="checkbox" id="startAfter" checked> Запустить эмулятор после создания</label>
++		<label class="check"><input type="checkbox" id="startAfter" checked> ${tr('Start emulator after creation')}</label>
+ 		<div class="actions">
+-			<button class="btn" id="btnCreate">Создать эмулятор</button>
++			<button class="btn" id="btnCreate">${tr('Create emulator')}</button>
+ 			<div class="status" id="status"><span class="spinner"></span><span id="statusText"></span></div>
+ 		</div>
+ 	</div>
+ 	<div class="card" id="loading"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+
+> build · deepseek-v4-pro
+Теперь правлю строки в JS-части шаблона.
+[0m← [0mEdit extensions/aura-kotlin/src/avdForm.ts
+Index: extensions/aura-kotlin/src/avdForm.ts
+===================================================================
+--- extensions/aura-kotlin/src/avdForm.ts
++++ extensions/aura-kotlin/src/avdForm.ts
+@@ -280,9 +280,9 @@
+ 	if (pixel >= 0) { $('profile').selectedIndex = pixel; }
+ 	const sorted = [...data.images].sort((a, b) => Number(apiOf(b)) - Number(apiOf(a)));
+ 	$('image').innerHTML = sorted.map(i => '<option value="' + i + '">API ' + apiOf(i) + ' · ' + i + '</option>').join('')
+ 		+ '<option value="">Скачать новый образ…</option>';
+-	$('archHint').textContent = 'Архитектура: ' + data.arch;
++	$('archHint').textContent = '${tr('Architecture:')} ' + data.arch;
+ 	$('loading').style.display = 'none';
+ 	$('form').style.display = '';
+ 	suggestName();
+ }
+
+> build · deepseek-v4-pro
+[0m← [0mEdit extensions/aura-kotlin/src/avdForm.ts
+Index: extensions/aura-kotlin/src/avdForm.ts
+===================================================================
+--- extensions/aura-kotlin/src/avdForm.ts
++++ extensions/aura-kotlin/src/avdForm.ts
+@@ -279,9 +279,9 @@
+ 	const pixel = data.profiles.findIndex(p => /pixel/i.test(p.name));
+ 	if (pixel >= 0) { $('profile').selectedIndex = pixel; }
+ 	const sorted = [...data.images].sort((a, b) => Number(apiOf(b)) - Number(apiOf(a)));
+ 	$('image').innerHTML = sorted.map(i => '<option value="' + i + '">API ' + apiOf(i) + ' · ' + i + '</option>').join('')
+-		+ '<option value="">Скачать новый образ…</option>';
++		+ '<option value="">${tr('Download new system image…')}</option>';
+ 	$('archHint').textContent = '${tr('Architecture:')} ' + data.arch;
+ 	$('loading').style.display = 'none';
+ 	$('form').style.display = '';
+ 	suggestName();
+
+> build · deepseek-v4-pro
+[0m← [0mEdit extensions/aura-kotlin/src/avdForm.ts
+Index: extensions/aura-kotlin/src/avdForm.ts
+===================================================================
+--- extensions/aura-kotlin/src/avdForm.ts
++++ extensions/aura-kotlin/src/avdForm.ts
+@@ -297,14 +297,14 @@
+ 
+ $('btnCreate').addEventListener('click', () => {
+ 	if (state.busy) { return; }
+ 	const name = $('name').value.trim();
+-	if (!/^[\\w.-]+$/.test(name)) { showBanner('bannerError', 'Имя: только буквы, цифры, точка, дефис и подчёркивание.'); return; }
++	if (!/^[\\w.-]+$/.test(name)) { showBanner('bannerError', '${tr('Name: only letters, digits, dot, dash and underscore.')}'); return; }
+ 	const image = $('image').value;
+ 	const api = $('api').value.trim();
+-	if (!image && !/^\\d{2}$/.test(api)) { showBanner('bannerError', 'API-уровень — две цифры, например 35.'); return; }
++	if (!image && !/^\\d{2}$/.test(api)) { showBanner('bannerError', '${tr('API level — two digits, e.g. 35.')}'); return; }
+ 	setBusy(true);
+-	setStatus(image ? 'Создание эмулятора…' : 'Скачивание системного образа…');
++	setStatus(image ? '${tr('Creating emulator…')}' : '${tr('Downloading system image…')}');
+ 	vscode.postMessage({
+ 		type: 'create',
+ 		profileId: $('profile').value,
+ 		image,
+
+> build · deepseek-v4-pro
+[0m← [0mEdit extensions/aura-kotlin/src/avdForm.ts
+Index: extensions/aura-kotlin/src/avdForm.ts
+===================================================================
+--- extensions/aura-kotlin/src/avdForm.ts
++++ extensions/aura-kotlin/src/avdForm.ts
+@@ -319,9 +319,9 @@
+ 	if (msg.type === 'init') {
+ 		if (msg.data.ok) { fillForm(msg.data); }
+ 		else {
+ 			$('loading').style.display = 'none';
+-			showBanner('bannerError', msg.data.error || 'Не удалось получить данные SDK.');
++			showBanner('bannerError', msg.data.error || '${tr('Failed to get SDK data.')}');
+ 		}
+ 	} else if (msg.type === 'status') {
+ 		setStatus(msg.text);
+ 	} else if (msg.type === 'error') {
+
+> build · deepseek-v4-pro
+[0m← [0mEdit extensions/aura-kotlin/src/avdForm.ts
+Index: extensions/aura-kotlin/src/avdForm.ts
+===================================================================
+--- extensions/aura-kotlin/src/avdForm.ts
++++ extensions/aura-kotlin/src/avdForm.ts
+@@ -325,9 +325,9 @@
+ 	} else if (msg.type === 'status') {
+ 		setStatus(msg.text);
+ 	} else if (msg.type === 'error') {
+ 		setBusy(false);
+-		showBanner('bannerError', msg.text || 'Ошибка создания эмулятора.');
++		showBanner('bannerError', msg.text || '${tr('Emulator creation error.')}');
+ 	} else if (msg.type === 'done') {
+ 		setBusy(false);
+ 		setStatus('');
+ 		showBanner('bannerOk', 'Эмулятор «' + msg.name + '» создан и уже в списке панели Android.');
+
+> build · deepseek-v4-pro
+[0m← [0mEdit extensions/aura-kotlin/src/avdForm.ts
+Index: extensions/aura-kotlin/src/avdForm.ts
+===================================================================
+--- extensions/aura-kotlin/src/avdForm.ts
++++ extensions/aura-kotlin/src/avdForm.ts
+@@ -329,9 +329,9 @@
+ 		showBanner('bannerError', msg.text || '${tr('Emulator creation error.')}');
+ 	} else if (msg.type === 'done') {
+ 		setBusy(false);
+ 		setStatus('');
+-		showBanner('bannerOk', 'Эмулятор «' + msg.name + '» создан и уже в списке панели Android.');
++		showBanner('bannerOk', '${tr('Emulator "{0}" has been created and is now in the Android panel list.')}'.replace('{0}', msg.name));
+ 	}
+ });
+ 
+ vscode.postMessage({ type: 'init' });
+
+> build · deepseek-v4-pro
+Проверяю текущее состояние avdForm.ts после всех правок.
+[0m→ [0mRead extensions/aura-kotlin/src/avdForm.ts [90m[offset=30, limit=15][0m
+[0m→ [0mRead extensions/aura-kotlin/src/avdForm.ts [90m[offset=111, limit=15][0m
+[0m→ [0mRead extensions/aura-kotlin/src/avdForm.ts [90m[offset=205, limit=45][0m
+> build · deepseek-v4-pro
+[0m→ [0mRead extensions/aura-kotlin/src/avdForm.ts [90m[offset=275, limit=70][0m
+> build · deepseek-v4-pro
+Обновляю комментарий (больше не «только русские»).
+[0m← [0mEdit extensions/aura-kotlin/src/avdForm.ts
+Index: extensions/aura-kotlin/src/avdForm.ts
+===================================================================
+--- extensions/aura-kotlin/src/avdForm.ts
++++ extensions/aura-kotlin/src/avdForm.ts
+@@ -107,9 +107,9 @@
+ 		}
+ 		void this.panel.webview.postMessage({ type: 'init', data });
+ 	}
+ 
+-	// Форма статичная: строки только русские (продукт Russian-first), скрипт под nonce.
++	// Форма: строки через tr()-ключи (Russian-first через bundle.l10n.ru.json), скрипт под nonce.
+ 	private html(nonce: string): string {
+ 		return `<!doctype html><html><head><meta charset="utf-8">
+ <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+ <meta name="viewport" content="width=device-width, initial-scale=1">
+
+> build · deepseek-v4-pro
+Теперь добавляю новые ключи в `bundle.l10n.ru.json`. 18 новых записей.
+[0m← [0mEdit extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+Index: extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+===================================================================
+--- extensions/aura-kotlin/l10n/bundle.l10n.ru.json
++++ extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+@@ -166,6 +166,24 @@
+ 	"Files": "Файлы",
+ 	"Open file": "Открыть файл",
+ 	"New Kotlin/Java file…": "Новый файл Kotlin/Java…",
+ 	"New project…": "Новый проект…",
+-	"Kotlin Language Server needs JDK {0}+, but no suitable Java was found (PATH points to an older one). Install a JDK 11+ or set auraKotlin.javaPath to it — for example, the JBR bundled with Android Studio.": "Kotlin Language Server требует JDK {0}+, а подходящая Java не найдена (в PATH — старая версия). Установите JDK 11+ или укажите путь к ней в auraKotlin.javaPath — например, к JBR из состава Android Studio."
++	"Kotlin Language Server needs JDK {0}+, but no suitable Java was found (PATH points to an older one). Install a JDK 11+ or set auraKotlin.javaPath to it — for example, the JBR bundled with Android Studio.": "Kotlin Language Server требует JDK {0}+, а подходящая Java не найдена (в PATH — старая версия). Установите JDK 11+ или укажите путь к ней в auraKotlin.javaPath — например, к JBR из состава Android Studio.",
++	"New emulator": "Новый эмулятор",
++	"Phone model, Android version and name — the emulator will appear in the Android panel.": "Модель телефона, версия Android и имя — эмулятор появится в панели Android.",
++	"Device model": "Модель устройства",
++	"System image": "Системный образ",
++	"API level to download": "API-уровень для скачивания",
++	"Image will be downloaded via sdkmanager (~1 GB), licenses are accepted automatically.": "Образ скачается через sdkmanager (~1 ГБ), лицензии подтверждаются автоматически.",
++	"Emulator name": "Имя эмулятора",
++	"Letters, digits, dot, dash and underscore.": "Буквы, цифры, точка, дефис и подчёркивание.",
++	"Start emulator after creation": "Запустить эмулятор после создания",
++	"Create emulator": "Создать эмулятор",
++	"Architecture:": "Архитектура:",
++	"Name: only letters, digits, dot, dash and underscore.": "Имя: только буквы, цифры, точка, дефис и подчёркивание.",
++	"API level — two digits, e.g. 35.": "API-уровень — две цифры, например 35.",
++	"Creating emulator…": "Создание эмулятора…",
++	"Downloading system image…": "Скачивание системного образа…",
++	"Failed to get SDK data.": "Не удалось получить данные SDK.",
++	"Emulator creation error.": "Ошибка создания эмулятора.",
++	"Emulator \"{0}\" has been created and is now in the Android panel list.": "Эмулятор «{0}» создан и уже в списке панели Android."
+ }
+\ No newline at end of file
+
+> build · deepseek-v4-pro
+Теперь AURA-031: обрезка sanitizedLog + aura-serverkit nls + demoBoardCache.
+[0m← [0mWrite extensions/aura-serverkit/package.nls.ru.json
+Created file successfully: extensions/aura-serverkit/package.nls.ru.json
+[0m← [0mEdit extensions/aggg-agent/out/extension.js
+Index: extensions/aggg-agent/out/extension.js
+===================================================================
+--- extensions/aggg-agent/out/extension.js
++++ extensions/aggg-agent/out/extension.js
+@@ -322,9 +322,9 @@
+ function appendLog(value, line = true) {
+     const rendered = line ? `${value}\n` : value;
+     outputChannel.append(rendered);
+     const redacted = sanitizeForReport(rendered);
+-    sanitizedLog = `${sanitizedLog}${redacted}`.slice(-32_000);
++    sanitizedLog = `${sanitizedLog}${redacted}`.slice(-10_000);
+ }
+ function sanitizeForReport(value) {
+     let sanitized = value;
+     const privatePaths = [os.homedir(), ...(vscode.workspace.workspaceFolders?.map(folder => folder.uri.fsPath) ?? [])];
+
+[0m← [0mEdit extensions/aura-team/src/extension.ts
+Index: extensions/aura-team/src/extension.ts
+===================================================================
+--- extensions/aura-team/src/extension.ts
++++ extensions/aura-team/src/extension.ts
+@@ -421,8 +421,9 @@
+ 		const prevActivity = state.activity;
+ 		try {
+ 			state.session = await api.getSession();
+ 			state.demo = false;
++			demoBoardCache = undefined;
+ 			state.teamId = state.teamId && state.session.teams.some(team => team.id === state.teamId) ? state.teamId : state.session.teams[0]?.id;
+ 			// Пять независимых чтений — одним залпом. По очереди это пять сетевых кругов
+ 			// подряд: на удалённом сервере (40–60 мс на запрос) обновление доски ждало
+ 			// ~270 мс вместо ~100 мс. Последователен ровно один шаг — teamId выше.
+
+> build · deepseek-v4-pro
+Все правки на месте. Теперь проверки: tsc, node --check, тесты.
+[0m$ [0mcd "C:\new-aura-ide\vscode-main" && node --check extensions/aggg-agent/out/extension.js 2>&1
+(no output)
+[0m$ [0mcd "C:\new-aura-ide\vscode-main" && npx tsc --noEmit -p extensions/aura-serverkit/tsconfig.json 2>&1 | head -20
+npm warn Unknown project config "disturl". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "target". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "ms_build_id". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "runtime". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "build_from_source". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "timeout". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown user config "msvs_spectre_mitigation". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+[0m$ [0mcd "C:\new-aura-ide\vscode-main" && npx tsc --noEmit -p extensions/aura-team/tsconfig.json 2>&1 | head -40
+npm warn Unknown project config "disturl". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "target". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "ms_build_id". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "runtime". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "build_from_source". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "timeout". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown user config "msvs_spectre_mitigation". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+[0m$ [0mcd "C:\new-aura-ide\vscode-main" && npx tsc --noEmit -p extensions/aura-kotlin/tsconfig.json 2>&1 | head -40
+npm warn Unknown project config "disturl". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "target". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "ms_build_id". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "runtime". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "build_from_source". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "timeout". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown user config "msvs_spectre_mitigation". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+> build · deepseek-v4-pro
+Все проверки типов чисты. Запускаю тесты aura-team.
+[0m$ [0mcd "C:\new-aura-ide\vscode-main\extensions\aura-team" && node test/run-all.mjs 2>&1
+=== tsc (сборка out/) ===
+
+=== admin.render.test.mjs ===
+  ok   без админки раздел скрыт в рейле
+  ok   обычный аккаунт видит поле кода доступа в профиле
+  ok   панель выдачи не нарисована
+  ok   код свёрнут в раскрывающийся блок
+  ok   свёртка подписана вопросом, а не вторым заголовком
+  ok   рядом сказано, зачем код в профиле
+  ok   заголовок кода не дублируется дважды подряд
+  ok   карточки в виде не слипаются — соседним задан зазор
+  ok   переход в админку без прав остаётся в профиле
+  ok   код уходит на сервер
+  ok   после погашения сессия перезапрашивается
+  ok   раздел появился в рейле
+  ok   заголовок админки отрисован
+  ok   каталог возможностей пришёл с сервера
+  ok   тип цели переключается между аккаунтом и командой
+  ok   есть поле поиска цели
+  ok   первый срез каталога показан без поиска
+  ok   у цели с уже выданным правом есть пометка
+  ok   у цели без права пометки нет
+  ok   порог роли выбирается
+  ok   права аккаунтов перечислены
+  ok   права команд перечислены с порогом роли
+  ok   администраторы перечислены
+  ok   кнопки отзыва есть на каждой выдаче
+  ok   поиск не уходит на сервер до окончания набора
+  ok   поиск уходит с запросом
+  ok   запрос в режиме аккаунтов не показывает команды
+  ok   смена типа цели переспрашивает каталог по тому же запросу
+  ok   поиск по названию находит команду
+  ok   в строке найденной команды видно имя и состав
+  ok   выбранная команда попала в список выбранных
+  ok   выдача команде несёт право, цель и порог
+  ok   после выдачи список выбранных очищен
+  ok   аккаунты доступны для выбора
+  ok   выбранные участники показаны кнопками-чипами
+  ok   право выдаётся каждому выбранному
+  ok   аккаунту право выдаётся без порога роли
+  ok   цели различаются
+  ok   без выбранных целей запрос не уходит
+  ok   и это сказано тостом
+  ok   отзыв идёт той же командой с признаком revoke
+  ok   админка выдаётся по email
+  ok   ошибка сервера не ломает панель
+
+ALL CHECKS PASSED
+
+=== api-headers.test.mjs ===
+  ok   DELETE without a body: no content-type header at all
+  ok   Null body: no content-type header either
+  ok   JSON string body: application/json
+  ok   FormData: the JSON header is not forced onto multipart
+  ok   Archive stream: the JSON header is not forced onto the stream
+  ok   Empty string is still a body, so the header stays
+
+ALL CHECKS PASSED
+
+=== archives-rules.test.mjs ===
+13/13 проверок архивных правил
+
+=== aura-language.test.mjs ===
+  ok   настройка auraTeam.uiLanguage есть в манифесте
+  ok   дефолт настройки — auto (общий переключатель Aura)
+  ok   в enum есть auto, ru и en
+  ok   подписей в списке столько же, сколько значений
+  ok   тело uiLanguage найдено
+  ok   своя настройка читается с фолбэком auto
+  ok   общий переключатель читается из настройки ядра aura.language
+  ok   явные ru/en имеют приоритет над авто
+  ok   язык IDE — только последний фолбэк
+  ok   состояние панели несёт uiLanguage
+  ok   смена aura.language перерисовывает панель без перезагрузки окна
+
+ALL CHECKS PASSED
+
+=== commands-wired.test.mjs ===
+  ok   все команды вкладки зарегистрированы (50)
+  ok   все команды сайдбара зарегистрированы (7)
+  ok   демо-ветка не подменяет реальные команды
+  ok   нет повторной регистрации команд (109 вызовов register)
+  ok   идентификаторы команд в едином стиле (auraTeam.camelCase)
+
+ALL CHECKS PASSED
+
+=== demo-mode.test.mjs ===
+  ok   buildState: demoMode включает state.demo (живая демо-сессия)
+  ok   handlerFor: демо-ветка срабатывает при state.demo
+  ok   демо-ветка обрабатывает auraTeam.createTask
+  ok   демо-ветка обрабатывает auraTeam.updateTask
+  ok   демо-ветка обрабатывает auraTeam.reorderTasks
+  ok   демо-ветка обрабатывает auraTeam.deleteTask
+  ok   демо-ветка обрабатывает auraTeam.restoreTask
+  ok   демо-ветка обрабатывает auraTeam.listDeletedTasks
+  ok   webview demo() перехватывает auraTeam.createTask
+  ok   webview demo() перехватывает auraTeam.updateTask
+  ok   webview demo() перехватывает auraTeam.reorderTasks
+
+ALL CHECKS PASSED
+
+=== git-branch-name.test.mjs ===
+10/10 проверок имён веток
+
+=== git-workflow.test.mjs ===
+  ok   remote GitHub: https, ssh, токен в URL, без .git
+  ok   личная ветка: dev/<ник> с транслитом
+  ok   unified diff: файлы, статусы, счётчики
+  ok   unified diff: номера строк в ханке
+  ok   unified diff: лимит строк на файл помечает усечение
+  ok   patch из GitHub API без заголовка разбирается
+  ok   сводка CI: провал важнее ожидания, пусто — none
+  ok   ahead/behind и команда тестов
+  ok   создание PR: 422 → возвращается уже открытый
+  ok   детали PR: проверки, голоса ревьюеров, конфликт
+  ok   слияние PR и удаление ветки — правильные запросы
+  ok   ошибка GitHub несёт статус и текст
+  ok   слитые PR отличаются от закрытых
+
+ALL 13 CHECKS PASSED
+
+=== git.render.test.mjs ===
+  ok   панель Git отрисована
+  ok   путь репозитория с кириллицей показан целиком
+  ok   текущая ветка видна
+  ok   изменённые файлы перечислены
+  ok   у изменённого файла есть чекбокс и клик по диффу
+  ok   блок стандартов показывает три шага
+  ok   первый шаг — ветка задачи
+  ok   второй шаг требует ссылку на задачу
+  ok   третий шаг — push и pull request
+  ok   в master шаг ветки помечен предупреждением
+  ok   есть кнопка «Ветка из задачи»
+  ok   в ветке задачи шаг помечен выполненным
+  ok   в ветке задачи кнопка создания не нужна
+  ok   без подключения показан статус и кнопка входа
+  ok   кнопки GitHub выключены, пока нет подключения
+  ok   подключённый аккаунт подписан логином
+  ok   кнопки GitHub включились
+  ok   у каждой кнопки панели есть обработчик (23 кнопок)
+  ok   все 79 команд из webview зарегистрированы в расширении
+  ok   коммит уходит с сообщением
+  ok   коммит без ссылки на задачу предупреждает тостом
+  ok   после коммита панель перезапрашивает состояние
+  ok   поле сообщения очищено
+  ok   дифф запрашивается по пути файла
+  ok   в окне ветки только незакрытые задачи
+  ok   ветка создаётся из выбранной задачи
+  ok   после создания ветки окно закрыто
+  ok   имя новой ветки показано в тосте
+  ok   карточка процесса запрашивает состояние
+  ok   процесс показывает 6 шагов
+  ok   отставание от main — предупреждение и кнопка «Подтянуть main»
+  ok   открытый PR показан в шаге PR
+  ok   список PR и откат слитых
+  ok   у коммитов истории есть «Дифф» и «Откатить»
+  ok   сравнение с main уходит в расширение
+  ok   графический дифф открыт в широком окне
+  ok   строки диффа раскрашены по типу
+  ok   текст диффа экранирован
+  ok   «Открыть в редакторе» передаёт путь и refs
+  ok   слияние PR спрашивает способ
+  ok   слияние уходит с номером, способом и удалением ветки
+
+ALL CHECKS PASSED
+
+=== invite.modal.test.mjs ===
+  ok   открытие меню запрашивает текущий код
+  ok   модалка показывает активный код
+  ok   кнопка «Пересоздать» на месте
+  ok   кнопка блокируется сразу (до ответа сервера)
+  ok   даблклик шлёт ровно один revoke
+  ok   create не уходит до ответа revoke
+  ok   после revoke уходит createInvite (цепочка одним кликом)
+  ok   новый код ушёл в буфер обмена
+  ok   тост «скопировано» показан
+  ok   модалка перезапросила код после пересоздания
+  ok   переоткрытая модалка показывает новый код
+  ok   при {cancelled} createInvite не уходит
+  ok   при {cancelled} модалка не переоткрывается
+  ok   при {cancelled} старый код на месте
+  ok   кнопка разблокирована после отмены
+  ok   без кода показана кнопка генерации
+  ok   кнопка генерации блокируется в полёте
+  ok   даблклик по генерации шлёт один createInvite
+  ok   сгенерированный код ушёл в буфер
+  ok   после генерации модалка перезапросила код
+  ok   модалка показывает свежий код
+  ok   copy-кнопка кладёт код в буфер
+
+ALL CHECKS PASSED
+
+=== invite.sidebar.test.mjs ===
+  ok   каталог отрисован по одной строке на пользователя
+  ok   подсказка списка убрана после прихода каталога
+  ok   свежий 7-дневный код подписан как «через 7 дн.»
+  ok   5 обновлений состояния не дублируют строки
+  ok   переоткрытие секции не дублирует строки
+  ok   кнопок «Пригласить» ровно по одной на строку
+  ok   участник команды помечен «Приглашён»
+  ok   двойной клик отправляет одно приглашение
+  ok   после отправки показан тост
+  ok   роль владельца по-русски
+  ok   роль dev по-русски
+  ok   роль viewer по-русски
+  ok   сырых ролей в строках команды нет
+  ok   свой аккаунт помечен «вы»
+  ok   владелец может убрать совладельца
+  ok   владелец может убрать разработчика
+  ok   себя убрать нельзя
+  ok   кик уходит командой расширения
+  ok   успешный кик подтверждён тостом
+  ok   отмена в диалоге расширения не показывает ложный успех
+  ok   совладелец убирает разработчика
+  ok   совладелец убирает зрителя
+  ok   совладелец не убирает совладельца
+  ok   совладелец не убирает владельца
+  ok   зритель не убирает никого
+  ok   отзыв уходит на сервер через расширение
+  ok   после отзыва показано пустое состояние
+  ok   отозванный код больше не показан
+  ok   отзыв подтверждён тостом
+  ok   отмена отзыва сохраняет код в панели
+  ok   владельцу доступны три роли
+  ok   роли подписаны по-русски
+  ok   по умолчанию выбран разработчик
+  ok   новый код создаётся на выбранную роль
+  ok   код подписан своей ролью
+  ok   персональное приглашение уходит с выбранной ролью
+  ok   видно, что активный код выдан на другую роль
+  ok   совладельцу доступны только разработчик и зритель
+  ok   зрителю доступна только роль разработчик
+
+ALL CHECKS PASSED
+
+=== kanban.render.test.mjs ===
+  ok   plural: 1 → задача
+  ok   plural: 2 → задачи
+  ok   plural: 5 → задач
+  ok   plural: 11 → задач
+  ok   plural: 21 → задача
+  ok   plural: 101 → задача
+  ok   plural: 22 → задачи
+  ok   shortText: пусто и один символ отбрасываются
+  ok   Подзаголовок доски: «5 задач · 1 моя · 1 просрочено»
+  ok   Односимвольное имя команды не рендерится («висящая w»)
+  ok   Пустая колонка: нет узла .col-empty
+  ok   Пустая колонка: нет текста-подсказки в покое
+  ok   Пустая колонка: подсказка не показана без перетаскивания
+  ok   Пустая колонка: есть тело колонки
+  ok   .board-root занимает всю высоту
+  ok   .board — grid с горизонтальным скроллом
+  ok   .column-body скроллится, а не страница
+  ok   Колонки — auto minmax(260px, 1fr)
+  ok   #boardHost растёт в колонке flex
+  ok   #boardHost перенимает ограничение высоты
+  ok   Контролы тулбара — без вертикального padding
+  ok   Тулбар переносится на узкой ширине
+  ok   .column без border
+  ok   Дроп-зона — вся колонка: нет .col-empty и вложенного бокса
+  ok   Карточка — article с aria-label
+  ok   Описание, повторяющее заголовок, не рендерится
+  ok   Реальное описание рендерится
+  ok   Описание обрезается line-clamp
+  ok   Меню ⋮ скрыто до hover/focus
+  ok   Просроченная задача видна на карточке
+  ok   Просрочка не только через фильтр: чип содержит текст
+  ok   Карточка плоская: без box-shadow
+  ok   Hover карточки — только border-color
+  ok   Тулбар — одна строка
+  ok   Поиск в тулбаре
+  ok   Фильтр исполнителя — выпадашка с подписью
+  ok   Тогл «Просроченные» с aria-pressed
+  ok   Корзина — icon-кнопка в тулбаре
+  ok   Не осталось отдельной строки под корзину
+  ok   Живой регион для объявлений есть
+  ok   Кнопка обновления просит состояние (ready)
+  ok   Space берёт карточку
+  ok   Взятие объявлено
+  ok   Стрелка переносит карточку в соседнюю колонку (до фиксации)
+  ok   Перемещение объявлено
+  ok   Space фиксирует перенос: задача в колонке «В работе»
+  ok   С клавиатуры задачу можно перенести между колонками
+  ok   dragstart помечает карточку .dragging
+  ok   При перетаскивании раздвигается плейсхолдер
+  ok   Подсказка/подсветка ровно в одной колонке
+  ok   Бросок переносит задачу
+  ok   После дропа плейсхолдер убран
+  ok   После дропа подсветка снята
+  ok   Создание инлайн: три задачи без единого клика мышью после первого
+  ok   Инлайн-форма автофокусится и остаётся открытой
+  ok   Создание задачи не открывает модалку
+  ok   Кнопка «+ Задача» — ghost, без рамки
+  ok   Карточка появляется до ответа сервера
+  ok   Временная карточка не перетаскивается
+  ok   Временная карточка не открывает панель деталей
+  ok   Создание ушло на сервер
+  ok   Поле ввода не пересоздаётся и держит фокус
+  ok   Ответ сервера снимает временную карточку
+  ok   Настоящая задача встала на её место
+  ok   Поля ввода не задвоились
+  ok   Временная карточка не висит вечно
+  ok   Совпавшее имя снимает временную, а не настоящую
+  ok   Клик по карточке открывает боковую панель справа
+  ok   Это не модалка
+  ok   Панель закрывается
+  ok   Нет confirm()-модалки при удалении
+  ok   Undo-тост показан
+  ok   Запрос удаления уходит сразу
+  ok   Карточка уезжает из DOM
+  ok   «Отменить» возвращает задачу
+  ok   «Отменить» восстанавливает задачу на сервере
+  ok   Отмена не задваивает карточку
+  ok   Удалённая задача не возвращается при broadcast состояния
+  ok   «Очистить выполненные» удаляет сразу
+  ok   Выполненные ушли с доски
+  ok   Отмена очистки возвращает обе задачи
+  ok   Пустая доска: одно пустое состояние
+  ok   Пустая доска: колонок-пустышек нет
+  ok   Пустая доска: есть кнопка создания
+  ok   Карточка показывает прогресс «1/5»
+  ok   На карточке не больше трёх подзадач
+  ok   Лишние подзадачи свёрнуты в «+2»
+  ok   Отмеченная подзадача видна как done
+  ok   Чекбоксы подзадач не попадают в текст описания карточки
+  ok   Отметка на карточке поднимает прогресс до «2/5»
+  ok   Отметка сохраняется в описании как markdown-чекбокс
+  ok   В панели есть блок подзадач
+  ok   В панели все пять подзадач
+  ok   Панель показывает прогресс подзадач
+  ok   Поле описания в панели содержит только прозу
+  ok   Отметка в панели меняет прогресс на карточке
+  ok   Панель и карточка не расходятся
+  ok   Подзадача добавляется из панели
+  ok   Прогресс учитывает новую подзадачу «2/6»
+  ok   После добавления фокус остаётся в поле
+  ok   Подзадача удаляется
+  ok   Прогресс пересчитан «1/5»
+  ok   parseSubtasks отделяет прозу, считает всего и выполненные
+  ok   composeDescription собирает markdown-чекбоксы
+  ok   Расширение читает тот же формат подзадач, что пишет доска
+  ok   Описание из одних чекбоксов не оставляет пустой абзац
+  ok   Карточка с двумя подзадачами без свёртки
+  ok   Прогресс «0/2»
+  ok   CSS: карточка не получила тень и с подзадачами
+  ok   FLIP: снимок геометрии по id задачи
+  ok   FLIP: переезд карточек после перерисовки
+  ok   FLIP: render() снимает и проигрывает переезд
+  ok   Счётчики колонок прокручиваются
+  ok   Плейсхолдер раздвигает соседей через FLIP
+  ok   Плейсхолдер растёт из нуля
+  ok   Анимации уважают prefers-reduced-motion
+  ok   CSS: поле даты со своим индикатором
+  ok   CSS: нативный индикатор календаря скрыт
+  ok   CSS: иконка календаря акцентная, а не чёрная
+  ok   Иконка календаря есть в наборе
+  ok   Поле даты в панели деталей — с иконкой
+  ok   Быстрые пресеты дедлайна в панели
+  ok   Пресеты дат — единый хелпер
+  ok   CSS: нет хардкод-цветов (#)
+  ok   CSS: нет rgb(
+  ok   CSS: нет градиентов
+  ok   CSS: нет uppercase
+  ok   CSS: нет !important
+  ok   CSS: нет translateY(-1px)
+  ok   CSS: нет бесконечных анимаций
+  ok   CSS: box-shadow только у drag-превью/меню
+  ok   CSS: карточки и колонки без тени
+  ok   reduced-motion отключает переходы
+  ok   Скролл доски (scrollLeft) восстановлен на новом узле
+  ok   Скролл колонки (scrollTop) восстановлен на новом узле
+  ok   Скролл страницы восстановлен
+  ok   Смена раздела двигает lastMountedRoute (скролл с нуля)
+  ok   Возврат в раздел не воскрешает чужой скролл доски
+
+ALL CHECKS PASSED
+
+=== keys-import.test.mjs ===
+  ok   priority: high → 10
+  ok   priority: medium → 100
+  ok   priority: low → 500
+  ok   priority: HIGH регистронезависимо
+  ok   priority: число в диапазоне сохраняется
+  ok   priority: мусор → 100
+  ok   originOf отбрасывает путь и порт-хвост
+  ok   originOf сохраняет порт
+  ok   originOf на мусоре — пусто
+  ok   провайдер находится по id
+  ok   провайдер находится по origin
+  ok   провайдер находится по имени ключа
+  ok   неизвестный провайдер — undefined (значит нужен шлюз)
+  ok   черновик: origin без пути
+  ok   черновик: имя из ключа
+  ok   черновик: bearer-авторизация
+  ok   черновик: разрешённые пути только к моделям и чату
+  ok   черновик: без baseUrl origin пустой (сервер откажет — и это видно)
+  ok   метка берётся из имени
+  ok   метка падает на модель
+  ok   метка по умолчанию
+  ok   summary: счётчики и причины
+  ok   summary без пропусков
+
+ALL CHECKS PASSED
+
+=== manifest.test.mjs ===
+  ok   все ключи %…% из package.json есть в package.nls.json (58)
+  ok   в package.nls.json нет мёртвых ключей (58)
+  ok   package.nls.ru.json покрывает те же ключи, что и английский
+  ok   идентификаторы команд уникальны (37)
+  ok   все объявленные команды в пространстве аура-Тим
+  ok   у всех команд категория Team (иначе палитра перемешает их с чужими)
+  ok   все команды спрятаны, когда плагин выключен
+  ok   каждая команда из манифеста зарегистрирована в коде
+  ok   события onCommand ссылаются на живые команды (11)
+  ok   main указывает на собранный out/
+  ok   main: файл существует после сборки (иначе расширение не загрузится)
+  ok   представления привязаны к существующему контейнеру
+  ok   представление сайдбара существует и включается по контексту
+
+ALL CHECKS PASSED
+
+=== refresh-batching.test.mjs ===
+  ok   тело doRefresh найдено
+  ok   независимые чтения идут одним Promise.all
+  ok   в залпе все пять командных чтений (5)
+  ok   ни одно командное чтение не дублируется вне залпа
+  ok   сессия читается до залпа (из неё берётся teamId)
+  ok   до залпа ждут только сессию
+  ok   состояние получает board из залпа
+  ok   состояние получает keys из залпа
+  ok   состояние получает keyGroups из залпа
+  ok   состояние получает activity из залпа
+  ok   состояние получает summary из залпа
+
+ALL CHECKS PASSED
+
+=== server-integration.test.mjs ===
+  ok   стенд поднялся и отвечает на /health
+  ok   getSession(): серверная сессия с настоящим пользователем
+  ok   getSession(): команда стенда в списке
+  ok   getBoard(): свежая доска пуста
+  ok   createTask(): сервер вернул задачу с id и названием
+  ok   createTask(): статус по умолчанию — todo
+  ok   createTask(): задача реально лежит на доске (пережила круг HTTP)
+  ok   updateTask(): статус и описание доехали до сервера
+  ok   reorderTasks(): порядок в колонке сохранён сервером
+  ok   POST задачи уходит с content-type: application/json
+  ok   PATCH задачи уходит с content-type: application/json
+  ok   deleteTask(): DELETE без тела сервер принимает (иначе 400 как в проде)
+  ok   deleteTask(): заголовок content-type не выставлен на пустом теле
+  ok   listDeletedTasks(): задача попала в корзину
+  ok   restoreTask(): восстановление без ошибок
+  ok   restoreTask(): задача вернулась на доску
+  ok   getActivity(): лента команды не пуста
+  ok   fetchLimits(): лимиты пришли с сервера
+  ok   createInvite(): код приглашения получен
+  ok   getCurrentInvite(): сервер отдаёт тот же код
+  ok   revokeInvite(): приглашение снято
+  ok   fetchUsage(): сервер отдаёт расход по людям
+  ok   ошибка валидации доезжает текстом, а не «HTTP 400»
+  ok   протухший access-токен: сессия обновляется прозрачно
+  ok   после обновления новые токены сохранены
+  ok   битый токен без refresh: клиент падает, а не отдаёт пустую сессию
+  ok   сервер не поднят: понятное сообщение вместо «fetch failed»
+
+ALL CHECKS PASSED
+
+=== sidebar-syntax.test.mjs ===
+  ok   LAUNCHER_HTML найден
+  ok   LAUNCHER_HTML закрыт
+  ok   скрипт извлечён
+  ok   сайдбарный скрипт парсится
+  ok   удаление уходит на сервер сразу
+  ok   нет отложенного commit удаления (5000 внутри undo)
+  ok   точка присутствия рисуется
+  ok   онлайновые сверху
+  ok   удалённые не воскресают
+  ok   событие: скрытие без сервера и мгновенно
+  ok   событие: в строке остался только ✕ (крестик)
+  ok   событие: удаление для всей команды больше не подключено
+  ok   кнопка «Вернуть скрытые» подключена
+
+ALL CHECKS PASSED
+
+=== sidebar.render.test.mjs ===
+  ok   Пустая роль Alex не рендерится
+  ok   Свой аккаунт помечен «вы»
+  ok   У профиля нет дублей подписи
+  ok   Счётчик ×3 — инлайн .rep внутри строки
+  ok   Формат «×3»
+  ok   .rep без фона
+  ok   Навигация и задачи: одинаковый левый padding
+  ok   «Показать все» — с тем же padding
+  ok   Сетка строк 20px|1fr|auto
+  ok   todo — без бейджа
+  ok   doing → data-state="in-progress", подпись «в работе»
+  ok   review → data-state="review"
+  ok   done → data-state="done"
+  ok   Просроченная задача → overdue
+  ok   Цвет статуса через var(--vscode-charts-*)
+  ok   Прогресс подзадач показан в строке задачи
+  ok   Счётчик подзадач — часть заголовка строки, а не отдельная колонка
+  ok   Задача без подзадач не рисует счётчик
+  ok   Сетка строки не изменилась от счётчика
+  ok   Summary обогащается прогрессом подзадач из доски
+  ok   Токены --dur-1..4 и --ease-out/in/inout/snap есть
+  ok   reduced-motion: длительности = 1ms
+  ok   Нет translateY(-1px)
+  ok   Нет infinite кроме спиннера
+  ok   точка присутствия не анимируется бесконечно
+  ok   Кнопка удаления найдена (задача видима в списке)
+  ok   Undo-тост показан
+  ok   deleteTask уходит сразу, а не через тост
+  ok   Строка удалена из DOM
+  ok   «Отменить» отправляет restoreTask
+  ok   После отмены deleteTask повторно не уходит
+  ok   точка присутствия есть у каждого участника
+  ok   онлайн — зелёная (live)
+  ok   офлайн — серая (off)
+  ok   в title написано «в сети»
+  ok   онлайновые стоят выше офлайновых
+  ok   «Пригласить» не открывает вкладку редактора
+  ok   секция приглашения раскрывается в панели
+  ok   пункт навигации показывает активное состояние
+  ok   код приглашения отрисован в секции
+  ok   срок действия кода виден текстом
+  ok   каталог запрошен у расширения
+  ok   каталог отрисован строками
+  ok   email кандидата виден в строке
+  ok   присутствие показано только у участника команды
+  ok   участник команды уже помечен приглашённым
+  ok   кандидат без приглашения — кнопка активна
+  ok   отправка идёт с id пользователя
+  ok   кнопка сразу показывает «Приглашён»
+  ok   ошибка отправки откатывает кнопку
+  ok   поиск отправляется после debounce
+  ok   фокус остаётся в поле поиска после обновления состояния
+  ok   набранный текст не сбрасывается
+  ok   строка каталога переиспользуется, а не пересоздаётся
+  ok   секцию можно закрыть
+  ok   отзыв кода уходит на сервер
+  ok   до ответа сервера код остаётся на месте
+  ok   после отзыва показано пустое состояние с кнопкой создания
+  ok   новый код появляется вместо пустого состояния
+  ok   кнопка копирования вернулась и работает
+  ok   Diff-обновление: строка t1 — тот же DOM-узел
+  ok   Фокус сохранён после broadcast
+  ok   Смена статуса: data-state обновился
+  ok   Смена статуса: старый текст кросфейдится (2 слоя)
+  ok   Diff-обновление: прогресс подзадач пересчитан
+  ok   Diff-обновление: счётчик не дублируется
+  ok   Diff-обновление: исчезнувшие подзадачи убирают счётчик
+
+ALL CHECKS PASSED
+
+ALL 19 STEPS PASSED
+> build · deepseek-v4-pro
+Все тесты пройдены (19/19). Теперь финальный файл `docs/swarm/DONE-a3.md`
+[0m← [0mWrite docs/swarm/DONE-a3.md
+Created file successfully: docs/swarm/DONE-a3.md
+> build · deepseek-v4-pro
+Готово, сэр. Все задачи закрыты, проверки пройдены.
+
+## Вердикт
+
+| Пункт | Статус |
+|-------|--------|
+| AURA-016 — avdForm tr()-ключи | ✅ 18 строк + 18 в бандле |
+| AURA-017 — nonce → crypto.randomUUID() | ✅ |
+| AURA-030 — StatusBarAlignment | ✅ опечатка не подтверждена (код корректен) |
+| AURA-031 — sanitizedLog → 10 000 | ✅ |
+| aura-serverkit package.nls.ru.json | ✅ создан (8 ключей) |
+| demoBoardCache очистка | ✅ сброс при получении сессии |
+| logcat-буфер | ✅ уже существовал |
+| onDidChangeConfiguration фильтр | ✅ уже существовал |
+| aura.language документирование | ✅ механизм + рассинхрон описаны |
+
+**Проверки:**
+- `tsc --noEmit` — все три расширения чисто
+- `node --check aggg-agent/out/extension.js` — синтаксис валиден
+- `node test/run-all.mjs` aura-team — 19/19 steps passed
+
+**Файл:** `docs/swarm/DONE-a3.md` — 31 строка фактического содержания. deviceScreen.ts не тронут, коммитов нет.

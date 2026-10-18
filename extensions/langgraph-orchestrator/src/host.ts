@@ -19,6 +19,7 @@ import { logError, logInfo, logWarn } from './util/log';
 import { STATE_PUSH_INTERVAL_MS, createThrottle } from './util/throttle';
 import { ProgressTracker, RunStatus, TeamRunResult } from './team/report';
 import { TeamBridge } from './team/bridge';
+import { HarnessRunner, HarnessTask, PANEL_AGENT } from './harness/runner';
 import {
 	TeamBoardTask, TeamTaskStatus, TEAM_TASK_THREAD_KEY, normalizeTaskTitle, outcomeNote, pickAgentTasks,
 	statusForOutcome, taskTextForGraph, threadIdForTask, withOrchestratorNote, withThreadMapping,
@@ -146,6 +147,8 @@ export interface PanelState {
 	uiLanguage: UiLanguage;
 	/** Доска тимы для вкладки Board: available=false — плагина Team нет, вкладка скрыта. */
 	team: { available: boolean; tasks: TeamBoardTask[] };
+	/** Очередь харнесса для вида «Харнесс» вкладки Board: workspace=false — папка не открыта. */
+	harness: { available: boolean; version?: string; workspace: boolean; tasks: HarnessTask[] };
 }
 
 const LOG_LIMIT = 300;
@@ -208,6 +211,10 @@ export class OrchestratorHost implements vscode.Disposable {
 	private readonly bridge = new TeamBridge();
 	/** Кэш доски тимы для панели и автозабора. */
 	private teamTasks: TeamBoardTask[] = [];
+	/** Мост к Agent Harness: очередь задач проекта (.agent-state) и инструменты. */
+	private readonly harness = new HarnessRunner();
+	/** Кэш очереди харнесса для вкладки Board (вид «Харнесс»). */
+	private harnessTasks: HarnessTask[] = [];
 	/** Задачи, которые автозабор уже пытался взять: второй раз не трогаем (защита от цикла). */
 	private readonly autoGrabAttempted = new Set<string>();
 	/** Ставится синхронно: второй клик по задаче до старта графа не запускает второй прогон. */
@@ -270,12 +277,13 @@ export class OrchestratorHost implements vscode.Disposable {
 		this.git.setPath(this.config.gitPath);
 		// Кэш read-only тулов (Этап 5.3): SQLite в globalStorage расширения.
 		this.toolCache = new ToolCache(path.join(context.globalStorageUri.fsPath, 'tool-cache.db'));
-		this.tools = new ToolExecutor(this.config, (tool, input, preview, nodeId) => this.requestApproval(tool, input, preview, nodeId), this.git, this.toolCache);
+		this.tools = new ToolExecutor(this.config, (tool, input, preview, nodeId) => this.requestApproval(tool, input, preview, nodeId), this.git, this.toolCache, this.harness);
 		this.sidecar = new SidecarProcessManager(context.extensionUri, (): Record<string, string> => {
 			const url = this.proxy.url;
 			return url ? { AURA_PROXY_URL: url, AURA_RUN_TOKEN: this.runToken } : {};
 		});
-		this.disposables.push(this.registry, this.sidecar, this.proxy, this.bridge, this.onStateEmitter, this.onTabEmitter);
+		this.disposables.push(this.registry, this.sidecar, this.proxy, this.bridge, this.harness, this.onStateEmitter, this.onTabEmitter);
+		this.disposables.push(this.harness.onDidChangeAvailability(() => this.pushState()));
 		this.disposables.push({ dispose: () => this.toolCache.dispose() });
 		this.disposables.push(this.bridge.onDidChangeBoard(() => { void this.refreshTeamBoard(); }));
 		this.disposables.push(this.bridge.onDidChangeAvailability(() => { void this.updateContextKeys(); this.pushState(); }));
@@ -306,6 +314,9 @@ export class OrchestratorHost implements vscode.Disposable {
 		// Мост к Team — до прогрева: если плагина нет, вкладка Board просто скрыта.
 		await this.bridge.resolve();
 		void this.refreshTeamBoard();
+		// Мост к Agent Harness: очередь задач проекта на вкладку Board (вид «Харнесс»).
+		await this.harness.resolve();
+		void this.refreshHarnessTasks();
 		// Команда Team существует после его активации мостом — перерисовываем доску,
 		// чтобы на карточках сразу появилась кнопка «Отдать агентам».
 		if (this.bridge.available) {
@@ -500,7 +511,13 @@ export class OrchestratorHost implements vscode.Disposable {
 			case 'team.refresh': return this.refreshTeamBoard();
 			case 'team.runTask': return this.runTeamTaskById(String(args.taskId ?? ''));
 			case 'team.createTask': return this.createTeamTask(String(args.title ?? ''), String(args.status ?? 'todo'));
-			case 'team.moveTask': return this.moveTeamTask(String(args.taskId ?? ''), String(args.status ?? ''));
+			case 'team.moveTask': return this.moveTeamTask(String(args.taskId ?? ''), String(args.status ?? ''), typeof args.position === 'number' ? args.position : undefined);
+			case 'harness.refresh': return this.refreshHarnessTasks();
+			case 'harness.addTask': return this.harnessAddTask(String(args.title ?? ''), String(args.risk ?? 'write'), String(args.role ?? 'builder'));
+			case 'harness.taskAction': return this.harnessTaskAction(String(args.id ?? ''), String(args.action ?? ''));
+			case 'harness.doctor': return this.harnessTool('doctor.mjs', []);
+			case 'harness.gates': return this.harnessTool('gates.mjs', args.suite ? [String(args.suite)] : [], true);
+			case 'harness.journeys': return this.harnessTool('journeys.mjs', args.filter ? [String(args.filter)] : [], true);
 			case 'toolCache.clear': this.toolCache.clear(); return { cleared: true };
 			case 'toolCache.stats': return { entries: this.toolCache.size() };
 			case 'budget.update': return this.updateBudget(args);
@@ -533,6 +550,7 @@ export class OrchestratorHost implements vscode.Disposable {
 			// а не в браузере по navigator.language — иначе интерфейс и текст агентов могут разойтись.
 			uiLanguage: resolveUiLanguage(this.config.uiLanguage, vscode.env.language, auraLanguageSetting()),
 			team: { available: this.bridge.available, tasks: this.teamTasks },
+			harness: this.harnessState(),
 			budget: this.budgetState(),
 			trace: this.traceState(),
 		};
@@ -1309,7 +1327,7 @@ export class OrchestratorHost implements vscode.Disposable {
 	}
 
 	/** Перетаскивание карточки в канбане панели: меняем статус задачи на доске Team. */
-	private async moveTeamTask(taskId: string, status: string): Promise<{ ok: boolean; reason?: 'unavailable' | 'rejected' }> {
+	private async moveTeamTask(taskId: string, status: string, position?: number): Promise<{ ok: boolean; reason?: 'unavailable' | 'rejected' }> {
 		if (!this.bridge.available) {
 			return { ok: false, reason: 'unavailable' };
 		}
@@ -1317,9 +1335,138 @@ export class OrchestratorHost implements vscode.Disposable {
 		if (!taskId || !columns.includes(status as TeamTaskStatus)) {
 			return { ok: false, reason: 'rejected' };
 		}
-		const ok = await this.bridge.updateTask(taskId, { status });
+		// position — место карточки внутри колонки после дропа (placeholder-позиция доски).
+		const changes: Record<string, unknown> = position === undefined ? { status } : { status, position };
+		const ok = await this.bridge.updateTask(taskId, changes);
 		await this.refreshTeamBoard();
 		return ok ? { ok: true } : { ok: false, reason: 'rejected' };
+	}
+
+	// ---- мост с очередью Agent Harness (.agent-state в корне workspace) ----
+
+	private harnessState(): { available: boolean; version?: string; workspace: boolean; tasks: HarnessTask[] } {
+		return {
+			available: this.harness.available,
+			version: this.harness.version,
+			workspace: Boolean(this.harnessWorkspaceRoot()),
+			tasks: this.harnessTasks,
+		};
+	}
+
+	private harnessWorkspaceRoot(): string | undefined {
+		return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	}
+
+	/** Перечитать очередь харнесса. Без плагина/копии или без открытой папки — пусто. */
+	private async refreshHarnessTasks(): Promise<void> {
+		const root = this.harnessWorkspaceRoot();
+		if (!this.harness.available || !root) {
+			this.harnessTasks = [];
+			this.pushState();
+			return;
+		}
+		try {
+			this.harnessTasks = await this.harness.listTasks(root);
+		} catch (err) {
+			logWarn(`harness tasks refresh failed: ${err instanceof Error ? err.message : err}`);
+			this.harnessTasks = [];
+		}
+		this.pushState();
+	}
+
+	/** «Своя задача» вида «Харнесс»: add в очередь проекта и перечитать доску. */
+	private async harnessAddTask(title: string, risk: string, role: string): Promise<{ ok: boolean; reason?: 'unavailable' | 'rejected' }> {
+		const root = this.harnessWorkspaceRoot();
+		if (!this.harness.available || !root) {
+			return { ok: false, reason: 'unavailable' };
+		}
+		const clean = String(title ?? '').trim();
+		if (!clean) {
+			return { ok: false, reason: 'rejected' };
+		}
+		const allowedRisk = ['read', 'write', 'sensitive', 'destructive'];
+		const args = ['add', '--title', clean];
+		if (allowedRisk.includes(risk)) {
+			args.push('--risk', risk);
+		}
+		const cleanRole = String(role ?? '').trim();
+		if (cleanRole) {
+			args.push('--role', cleanRole);
+		}
+		const result = await this.harness.run('orchestrator.mjs', args, root);
+		if (result.code !== 0) {
+			logWarn(`harness add failed: ${result.stderr.trim()}`);
+			return { ok: false, reason: 'rejected' };
+		}
+		await this.refreshHarnessTasks();
+		return { ok: true };
+	}
+
+	/**
+	 * Действие канбана над задачей харнесса. awaiting_approval при взятии в работу
+	 * аппрувится тем же жестом: человек сам тащил карточку — это и есть подтверждение.
+	 */
+	private async harnessTaskAction(id: string, action: string): Promise<{ ok: boolean; reason?: 'unavailable' | 'rejected'; error?: string }> {
+		const root = this.harnessWorkspaceRoot();
+		if (!this.harness.available || !root) {
+			return { ok: false, reason: 'unavailable' };
+		}
+		if (!id) {
+			return { ok: false, reason: 'rejected' };
+		}
+		const steps: string[][] = [];
+		switch (action) {
+			case 'claim': {
+				const task = this.harnessTasks.find(item => item.id === id);
+				if (task?.status === 'awaiting_approval') {
+					steps.push(['approve', '--id', id, '--by', PANEL_AGENT]);
+				}
+				steps.push(['claim', '--agent', PANEL_AGENT, '--id', id]);
+				break;
+			}
+			case 'finish':
+				steps.push(['finish', '--id', id, '--agent', PANEL_AGENT, '--force', '--unverified']);
+				break;
+			case 'fail':
+				steps.push(['fail', '--id', id, '--agent', PANEL_AGENT, '--force', '--class', 'permanent', '--error', 'отмечено с доски оркестратора']);
+				break;
+			case 'reopen':
+				steps.push(['reopen', '--id', id, '--by', PANEL_AGENT]);
+				break;
+			case 'cancel':
+				steps.push(['cancel', '--id', id]);
+				break;
+			default:
+				return { ok: false, reason: 'rejected' };
+		}
+		for (const step of steps) {
+			const result = await this.harness.run('orchestrator.mjs', step, root);
+			if (result.code !== 0) {
+				const error = result.stderr.trim() || `orchestrator ${step[0]} exited ${result.code}`;
+				logWarn(`harness ${action} failed: ${error}`);
+				await this.refreshHarnessTasks();
+				return { ok: false, reason: 'rejected', error };
+			}
+		}
+		await this.refreshHarnessTasks();
+		return { ok: true };
+	}
+
+	/** Инструмент харнесса из панели (doctor/gates/journeys): вывод возвращается в панель. */
+	private async harnessTool(tool: string, args: string[], inWorkspace = false): Promise<{ ok: boolean; output: string }> {
+		if (!this.harness.available) {
+			return { ok: false, output: 'Agent Harness недоступен: установите плагин Agent Harness.' };
+		}
+		const cwd = inWorkspace ? this.harnessWorkspaceRoot() : undefined;
+		if (inWorkspace && !cwd) {
+			return { ok: false, output: 'Откройте папку проекта: гейты и journeys запускаются в корне workspace.' };
+		}
+		try {
+			const result = await this.harness.run(tool, args, cwd);
+			return { ok: result.code === 0, output: (result.stdout + result.stderr).trim() };
+		} catch (err) {
+			return { ok: false, output: err instanceof Error ? err.message : String(err) };
+		}
 	}
 
 	/**

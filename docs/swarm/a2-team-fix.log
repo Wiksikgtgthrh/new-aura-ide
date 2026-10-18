@@ -1,0 +1,377 @@
+[0m
+> build · kimi-k3
+[0m→ [0mRead docs/swarm/ZAN-zan-a2-team.md 
+> build · kimi-k3
+[0m→ [0mRead docs/swarm/DONE-a2-team.md 
+> build · kimi-k3
+[0m✱ [0mGlob "test/*.mjs" [90min extensions/aura-team · 18 matches[0m
+[0m✱ [0mGrep "wireInviteActions" [90min extensions/aura-team · 2 matches[0m
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-team/test/invite.sidebar.test.mjs 
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[offset=1600, limit=140][0m
+> build · kimi-k3
+Теперь смотрю `mount()` (скролл-рестор) и как тест устроен в kanban.render.test.mjs — там jsdom-инфраструктура уже есть.
+[0m→ [0mRead extensions/aura-team/test/kanban.render.test.mjs 
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=70, offset=1790][0m
+> build · kimi-k3
+Картина ясна: инфраструктура kanban.render.test.mjs идеально подходит (jsdom + vm + probe, без сборки). Теперь добираю детали: `svc`, `copyText`, кто зовёт `openInviteMenu`, механику `route`, и run-all.mjs.
+[0m→ [0mRead extensions/aura-team/test/run-all.mjs 
+[0m✱ [0mGrep "openInviteMenu|function svc|function copyText|let route|route =|data-view=" [90min extensions/aura-team/src/webview/template.html · 35 matches[0m
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=25, offset=1570][0m
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=45, offset=1476][0m
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=20, offset=4820][0m
+> build · kimi-k3
+Инфраструктура понятна. Прежде чем писать тест — два дешёвых эксперимента, которые отделяют гипотезы: (1) jsdom хранит scrollTop/scrollLeft round-trip, (2) `.click()` по disabled-кнопке не диспатчит событие. Плюс смотрю `toast()` и версию jsdom.
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=12, offset=1594][0m
+[0m$ [0mnode -e "const {JSDOM}=require('./node_modules/jsdom');const d=new JSDOM('<div id=a><button id=b></button></div>');const el=d.window.document.getElementById('a');el.scrollTop=120;el.scrollLeft=55;console.log('scroll round-trip:',el.scrollTop===120&&el.scrollLeft===55);const btn=d.window.document.getElementById('b');let n=0;btn.addEventListener('click',()=>n++);btn.click();btn.disabled=true;btn.click();console.log('clicks after disable:',n);console.log('jsdom ver:',require('./node_modules/jsdom/package.json').version);"
+node:internal/modules/cjs/loader:1568
+  throw err;
+  ^
+
+Error: Cannot find module './node_modules/jsdom'
+Require stack:
+- C:\new-aura-ide\vscode-main\[eval]
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1142:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)
+    at Module._load (node:internal/modules/cjs/loader:1341:5)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.require (node:internal/modules/cjs/loader:1674:12)
+    at require (node:internal/modules/helpers:157:16)
+    at [eval]:1:15
+    at runScriptInThisContext (node:internal/vm:219:10) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ 'C:\\new-aura-ide\\vscode-main\\[eval]' ]
+}
+
+Node.js v24.21.0
+> build · kimi-k3
+jsdom не в корне — ищу, где он реально стоит (тесты aura-team же его тянут).
+[0m$ [0mls extensions/aura-team/node_modules/jsdom/package.json 2>/dev/null && node -e "console.log(require('./extensions/aura-team/node_modules/jsdom/package.json').version)" || ls extensions/aura-team/node_modules | head -30
+extensions/aura-team/node_modules/jsdom/package.json
+30.1.3
+> build · kimi-k3
+[0m$ [0mnode -e "const {JSDOM}=require('./node_modules/jsdom');const d=new JSDOM('<div id=a><button id=b></button></div>');const el=d.window.document.getElementById('a');el.scrollTop=120;el.scrollLeft=55;console.log('scroll round-trip:',el.scrollTop===120&&el.scrollLeft===55);const btn=d.window.document.getElementById('b');let n=0;btn.addEventListener('click',()=>n++);btn.click();btn.disabled=true;btn.click();console.log('clicks after disable:',n);const nav=d.window.navigator;try{Object.defineProperty(nav,'clipboard',{value:{writeText:()=>Promise.resolve()},configurable:true});console.log('clipboard mock ok:',typeof nav.clipboard.writeText);}catch(e){console.log('clipboard mock FAIL:',e.message);}"
+scroll round-trip: true
+clicks after disable: 1
+clipboard mock ok: function
+> build · kimi-k3
+[0m→ [0mRead extensions/aura-team/src/extension.ts [90m[limit=20, offset=370][0m
+[0m→ [0mRead extensions/aura-orca/src/extension.ts [90m[limit=14, offset=296][0m
+[0m→ [0mRead extensions/aura-orca/src/extension.ts [90m[limit=8, offset=366][0m
+> build · kimi-k3
+[0m$ [0mgit diff HEAD -- extensions/aura-team/package.nls.json | grep '^+' | grep -oE '"[a-zA-Z.]+":' | sort -u
+"category.team":
+"command.getState":
+"command.inviteOpen":
+"command.syncNow":
+"command.toggleAutoPush":
+"configuration.autoStartServer":
+"configuration.gitTestCommand":
+"configuration.syncAutoPush":
+"configuration.syncCommitTemplate":
+"configuration.syncIntervalSeconds":
+"configuration.syncMode":
+"configuration.syncMode.ask":
+"configuration.syncMode.auto":
+"configuration.syncMode.off":
+"configuration.uiLanguage.auto":
+"customEditor.displayName":
+> build · kimi-k3
+[0m$ [0mgit show HEAD:extensions/aura-team/package.nls.json | grep -c getState
+1
+> build · kimi-k3
+Всё подтверждено: 15 новых ключей, `getState` — тронутая, не новая. Пишу тест `invite.modal.test.mjs` (инфраструктура — как в kanban.render.test.mjs: читает template.html напрямую, без сборки).
+[0m← [0mWrite extensions/aura-team/test/invite.modal.test.mjs
+Created file successfully: extensions/aura-team/test/invite.modal.test.mjs
+> build · kimi-k3
+[0m$ [0mnode test/invite.modal.test.mjs
+ok   открытие меню запрашивает текущий код
+  ok   модалка показывает активный код
+  ok   кнопка «Пересоздать» на месте
+  ok   кнопка блокируется сразу (до ответа сервера)
+  ok   даблклик шлёт ровно один revoke
+  ok   create не уходит до ответа revoke
+  ok   после revoke уходит createInvite (цепочка одним кликом)
+  ok   новый код ушёл в буфер обмена
+  ok   тост «скопировано» показан
+  ok   модалка перезапросила код после пересоздания
+  ok   переоткрытая модалка показывает новый код
+  ok   при {cancelled} createInvite не уходит
+  ok   при {cancelled} модалка не переоткрывается
+  ok   при {cancelled} старый код на месте
+  ok   кнопка разблокирована после отмены
+  ok   без кода показана кнопка генерации
+  ok   кнопка генерации блокируется в полёте
+  ok   даблклик по генерации шлёт один createInvite
+  ok   сгенерированный код ушёл в буфер
+  ok   после генерации модалка перезапросила код
+  ok   модалка показывает свежий код
+  ok   copy-кнопка кладёт код в буфер
+
+ALL CHECKS PASSED
+> build · kimi-k3
+[0m← [0mEdit extensions/aura-team/test/kanban.render.test.mjs
+Index: extensions/aura-team/test/kanban.render.test.mjs
+===================================================================
+--- extensions/aura-team/test/kanban.render.test.mjs
++++ extensions/aura-team/test/kanban.render.test.mjs
+@@ -371,6 +371,28 @@
+ check('CSS: box-shadow только у drag-превью/меню', shadowRules.length > 0 && shadowRules.every((r) => /\.(drag-ghost|board-menu|qa-pop)\b/.test(r)));
+ check('CSS: карточки и колонки без тени', !/box-shadow/.test(rule('.task')) && !/box-shadow/.test(rule('.column')));
+ check('reduced-motion отключает переходы', /prefers-reduced-motion: reduce/.test(css));
+ 
++/* ---------- 15. Скролл-рестор: тот же раздел держит позицию ---------- */
++// mount() пересоздаёт доску через innerHTML: позиции восстанавливаются на НОВЫХ узлах.
++// (viewBody — тот же узел-контейнер, его scrollTop в jsdom переживает innerHTML сам;
++//  настоящий сигнал — свежие .board и .column-body, у которых позиции с нуля.)
++await setState(); // route === 'board'
++const scrollBody = document.getElementById('viewBody');
++scrollBody.scrollTop = 120;
++scrollBody.querySelector('.board').scrollLeft = 55;
++scrollBody.querySelector('.column[data-status="todo"] .column-body').scrollTop = 77;
++await setState(); // broadcast в том же разделе
++const remounted = document.getElementById('viewBody');
++check('Скролл доски (scrollLeft) восстановлен на новом узле', remounted.querySelector('.board')?.scrollLeft === 55);
++check('Скролл колонки (scrollTop) восстановлен на новом узле', remounted.querySelector('.column[data-status="todo"] .column-body')?.scrollTop === 77);
++check('Скролл страницы восстановлен', remounted.scrollTop === 120);
++// Гвард «только тот же раздел»: после ухода с доски lastMountedRoute — не board.
++document.querySelector('.rail-btn[data-view="teams"]')?.click();
++await tick(20);
++check('Смена раздела двигает lastMountedRoute (скролл с нуля)', probe('lastMountedRoute') === 'teams');
++document.querySelector('.rail-btn[data-view="board"]')?.click();
++await tick(30);
++check('Возврат в раздел не воскрешает чужой скролл доски', document.querySelector('.board')?.scrollLeft === 0);
++
+ console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
+ process.exit(failures === 0 ? 0 : 1);
+
+> build · kimi-k3
+[0m$ [0mnode test/kanban.render.test.mjs 2>&1 | tail -20
+ok   Поле даты в панели деталей — с иконкой
+  ok   Быстрые пресеты дедлайна в панели
+  ok   Пресеты дат — единый хелпер
+  ok   CSS: нет хардкод-цветов (#)
+  ok   CSS: нет rgb(
+  ok   CSS: нет градиентов
+  ok   CSS: нет uppercase
+  ok   CSS: нет !important
+  ok   CSS: нет translateY(-1px)
+  ok   CSS: нет бесконечных анимаций
+  ok   CSS: box-shadow только у drag-превью/меню
+  ok   CSS: карточки и колонки без тени
+  ok   reduced-motion отключает переходы
+  ok   Скролл доски (scrollLeft) восстановлен на новом узле
+  ok   Скролл колонки (scrollTop) восстановлен на новом узле
+  ok   Скролл страницы восстановлен
+  ok   Смена раздела двигает lastMountedRoute (скролл с нуля)
+  ok   Возврат в раздел не воскрешает чужой скролл доски
+
+ALL CHECKS PASSED
+> build · kimi-k3
+Оба зелёные. Полный прогон run-all.mjs (tsc + все тесты):
+[0m$ [0mnode test/run-all.mjs 2>&1 | tail -45
+ok   Undo-тост показан
+  ok   deleteTask уходит сразу, а не через тост
+  ok   Строка удалена из DOM
+  ok   «Отменить» отправляет restoreTask
+  ok   После отмены deleteTask повторно не уходит
+  ok   точка присутствия есть у каждого участника
+  ok   онлайн — зелёная (live)
+  ok   офлайн — серая (off)
+  ok   в title написано «в сети»
+  ok   онлайновые стоят выше офлайновых
+  ok   «Пригласить» не открывает вкладку редактора
+  ok   секция приглашения раскрывается в панели
+  ok   пункт навигации показывает активное состояние
+  ok   код приглашения отрисован в секции
+  ok   срок действия кода виден текстом
+  ok   каталог запрошен у расширения
+  ok   каталог отрисован строками
+  ok   email кандидата виден в строке
+  ok   присутствие показано только у участника команды
+  ok   участник команды уже помечен приглашённым
+  ok   кандидат без приглашения — кнопка активна
+  ok   отправка идёт с id пользователя
+  ok   кнопка сразу показывает «Приглашён»
+  ok   ошибка отправки откатывает кнопку
+  ok   поиск отправляется после debounce
+  ok   фокус остаётся в поле поиска после обновления состояния
+  ok   набранный текст не сбрасывается
+  ok   строка каталога переиспользуется, а не пересоздаётся
+  ok   секцию можно закрыть
+  ok   отзыв кода уходит на сервер
+  ok   до ответа сервера код остаётся на месте
+  ok   после отзыва показано пустое состояние с кнопкой создания
+  ok   новый код появляется вместо пустого состояния
+  ok   кнопка копирования вернулась и работает
+  ok   Diff-обновление: строка t1 — тот же DOM-узел
+  ok   Фокус сохранён после broadcast
+  ok   Смена статуса: data-state обновился
+  ok   Смена статуса: старый текст кросфейдится (2 слоя)
+  ok   Diff-обновление: прогресс подзадач пересчитан
+  ok   Diff-обновление: счётчик не дублируется
+  ok   Diff-обновление: исчезнувшие подзадачи убирают счётчик
+
+ALL CHECKS PASSED
+
+ALL 19 STEPS PASSED
+> build · kimi-k3
+**ALL 19 STEPS PASSED, exit 0.** Для отчёта возьму шапку прогона (tsc-шаг и список):
+[0m$ [0mnode test/run-all.mjs 2>&1 | grep -E '^=== |STEPS PASSED|FAILED' 
+=== tsc (сборка out/) ===
+=== admin.render.test.mjs ===
+=== api-headers.test.mjs ===
+=== archives-rules.test.mjs ===
+=== aura-language.test.mjs ===
+=== commands-wired.test.mjs ===
+=== demo-mode.test.mjs ===
+=== git-branch-name.test.mjs ===
+=== git-workflow.test.mjs ===
+=== git.render.test.mjs ===
+=== invite.modal.test.mjs ===
+=== invite.sidebar.test.mjs ===
+=== kanban.render.test.mjs ===
+=== keys-import.test.mjs ===
+=== manifest.test.mjs ===
+=== refresh-batching.test.mjs ===
+=== server-integration.test.mjs ===
+=== sidebar-syntax.test.mjs ===
+=== sidebar.render.test.mjs ===
+ALL 19 STEPS PASSED
+> build · kimi-k3
+[0m← [0mEdit docs/swarm/DONE-a2-team.md
+Index: docs/swarm/DONE-a2-team.md
+===================================================================
+--- docs/swarm/DONE-a2-team.md
++++ docs/swarm/DONE-a2-team.md
+@@ -1,7 +1,7 @@
+ # DONE a2-team — REVIEW-AURA: AURA-018..027, 032, 033 + kanban/invite UX
+ 
+-Проверка: `tsc --noEmit` чисто для aura-team, aura-orca, langgraph-orchestrator; `node test/run-all.mjs` (aura-team) — ALL 18 STEPS PASSED (вкл. manifest.test с RU-локалью). Не проверено: живая IDE-сессия (heartbeat/тосты/pid — по коду и типам).
++Проверка: `tsc --noEmit` чисто для aura-team, aura-orca, langgraph-orchestrator; `node test/run-all.mjs` (aura-team) — ALL 19 STEPS PASSED (tsc + 18 тест-файлов, вкл. invite.modal и скролл-рестор в kanban.render). Не проверено: живая IDE-сессия (heartbeat/тосты/pid — по коду и типам).
+ 
+ | ID | Статус | Файл:строка | Что сделано / не проверено |
+ |---|---|---|---|
+ | AURA-018 | done | aura-team/package.nls.ru.json:1 (новый, 58 ключей); package.nls.json:45-60 (16 новых EN); package.json — все category/title/description → %keys%; test/manifest.test.mjs:68-70 (category резолвится через EN-map) | Тест «нет мёртвых ключей» + «RU покрывает EN» зелёный |
+
+[0m← [0mEdit docs/swarm/DONE-a2-team.md
+Index: docs/swarm/DONE-a2-team.md
+===================================================================
+--- docs/swarm/DONE-a2-team.md
++++ docs/swarm/DONE-a2-team.md
+@@ -3,9 +3,9 @@
+ Проверка: `tsc --noEmit` чисто для aura-team, aura-orca, langgraph-orchestrator; `node test/run-all.mjs` (aura-team) — ALL 19 STEPS PASSED (tsc + 18 тест-файлов, вкл. invite.modal и скролл-рестор в kanban.render). Не проверено: живая IDE-сессия (heartbeat/тосты/pid — по коду и типам).
+ 
+ | ID | Статус | Файл:строка | Что сделано / не проверено |
+ |---|---|---|---|
+-| AURA-018 | done | aura-team/package.nls.ru.json:1 (новый, 58 ключей); package.nls.json:45-60 (16 новых EN); package.json — все category/title/description → %keys%; test/manifest.test.mjs:68-70 (category резолвится через EN-map) | Тест «нет мёртвых ключей» + «RU покрывает EN» зелёный |
++| AURA-018 | done | aura-team/package.nls.ru.json:1 (новый, 58 ключей); package.nls.json:45-60 (15 новых EN; 16-я строка диффа — тронутый command.getState); package.json — все category/title/description → %keys%; test/manifest.test.mjs:68-70 (category резолвится через EN-map) | Тест «нет мёртвых ключей» + «RU покрывает EN» зелёный |
+ | AURA-019 | already done | langgraph-orchestrator/src/extension.ts:70 | statusBar уже в `context.subscriptions` — подтверждено глазами |
+ | AURA-021 | already done | aura-orca/src/extension.ts:457,472 | `installedCache.delete(binary)` уже есть при смене настроек/бинаря |
+ | AURA-022 | done | aura-orca/src/extension.ts:149 | listener shell-integration добавлен в `context.subscriptions` (dispose идемпотентен с таймаут-веткой) |
+ | AURA-023 | done | aura-orca/src/extension.ts:62-67 (tempDirs+cleanupTempDirs+disposable), 288-291 (cleanup перед новым снапшотом), ~360 (panel.onDidDispose) | rmSync(recursive,force); ошибки чистки глушатся |
+
+[0m← [0mEdit docs/swarm/DONE-a2-team.md
+Index: docs/swarm/DONE-a2-team.md
+===================================================================
+--- docs/swarm/DONE-a2-team.md
++++ docs/swarm/DONE-a2-team.md
+@@ -7,9 +7,9 @@
+ | AURA-018 | done | aura-team/package.nls.ru.json:1 (новый, 58 ключей); package.nls.json:45-60 (15 новых EN; 16-я строка диффа — тронутый command.getState); package.json — все category/title/description → %keys%; test/manifest.test.mjs:68-70 (category резолвится через EN-map) | Тест «нет мёртвых ключей» + «RU покрывает EN» зелёный |
+ | AURA-019 | already done | langgraph-orchestrator/src/extension.ts:70 | statusBar уже в `context.subscriptions` — подтверждено глазами |
+ | AURA-021 | already done | aura-orca/src/extension.ts:457,472 | `installedCache.delete(binary)` уже есть при смене настроек/бинаря |
+ | AURA-022 | done | aura-orca/src/extension.ts:149 | listener shell-integration добавлен в `context.subscriptions` (dispose идемпотентен с таймаут-веткой) |
+-| AURA-023 | done | aura-orca/src/extension.ts:62-67 (tempDirs+cleanupTempDirs+disposable), 288-291 (cleanup перед новым снапшотом), ~360 (panel.onDidDispose) | rmSync(recursive,force); ошибки чистки глушатся |
++| AURA-023 | done | aura-orca/src/extension.ts:62-67 (tempDirs+cleanupTempDirs+disposable), 301-304 (cleanup перед новым снапшотом), 370 (panel.onDidDispose) | rmSync(recursive,force); ошибки чистки глушатся |
+ | AURA-024 | done | aura-team/src/extension.ts:47-53 (убить stale pid до spawn), 78-84 (pid пишется только после probe), 87-88 (timeout → kill своего child) | pid в globalStorageUri, не в репо; живой процесс проверяется signal 0 |
+ | AURA-025 | done | aura-team/src/extension.ts:220-241 (TTL 10_000, `gitSnapshot()`, WeakSet + `repo.state.onDidChange` → сброс кэша); buildState: `git: await gitSnapshot()` | Ошибочные снапшоты не кэшируются (семантика сохранена) |
+ | AURA-026 | done | aura-team/src/extension.ts:336-364 (агрегатор: первый сразу, окно 5с → `{0} (+{1} more)`, backlog ≤10 + overflow, таймер в subscriptions); вызовы 376, 388 | Текст агрегата через l10n.t |
+ | AURA-027 | done | aura-team/package.json:70 (`minimum: 60`) + src/git/teamSync.ts:63 (`Math.max(60, …)`) — код и манифест согласованы | — |
+
+[0m← [0mEdit docs/swarm/DONE-a2-team.md
+Index: docs/swarm/DONE-a2-team.md
+===================================================================
+--- docs/swarm/DONE-a2-team.md
++++ docs/swarm/DONE-a2-team.md
+@@ -10,9 +10,9 @@
+ | AURA-022 | done | aura-orca/src/extension.ts:149 | listener shell-integration добавлен в `context.subscriptions` (dispose идемпотентен с таймаут-веткой) |
+ | AURA-023 | done | aura-orca/src/extension.ts:62-67 (tempDirs+cleanupTempDirs+disposable), 301-304 (cleanup перед новым снапшотом), 370 (panel.onDidDispose) | rmSync(recursive,force); ошибки чистки глушатся |
+ | AURA-024 | done | aura-team/src/extension.ts:47-53 (убить stale pid до spawn), 78-84 (pid пишется только после probe), 87-88 (timeout → kill своего child) | pid в globalStorageUri, не в репо; живой процесс проверяется signal 0 |
+ | AURA-025 | done | aura-team/src/extension.ts:220-241 (TTL 10_000, `gitSnapshot()`, WeakSet + `repo.state.onDidChange` → сброс кэша); buildState: `git: await gitSnapshot()` | Ошибочные снапшоты не кэшируются (семантика сохранена) |
+-| AURA-026 | done | aura-team/src/extension.ts:336-364 (агрегатор: первый сразу, окно 5с → `{0} (+{1} more)`, backlog ≤10 + overflow, таймер в subscriptions); вызовы 376, 388 | Текст агрегата через l10n.t |
++| AURA-026 | done | aura-team/src/extension.ts:336-364 (агрегатор: первый сразу, окно 5с → `{0} (+{1} more)`, backlog ≤10 + overflow, таймер в subscriptions); вызовы 376, 387 | Текст агрегата через l10n.t |
+ | AURA-027 | done | aura-team/package.json:70 (`minimum: 60`) + src/git/teamSync.ts:63 (`Math.max(60, …)`) — код и манифест согласованы | — |
+ | AURA-032 | done | aura-orca/src/extension.ts:181-186 (`setInterval` 30с: dim-строка `… ♥ running for Ns, output X KB` + log), clearInterval в close/error (197, 205) | Без изменения протокола; в живом терминале не гонял |
+ | AURA-033 | done | langgraph-orchestrator/src/tools/index.ts:573-581 (poll `auraOrca.getState` 20с, матч по точному title, logInfo аптайм/объём), clearInterval в finally (592) | `.then(ok, err)` вместо `.catch` — executeCommand возвращает Thenable |
+ | kanban scroll | done | aura-team/src/webview/template.html:1810-1830 (mount: scrollTop viewBody + scrollLeft `.board` + scrollTop `.column-body[data-status]`, только если route не сменился) | jsdom-тесты зелёные; вживую не гонял |
+
+[0m← [0mEdit docs/swarm/DONE-a2-team.md
+Index: docs/swarm/DONE-a2-team.md
+===================================================================
+--- docs/swarm/DONE-a2-team.md
++++ docs/swarm/DONE-a2-team.md
+@@ -14,9 +14,9 @@
+ | AURA-026 | done | aura-team/src/extension.ts:336-364 (агрегатор: первый сразу, окно 5с → `{0} (+{1} more)`, backlog ≤10 + overflow, таймер в subscriptions); вызовы 376, 387 | Текст агрегата через l10n.t |
+ | AURA-027 | done | aura-team/package.json:70 (`minimum: 60`) + src/git/teamSync.ts:63 (`Math.max(60, …)`) — код и манифест согласованы | — |
+ | AURA-032 | done | aura-orca/src/extension.ts:181-186 (`setInterval` 30с: dim-строка `… ♥ running for Ns, output X KB` + log), clearInterval в close/error (197, 205) | Без изменения протокола; в живом терминале не гонял |
+ | AURA-033 | done | langgraph-orchestrator/src/tools/index.ts:573-581 (poll `auraOrca.getState` 20с, матч по точному title, logInfo аптайм/объём), clearInterval в finally (592) | `.then(ok, err)` вместо `.catch` — executeCommand возвращает Thenable |
+-| kanban scroll | done | aura-team/src/webview/template.html:1810-1830 (mount: scrollTop viewBody + scrollLeft `.board` + scrollTop `.column-body[data-status]`, только если route не сменился) | jsdom-тесты зелёные; вживую не гонял |
++| kanban scroll | done | aura-team/src/webview/template.html:1810-1833 (mount: scrollTop viewBody + scrollLeft `.board` + scrollTop `.column-body[data-status]`, только если route не сменился) | Покрыто kanban.render.test.mjs секцией 15 (рестор на свежих узлах + гвард lastMountedRoute); вживую не гонял |
+ | kanban deleteArchive | done | template.html:3325-3332 — удаление архива через существующий `confirmAction` (было без подтверждения) | Колонок-удаления нет: 4 фиксированных статуса — N/A |
+ | invite regen | done | template.html:1678-1700 — «Пересоздать» теперь revoke→createInvite одним кликом, честит `{cancelled}`, disabled-гарды на gen/revoke/send (1708-1722) | Поведение покрыто существующими invite-тестами |
+ 
+ Коммитов нет — все изменения в рабочем дереве.
+
+[0m← [0mEdit docs/swarm/DONE-a2-team.md
+Index: docs/swarm/DONE-a2-team.md
+===================================================================
+--- docs/swarm/DONE-a2-team.md
++++ docs/swarm/DONE-a2-team.md
+@@ -16,7 +16,7 @@
+ | AURA-032 | done | aura-orca/src/extension.ts:181-186 (`setInterval` 30с: dim-строка `… ♥ running for Ns, output X KB` + log), clearInterval в close/error (197, 205) | Без изменения протокола; в живом терминале не гонял |
+ | AURA-033 | done | langgraph-orchestrator/src/tools/index.ts:573-581 (poll `auraOrca.getState` 20с, матч по точному title, logInfo аптайм/объём), clearInterval в finally (592) | `.then(ok, err)` вместо `.catch` — executeCommand возвращает Thenable |
+ | kanban scroll | done | aura-team/src/webview/template.html:1810-1833 (mount: scrollTop viewBody + scrollLeft `.board` + scrollTop `.column-body[data-status]`, только если route не сменился) | Покрыто kanban.render.test.mjs секцией 15 (рестор на свежих узлах + гвард lastMountedRoute); вживую не гонял |
+ | kanban deleteArchive | done | template.html:3325-3332 — удаление архива через существующий `confirmAction` (было без подтверждения) | Колонок-удаления нет: 4 фиксированных статуса — N/A |
+-| invite regen | done | template.html:1678-1700 — «Пересоздать» теперь revoke→createInvite одним кликом, честит `{cancelled}`, disabled-гарды на gen/revoke/send (1708-1722) | Поведение покрыто существующими invite-тестами |
++| invite regen | done | template.html:1677-1694 (wireInviteActions: revoke→createInvite одним кликом, честит `{cancelled}`); disabled-гарды: gen 1664-1674, send 1708-1721 | Покрыто test/invite.modal.test.mjs (22 проверки: цепочка revoke→create, {cancelled}, даблклик-гарды, copy); сайдбар-путь — invite.sidebar.test.mjs |
+ 
+ Коммитов нет — все изменения в рабочем дереве.
+
+> build · kimi-k3
+[0m← [0mWrite docs/swarm/DONE-a2-team-fix.md
+Created file successfully: docs/swarm/DONE-a2-team-fix.md
+> build · kimi-k3
+Финальная сверка: DONE-a2-team.md после правок и статус git (ничего не коммитил):
+[0m$ [0mgit status --short -- extensions/aura-team/test docs/swarm && echo '---' && wc -l docs/swarm/DONE-a2-team-fix.md
+M extensions/aura-team/test/kanban.render.test.mjs
+ M extensions/aura-team/test/manifest.test.mjs
+ M extensions/aura-team/test/sidebar-syntax.test.mjs
+?? docs/swarm/
+?? extensions/aura-team/test/invite.modal.test.mjs
+---
+17 docs/swarm/DONE-a2-team-fix.md
+> build · kimi-k3
+**готово.** все пункты «минимум к ACCEPT» закрыты, с реальными прогонами.
+
+**по пунктам:**
+
+1. **ложное evidence (блокер)** — закрыт тестом, не удалением: новый `test/invite.modal.test.mjs` гоняет именно изменённый модал-путь `wireInviteActions` — revoke→create цепочка, `{cancelled:true}`, даблклик-гарды, copy. 22/22 ok, exit 0. перед написанием проверил гипотезы о jsdom одним прогоном: scrollTop round-trip работает, `.click()` по disabled не диспатчит — тесты на этом и построены.
+2. **«16 новых EN» → 15** — исправлено в DONE; сам сверил по `git diff`: `command.getState` есть в HEAD, тронутая строка, не новая.
+3. **«388» → «387»** — исправлено, `extension.ts:387` подтверждён чтением.
+4. **«288-291» → «301-304»** (и `~360` → `370`) — исправлено, подтверждено чтением.
+5. **(желательно) скролл-рестор** — секция 15 в `kanban.render.test.mjs`: рестор scrollLeft/scrollTop на **новых** узлах после innerHTML + гвард `lastMountedRoute`. 5 проверок зелёные.
+
+**побочка:** шапка DONE «18 STEPS» → «19 STEPS» (новый файл автоподхвачен run-all.mjs).
+
+**реальный прогон после правок:**
+```
+=== tsc (сборка out/) ===  + 18 тест-файлов (вкл. invite.modal, kanban.render)
+ALL 19 STEPS PASSED   exit 0
+```
+
+финал: `docs/swarm/DONE-a2-team-fix.md` (17 строк). коммитов нет — всё в рабочем дереве. `manifest.test.mjs`/`sidebar-syntax.test.mjs` в git status — чужие несмёрженные следы из ревью, не мои.
+
+резюме: причина возврата — заявка о покрытии, которого не было; что сделал — написал тест на реальный путь и сбил счётчики с кодом.

@@ -47,10 +47,9 @@ check('точка присутствия рисуется', script.includes('fun
 check('онлайновые сверху', script.includes('Number(Boolean(b.online)) - Number(Boolean(a.online))'));
 check('удалённые не воскресают', script.includes('!pendingDeletes.includes(task.id)'));
 check('событие: скрытие без сервера и мгновенно', script.includes('evHideKey') && script.includes("dismissBtn.closest('.ev-row')") && script.includes("hideRow.classList.add('removing')"));
-check('событие: удаление без модалки, с анимацией и без воскрешения', script.includes("delRow.classList.add('removing')") && script.includes('deletedEv.has(String(ev.id))'));
-check('событие: удаление для команды', script.includes("'auraTeam.deleteActivity'"));
+check('событие: в строке остался только ✕ (крестик)', script.includes('data-dismiss-ev') && !script.includes('data-del-event'));
+check('событие: удаление для всей команды больше не подключено', !script.includes("'auraTeam.deleteActivity'"));
 check('кнопка «Вернуть скрытые» подключена', script.includes("command: 'auraTeam.undismissAllActivity'") && script.includes("restoreFeedBtn"));
-check('событие удаляется только с id', script.includes('canDelete && ev.id'));
 
 console.log(failed ? `\n${failed} проверок упало` : '\nALL CHECKS PASSED');
 process.exit(failed ? 1 : 0);

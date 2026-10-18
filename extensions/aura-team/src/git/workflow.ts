@@ -25,7 +25,9 @@ export function personalBranchName(nickname: string | undefined): string {
 
 /** Имя ветки допустимо для git и для нашей проверки createBranch. */
 export function isValidBranchName(name: string): boolean {
-	return /^[\w.\-/]{1,80}$/.test(name) && !name.includes('..') && !name.startsWith('/') && !name.endsWith('/') && !name.endsWith('.lock');
+	// Ведущий дефис запрещён: иначе '--force' прошёл бы проверку и превратился
+	// в опцию git (аргумент-инъекция в checkout/branch -d).
+	return /^[\w.\-/]{1,80}$/.test(name) && !name.startsWith('-') && !name.includes('..') && !name.startsWith('/') && !name.endsWith('/') && !name.endsWith('.lock');
 }
 
 export type DiffLineKind = 'add' | 'del' | 'ctx' | 'meta';

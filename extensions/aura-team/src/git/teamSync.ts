@@ -59,7 +59,8 @@ export class TeamSyncService implements vscode.Disposable {
 
 	private restartTimer(): void {
 		if (this.timer) { clearInterval(this.timer); }
-		const seconds = Math.max(15, vscode.workspace.getConfiguration('auraTeam').get<number>('sync.intervalSeconds', 120));
+		// Кламп согласован с minimum в package.json (60 с): чаще — долбёжка GitHub API.
+		const seconds = Math.max(60, vscode.workspace.getConfiguration('auraTeam').get<number>('sync.intervalSeconds', 120));
 		this.timer = setInterval(() => void this.autoPull(), seconds * 1000);
 	}
 

@@ -148,6 +148,8 @@ export class GitService {
 
 	async deleteBranch(name: string): Promise<void> {
 		const repository = this.requireRepository();
+		// Аргумент-инъекция: branch='--force' превратил бы `git branch -d` в `git branch -d --force`.
+		if (!isValidBranchName(name)) { throw new Error(vscode.l10n.t('Invalid branch name.')); }
 		this.log(`git branch -d ${name}`);
 		await this.runGit(repository, ['branch', '-d', name]);
 	}
@@ -171,6 +173,8 @@ export class GitService {
 
 	async checkout(branch: string): Promise<void> {
 		const repository = this.requireRepository();
+		// Аргумент-инъекция: branch='--force' молча сносил бы незакоммиченные правки.
+		if (!isValidBranchName(branch)) { throw new Error(vscode.l10n.t('Invalid branch name.')); }
 		this.log(`git checkout ${branch}`);
 		await this.runGit(repository, ['checkout', branch]);
 	}

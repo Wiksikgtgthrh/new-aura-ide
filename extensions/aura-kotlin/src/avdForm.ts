@@ -35,8 +35,7 @@ export class AvdCreateForm {
 			{ enableScripts: true, retainContextWhenHidden: true },
 		);
 		this.panel.iconPath = new vscode.ThemeIcon('device-mobile');
-		const nonce = String(Date.now()) + '-' + Math.floor(Math.random() * 1e9);
-		this.panel.webview.html = this.html(nonce);
+		this.panel.webview.html = this.html(crypto.randomUUID());
 		this.panel.onDidDispose(() => { if (AvdCreateForm.current === this) { AvdCreateForm.current = undefined; } });
 		this.panel.webview.onDidReceiveMessage(message => void this.onMessage(message));
 	}
@@ -109,12 +108,12 @@ export class AvdCreateForm {
 		void this.panel.webview.postMessage({ type: 'init', data });
 	}
 
-	// Форма статичная: строки только русские (продукт Russian-first), скрипт под nonce.
+	// Форма: строки через tr()-ключи (Russian-first через bundle.l10n.ru.json), скрипт под nonce.
 	private html(nonce: string): string {
 		return `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Новый эмулятор</title>
+<title>${tr('New emulator')}</title>
 <style>
 :root {
 	--sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
@@ -205,35 +204,35 @@ input[type=text]:focus, select:focus {
 }
 </style></head><body>
 <div class="shell">
-	<h1>Новый эмулятор (AVD)</h1>
-	<p class="sub">Модель телефона, версия Android и имя — эмулятор появится в панели Android.</p>
+	<h1>${tr('New emulator (AVD)')}</h1>
+	<p class="sub">${tr('Phone model, Android version and name — the emulator will appear in the Android panel.')}</p>
 
 	<div class="banner error" id="bannerError"></div>
 	<div class="banner ok" id="bannerOk"></div>
 
 	<div class="card" id="form" style="display:none">
 		<div class="field">
-			<label for="profile">Модель устройства</label>
+			<label for="profile">${tr('Device model')}</label>
 			<select id="profile"></select>
 		</div>
 		<div class="field">
-			<label for="image">Системный образ</label>
+			<label for="image">${tr('System image')}</label>
 			<select id="image"></select>
 			<span class="hint" id="archHint"></span>
 		</div>
 		<div class="field api-row" id="apiRow">
-			<label for="api">API-уровень для скачивания</label>
+			<label for="api">${tr('API level to download')}</label>
 			<input type="text" id="api" value="35" maxlength="2" inputmode="numeric">
-			<span class="hint">Образ скачается через sdkmanager (~1 ГБ), лицензии подтверждаются автоматически.</span>
+			<span class="hint">${tr('Image will be downloaded via sdkmanager (~1 GB), licenses are accepted automatically.')}</span>
 		</div>
 		<div class="field">
-			<label for="name">Имя эмулятора</label>
+			<label for="name">${tr('Emulator name')}</label>
 			<input type="text" id="name" maxlength="40">
-			<span class="hint">Буквы, цифры, точка, дефис и подчёркивание.</span>
+			<span class="hint">${tr('Letters, digits, dot, dash and underscore.')}</span>
 		</div>
-		<label class="check"><input type="checkbox" id="startAfter" checked> Запустить эмулятор после создания</label>
+		<label class="check"><input type="checkbox" id="startAfter" checked> ${tr('Start emulator after creation')}</label>
 		<div class="actions">
-			<button class="btn" id="btnCreate">Создать эмулятор</button>
+			<button class="btn" id="btnCreate">${tr('Create emulator')}</button>
 			<div class="status" id="status"><span class="spinner"></span><span id="statusText"></span></div>
 		</div>
 	</div>
@@ -281,8 +280,8 @@ function fillForm(data) {
 	if (pixel >= 0) { $('profile').selectedIndex = pixel; }
 	const sorted = [...data.images].sort((a, b) => Number(apiOf(b)) - Number(apiOf(a)));
 	$('image').innerHTML = sorted.map(i => '<option value="' + i + '">API ' + apiOf(i) + ' · ' + i + '</option>').join('')
-		+ '<option value="">Скачать новый образ…</option>';
-	$('archHint').textContent = 'Архитектура: ' + data.arch;
+		+ '<option value="">${tr('Download new system image…')}</option>';
+	$('archHint').textContent = '${tr('Architecture:')} ' + data.arch;
 	$('loading').style.display = 'none';
 	$('form').style.display = '';
 	suggestName();
@@ -299,12 +298,12 @@ $('name').addEventListener('input', () => { state.nameTouched = true; });
 $('btnCreate').addEventListener('click', () => {
 	if (state.busy) { return; }
 	const name = $('name').value.trim();
-	if (!/^[\\w.-]+$/.test(name)) { showBanner('bannerError', 'Имя: только буквы, цифры, точка, дефис и подчёркивание.'); return; }
+	if (!/^[\\w.-]+$/.test(name)) { showBanner('bannerError', '${tr('Name: only letters, digits, dot, dash and underscore.')}'); return; }
 	const image = $('image').value;
 	const api = $('api').value.trim();
-	if (!image && !/^\\d{2}$/.test(api)) { showBanner('bannerError', 'API-уровень — две цифры, например 35.'); return; }
+	if (!image && !/^\\d{2}$/.test(api)) { showBanner('bannerError', '${tr('API level — two digits, e.g. 35.')}'); return; }
 	setBusy(true);
-	setStatus(image ? 'Создание эмулятора…' : 'Скачивание системного образа…');
+	setStatus(image ? '${tr('Creating emulator…')}' : '${tr('Downloading system image…')}');
 	vscode.postMessage({
 		type: 'create',
 		profileId: $('profile').value,
@@ -321,17 +320,17 @@ window.addEventListener('message', (event) => {
 		if (msg.data.ok) { fillForm(msg.data); }
 		else {
 			$('loading').style.display = 'none';
-			showBanner('bannerError', msg.data.error || 'Не удалось получить данные SDK.');
+			showBanner('bannerError', msg.data.error || '${tr('Failed to get SDK data.')}');
 		}
 	} else if (msg.type === 'status') {
 		setStatus(msg.text);
 	} else if (msg.type === 'error') {
 		setBusy(false);
-		showBanner('bannerError', msg.text || 'Ошибка создания эмулятора.');
+		showBanner('bannerError', msg.text || '${tr('Emulator creation error.')}');
 	} else if (msg.type === 'done') {
 		setBusy(false);
 		setStatus('');
-		showBanner('bannerOk', 'Эмулятор «' + msg.name + '» создан и уже в списке панели Android.');
+		showBanner('bannerOk', '${tr('Emulator "{0}" has been created and is now in the Android panel list.')}'.replace('{0}', msg.name));
 	}
 });
 

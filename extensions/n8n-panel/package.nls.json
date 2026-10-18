@@ -1,0 +1,11 @@
+{
+	"displayName": "n8n Panel",
+	"description": "Tab with the web UI of your n8n instance",
+	"configuration.title": "n8n Panel",
+	"configuration.url": "URL of your n8n instance",
+	"configuration.allowSelfSigned": "Allow self-signed TLS certificates for the n8n server status check only. Does not affect loading the n8n tab (iframe): the browser validates the certificate there independently and will not open an untrusted one. Default: certificates are verified. For a proper fix prefer adding your CA via the NODE_EXTRA_CA_CERTS environment variable.",
+	"command.openTab": "n8n: Open n8n",
+	"command.openExternal": "n8n: Open in Browser",
+	"viewsContainer.title": "n8n",
+	"view.launcher.name": "Launcher"
+}

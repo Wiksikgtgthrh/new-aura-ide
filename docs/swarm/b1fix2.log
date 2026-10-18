@@ -1,0 +1,489 @@
+[0m
+> build · kimi-k3
+[0m→ [0mRead docs/swarm/ZAN-zan2-b1.md 
+> build · kimi-k3
+Понял задачу. Читаю зону: исходник, смоук, проблемный комментарий в android.ts.
+[0m→ [0mRead docs/swarm/zan2-b1-smoke.cjs 
+[0m→ [0mRead extensions/aura-kotlin/src/android.ts [90m[offset=440, limit=60][0m
+[0m→ [0mRead extensions/aura-kotlin/src/deviceScreen.ts 
+> build · kimi-k3
+Картина ясна. Проверю tsconfig и состояние out/ (стейл-мапы — пункт 7), заодно гляну, есть ли те шаблонные смоук-скрипты про PGlite.
+[0m→ [0mRead extensions/aura-kotlin/tsconfig.json 
+[0m$ [0mls -la --time-style=long-iso extensions/aura-kotlin/out/ 2>/dev/null | head -20; echo ---; ls docs/swarm/ | head -30
+total 1108
+drwxr-xr-x 1 Wiks 197121     0 2026-10-15 20:11 .
+drwxr-xr-x 1 Wiks 197121     0 2026-10-18 07:11 ..
+-rw-r--r-- 1 Wiks 197121 52107 2026-10-18 08:07 android.js
+-rw-r--r-- 1 Wiks 197121 87836 2026-10-15 20:11 android.js.map
+-rw-r--r-- 1 Wiks 197121 18312 2026-10-18 08:07 avdForm.js
+-rw-r--r-- 1 Wiks 197121 22708 2026-10-15 20:11 avdForm.js.map
+-rw-r--r-- 1 Wiks 197121 34150 2026-10-18 08:07 classpath.js
+-rw-r--r-- 1 Wiks 197121 64849 2026-10-15 20:11 classpath.js.map
+-rw-r--r-- 1 Wiks 197121 34700 2026-10-18 08:07 debugAdapter.js
+-rw-r--r-- 1 Wiks 197121 64159 2026-10-15 20:11 debugAdapter.js.map
+-rw-r--r-- 1 Wiks 197121 36438 2026-10-18 08:07 deviceScreen.js
+-rw-r--r-- 1 Wiks 197121 15866 2026-10-15 20:11 deviceScreen.js.map
+-rw-r--r-- 1 Wiks 197121 11755 2026-10-18 08:07 extension.js
+-rw-r--r-- 1 Wiks 197121 19087 2026-10-15 20:11 extension.js.map
+-rw-r--r-- 1 Wiks 197121 14659 2026-10-18 08:07 gradle.js
+-rw-r--r-- 1 Wiks 197121 23827 2026-10-15 20:11 gradle.js.map
+-rw-r--r-- 1 Wiks 197121 16088 2026-10-18 08:07 javaInstall.js
+-rw-r--r-- 1 Wiks 197121 26475 2026-10-15 20:11 javaInstall.js.map
+-rw-r--r-- 1 Wiks 197121 20040 2026-10-18 08:07 javaLsp.js
+---
+DONE-b1.md
+DONE-b1fix.md
+DONE-b2.md
+PROMPT-b1-kotlin-emulator.md
+PROMPT-b1fix.md
+PROMPT-b1fix2.md
+PROMPT-b2-n8n-market.md
+PROMPT-explorer.md
+PROMPT-zan-b1.md
+PROMPT-zan-b2.md
+PROMPT-zan2-b1.md
+REVIEW-AURA.md
+ZAN-b1.md
+ZAN-b2.md
+ZAN-zan2-b1.md
+b1.log
+b1fix.log
+b1fix2.log
+b2.log
+explorer-aura.log
+run-b1-restart.sh
+run-b1.sh
+run-b1fix.sh
+run-b1fix2.sh
+run-b2.sh
+run-zan-b1.sh
+run-zan-b2.sh
+run-zan2-b1.sh
+zan-b1.log
+zan-b2.log
+> build · kimi-k3
+[0m$ [0mcat extensions/tsconfig.base.json 2>/dev/null | head -30; echo ---SMOKE---; ls docs/swarm/ | grep -i smoke; echo ---GIT---; git status --porcelain -- extensions/aura-kotlin/ | head; echo ---IGNORE---; git check-ignore extensions/aura-kotlin/out/deviceScreen.js && echo "out/ is gitignored" || echo "out/ TRACKED"
+{
+	"compilerOptions": {
+		"esModuleInterop": true,
+		"target": "ES2024",
+		"lib": [
+			"ES2024"
+		],
+		"module": "commonjs",
+		"strict": true,
+		"exactOptionalPropertyTypes": false,
+		"useUnknownInCatchVariables": false,
+		"alwaysStrict": true,
+		"noImplicitAny": true,
+		"noImplicitReturns": true,
+		"noImplicitOverride": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"forceConsistentCasingInFileNames": true,
+		"experimentalDecorators": true
+	}
+}
+---SMOKE---
+zan2-b1-smoke.cjs
+---GIT---
+ M extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+ M extensions/aura-kotlin/src/android.ts
+ M extensions/aura-kotlin/src/deviceScreen.ts
+---IGNORE---
+extensions/aura-kotlin/out/deviceScreen.js
+out/ is gitignored
+> build · kimi-k3
+Всё подтвердилось: sourceMap в базовом tsconfig нет (мапы — сироты Oct 15, билд их не регенерит — удаляются), шаблонных PGlite-смоуков нет (только `zan2-b1-smoke.cjs`), зона — 3 файла. Начинаю правки.
+
+**1. BLOCKER — off-by-one в isFirstSlice:**
+[0m← [0mEdit extensions/aura-kotlin/src/deviceScreen.ts
+Index: extensions/aura-kotlin/src/deviceScreen.ts
+===================================================================
+--- extensions/aura-kotlin/src/deviceScreen.ts
++++ extensions/aura-kotlin/src/deviceScreen.ts
+@@ -205,11 +205,13 @@
+ 		}
+ 		return undefined;
+ 	}
+ 
+-	/** Является ли VCL NAL первым слайсом кадра: first_mb_in_slice (ue(v)) == 0 → бит '1'. */
++	/** Является ли VCL NAL первым слайсом кадра: first_mb_in_slice (ue(v)) == 0 → бит '1'.
++	 *  headerEnd — индекс байта NAL-заголовка (F|NRI|Type, RFC 6184 §1.3); slice header
++	 *  с first_mb_in_slice начинается байтом позже — читаем buf[headerEnd + 1]. */
+ 	private static isFirstSlice(buf: Buffer, headerEnd: number): boolean {
+-		return headerEnd < buf.length && (buf[headerEnd] & 0x80) !== 0;
++		return headerEnd + 1 < buf.length && (buf[headerEnd + 1] & 0x80) !== 0;
+ 	}
+ 
+ 	/**
+ 	 * Разбивка сырого h264 на кадры (access unit): граница кадра — VCL NAL с first_mb_in_slice == 0
+
+> build · kimi-k3
+**2. MAJOR — флаг «был поворот» для всех перезапусков (включая 180-с):**
+[0m← [0mEdit extensions/aura-kotlin/src/deviceScreen.ts
+Index: extensions/aura-kotlin/src/deviceScreen.ts
+===================================================================
+--- extensions/aura-kotlin/src/deviceScreen.ts
++++ extensions/aura-kotlin/src/deviceScreen.ts
+@@ -40,8 +40,11 @@
+ 	/** Поток разрешён: панель видима и webview прислал 'ready'. */
+ 	private streaming = false;
+ 	/** 'video' — screenrecord+WebCodecs, 'image' — фолбэк screencap. */
+ 	private mode: 'video' | 'image' = 'video';
++	/** Был поворот экрана: дальше --size не передаём никогда — wm size застыл в нативной
++	 *  ориентации, а реальный буфер повёрнут (летербокс/рассинхрон тапов). До конца сессии. */
++	private rotated = false;
+ 	/** Webview сообщил, что WebCodecs (VideoDecoder) доступен. */
+ 	private webviewCodecs = false;
+ 	private video?: ChildProcess;
+ 	private videoFails = 0;
+
+> build · kimi-k3
+[0m← [0mEdit extensions/aura-kotlin/src/deviceScreen.ts
+Index: extensions/aura-kotlin/src/deviceScreen.ts
+===================================================================
+--- extensions/aura-kotlin/src/deviceScreen.ts
++++ extensions/aura-kotlin/src/deviceScreen.ts
+@@ -159,9 +159,9 @@
+ 			if (Date.now() - this.videoStartedAt < 3000) { this.videoFails++; } else { this.videoFails = 0; }
+ 			if (this.videoFails >= VIDEO_MAX_FAST_FAILS) { this.fallbackToImages(); return; }
+ 			this.timer = setTimeout(() => {
+ 				this.timer = undefined;
+-				if (this.streaming && !this.disposed && this.mode === 'video') { void this.startVideo(); }
++				if (this.streaming && !this.disposed && this.mode === 'video') { void this.startVideo(this.rotated); }
+ 			}, VIDEO_RESTART_DELAY_MS);
+ 		});
+ 	}
+ 
+
+> build · kimi-k3
+[0m← [0mEdit extensions/aura-kotlin/src/deviceScreen.ts
+Index: extensions/aura-kotlin/src/deviceScreen.ts
+===================================================================
+--- extensions/aura-kotlin/src/deviceScreen.ts
++++ extensions/aura-kotlin/src/deviceScreen.ts
+@@ -282,8 +282,9 @@
+ 
+ 	/** После поворота: новые размеры — в webview, поток — на перезапуск без --size (screenrecord сам берёт текущий размер). */
+ 	private async afterRotate(): Promise<void> {
+ 		if (this.disposed) { return; }
++		this.rotated = true; // действует и на 180-с автоперезапуски: --size после поворота вреден
+ 		await this.pushSize();
+ 		if (this.streaming) {
+ 			this.stop();
+ 			this.streaming = true;
+
+> build · kimi-k3
+[0m← [0mEdit extensions/aura-kotlin/src/deviceScreen.ts
+Index: extensions/aura-kotlin/src/deviceScreen.ts
+===================================================================
+--- extensions/aura-kotlin/src/deviceScreen.ts
++++ extensions/aura-kotlin/src/deviceScreen.ts
+@@ -401,8 +401,10 @@
+ 	const l10nEl = document.getElementById('l10n');
+ 	const MODE_TITLES = { video: l10nEl.dataset.video, image: l10nEl.dataset.image };
+ 	let mode = 'image';
+ 	let decoder = null;
++	let lastCodec = null;    // кодек последнего configure — нужен для повторного configure после reset()
++	let skipUntilKey = false; // перегрузка декодера: дропаем всё до первого ключевого кадра
+ 	let devSize = null; // разрешение устройства (wm size) для раскладки — фолбэк, не ground truth
+ 
+ 	function b64ToBytes(b64) {
+ 		const bin = atob(b64);
+
+> build · kimi-k3
+[0m← [0mEdit extensions/aura-kotlin/src/deviceScreen.ts
+Index: extensions/aura-kotlin/src/deviceScreen.ts
+===================================================================
+--- extensions/aura-kotlin/src/deviceScreen.ts
++++ extensions/aura-kotlin/src/deviceScreen.ts
+@@ -441,16 +441,21 @@
+ 		canvas.style.height = img.style.height = sh + 'px';
+ 	}
+ 
+ 	function resetDecoder(codec) {
++		lastCodec = codec;
++		skipUntilKey = false;
+ 		if (decoder) { try { decoder.close(); } catch { /* уже закрыт */ } }
+ 		decoder = new VideoDecoder({
+ 			output: frame => {
+ 				if (canvas.width !== frame.codedWidth || canvas.height !== frame.codedHeight) {
+ 					canvas.width = frame.codedWidth;
+ 					canvas.height = frame.codedHeight;
+ 					layout();
+ 				}
++				// Видео-поверхность показываем только с первым реально декодированным кадром:
++				// до этого canvas — дефолтные 300×150, тап маппился бы в мусорные координаты.
++				if (mode !== 'video') { setMode('video'); }
+ 				ctx.drawImage(frame, 0, 0);
+ 				frame.close();
+ 				offline.style.display = 'none';
+ 			},
+@@ -460,21 +465,32 @@
+ 			},
+ 		});
+ 		decoder.configure({ codec: codec, optimizeForLatency: true });
+ 		// description отсутствует ⇒ вход Annex B (W3C AVC registration §3).
+-		setMode('video');
+ 	}
+ 
+ 	function feedChunk(msg) {
+ 		if (!decoder || decoder.state === 'closed') { return; }
+-		if (decoder.decodeQueueSize > 60) {
+-			if (msg.key) {
+-				// Перегрузка: сбрасываем декодер и начинаем с этого ключевого кадра.
+-				try { decoder.reset(); } catch(e) { /* reset бросает если уже closed — ок */ }
+-			} else {
+-				return; // не-ключевой при перегрузке: пропускаем до следующего IDR
++		if (!skipUntilKey && decoder.decodeQueueSize > 60) {
++			// Перегрузка: очередь не стекает. По W3C reset() сбрасывает ВСЁ состояние,
++			// включая конфигурацию (state → "unconfigured"), поэтому без повторного
++			// configure следующий decode() гарантированно бросит InvalidStateError.
++			// Дельты с разорванной референс-цепью декодировать бессмысленно —
++			// дропаем всё до первого ключевого кадра, независимо от размера очереди.
++			skipUntilKey = true;
++			try {
++				decoder.reset();
++				decoder.configure({ codec: lastCodec, optimizeForLatency: true });
++			} catch (err) {
++				decoder = null;
++				vscode.postMessage({ type: 'video-error', message: String((err && err.message) || err) });
++				return;
+ 			}
+ 		}
++		if (skipUntilKey) {
++			if (!msg.key) { return; }
++			skipUntilKey = false; // ключевой кадр дошёл — декодируем с чистого декодера
++		}
+ 		try {
+ 			decoder.decode(new EncodedVideoChunk({ type: msg.key ? 'key' : 'delta', timestamp: msg.ts, data: b64ToBytes(msg.data) }));
+ 		} catch (err) {
+ 			decoder = null;
+
+> build · kimi-k3
+**4. Порог тапа — тот же приоритет, что в toDevice + img.onload→layout():**
+[0m← [0mEdit extensions/aura-kotlin/src/deviceScreen.ts
+Index: extensions/aura-kotlin/src/deviceScreen.ts
+===================================================================
+--- extensions/aura-kotlin/src/deviceScreen.ts
++++ extensions/aura-kotlin/src/deviceScreen.ts
+@@ -586,9 +586,10 @@
+ 			const up = toDevice(el, e);
+ 			const rect = el.getBoundingClientRect();
+ 			// AURA-029: порог тапа — 12 CSS-пикселей, пересчитанных в пиксели устройства;
+ 			// фиксированные 12 device-px на маленьких экранах превращали скролл в тап.
+-			const scale = ((devSize && devSize.width) || el.naturalWidth || el.width || rect.width) / rect.width;
++			// Источник ширины — в том же приоритете, что в toDevice: факт медиа → devSize → rect.
++			const scale = (el.naturalWidth || el.width || (devSize && devSize.width) || rect.width) / rect.width;
+ 			const dist = Math.hypot(up.x - down.x, up.y - down.y);
+ 			if (dist < 12 * scale && Date.now() - down.time < 400) {
+ 				vscode.postMessage({ type: 'tap', x: down.x, y: down.y });
+ 			} else {
+
+[0m← [0mEdit extensions/aura-kotlin/src/deviceScreen.ts
+Index: extensions/aura-kotlin/src/deviceScreen.ts
+===================================================================
+--- extensions/aura-kotlin/src/deviceScreen.ts
++++ extensions/aura-kotlin/src/deviceScreen.ts
+@@ -612,8 +612,10 @@
+ 	text.addEventListener('keydown', e => { if (e.key === 'Enter') { send(); } });
+ 
+ 	if (typeof ResizeObserver !== 'undefined') { new ResizeObserver(layout).observe(stage); }
+ 	window.addEventListener('resize', layout);
++	// Кадр в image-режиме может поменять аспект (поворот) без resize — пересчитать раскладку.
++	img.addEventListener('load', layout);
+ 	setMode('image'); // до первого video-config показываем img-поверхность
+ 	vscode.postMessage({ type: 'ready', codecs: typeof VideoDecoder !== 'undefined' });
+ </script>
+ </body>
+
+> build · kimi-k3
+**5. Врущий комментарий в android.ts:466:**
+[0m✗ [0mEdit extensions/aura-kotlin/src/android.ts failed
+[91m[1mError: [0mCould not find oldString in C:\new-aura-ide\vscode-main\extensions\aura-kotlin\src\android.ts. It must match exactly, including whitespace and indentation.
+> build · kimi-k3
+[0m$ [0msed -n '463,470p' extensions/aura-kotlin/src/android.ts | cat -A | head -10
+^Iasync screenSize(device: string): Promise<{ width: number; height: number } | undefined> {$
+^I^Itry {$
+^I^I^Iconst text = await this.adb('-s', device, 'shell', 'wm', 'size');$
+^I^I^I// M-PM-^QM-PM-5M-QM-^@M-QM-^QM-PM-< M-PM-?M-PM->M-QM-^AM-PM-;M-PM-5M-PM-4M-PM-=M-PM-5M-PM-5 M-QM-^AM-PM->M-PM-2M-PM-?M-PM-0M-PM-4M-PM-5M-PM-=M-PM-8M-PM-5: M-PM-?M-QM-^@M-PM-8 M-PM-7M-PM-0M-PM-4M-PM-0M-PM-=M-PM-=M-PM->M-PM-< Override size M-PM-8M-PM-<M-PM-5M-PM-=M-PM-=M-PM-> M-PM->M-PM-=M-PM-> M-PM->M-QM-^BM-QM-^@M-PM-0M-PM-6M-PM-0M-PM-5M-QM-^B$
+^I^I^I// M-QM-^BM-PM-5M-PM-:M-QM-^CM-QM-^IM-PM-8M-PM-5 M-QM-^@M-PM-0M-PM-7M-PM-<M-PM-5M-QM-^@M-QM-^K (M-PM-2M-PM-:M-PM-;M-QM-^NM-QM-^GM-PM-0M-QM-^O M-PM-?M-PM->M-PM-2M-PM->M-QM-^@M-PM->M-QM-^B M-QM-^MM-PM-:M-QM-^@M-PM-0M-PM-=M-PM-0), M-PM-0 M-PM-=M-PM-5 M-PM-?M-PM-5M-QM-^@M-PM-2M-QM-^CM-QM-^N M-QM-^AM-QM-^BM-QM-^@M-PM->M-PM-:M-QM-^C Physical size.$
+^I^I^Iconst matches = [...text.matchAll(/(\d+)x(\d+)/g)];$
+^I^I^Iconst last = matches[matches.length - 1];$
+^I^I^Iif (last) { return { width: Number(last[1]), height: Number(last[2]) }; }$
+> build · kimi-k3
+Отступ — 3 таба, не 2. Повторяю:
+[0m← [0mEdit extensions/aura-kotlin/src/android.ts
+Index: extensions/aura-kotlin/src/android.ts
+===================================================================
+--- extensions/aura-kotlin/src/android.ts
++++ extensions/aura-kotlin/src/android.ts
+@@ -462,10 +462,12 @@
+ 	/** Разрешение экрана устройства (wm size). */
+ 	async screenSize(device: string): Promise<{ width: number; height: number } | undefined> {
+ 		try {
+ 			const text = await this.adb('-s', device, 'shell', 'wm', 'size');
+-			// Берём последнее совпадение: при заданном Override size именно оно отражает
+-			// текущие размеры (включая поворот экрана), а не первую строку Physical size.
++			// Берём последнее совпадение: при заданном Override size действующий размер буфера —
++			// именно он, а Physical size (первая строка) тогда не актуален. Оба значения wm
++			// отдаёт в НАТИВНОЙ ориентации устройства — после поворота оси местами НЕ меняются,
++			// поэтому результат годится для раскладки, но не как размер для screenrecord --size.
+ 			const matches = [...text.matchAll(/(\d+)x(\d+)/g)];
+ 			const last = matches[matches.length - 1];
+ 			if (last) { return { width: Number(last[1]), height: Number(last[2]) }; }
+ 		} catch { /* устройство недоступно */ }
+
+> build · kimi-k3
+Все правки на месте. Гейты: noEmit → эмит (смоук бьёт по собранному артефакту) → чистка сирот-мапов → смоук.
+[0m$ [0mnpx tsc --noEmit -p extensions/aura-kotlin/tsconfig.json; echo "noEmit exit=$?"
+npm warn Unknown project config "disturl". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "target". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "ms_build_id". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "runtime". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "build_from_source". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "timeout". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown user config "msvs_spectre_mitigation". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+noEmit exit=0
+> build · kimi-k3
+[0m$ [0mnpx tsc -p extensions/aura-kotlin/tsconfig.json 2>&1 | grep -v "npm warn"; echo "emit exit=$?"; ls -la --time-style=long-iso extensions/aura-kotlin/out/deviceScreen.js; echo ---; ls extensions/aura-kotlin/out/*.js.map 2>/dev/null | wc -l
+emit exit=1
+-rw-r--r-- 1 Wiks 197121 38835 2026-10-18 08:33 extensions/aura-kotlin/out/deviceScreen.js
+---
+20
+> build · kimi-k3
+[0m$ [0mnpx tsc -p extensions/aura-kotlin/tsconfig.json 2>/dev/null; echo "emit exit=$?"; rm -f extensions/aura-kotlin/out/*.js.map && echo "stale maps removed: $(ls extensions/aura-kotlin/out/*.js.map 2>/dev/null | wc -l) left"
+emit exit=0
+stale maps removed: 0 left
+> build · kimi-k3
+[0m$ [0mnode docs/swarm/zan2-b1-smoke.cjs; echo "SMOKE exit=$?"
+PASS S2 isFirstSlice(first_mb=0)===true — buf[headerEnd] — это NAL-заголовок (F|NRI|Type), а не slice header
+PASS S2b isFirstSlice(first_mb=1)===false
+PASS S1 кадров >= 3 (AU-парсер жив) — фактически 3: видео в webview не поедет вообще
+PASS S1b многослайсный кадр не разрезан — кадр3 = слайс А + слайс Б в одном AU
+PASS S1c video-config отправлен — кодек-строка из SPS
+PASS S1d первый AU key, остальные delta
+PASS S3 после трёх fallbackToImages ровно один image-луп (ZAN-5) — макс. параллельных captureScreen в стабильном окне: 1
+PASS S4 start() до ready не стартует стрим (ZAN-9) — streaming=false, captures=0
+PASS S4b после ready start() стартует
+PASS S5 CSP default-src none
+PASS S5b script nonce
+PASS S5c avc-плацебо удалено
+PASS S5d MODE_TITLES через data-атрибуты
+PASS S5e node --check webview-скрипта
+
+ИТОГ: все проверки зелёные
+SMOKE exit=0
+> build · kimi-k3
+Все 14 проверок зелёные, exit 0. Сверяю, что правки доехали до эмита, и беру точные строки для отчёта:
+[0m$ [0mgrep -n "headerEnd + 1" extensions/aura-kotlin/src/deviceScreen.ts extensions/aura-kotlin/out/deviceScreen.js | head -4
+grep -n "this.rotated" extensions/aura-kotlin/src/deviceScreen.ts | head -5
+grep -n "startVideo(this.rotated)" extensions/aura-kotlin/out/deviceScreen.js | head -2
+grep -n "skipUntilKey" extensions/aura-kotlin/out/deviceScreen.js | head -6
+grep -n "decoder.configure" extensions/aura-kotlin/out/deviceScreen.js
+grep -n "addEventListener('load'" extensions/aura-kotlin/out/deviceScreen.js
+grep -n "НАТИВНОЙ ориентации" extensions/aura-kotlin/src/android.ts
+grep -n "el.naturalWidth || el.width || (devSize" extensions/aura-kotlin/src/deviceScreen.ts | head -3
+git status --porcelain -- extensions/aura-kotlin/ docs/swarm/
+extensions/aura-kotlin/src/deviceScreen.ts:214:	 *  с first_mb_in_slice начинается байтом позже — читаем buf[headerEnd + 1]. */
+extensions/aura-kotlin/src/deviceScreen.ts:216:		return headerEnd + 1 < buf.length && (buf[headerEnd + 1] & 0x80) !== 0;
+extensions/aura-kotlin/out/deviceScreen.js:281:     *  с first_mb_in_slice начинается байтом позже — читаем buf[headerEnd + 1]. */
+extensions/aura-kotlin/out/deviceScreen.js:283:        return headerEnd + 1 < buf.length && (buf[headerEnd + 1] & 0x80) !== 0;
+163:				if (this.streaming && !this.disposed && this.mode === 'video') { void this.startVideo(this.rotated); }
+286:		this.rotated = true; // действует и на 180-с автоперезапуски: --size после поворота вреден
+216:                    void this.startVideo(this.rotated);
+491:	let skipUntilKey = false; // перегрузка декодера: дропаем всё до первого ключевого кадра
+531:		skipUntilKey = false;
+558:		if (!skipUntilKey && decoder.decodeQueueSize > 60) {
+564:			skipUntilKey = true;
+574:		if (skipUntilKey) {
+576:			skipUntilKey = false; // ключевой кадр дошёл — декодируем с чистого декодера
+552:		decoder.configure({ codec: codec, optimizeForLatency: true });
+567:				decoder.configure({ codec: lastCodec, optimizeForLatency: true });
+702:	img.addEventListener('load', layout);
+468:			// отдаёт в НАТИВНОЙ ориентации устройства — после поворота оси местами НЕ меняются,
+517:		const w = el.naturalWidth || el.width || (devSize && devSize.width) || rect.width;
+591:			const scale = (el.naturalWidth || el.width || (devSize && devSize.width) || rect.width) / rect.width;
+ M extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+ M extensions/aura-kotlin/src/android.ts
+ M extensions/aura-kotlin/src/deviceScreen.ts
+?? docs/swarm/
+> build · kimi-k3
+[0m$ [0mgrep -n "private rotated" extensions/aura-kotlin/src/deviceScreen.ts; grep -n "feedChunk\|function resetDecoder" extensions/aura-kotlin/src/deviceScreen.ts | head -4
+46:	private rotated = false;
+444:	function resetDecoder(codec) {
+471:	function feedChunk(msg) {
+504:		else if (msg.type === 'video-chunk') { feedChunk(msg); }
+> build · kimi-k3
+[0m← [0mWrite docs/swarm/DONE-b1fix2.md
+Created file successfully: docs/swarm/DONE-b1fix2.md
+> build · kimi-k3
+[0m$ [0mwc -l docs/swarm/DONE-b1fix2.md
+grep -n "let skipUntilKey\|let lastCodec\|lastCodec = codec\|decoder.reset()\|skipUntilKey = false; // ключевой\|if (!msg.key) { return; }\|setMode('video')\|addEventListener('load'" extensions/aura-kotlin/src/deviceScreen.ts
+32 docs/swarm/DONE-b1fix2.md
+258:				this.lastCodec = codec;
+405:	let lastCodec = null;    // кодек последнего configure — нужен для повторного configure после reset()
+406:	let skipUntilKey = false; // перегрузка декодера: дропаем всё до первого ключевого кадра
+445:		lastCodec = codec;
+457:				if (mode !== 'video') { setMode('video'); }
+481:				decoder.reset();
+490:			if (!msg.key) { return; }
+491:			skipUntilKey = false; // ключевой кадр дошёл — декодируем с чистого декодера
+617:	img.addEventListener('load', layout);
+> build · kimi-k3
+Отчёт 32 строки, но две ссылки на строки в webview неточные — правлю на сверенные:
+[0m← [0mEdit docs/swarm/DONE-b1fix2.md
+Index: docs/swarm/DONE-b1fix2.md
+===================================================================
+--- docs/swarm/DONE-b1fix2.md
++++ docs/swarm/DONE-b1fix2.md
+@@ -13,9 +13,9 @@
+ 
+ ## Пункты «Минимум к следующей итерации»
+ 
+ 1. **BLOCKER: off-by-one в isFirstSlice — ЗАКРЫТ.** `src/deviceScreen.ts:216`: читается `buf[headerEnd + 1] & 0x80` (slice header, не NAL-заголовок F|NRI|Type). Доказательство: смоук S1/S1b/S1c/S1d/S2/S2b — зелёные, конвейер эмитит 3 кадра против 0 до правки.
+-2. **MAJOR: feedChunk reset() без configure — ЗАКРЫТ.** `src/deviceScreen.ts:471-499`: флаг `skipUntilKey` (:490) при перегрузке >60 → `reset()` + повторный `configure({codec: lastCodec…})` (:482-484; lastCodec хранится с :444-446); дроп ВСЕХ чанков до первого key независимо от очереди (:488-491), комментарий переписан под спеку W3C.
++2. **MAJOR: feedChunk reset() без configure — ЗАКРЫТ.** `src/deviceScreen.ts:471-499`: флаг `skipUntilKey` (:406) при перегрузке >60 → `reset()` + повторный `configure({codec: lastCodec…})` (:481-483; lastCodec хранится с :445); дроп ВСЕХ чанков до первого key независимо от очереди (:488-491), комментарий переписан под спеку W3C.
+ 3. **MAJOR: 180-с рестарт после поворота — ЗАКРЫТ.** Флаг `rotated` (:46), ставится в `afterRotate` (:286), exit-рестарт зовёт `startVideo(this.rotated)` (:163) — `--size` после поворота не передаётся до конца сессии.
+ 4. **Порог тапа — ЗАКРЫТ.** `src/deviceScreen.ts:591`: порядок `naturalWidth → width → devSize → rect`, как в `toDevice` (:517).
+ 
+ ## По остатку (minor/nit из ZAN-zan2-b1)
+
+[0m← [0mEdit docs/swarm/DONE-b1fix2.md
+Index: docs/swarm/DONE-b1fix2.md
+===================================================================
+--- docs/swarm/DONE-b1fix2.md
++++ docs/swarm/DONE-b1fix2.md
+@@ -20,10 +20,10 @@
+ 
+ ## По остатку (minor/nit из ZAN-zan2-b1)
+ 
+ 5. **Врущий комментарий `android.ts:466` — ЗАКРЫТ.** `:466-469`: написано прямо — wm отдаёт оба размера в НАТИВНОЙ ориентации, оси после поворота не меняются.
+-6. **canvas 300×150 до первого кадра (minor 5) — ЗАКРЫТ.** `setMode('video')` перенесён из `resetDecoder` в output-колбэк первого декодированного кадра (:455-458) — скрытый canvas событий не получает.
+-7. **`img.onload → layout()` (minor 6) — ЗАКРЫТ.** `:622`: `img.addEventListener('load', layout)`.
++6. **canvas 300×150 до первого кадра (minor 5) — ЗАКРЫТ.** `setMode('video')` перенесён из `resetDecoder` в output-колбэк первого декодированного кадра (:457) — скрытый canvas событий не получает.
++7. **`img.onload → layout()` (minor 6) — ЗАКРЫТ.** `:617`: `img.addEventListener('load', layout)`.
+ 8. **Стейл `out/*.js.map` от Oct 15 (minor 7) — ЗАКРЫТ.** sourceMap в tsconfig нет → мапы-сироты; 20 шт. удалены, билд их не регенерит (проверено эмитом).
+ 
+ ## Не закрыто
+ 
+
+> build · kimi-k3
+Готово. Финальный прогон уже был зелёным после эмита, код с тех пор не трогал.
+
+## Итог
+
+**Смоук Зана: `node docs/swarm/zan2-b1-smoke.cjs` → exit 0, 14/14 PASS** (было 4 FAIL). `npx tsc --noEmit` → exit 0. Ничего не закоммичено.
+
+**4 пункта минимума — закрыты:**
+1. **BLOCKER isFirstSlice** — `deviceScreen.ts:216`: читается `buf[headerEnd + 1]` (slice header), не NAL-заголовок. Конвейер: 3 кадра вместо 0, многослайсный AU цел, key/delta верны.
+2. **MAJOR feedChunk** — флаг `skipUntilKey` + `reset()` с повторным `configure(lastCodec)` (по W3C reset сносит конфигурацию), дроп всего до ключевого независимо от очереди.
+3. **MAJOR 180-с рестарт** — флаг `rotated` (:46, ставится в afterRotate :286), exit-рестарт зовёт `startVideo(this.rotated)` (:163) — `--size` после поворота не уходит никогда.
+4. **Порог тапа** — `:591`: приоритет `naturalWidth → width → devSize → rect`, как в toDevice.
+
+**По остатку:** врущий комментарий `android.ts:466` переписан честно (wm size не поворачивается); `setMode('video')` переехал в первый декодированный кадр (закрывает окно canvas 300×150); `img.addEventListener('load', layout)`; 20 сиротских `.js.map` от Oct 15 удалены (sourceMap в конфиге нет — билд их не регенерит).
+
+**Не закрыто (сознательно):** escape `${t(...)}` в HTML-атрибуты — нит, вне минимума.
+
+Отчёт: `docs/swarm/DONE-b1fix2.md` (32 строки, все цифры из живых команд).

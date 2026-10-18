@@ -1,0 +1,887 @@
+[0m
+> build · kimi-k3
+Принято, сэр. Начинаю с разведки: читаю основание (REVIEW-AURA.md), текущее состояние extensions/n8n-panel и product.json.
+[0m→ [0mRead extensions/n8n-panel 
+[0m$ [0mgrep -n "n8n" docs/swarm/REVIEW-AURA.md | head -50
+5:**Охват:** `extensions/aura-*`, `extensions/n8n-panel`, `extensions/langgraph-orchestrator`, `extensions/aggg-agent`
+13:| AURA-001 | high | n8n-panel | package.json:2-35 | Нет `icon`, `galleryBanner`, `repository` — плагин невидим в маркете Aura IDE (нет publisher-верификации «wiks» в галерее, нет `__metadata`) | Добавить `icon: "media/icon.png"`, `publisher: "aura"`, зарегистрировать в builtInExtensions продукта |
+14:| AURA-002 | high | n8n-panel | package.json:14-34 | Нет `viewsContainers`/`views` — плагин только через Ctrl+Shift+P, нет иконки в сайдбаре | Добавить `viewsContainers.activitybar` с иконкой n8n, `views` для webview-вкладки |
+15:| AURA-003 | medium | n8n-panel | extension.js:23 | CSP `script-src 'unsafe-inline'` — разрешён XSS, если URL n8n скомпрометирован | Заменить на nonce-based CSP, инлайн-скрипт вынести в content-security-policy meta |
+16:| AURA-004 | medium | n8n-panel | extension.js:14 | `rejectUnauthorized: false` при HTTPS-проверке статуса — TLS-сертификат не проверяется | Убрать `rejectUnauthorized: false`, добавить `NODE_EXTRA_CA_CERTS` для самоподписанных |
+17:| AURA-005 | low | n8n-panel | extension.js:57 | Таймаут загрузки iframe фиксирован (20с), нет retry/reconnect кнопки кроме reload страницы | Добавить кнопку «Переподключиться» с новым URL, уменьшить таймаут до 10с с прогресс-баром |
+18:| AURA-006 | low | n8n-panel | extension.js:70 | `retainContextWhenHidden: true` без dispose webview-ресурсов — потенциальная утечка памяти при многократном открытии | Добавить `onDidDispose` для очистки webview или использовать `retainContextWhenHidden: false` |
+40:| AURA-028 | low | n8n-panel | extension.js:1 | Чистый JavaScript — нет типов, проверок компиляции | Мигрировать на TypeScript |
+47:## 🧩 n8n в маркете
+60:8. **Нет `viewsContainers`** — нет иконки в activity bar (только Ctrl+Shift+P → `n8n: Открыть n8n`)
+65:- [ ] Добавить `"icon": "media/n8n-icon.png"` (иконка 128×128)
+68:- [ ] Добавить `viewsContainers.activitybar` с иконкой n8n и `views` для webview-панели
+72:- [ ] Вкладка редактора: ДА, есть — `n8nPanel.openTab` создаёт WebviewPanel с iframe (строка extension.js:67)
+129:| n8n-panel | ❌ нет nls | ❌ русские строки жёстко в коде | 🟡 **частичная** (только через код) |
+137:3. **Пробел**: `aura-team` — создать `package.nls.ru.json`, `n8n-panel` — внедрить nls вместо жёстких строк
+182:| 2 | AURA-001 | 🔴 high | n8n-panel невидим в маркете — нет иконки + publisher |
+186:| 6 | AURA-002 | 🔴 high | n8n-panel нет иконки в сайдбаре |
+211:### 2. n8n-panel
+215:**Что есть:** WebviewPanel с iframe на URL n8n, спиннер загрузки, fallback при ошибке. Проверка доступности через Node.js http/https (без CORS).
+> build · kimi-k3
+Читаю текущие файлы расширения и секцию маркета целиком.
+[0m→ [0mRead extensions/n8n-panel/extension.js 
+[0m→ [0mRead extensions/n8n-panel/package.json 
+[0m$ [0msed -n '40,135p' docs/swarm/REVIEW-AURA.md
+| AURA-028 | low | n8n-panel | extension.js:1 | Чистый JavaScript — нет типов, проверок компиляции | Мигрировать на TypeScript |
+| AURA-029 | medium | aura-kotlin | src/deviceScreen.ts:163 | swipe-порог 12px фиксирован — скролл = тап на маленьких эмуляторах | Масштабировать: `12 * (naturalWidth / rect.width)` |
+| AURA-030 | medium | aggg-agent | out/extension.js:62 | `StatusBarAlignment.Left` — возможна опечатка в исходнике | Проверить исходник, исправить на `StatusBarAlignment.Left` |
+| AURA-031 | low | aggg-agent | out/extension.js:58 | `sanitizedLog` глобальная без лимита — утечка памяти | Обрезать до 10000 символов |
+
+---
+
+## 🧩 n8n в маркете
+
+### Точная причина невидимости
+
+Плагин **отсутствует в галерее расширений Aura IDE** по совокупности причин:
+
+1. **`publisher: "wiks"` не зарегистрирован** в marketplace Aura IDE (расширение не публиковалось через `vsce publish`)
+2. **Нет `icon`** — обязателен для отображения в маркете (marketplace отклоняет/скрывает расширения без иконки)
+3. **Нет `galleryBanner`** — снижает видимость в выдаче
+4. **Нет `repository`** — поле используется marketplace для ссылки на исходный код
+5. **Нет `__metadata`** — генерируется автоматически при `vsce package`, отсутствует в исходном package.json
+6. **`activationEvents: []`** — расширение не активируется при старте IDE, только по команде (работает, но «Built-in» badge не показывается, пока не активировано)
+7. **`categories: ["Other"]`** — оказывается в самом низу списка категорий, плохо ищется
+8. **Нет `viewsContainers`** — нет иконки в activity bar (только Ctrl+Shift+P → `n8n: Открыть n8n`)
+
+### Чек-лист исправления
+
+- [ ] Сменить `publisher` на `"aura"` (основной паблишер Aura IDE)
+- [ ] Добавить `"icon": "media/n8n-icon.png"` (иконка 128×128)
+- [ ] Добавить `"galleryBanner": { "color": "#ff6d5a", "theme": "dark" }`
+- [ ] Добавить `"repository": { "type": "git", "url": "..." }`
+- [ ] Добавить `viewsContainers.activitybar` с иконкой n8n и `views` для webview-панели
+- [ ] Сменить `categories` на `["Visualization", "Other"]`
+- [ ] Запаковать через `vsce package` (сгенерирует `__metadata`)
+- [ ] Зарегистрировать в `product.json` → `builtInExtensions`
+- [ ] Вкладка редактора: ДА, есть — `n8nPanel.openTab` создаёт WebviewPanel с iframe (строка extension.js:67)
+
+---
+
+## 📱 Эмулятор Android
+
+### Текущее состояние
+
+**Что реализовано:**
+- ✅ Обнаружение SDK по цепочке: настройка → ANDROID_HOME → local.properties → стандартные пути
+- ✅ Список AVD, запуск с ожиданием `sys.boot_completed` (до 180с)
+- ✅ Создание AVD через веб-форму (avdForm.ts) с выбором профиля, образа, скачиванием
+- ✅ Встроенный экран устройства: `screencap` → PNG → base64 → webview (800мс кадры)
+- ✅ Тапы/свайпы мышью (координаты масштабируются), кнопки назад/домой/недавние/громкость/power/поворот
+- ✅ Ввод текста с клавиатуры, logcat с фильтром по PID и webview-интерфейсом
+- ✅ Статус-бар с выбранным устройством, селектор физических + эмуляторов
+- ✅ Android-дерево в activity bar: устройства, эмуляторы, файлы, модули, зависимости
+- ✅ Gradle-интеграция, дебаггер JDWP (запуск c `am start -D`, `pidof`)
+- ✅ JDT LS для Java, Kotlin Language Server
+
+**Что НЕ реализовано (gap vs Android Studio UX):**
+- ❌ Экран устройства — 1.25 fps (скриншоты), а не живое видео (30 fps)
+- ❌ Нет скина телефона (рамка Pixel) — только тёмный фон
+- ❌ Нет multi-touch (pinch zoom, dual swipe) — только single-point тапы/свайпы
+- ❌ Нет экранной клавиатуры эмулятора — только поле ввода текста
+- ❌ Поворот экрана не меняет viewport вебвью — картинка поворачивается, а контейнер нет
+- ❌ Нет автоустановки SDK — только «Укажите путь»
+- ❌ Нет AVD Manager с предпросмотром (только форма создания)
+- ❌ Нет Device Manager с drag-and-drop APK
+- ❌ Нет App Inspector (Layout Inspector) — только скриншот
+- ❌ Нет эмуляции сенсоров (GPS, акселерометр, батарея)
+
+### План достижения Android Studio UX
+
+| Этап | Что | Приоритет |
+|------|-----|----------|
+| 1 | Экран: screenrecord h264 → MediaSource API (30 fps) | 🥇 критично |
+| 2 | Скин телефона: SVG/CSS-рамка вокруг экрана, выбор модели | 🥇 критично |
+| 3 | Multi-touch: Canvas-оверлей с pointer-событиями (pinch, rotate) | 🥈 важно |
+| 4 | Поворот viewport: после rotate — пересчёт CSS, ресайз панели | 🥈 важно |
+| 5 | Автоустановка SDK: command `auraKotlin.android.installSdk` | 🥈 важно |
+| 6 | Экранная клавиатура: HTML-клавиатура с send keyevent | 🥉 желательно |
+| 7 | Device Manager: drag-and-drop APK на дерево устройств | 🥉 желательно |
+| 8 | Сенсоры: панель «Extended controls» (GPS, батарея, сеть) | 🥉 желательно |
+
+---
+
+## 🌐 Локализация (l10n)
+
+### Покрытие русским языком
+
+| Расширение | package.nls.ru.json | source l10n | Статус |
+|-----------|---------------------|-------------|--------|
+| aura-kotlin | ✅ полный (41 строка) | ✅ `l10n.ts` → `bundle.l10n.ru.json` | 🟢 **полная** (avdForm — жёстко русская, без nls-ключей) |
+| aura-orca | ✅ полный (11 строк) | ✅ `vscode.l10n.t` из рантайм-бандла | 🟢 **полная** |
+| langgraph-orchestrator | ✅ полный (рус. UI по `uiLanguage`) | ✅ webview-панель — русская | 🟢 **полная** |
+| aura-team | ❌ **ОТСУТСТВУЕТ** | ⚠️ `vscode.l10n.t` для runtime-строк, но **package.json — только английский** | 🔴 **критично**: 45+ команд без перевода |
+| n8n-panel | ❌ нет nls | ❌ русские строки жёстко в коде | 🟡 **частичная** (только через код) |
+| aura-serverkit | ⚠️ только `package.nls.json` (EN) | ? | 🟡 требуется `package.nls.ru.json` |
+| aggg-agent | ❌ нет nls | ⚠️ `vscode.l10n.t` | 🟡 частичная |
+
+### Что нужно для смены языка в маркете/галерее
+
+1. **Единая точка**: настройка `aura.language` (уже используется в `aura-team`, `langgraph-orchestrator`)
+> build · kimi-k3
+[0m$ [0mgrep -n "builtInExtensions" product.json | head -5; echo "---"; ls extensions/n8n-panel/media/ 2>/dev/null; echo "---media---"; grep -n -A 8 '"name": "ms-vscode' product.json | head -30
+52:	"builtInExtensions": [
+182:	"builtInExtensionsEnabledWithAutoUpdates": [],
+---
+icon.svg
+---media---
+54:			"name": "ms-vscode.js-debug-companion",
+55-			"version": "1.1.3",
+56-			"sha256": "7380a890787452f14b2db7835dfa94de538caf358ebc263f9d46dd68ac52de93",
+57-			"repo": "https://github.com/microsoft/vscode-js-debug-companion",
+58-			"metadata": {
+59-				"id": "99cb0b7f-7354-4278-b8da-6cc79972169d",
+60-				"publisherId": {
+61-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+62-					"publisherName": "ms-vscode",
+--
+70:			"name": "ms-vscode.js-debug",
+71-			"version": "1.117.0",
+72-			"sha256": "854eeb8a785b1f41ba2bd02d7ccd4fdbe10021b61473293973c7e96d036c7fb8",
+73-			"repo": "https://github.com/microsoft/vscode-js-debug",
+74-			"metadata": {
+75-				"id": "25629058-ddac-4e17-abba-74678e126c5d",
+76-				"publisherId": {
+77-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+78-					"publisherName": "ms-vscode",
+--
+86:			"name": "ms-vscode.vscode-js-profile-table",
+87-			"version": "1.0.11",
+88-			"sha256": "a962a1e6a3baf74c9354b7f47fa96e6d6f0423a63bff55d7f976b6134a748ae9",
+89-			"repo": "https://github.com/microsoft/vscode-js-profile-visualizer",
+90-			"metadata": {
+91-				"id": "7e52b41b-71ad-457b-ab7e-0620f1fc4feb",
+92-				"publisherId": {
+93-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+94-					"publisherName": "ms-vscode",
+[0m$ [0mls extensions/ | head -40; echo "---"; ls extensions/aura-orca/ 2>/dev/null
+CONTRIBUTING.md
+aggg-agent
+aura-harness
+aura-kotlin
+aura-orca
+aura-serverkit
+aura-team
+bat
+cgmanifest.json
+clojure
+coffeescript
+configuration-editing
+copilot
+cpp
+csharp
+css
+css-language-features
+dart
+debug-auto-launch
+debug-server-ready
+diff
+docker
+dotenv
+emmet
+esbuild-common.mts
+esbuild-extension-common.mts
+esbuild-webview-common.mts
+extension-editing
+fsharp
+git
+git-base
+github
+github-authentication
+go
+groovy
+grunt
+gulp
+handlebars
+hlsl
+html
+---
+media
+node_modules
+out
+package-lock.json
+package.json
+package.nls.json
+package.nls.ru.json
+src
+test
+tsconfig.json
+tsconfig.tsbuildinfo
+> build · kimi-k3
+[0m$ [0mcat extensions/aura-orca/package.nls.json extensions/aura-orca/package.nls.ru.json 2>/dev/null; echo "===PKG-HEAD==="; head -40 extensions/aura-orca/package.json
+{
+	"displayName": "Orca",
+	"description": "CLI coding agents (Claude Code, Codex, Gemini CLI, Qwen Code, opencode, Aider) in terminal tabs: run several in parallel, each in its own git branch, with keys, base URL and model per CLI.",
+	"configuration.title": "Orca",
+	"configuration.terminalLocation": "Where agent terminals open",
+	"configuration.terminalLocation.editor": "As editor tabs",
+	"configuration.terminalLocation.panel": "In the terminal panel",
+	"configuration.defaultAgent": "CLI agent the orchestrator uses when it does not name one",
+	"command.open": "Open Orca",
+	"command.newAgent": "New CLI agent"
+}
+{
+	"displayName": "Orca",
+	"description": "CLI-агенты (Claude Code, Codex, Gemini CLI, Qwen Code, opencode, Aider) во вкладках-терминалах: несколько параллельно, каждый в своей git-ветке, с ключами, base URL и моделью для каждого CLI.",
+	"configuration.title": "Orca",
+	"configuration.terminalLocation": "Где открываются терминалы агентов",
+	"configuration.terminalLocation.editor": "Вкладками редактора",
+	"configuration.terminalLocation.panel": "В панели терминала",
+	"configuration.defaultAgent": "CLI-агент, которого берёт оркестратор, если не указал другого",
+	"command.open": "Открыть Orca",
+	"command.newAgent": "Новый CLI-агент"
+}
+===PKG-HEAD===
+{
+	"name": "aura-orca",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.1.0",
+	"publisher": "aura",
+	"license": "MIT",
+	"engines": { "vscode": "^1.100.0" },
+	"activationEvents": [
+		"onCommand:auraOrca.open",
+		"onCommand:auraOrca.newAgent",
+		"onCommand:auraOrca.runHeadless",
+		"onCommand:auraOrca.listAgents"
+	],
+	"main": "./out/extension",
+	"scripts": {
+		"compile": "gulp compile-extension:aura-orca",
+		"watch": "gulp watch-extension:aura-orca",
+		"test": "node test/run-all.mjs"
+	},
+	"contributes": {
+		"configuration": {
+			"title": "%configuration.title%",
+			"properties": {
+				"auraOrca.terminalLocation": {
+					"type": "string",
+					"enum": ["editor", "panel"],
+					"enumDescriptions": ["%configuration.terminalLocation.editor%", "%configuration.terminalLocation.panel%"],
+					"default": "editor",
+					"description": "%configuration.terminalLocation%"
+				},
+				"auraOrca.defaultAgent": {
+					"type": "string",
+					"enum": ["claude", "codex", "gemini", "qwen", "opencode", "aider", "custom"],
+					"default": "claude",
+					"description": "%configuration.defaultAgent%"
+				}
+			}
+		},
+		"commands": [
+[0m$ [0msed -n '52,182p' product.json | grep -n '"name"'; echo "---aura-refs---"; grep -n -i "aura\|n8n" product.json | head
+3:			"name": "ms-vscode.js-debug-companion",
+19:			"name": "ms-vscode.js-debug",
+35:			"name": "ms-vscode.vscode-js-profile-table",
+---aura-refs---
+41:	"linuxIconName": "aura-ide",
+43:	"reportIssueUrl": "https://github.com/isaogard-droid/new-aura-ide/issues/new",
+45:	"releaseNotesUrl": "https://github.com/isaogard-droid/new-aura-ide/releases",
+46:	"downloadUrl": "https://github.com/isaogard-droid/new-aura-ide/releases",
+> build · kimi-k3
+[0m$ [0mls extensions/aura-orca/media/ 2>/dev/null; echo "---l10n-usage---"; grep -rn "l10n" extensions/aura-orca/out/*.js 2>/dev/null | head -5; echo "---bundle---"; ls extensions/aura-orca/l10n/ 2>/dev/null; find extensions/aura-orca -name "bundle.l10n*" 2>/dev/null | head
+orca.svg
+panel.html
+---l10n-usage---
+extensions/aura-orca/out/extension.js:90:            throw new Error(vscode.l10n.t('The API Keys plugin key for {0} is unavailable.', preset.name));
+extensions/aura-orca/out/extension.js:207:                    const message = error.code === 'ENOENT' ? vscode.l10n.t('{0} is not installed or not in PATH.', binary) : String(error);
+extensions/aura-orca/out/extension.js:216:                    echo(`\n\x1b[2m— ${vscode.l10n.t('finished, exit code {0}', String(code ?? '?'))} —\x1b[0m\n`);
+extensions/aura-orca/out/extension.js:231:            throw new Error(vscode.l10n.t('Unknown CLI agent: {0}', String(input.cli)));
+extensions/aura-orca/out/extension.js:236:            throw new Error(vscode.l10n.t('Set the command for "{0}" in Orca settings.', preset.name));
+---bundle---
+[0m$ [0mgrep -rn "builtInExtensions" build/lib/*.ts build/gulpfile.* 2>/dev/null | head -10; echo "===viewsContainers-orca==="; grep -n -A 20 "viewsContainers" extensions/aura-orca/package.json | head -40
+build/lib/builtInExtensions.ts:47:const builtInExtensions = productjson.builtInExtensions as IExtensionDefinition[] || [];
+build/lib/builtInExtensions.ts:70:	return path.join(root, '.build', 'builtInExtensions', name);
+build/lib/builtInExtensions.ts:167:		.pipe(vfs.dest('.build/builtInExtensions'))
+build/lib/builtInExtensions.ts:243:	const extensions = [...builtInExtensions, ...webBuiltInExtensions];
+build/lib/builtInExtensionsCG.ts:9:import type { IExtensionDefinition } from './builtInExtensions.ts';
+build/lib/builtInExtensionsCG.ts:14:const builtInExtensions = productjson.builtInExtensions as IExtensionDefinition[] || [];
+build/lib/builtInExtensionsCG.ts:80:	for (const extension of [...builtInExtensions, ...webBuiltInExtensions]) {
+build/lib/extensions.ts:21:import { type IExtensionDefinition, getExtensionStream } from './builtInExtensions.ts';
+build/lib/extensions.ts:341:const builtInExtensions: IExtensionDefinition[] = productJson.builtInExtensions || [];
+build/lib/extensions.ts:433:			.filter(({ name }) => builtInExtensions.every(b => b.name !== name))
+===viewsContainers-orca===
+> build · kimi-k3
+[0m$ [0msed -n '1,70p' build/lib/builtInExtensions.ts
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import rimraf from 'rimraf';
+import es from 'event-stream';
+import { rename } from './gulp/facade.ts';
+import vfs from 'vinyl-fs';
+import * as ext from './extensions.ts';
+import { getCurrentExtensionTarget, getPlatformSpecificAssetName } from './extensionTarget.ts';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
+import { Stream } from 'stream';
+import { describeFailure, drainStream, isTruthyEnvFlag, pipeStreams, runSyncJobs } from './resilientSync.ts';
+
+export interface IExtensionDefinition {
+	name: string;
+	version: string;
+	sha256: string;
+	repo: string;
+	platforms?: string[];
+	vsix?: string;
+	/**
+	 * Per-target checksums for a platform-specific extension published to a GitHub release.
+	 * Keyed by marketplace target platform (e.g. `win32-x64`, `linux-armhf`, `alpine-x64`).
+	 * The matching release asset is resolved by convention as `<name>-<osAlias>-<arch>.vsix`.
+	 */
+	platformSpecific?: { [target: string]: string };
+	metadata: {
+		id: string;
+		publisherId: {
+			publisherId: string;
+			publisherName: string;
+			displayName: string;
+			flags: string;
+		};
+		publisherDisplayName: string;
+	};
+}
+
+const root = path.dirname(path.dirname(import.meta.dirname));
+const productjson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../product.json'), 'utf8'));
+const builtInExtensions = productjson.builtInExtensions as IExtensionDefinition[] || [];
+const webBuiltInExtensions = productjson.webBuiltInExtensions as IExtensionDefinition[] || [];
+const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
+const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
+
+/**
+ * Set this to keep working on a machine that has no access to the marketplace: cached built-in
+ * extensions are used as-is and no download is attempted, which also avoids the connect and
+ * retry timeouts that an offline download would otherwise burn on every launch.
+ */
+const offlineEnvVar = 'VSCODE_BUILTIN_EXTENSIONS_OFFLINE';
+
+function log(...messages: string[]): void {
+	if (ENABLE_LOGGING) {
+		fancyLog(...messages);
+	}
+}
+
+function getExtensionPath(extension: IExtensionDefinition): string {
+	return getExtensionPathForName(extension.name);
+}
+
+function getExtensionPathForName(name: string): string {
+	return path.join(root, '.build', 'builtInExtensions', name);
+[0m$ [0mgrep -rn "viewsContainers" extensions/*/package.json -l 2>/dev/null | head; echo "==="; ls extensions/aura-kotlin/l10n/ 2>/dev/null; head -20 extensions/aura-kotlin/l10n/bundle.l10n.ru.json 2>/dev/null
+extensions/aura-kotlin/package.json
+extensions/aura-team/package.json
+extensions/copilot/package.json
+extensions/langgraph-orchestrator/package.json
+extensions/references-view/package.json
+===
+bundle.l10n.ru.json
+{
+	"manual sync": "ручная синхронизация",
+	"startup": "старт",
+	"build file changed": "изменён build-файл",
+	"Gradle returned no jars": "Gradle не вернул jar-файлы",
+	"gradlew or gradle not found": "не найдены gradlew или gradle",
+	"dependencies resolved": "зависимостей разрешено",
+	"not in local caches": "нет в локальных кэшах",
+	"No Gradle or Maven build file in the workspace root.": "В корне workspace нет build-файла Gradle или Maven.",
+	"No jars resolved yet.": "Ни одной зависимости ещё не разрешено.",
+	"Not found in local caches:": "Не найдено в локальных кэшах:",
+	"gradlew not found in the project and system gradle is not installed.": "gradlew не найден в проекте, системный gradle не установлен.",
+	"Gradle task {0} failed with exit code {1}. Check the Problems panel.": "Задача Gradle {0} завершилась с кодом {1}. Смотрите панель Problems.",
+	"Gradle is running — click to cancel": "Gradle выполняется — нажмите для отмены",
+	"Gradle task to run": "Задача Gradle для запуска",
+	"Android SDK not found. Set auraKotlin.androidSdkPath, ANDROID_HOME or install the SDK.": "Android SDK не найден. Укажите auraKotlin.androidSdkPath, задайте ANDROID_HOME или установите SDK.",
+	"Specify path": "Указать путь",
+	"Android SDK folder": "Папка Android SDK",
+	"No Android devices connected (adb devices is empty). Start an emulator or plug in a device.": "Устройства Android не найдены (adb devices пуст). Запустите эмулятор или подключите устройство.",
+	"No Android devices connected (adb devices is empty).": "Устройства Android не найдены (adb devices пуст).",
+> build · kimi-k3
+[0m$ [0mgrep -n -B2 -A 25 '"viewsContainers"' extensions/langgraph-orchestrator/package.json | head -50; echo "===scan==="; sed -n '330,360p' build/lib/extensions.ts
+30-	},
+31-	"contributes": {
+32:		"viewsContainers": {
+33-			"activitybar": [
+34-				{
+35-					"id": "auraOrchestrator",
+36-					"title": "Оркестратор",
+37-					"icon": "media/orchestrator-activity.svg"
+38-				}
+39-			]
+40-		},
+41-		"views": {
+42-			"auraOrchestrator": [
+43-				{
+44-					"id": "auraOrchestrator.home",
+45-					"name": "Оркестратор",
+46-					"type": "webview",
+47-					"when": "auraPlugin.langgraph-orchestrator.enabled == true"
+48-				}
+49-			]
+50-		},
+51-		"configuration": {
+52-			"title": "LangGraph Оркестратор",
+53-			"properties": {
+54-				"langgraphOrchestrator.tiers": {
+55-					"type": "object",
+56-					"default": {
+57-						"rules": []
+===scan===
+];
+
+const marketplaceWebExtensionsExclude = new Set([
+	'ms-vscode.node-debug',
+	'ms-vscode.node-debug2',
+	'ms-vscode.js-debug-companion',
+	'ms-vscode.js-debug',
+	'ms-vscode.vscode-js-profile-table'
+]);
+
+const productJson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../product.json'), 'utf8'));
+const builtInExtensions: IExtensionDefinition[] = productJson.builtInExtensions || [];
+const webBuiltInExtensions: IExtensionDefinition[] = productJson.webBuiltInExtensions || [];
+
+type ExtensionKind = 'ui' | 'workspace' | 'web';
+interface IExtensionManifest {
+	main?: string;
+	browser?: string;
+	extensionKind?: ExtensionKind | ExtensionKind[];
+	extensionPack?: string[];
+	extensionDependencies?: string[];
+	contributes?: { [id: string]: any };
+}
+/**
+ * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionManifestPropertiesService.ts`
+ */
+export function isWebExtension(manifest: IExtensionManifest): boolean {
+	if (Boolean(manifest.browser)) {
+		return true;
+	}
+	if (Boolean(manifest.main)) {
+> build · kimi-k3
+[0m$ [0mgrep -n "vsix" build/lib/builtInExtensions.ts | head; echo "==="; sed -n '72,170p' build/lib/builtInExtensions.ts
+26:	vsix?: string;
+30:	 * The matching release asset is resolved by convention as `<name>-<osAlias>-<arch>.vsix`.
+99:	if (extension.vsix) {
+100:		input = ext.fromVsix(path.join(root, extension.vsix), extension);
+===
+
+function readCachedVersion(extension: IExtensionDefinition): string | undefined {
+	const packagePath = path.join(getExtensionPath(extension), 'package.json');
+
+	if (!fs.existsSync(packagePath)) {
+		return undefined;
+	}
+
+	try {
+		const diskVersion = JSON.parse(fs.readFileSync(packagePath, { encoding: 'utf8' })).version;
+		return typeof diskVersion === 'string' ? diskVersion : undefined;
+	} catch (err) {
+		return undefined;
+	}
+}
+
+function isUpToDate(extension: IExtensionDefinition): boolean {
+	return readCachedVersion(extension) === extension.version;
+}
+
+function isInsiders(): boolean {
+	return process.env['VSCODE_QUALITY'] === 'insider';
+}
+
+function getExtensionDownloadStream(extension: IExtensionDefinition) {
+	let input: Stream;
+
+	if (extension.vsix) {
+		input = ext.fromVsix(path.join(root, extension.vsix), extension);
+	} else if (extension.platformSpecific) {
+		// A platform-specific extension publishes its VSIX assets on a GitHub release using a
+		// specific asset naming convention, so it is always downloaded from GitHub and never falls
+		// back to the Marketplace (which does not serve those assets) even when a gallery is configured.
+		const asset = resolvePlatformSpecificAsset(extension);
+		if (!asset) {
+			return es.readArray([]);
+		}
+		input = ext.fromGithub(extension, { asset, latest: isInsiders() });
+	} else if (productjson.extensionsGallery?.serviceUrl) {
+		input = ext.fromMarketplace(productjson.extensionsGallery.serviceUrl, extension);
+	} else {
+		input = ext.fromGithub(extension, { latest: isInsiders() });
+	}
+
+	return pipeStreams(input)
+		.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`))
+		.done();
+}
+
+function resolvePlatformSpecificAsset(extension: IExtensionDefinition): { assetName: string; sha256: string } | undefined {
+	const target = getCurrentExtensionTarget();
+	if (!target) {
+		// Unsupported build platform (e.g. FreeBSD): no platform-specific asset can apply, so skip
+		// this extension gracefully instead of failing the whole build.
+		log(ansiColors.yellow('[skip]'), `${extension.name}: no platform-specific asset for unsupported platform '${process.platform}-${process.env['VSCODE_ARCH'] ?? process.arch}'`);
+		return undefined;
+	}
+
+	const sha256 = extension.platformSpecific![target];
+	if (!sha256) {
+		// The extension declares platform-specific assets but is missing one for this known target.
+		// This is a configuration error, so fail loudly.
+		throw new Error(`Built-in extension '${extension.name}' is platform-specific but has no asset for target '${target}'. Available targets: [${Object.keys(extension.platformSpecific!)}]`);
+	}
+
+	return { assetName: getPlatformSpecificAssetName(extension.name, target), sha256 };
+}
+
+export function getExtensionStream(extension: IExtensionDefinition) {
+	// if the extension exists on disk, use those files instead of downloading anew
+	if (isUpToDate(extension)) {
+		log('[extensions]', `${extension.name}@${extension.version} up to date`, ansiColors.green('✔︎'));
+		return vfs.src(['**'], { cwd: getExtensionPath(extension), dot: true })
+			.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`));
+	}
+
+	return getExtensionDownloadStream(extension);
+}
+
+function syncMarketplaceExtension(extension: IExtensionDefinition, offline: boolean): Stream {
+	const galleryServiceUrl = productjson.extensionsGallery?.serviceUrl;
+	const source = ansiColors.blue(galleryServiceUrl ? '[marketplace]' : '[github]');
+	if (isUpToDate(extension)) {
+		log(source, `${extension.name}@${extension.version}`, ansiColors.green('✔︎'));
+		return es.readArray([]);
+	}
+
+	if (offline) {
+		logOfflineSkip(extension, source);
+		return es.readArray([]);
+	}
+
+	rimraf.sync(getExtensionPath(extension));
+
+	return pipeStreams(getExtensionDownloadStream(extension))
+		.pipe(vfs.dest('.build/builtInExtensions'))
+		.done()
+		.on('end', () => log(source, extension.name, ansiColors.green('✔︎')));
+}
+> build · kimi-k3
+Понятно: `builtInExtensions` — это скачиваемые из галереи пакеты (marketplace/GitHub/vsix), а локальные папки в `extensions/` исключаются из сканирования, если имя совпадает. Проверю, как сканируется локальная папка extensions, чтобы точно решить вопрос с product.json.
+[0m$ [0mgrep -n "extensions/\*\*\|scanExtensions\|fromLocal\|extensionsDir" build/lib/extensions.ts | head; echo "==="; sed -n '420,450p' build/lib/extensions.ts
+64:function fromLocal(extensionPath: string, forWeb: boolean, _disableMangle: boolean): Stream {
+90:				fromLocalEsbuild(extensionPath, esbuildConfigFileName),
+95:			: fromLocalEsbuild(extensionPath, esbuildConfigFileName);
+98:		input = fromLocalNormal(extensionPath);
+129:function fromLocalNormal(extensionPath: string): Stream {
+151:function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string): Stream {
+440:				return fromLocal(extension.path, forWeb, disableMangle)
+483:		fromLocal(extensionPath, false, disableMangle)
+===
+ */
+function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean, native: boolean): Stream {
+	const nativeExtensionsSet = new Set(nativeExtensions);
+	const localExtensionsDescriptions = (
+		(glob.sync('extensions/*/package.json') as string[])
+			.map(manifestPath => {
+				const absoluteManifestPath = path.join(root, manifestPath);
+				const extensionPath = path.dirname(path.join(root, manifestPath));
+				const extensionName = path.basename(extensionPath);
+				return { name: extensionName, path: extensionPath, manifestPath: absoluteManifestPath };
+			})
+			.filter(({ name }) => native ? nativeExtensionsSet.has(name) : !nativeExtensionsSet.has(name))
+			.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
+			.filter(({ name }) => builtInExtensions.every(b => b.name !== name))
+			.filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true))
+	);
+
+	const localExtensionsStream = minifyExtensionResources(
+		es.merge(
+			...localExtensionsDescriptions.map(extension => {
+				return fromLocal(extension.path, forWeb, disableMangle)
+					.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+			})
+		)
+	);
+
+	let result: Stream;
+	if (forWeb) {
+		result = localExtensionsStream;
+	} else {
+		// also include shared production node modules
+> build · kimi-k3
+[0m$ [0mgrep -n -B3 -A 15 "const excludedExtensions" build/lib/extensions.ts | head -30; echo "===esbuild-check==="; ls extensions/n8n-panel/ extensions/n8n-panel/.vscodeignore 2>/dev/null
+319-	'microsoft-authentication',
+320-];
+321-
+322:const excludedExtensions = [
+323-	'copilot',
+324-	'vscode-api-tests',
+325-	'vscode-colorize-tests',
+326-	'vscode-colorize-perf-tests',
+327-	'vscode-test-resolver',
+328-	'ms-vscode.node-debug',
+329-	'ms-vscode.node-debug2',
+330-];
+331-
+332-const marketplaceWebExtensionsExclude = new Set([
+333-	'ms-vscode.node-debug',
+334-	'ms-vscode.node-debug2',
+335-	'ms-vscode.js-debug-companion',
+336-	'ms-vscode.js-debug',
+337-	'ms-vscode.vscode-js-profile-table'
+===esbuild-check===
+extensions/n8n-panel/:
+README.md
+extension.js
+media
+package.json
+> build · kimi-k3
+Разведка завершена. Картина полная:
+
+- `builtInExtensions` в product.json — только скачиваемые из галереи пакеты; локальные папки `extensions/*` бандлятся автоматически через `glob('extensions/*/package.json')`, а имя в builtInExtensions **исключает** локальную папку из сборки (build/lib/extensions.ts:433). Добавление неопубликованного n8n-panel туда = сломанная сборка. Зафиксирую это решение в отчёте вместо правки product.json.
+- l10n-паттерн проекта: `%ключ%` в манифесте + package.nls.json/ru, рантайм — `vscode.l10n.t` + `l10n/bundle.l10n.ru.json`.
+- viewsContainers у соседей — SVG-иконка (media/icon.svg уже есть).
+
+Смотрю текущую SVG-иконку для консистентности бренда, затем пишу код.
+[0m→ [0mRead extensions/n8n-panel/media/icon.svg 
+> build · kimi-k3
+Брендовая форма — ромб из 4 узлов с рёбрами. Зеркалю её в PNG 128×128: пишу генератор в temp-директорию (репозиторий не засоряю).
+[0m← [0mWrite C:/Users/Wiks/AppData/Local/Temp/opencode/gen-n8n-icon.js
+Created file successfully: C:/Users/Wiks/AppData/Local/Temp/opencode/gen-n8n-icon.js
+> build · kimi-k3
+[0m$ [0mnode "C:\Users\Wiks\AppData\Local\Temp\opencode\gen-n8n-icon.js" "C:\new-aura-ide\vscode-main\extensions\n8n-panel\media\n8n-icon.png" && node -e "const b=require('fs').readFileSync('extensions/n8n-panel/media/n8n-icon.png');const sig=[0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a];console.log('sig ok:',sig.every((v,i)=>b[i]===v));console.log('w:',b.readUInt32BE(16),'h:',b.readUInt32BE(20),'bitdepth:',b[24],'colortype:',b[25]);"
+file:///C:/Users/Wiks/AppData/Local/Temp/opencode/gen-n8n-icon.js:3
+const zlib = require('zlib');
+             ^
+
+ReferenceError: require is not defined in ES module scope, you can use import instead
+This file is being treated as an ES module because it has a '.js' file extension and '\\?\C:\Users\Wiks\package.json' contains "type": "module". To treat it as a CommonJS script, rename it to use the '.cjs' file extension.
+    at file:///C:/Users/Wiks/AppData/Local/Temp/opencode/gen-n8n-icon.js:3:14
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.21.0
+> build · kimi-k3
+Домашний package.json с `type: module` — переименовываю в .cjs.
+[0m$ [0mmv "C:\Users\Wiks\AppData\Local\Temp\opencode\gen-n8n-icon.js" "C:\Users\Wiks\AppData\Local\Temp\opencode\gen-n8n-icon.cjs" && node "C:\Users\Wiks\AppData\Local\Temp\opencode\gen-n8n-icon.cjs" "C:\new-aura-ide\vscode-main\extensions\n8n-panel\media\n8n-icon.png" && node -e "const b=require('fs').readFileSync('extensions/n8n-panel/media/n8n-icon.png');const sig=[0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a];console.log('sig ok:',sig.every((v,i)=>b[i]===v));console.log('w:',b.readUInt32BE(16),'h:',b.readUInt32BE(20),'bitdepth:',b[24],'colortype:',b[25]);"
+written C:\new-aura-ide\vscode-main\extensions\n8n-panel\media\n8n-icon.png 1764 bytes
+sig ok: true
+w: 128 h: 128 bitdepth: 8 colortype: 6
+> build · kimi-k3
+Иконка сгенерирована и валидна (128×128 RGBA). Гляну визуально:
+[0m⚙ [0mexecute {"code":"return await tools.browser.preview({ path: \"extensions/n8n-panel/media/n8n-icon.png\" });"} 
+> build · kimi-k3
+[0m← [0mWrite extensions/n8n-panel/package.nls.json
+Created file successfully: extensions/n8n-panel/package.nls.json
+[0m← [0mWrite extensions/n8n-panel/package.nls.ru.json
+Created file successfully: extensions/n8n-panel/package.nls.ru.json
+[0m← [0mWrite extensions/n8n-panel/package.json
+Wrote file successfully: extensions/n8n-panel/package.json
+> build · kimi-k3
+[0m← [0mWrite extensions/n8n-panel/l10n/bundle.l10n.ru.json
+Created file successfully: extensions/n8n-panel/l10n/bundle.l10n.ru.json
+[0m← [0mWrite extensions/n8n-panel/extension.js
+Wrote file successfully: extensions/n8n-panel/extension.js
+> build · kimi-k3
+[0m← [0mWrite C:/Users/Wiks/AppData/Local/Temp/opencode/n8n-harness.cjs
+Created file successfully: C:/Users/Wiks/AppData/Local/Temp/opencode/n8n-harness.cjs
+> build · kimi-k3
+[0m$ [0mnode --check extensions/n8n-panel/extension.js && echo "syntax OK" && node -e "['extensions/n8n-panel/package.json','extensions/n8n-panel/package.nls.json','extensions/n8n-panel/package.nls.ru.json','extensions/n8n-panel/l10n/bundle.l10n.ru.json'].forEach(f=>{JSON.parse(require('fs').readFileSync(f,'utf8'));console.log('JSON OK:',f)})" && node "C:\Users\Wiks\AppData\Local\Temp\opencode\n8n-harness.cjs"
+syntax OK
+JSON OK: extensions/n8n-panel/package.json
+JSON OK: extensions/n8n-panel/package.nls.json
+JSON OK: extensions/n8n-panel/package.nls.ru.json
+JSON OK: extensions/n8n-panel/l10n/bundle.l10n.ru.json
+ALL HARNESS CHECKS PASSED
+> build · kimi-k3
+[0m$ [0mnode -e "
+const fs=require('fs');
+const src=fs.readFileSync('extensions/n8n-panel/extension.js','utf8');
+const used=[...src.matchAll(/l10n\.t\('((?:[^'\\\\]|\\\\.)*)'/g)].map(m=>m[1].replace(/\\\\'/g,\"'\"));
+const bundle=JSON.parse(fs.readFileSync('extensions/n8n-panel/l10n/bundle.l10n.ru.json','utf8'));
+const missing=[...new Set(used)].filter(k=>!(k in bundle));
+const unused=Object.keys(bundle).filter(k=>!new Set(used).has(k));
+console.log('used:',new Set(used).size,'bundle keys:',Object.keys(bundle).length);
+console.log('missing in bundle:',missing.length?missing:'none');
+console.log('unused in bundle:',unused.length?unused:'none');
+const pkg=fs.readFileSync('extensions/n8n-panel/package.json','utf8');
+const keys=[...pkg.matchAll(/%([a-zA-Z.]+)%/g)].map(m=>m[1]);
+const nls=JSON.parse(fs.readFileSync('extensions/n8n-panel/package.nls.json','utf8'));
+const nlsru=JSON.parse(fs.readFileSync('extensions/n8n-panel/package.nls.ru.json','utf8'));
+const mk=[...new Set(keys)].filter(k=>!(k in nls)||!(k in nlsru));
+console.log('manifest keys:',new Set(keys).size,'missing in nls:',mk.length?mk:'none');
+" && git status --porcelain
+[eval]:4
+const used=[...src.matchAll(/l10n\.t\('((?:[^'\]|\.)*)'/g)].map(m=>m[1].replace(/\'/g,"'"));
+                            ^
+Expected ',', got '<lexing error>'
+
+SyntaxError: Invalid regular expression flags
+    at makeContextifyScript (node:internal/vm:194:14)
+    at compileScript (node:internal/process/execution:388:10)
+    at evalTypeScript (node:internal/process/execution:260:22)
+    at node:internal/main/eval_string:71:3
+
+Node.js v24.21.0
+> build · kimi-k3
+Экранирование в однострочнике съело регекс — выношу в файл.
+[0m← [0mWrite C:/Users/Wiks/AppData/Local/Temp/opencode/n8n-keycheck.cjs
+Created file successfully: C:/Users/Wiks/AppData/Local/Temp/opencode/n8n-keycheck.cjs
+> build · kimi-k3
+[0m$ [0mnode "C:\Users\Wiks\AppData\Local\Temp\opencode\n8n-keycheck.cjs" && git status --porcelain && ls -la extensions/n8n-panel/media/
+runtime keys used: 10 | bundle keys: 10
+missing in bundle: none
+unused in bundle: none
+manifest %keys%: 9 | missing in nls files: none
+ M ORCHESTRATOR.md
+ M aura-team-server/deploy/Caddyfile
+ M aura-team-server/deploy/server-setup.sh
+ M aura-team-server/scripts/start-local.mjs
+ M aura-team-server/src/config.ts
+ M aura-team-server/src/routes/aggg.ts
+ M aura-team-server/src/routes/auth.ts
+ M aura-team-server/src/routes/keys.ts
+ M aura-team-server/src/routes/teams.ts
+ M aura-team-server/src/server.ts
+ M aura-team-server/test/admin.test.ts
+ M aura-team-server/test/key-probe.test.ts
+ M aura-team-server/test/server.test.ts
+ M build/gulpfile.extensions.ts
+ M build/lib/asar.ts
+ M build/lib/preLaunch.ts
+ M extensions/aura-orca/package.json
+ M extensions/aura-serverkit/package.json
+ M extensions/aura-team/package-lock.json
+ M extensions/aura-team/package.json
+ M extensions/aura-team/src/api/client.ts
+ M extensions/aura-team/src/extension.ts
+ M extensions/aura-team/src/git/service.ts
+ M extensions/aura-team/src/git/workflow.ts
+ M extensions/aura-team/src/webview/panelProvider.ts
+ M extensions/aura-team/src/webview/template.html
+ M extensions/aura-team/test/sidebar-syntax.test.mjs
+ M extensions/langgraph-orchestrator/src/host.ts
+ M extensions/langgraph-orchestrator/src/panel/template.html
+ M extensions/langgraph-orchestrator/src/tools/index.ts
+ M extensions/langgraph-orchestrator/test/panel-preview.mjs
+ M src/vs/base/node/nls.ts
+ M src/vs/monaco.d.ts
+ M src/vs/workbench/browser/parts/editor/editorGroupWatermark.ts
+ M src/vs/workbench/browser/parts/editor/media/editorgroupview.css
+ M src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css
+ M src/vs/workbench/contrib/aggg/browser/aggg.contribution.ts
+ M src/vs/workbench/contrib/aggg/browser/agggVersionWidget.ts
+ M src/vs/workbench/contrib/aggg/common/agggEntitlements.ts
+ M src/vs/workbench/contrib/aggg/test/common/agggEntitlements.test.ts
+ M src/vs/workbench/contrib/auraApi/browser/auraApi.contribution.ts
+ M src/vs/workbench/contrib/auraApi/browser/auraApiTools.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiChatTools.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiKeys.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiModel.ts
+ M src/vs/workbench/contrib/auraI18n/browser/auraLanguage.contribution.ts
+ M src/vs/workbench/contrib/auraMarket/browser/auraMarketEditorPane.ts
+ M src/vs/workbench/contrib/auraMarket/browser/media/auraMarket.css
+ M src/vs/workbench/contrib/auraMarket/common/auraMarketCatalog.en.ts
+ M src/vs/workbench/contrib/auraMarket/common/auraMarketCatalog.ts
+ M src/vs/workbench/contrib/auraMarket/common/auraPluginService.ts
+ M src/vs/workbench/contrib/auraMarket/test/common/auraMarketCatalog.test.ts
+?? classes.jar
+?? docs/swarm/
+?? extensions/aura-harness/
+?? extensions/aura-kotlin/package-lock.json
+?? extensions/aura-orca/package-lock.json
+?? extensions/aura-team/tmp-regions.txt
+?? extensions/langgraph-orchestrator/patch-kanban.py
+?? extensions/langgraph-orchestrator/src/harness/
+?? extensions/n8n-panel/
+total 9
+drwxr-xr-x 1 Wiks 197121    0 Oct 18 05:09 .
+drwxr-xr-x 1 Wiks 197121    0 Oct 18 05:13 ..
+-rw-r--r-- 1 Wiks 197121  369 Oct  6 21:00 icon.svg
+-rw-r--r-- 1 Wiks 197121 1764 Oct 18 05:09 n8n-icon.png
+> build · kimi-k3
+> build · kimi-k3
+Все проверки зелёные, product.json не тронут (в списке изменённых его нет — там чужие задачи роя). Собираю номера строк для отчёта:
+[0m$ [0mgrep -n "publisher\|\"icon\"\|galleryBanner\|repository\|categories\|keywords\|viewsContainers\|allowSelfSigned" extensions/n8n-panel/package.json; echo "==="; grep -n "rejectUnauthorized\|LOAD_TIMEOUT_MS = \|cspNonce()\|onDidDispose\|retainContextWhenHidden\|registerWebviewViewProvider\|reveal(" extensions/n8n-panel/extension.js
+6:	"publisher": "aura",
+8:	"icon": "media/n8n-icon.png",
+9:	"galleryBanner": {
+13:	"repository": {
+20:	"categories": ["Visualization", "Other"],
+21:	"keywords": ["n8n", "workflow", "automation"],
+37:				"n8n.allowSelfSigned": {
+40:					"description": "%configuration.allowSelfSigned%"
+54:		"viewsContainers": {
+59:					"icon": "media/icon.svg"
+===
+7:const LOAD_TIMEOUT_MS = 10000;
+13: * webview с retainContextWhenHidden — это и была утечка из AURA-006.
+33:			options.rejectUnauthorized = !isSelfSignedAllowed();
+45:function cspNonce() {
+55:	const nonce = cspNonce();
+156:	const nonce = cspNonce();
+250:		vscode.window.registerWebviewViewProvider('n8nPanel.launcher', new LauncherViewProvider()),
+264:				currentPanel.reveal(vscode.ViewColumn.One);
+271:				{ enableScripts: true, retainContextWhenHidden: true },
+274:			panel.onDidDispose(() => { currentPanel = undefined; }, null, context.subscriptions);
+> build · kimi-k3
+[0m← [0mWrite docs/swarm/DONE-b2.md
+Created file successfully: docs/swarm/DONE-b2.md
+> build · kimi-k3
+[0m$ [0mwc -l docs/swarm/DONE-b2.md; git diff --stat product.json; echo "product.json diff: $(git diff --name-only | grep -c product.json || true) files"
+27 docs/swarm/DONE-b2.md
+warning: in the working copy of 'ORCHESTRATOR.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'aura-team-server/scripts/start-local.mjs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'extensions/langgraph-orchestrator/src/host.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'extensions/langgraph-orchestrator/src/panel/template.html', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'extensions/langgraph-orchestrator/src/tools/index.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'extensions/langgraph-orchestrator/test/panel-preview.mjs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/vs/base/node/nls.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/vs/monaco.d.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/vs/workbench/browser/parts/editor/editorGroupWatermark.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/vs/workbench/browser/parts/editor/media/editorgroupview.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/vs/workbench/contrib/auraMarket/browser/auraMarketEditorPane.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/vs/workbench/contrib/auraMarket/common/auraMarketCatalog.en.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/vs/workbench/contrib/auraMarket/common/auraMarketCatalog.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/vs/workbench/contrib/auraMarket/common/auraPluginService.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/vs/workbench/contrib/auraMarket/test/common/auraMarketCatalog.test.ts', LF will be replaced by CRLF the next time Git touches it
+product.json diff: 0 files
+> build · kimi-k3
+Готово, сэр. Задача b2 закрыта, отчёт в `docs/swarm/DONE-b2.md` (27 строк).
+
+## Результат
+
+| ID | Что сделано |
+|---|---|
+| **AURA-001** | `package.json`: publisher `aura`, `icon`, `galleryBanner #ff6d5a`, repository-заглушка, categories `[Visualization, Other]`, keywords. PNG 128×128 сгенерирована node-скриптом (мотив = узлы-ромб из существующей icon.svg), IHDR проверен программно |
+| **AURA-002** | `viewsContainers.activitybar` + webview-лаунчер `n8nPanel.launcher`: URL, живой статус сервера (зелёная/красная точка), кнопки → сохранённые команды `openTab`/`openExternal` |
+| **AURA-003** | CSP: `script-src 'nonce-<16B random>'`, `'unsafe-inline'` убран, inline `onclick` → `addEventListener`; nonce свежий на каждый рендер обоих webview |
+| **AURA-004** | `rejectUnauthorized:false` удалён; дефолт — проверка сертификата, opt-in через `n8n.allowSelfSigned` (false) |
+| **AURA-005** | Таймаут 20с→10с, прогресс-бар + обратный отсчёт; «Переподключиться» перечитывает URL из настроек и перезагружает iframe |
+| **AURA-006** | Singleton-панель + `reveal()` вместо плодить-webview; `onDidDispose` чистит ссылку. `retainContextWhenHidden:true` оставлен сознательно — утечкой было размножение панелей, а не retention (у n8n-canvas несохранённое состояние) |
+| **l10n** | Манифест на `%ключи%` (+nls.json/.ru.json), рантайм через `vscode.l10n.t` + `l10n/bundle.l10n.ru.json`. TS-миграция (AURA-028) не делалась — по ТЗ |
+
+## Эскалация: product.json не тронут
+
+`builtInExtensions` там — **скачиваемые из галереи** пакеты (`build/lib/builtInExtensions.ts`), а имя в списке **исключает** локальную папку из сборки (`build/lib/extensions.ts:433`). Запись для неопубликованного n8n-panel = сборка падает на скачивании. Папка `extensions/n8n-panel` бандлится автоматически glob'ом. Решение задокументировано в DONE.
+
+## Проверка
+
+- `node --check` ✓, 4 JSON ✓, PNG sig+IHDR ✓, ключи l10n сверены скриптом (10/10 runtime, 9/9 manifest).
+- Харнес со стабами vscode/https прогнал поведение: CSP/nonce, rejectUnauthorized в обоих режимах, reveal-vs-new-pанель, dispose→new, reconnect-флоу, лаунчер — **ALL PASSED**.
+
+**Не проверено:** отображение в маркете без сборки IDE, живой iframe против реального n8n (X-Frame-Options — конфиг сервера), вид PNG в просмотрщике (браузер недоступен), `vsce package`.

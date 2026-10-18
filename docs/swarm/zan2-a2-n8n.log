@@ -1,0 +1,196 @@
+[0m
+> build · glm-5.3-prime
+[0m→ [0mRead docs/swarm/ZAN-zan-a2-n8n.md 
+[0m→ [0mRead docs/swarm/DONE-a2-n8n-fix.md 
+[0m→ [0mRead docs/swarm 
+> build · glm-5.3-prime
+Понял задачу: ревью фикса против моего прошлого вердикта, каждый пункт — сам по коду и прогонам. Начинаю с первоисточников: код расширения, лог их прогона, переписанная строка в DONE-low.
+[0m→ [0mRead extensions/n8n-panel/extension.js 
+[0m→ [0mRead docs/swarm/PROMPT-zan2-a2-n8n.md 
+[0m→ [0mRead docs/swarm/DONE-a2-n8n-low.md 
+[0m→ [0mRead docs/swarm/a2-n8n-fix.log 
+> build · glm-5.3-prime
+Код фикса в extension.js вижу (:25, :33–:41, :40). Теперь — суть прошлого вердикта: билдер врал через нереалистичный стаб. Значит, главный вопрос ревью — **действительно ли «realistic-стаб» в новом харнессе совпадает с реальным рантаймом VS Code из этого же репо**. Читаю их харнесс и первоисточники рантайма параллельно.
+[0m→ [0mRead C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-fix-verify.cjs 
+[0m→ [0mRead C:/Users/Wiks/AppData/Local/Temp/opencode/tsconfig.zan-a2-n8n.json 
+[0m→ [0mRead src/vscode-dts/vscode.d.ts [90m[offset=6850, limit=70][0m
+[0m✱ [0mGlob "src/vs/workbench/api/**/extHostConfiguration.ts" [90m1 match[0m
+> build · glm-5.3-prime
+Харнесс билдера вижу: стаб реально моделирует `get()`=манифест-дефолт + `inspect()`=scope-значения, код расширения исполняется через `Module._load`. Но «realistic» — это заявка, а не факт: прошлый раз враньё было именно тут. Сверяю семантику стаба с реальным рантаймом из исходников репо.
+[0m→ [0mRead src/vs/workbench/api/common/extHostConfiguration.ts 
+> build · glm-5.3-prime
+`get()` — lookUp по эффективному значению, undefined → только тогда defaultValue; `inspect()` берёт `workspaceFolder?.value` из Configuration. Решающий файл — configurationModels.ts: как строится консолидированная модель и что попадает в `workspaceFolderValue`, когда ресурс не передан.
+[0m→ [0mRead src/vs/platform/configuration/common/configurationModels.ts 
+> build · glm-5.3-prime
+Харнесс прочитан. Семантика реального рантайма из исходников подтверждена по цепочке: `getConfiguration(section)` без scope → `overrides = {}` → эффективное значение = workspace > user > **манифест-дефолт** (defaults.merge(...) в configurationModels.ts:1024), `lookUp` → undefined только если нет ни дефолта. `inspect()` без resource → `workspaceFolderValue` = undefined всегда (configurationModels.ts:1044–1052). Значит:
+- заявка «get()-фолбэк был мёртв» — правда (дефолт `false` в модели дефолтов);
+- заявка «inspect() отдаёт только юзеровские scope-значения» — правда (extHostConfiguration.ts:265–290, deepClone(undefined) → undefined);
+- а вот их тест C6 (workspaceFolderValue виден без resource) моделирует состояние, которое в реальном рантайме **невозможно** — проверю.
+
+Теперь запускаю их прогон сам + tsc + git, параллельно читаю манифест и промпт билдера.
+[0m→ [0mRead extensions/n8n-panel/package.json 
+[0m→ [0mRead docs/swarm/PROMPT-a2-n8n-fix.md 
+[0m$ [0mgit status --porcelain | grep -v '^??'; echo "---untracked---"; git status --porcelain | grep '^??'; echo "---node check---"; node --check extensions/n8n-panel/extension.js && echo "node --check OK"
+M ORCHESTRATOR.md
+ M aura-team-server/deploy/Caddyfile
+ M aura-team-server/deploy/server-setup.sh
+ M aura-team-server/scripts/start-local.mjs
+ M aura-team-server/src/config.ts
+ M aura-team-server/src/routes/aggg.ts
+ M aura-team-server/src/routes/auth.ts
+ M aura-team-server/src/routes/keys.ts
+ M aura-team-server/src/routes/teams.ts
+ M aura-team-server/src/server.ts
+ M aura-team-server/test/admin.test.ts
+ M aura-team-server/test/key-probe.test.ts
+ M aura-team-server/test/server.test.ts
+ M build/gulpfile.extensions.ts
+ M build/lib/asar.ts
+ M build/lib/preLaunch.ts
+ M extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+ M extensions/aura-kotlin/src/android.ts
+ M extensions/aura-kotlin/src/deviceScreen.ts
+ M extensions/aura-orca/package.json
+ M extensions/aura-orca/src/extension.ts
+ M extensions/aura-serverkit/package.json
+ M extensions/aura-team/package-lock.json
+ M extensions/aura-team/package.json
+ M extensions/aura-team/package.nls.json
+ M extensions/aura-team/src/api/client.ts
+ M extensions/aura-team/src/extension.ts
+ M extensions/aura-team/src/git/service.ts
+ M extensions/aura-team/src/git/teamSync.ts
+ M extensions/aura-team/src/git/workflow.ts
+ M extensions/aura-team/src/webview/panelProvider.ts
+ M extensions/aura-team/src/webview/template.html
+ M extensions/aura-team/test/kanban.render.test.mjs
+ M extensions/aura-team/test/manifest.test.mjs
+ M extensions/aura-team/test/sidebar-syntax.test.mjs
+ M extensions/langgraph-orchestrator/src/host.ts
+ M extensions/langgraph-orchestrator/src/panel/template.html
+ M extensions/langgraph-orchestrator/src/tools/index.ts
+ M extensions/langgraph-orchestrator/test/panel-preview.mjs
+ M src/vs/base/node/nls.ts
+ M src/vs/monaco.d.ts
+ M src/vs/workbench/browser/parts/editor/editorGroupWatermark.ts
+ M src/vs/workbench/browser/parts/editor/media/editorgroupview.css
+ M src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css
+ M src/vs/workbench/contrib/aggg/browser/aggg.contribution.ts
+ M src/vs/workbench/contrib/aggg/browser/agggVersionWidget.ts
+ M src/vs/workbench/contrib/aggg/common/agggEntitlements.ts
+ M src/vs/workbench/contrib/aggg/test/common/agggEntitlements.test.ts
+ M src/vs/workbench/contrib/auraApi/browser/auraApi.contribution.ts
+ M src/vs/workbench/contrib/auraApi/browser/auraApiTools.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiChatTools.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiKeys.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiModel.ts
+ M src/vs/workbench/contrib/auraI18n/browser/auraLanguage.contribution.ts
+ M src/vs/workbench/contrib/auraMarket/browser/auraMarketEditorPane.ts
+ M src/vs/workbench/contrib/auraMarket/browser/media/auraMarket.css
+ M src/vs/workbench/contrib/auraMarket/common/auraMarketCatalog.en.ts
+ M src/vs/workbench/contrib/auraMarket/common/auraMarketCatalog.ts
+ M src/vs/workbench/contrib/auraMarket/common/auraPluginService.ts
+ M src/vs/workbench/contrib/auraMarket/test/common/auraMarketCatalog.test.ts
+---untracked---
+?? classes.jar
+?? docs/swarm/
+?? extensions/aura-harness/
+?? extensions/aura-orca/package-lock.json
+?? extensions/aura-team/package.nls.ru.json
+?? extensions/aura-team/test/invite.modal.test.mjs
+?? extensions/aura-team/tmp-regions.txt
+?? extensions/langgraph-orchestrator/patch-kanban.py
+?? extensions/langgraph-orchestrator/src/harness/
+?? extensions/n8n-panel/
+---node check---
+node --check OK
+[0m$ [0mnode node_modules/typescript/lib/tsc.js -p /c/Users/Wiks/AppData/Local/Temp/opencode/tsconfig.zan-a2-n8n.json; echo "tsc exit: $?"
+tsc exit: 0
+[0m$ [0mnode /c/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-fix-verify.cjs 2>&1; echo "harness exit: $?"
+PASS  node --check extension.js OK
+PASS  JSON ×4 парсятся
+PASS  манифест: 9 %ключей% ↔ nls ↔ nls.ru 1:1
+PASS  l10n: 10 уникальных ключей ↔ bundle 1:1
+PASS  §6.1: миграция через inspect(), мёртвого get()-фолбэка нет
+PASS  A1 getUrl: голый хост → https:// + трим хвостовых /
+PASS  A2 getUrl: http:// не трогается
+PASS  A3 checkStatus: синхронный Invalid URL → resolve(false), не reject
+PASS  A4 live http: мёртвая ссылка → warning
+PASS  A5 checkStatus: живой сервер → 0 warning
+PASS  A6 checkStatus: мёртвый сервер → 1 warning
+PASS  B1 БЛОКЕР§6.1+§6.3: unset-новый + старый n8n.allowSelfSigned=true + «HTTPS://» → живой self-signed сервер онлайн (миграция жива, схема lowercased)
+PASS  B2 iframe src: схема нормализована в нижний регистр
+PASS  B3 дефолт остался безопасным: нигде не задано → rejectUnauthorized → offline (1 warning)
+PASS  B4 новый ключ global=true → онлайн
+PASS  B5 явный новый false бьёт старый true → offline
+PASS  C0 контроль бага: старая логика на realistic-семантике игнорирует старый ключ (dead code подтверждён)
+PASS  C1 БЛОКЕР§6.1: новый unset ни в одном scope + старый true → allow (rejectUnauthorized=false)
+PASS  C2 нигде не задано → verify (true)
+PASS  C3 новый global=true приоритетнее старого false
+PASS  C4 новый global=false приоритетнее старого true
+PASS  C5 workspace бьёт global false → allow
+PASS  C6 workspaceFolder бьёт workspace/global → allow (приоритет folder>workspace>global)
+PASS  D1 токен вшит (per-panel)
+PASS  D2 токен = 32 hex
+PASS  D3 форджери (без токена / чужой токен) → отброшены
+PASS  D4 верный токен → принят
+PASS  D5 экранирование tab: ровно 1 </script>, payload только как \u003c
+PASS  D6 reveal() без аргументов, панель не размножается
+PASS  E1 unhandledRejection=0, uncaughtException=0
+
+==== 30/30 PASS ====
+harness exit: 0
+> build · glm-5.3-prime
+30/30 и `tsc exit 0` воспроизведены моим запуском. Зона чистая: n8n-файлы untracked, M-файлы — чужие зоны (aura-*, langgraph, aggg/auraApi в src). Манифест: `n8nPanel.allowSelfSigned` default false, старых `n8n.*` нет.
+
+Их стаб совпадает с рантаймом там, где решается судьба фикса. Но проверять их харнесс их же стабом — верить билдеру. Пишу **свой** зонд с собственной семантикой, выведенной из исходников (включая факт, который их стаб игнорирует: `workspaceFolderValue` без scope в реальном VS Code не существует никогда). Параллельно — кросс-чек двух ключевых фактов по внешним источникам.
+[0m✗ [0mWeb Search "VS Code settings precedence workspace folder overrides workspace user default" failed
+[91m[1mError: [0mWeb search cancelled
+[0m✗ [0mWeb Search "vscode extension getConfiguration inspect workspaceFolderValue undefined without resource scope" failed
+[91m[1mError: [0mWeb search cancelled
+[0m← [0mWrite C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-a2-probe.cjs
+Created file successfully: C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-a2-probe.cjs
+> build · glm-5.3-prime
+Веб-поиск в этом билде недоступен (оба запроса отменены) — первоисточник остаётся код репо, как и в прошлом круге. Запускаю свой зонд.
+[0m$ [0mnode /c/Users/Wiks/AppData/Local/Temp/opencode/zan2-a2-probe.cjs 2>&1; echo "probe exit: $?"
+PASS  T1 БЛОКЕР: новый unset + старый global=true → allow (ru=false)
+PASS  T2 нигде не задано → verify (ru=true)
+PASS  T3 новый global=true → allow
+PASS  T4 новый global=false бьёт старый true → verify
+PASS  T5 workspace=true бьёт global=false → allow
+PASS  T6 workspace=false бьёт global=true → verify
+PASS  T7 старый ключ в workspace-scope, новый unset → allow
+PASS  T8 новый ТОЛЬКО в folder (реал: без scope невидим) → старый unset → verify
+PASS  T9 (документация поведения) folder-новый невидим + старый true → allow
+PASS  C0 контроль: старая логика (get+typeof) на реалистичной семантике игнорирует старый ключ
+PASS  G1 «HTTPS://host» → src="https://host"
+PASS  G2 http:// не трогается
+PASS  G3 голый хост → https://
+
+==== 13/13 PASS ====
+probe exit: 0
+> build · glm-5.3-prime
+Собственный зонд: **13/13** — миграция живая на выведенной из исходников семантике, включая блокер-кейс T1. Финальная проверка инфры (db-tools для находок), затем пишу вердикт.
+[0m✱ [0mGlob "db-tools/findings.py" [90m0 matches[0m
+[0m✱ [0mGlob "**/findings.py" [90m0 matches[0m
+> build · glm-5.3-prime
+Всё проверено. Пишу вердикт.
+[0m← [0mWrite docs/swarm/ZAN-zan2-a2-n8n.md
+Created file successfully: docs/swarm/ZAN-zan2-a2-n8n.md
+> build · glm-5.3-prime
+Готово. Файл: `docs/swarm/ZAN-zan2-a2-n8n.md`.
+
+**Вердикт: ACCEPT.**
+
+**Что проверил сам (не пересказ DONE):**
+- их харнесс перезапущен — `30/30 PASS`, exit 0, unhandled=0; `tsc -p` — пусто, exit 0; `node --check` OK; git — `?? extensions/n8n-panel/`, M-файлы только в чужих зонах;
+- написал **свой** зонд с собственным стабом, семантику вывел из исходников рантайма, а не из их кода — `13/13`, блокер-кейс T1 (новый unset + старый `n8n.allowSelfSigned=true` → allow) живой.
+
+**Главное прошлого круга — «realistic-стаб» больше не враньё.** Сверен с первоисточником: `get()` на незаданном ключе → манифест-дефолт (extHostConfiguration.ts:194–198 + configurationModels.ts:1022–1027), `inspect()` отдаёт только юзеровские scope-значения (:265–290), незарегистрированный старый `n8n.*` проходит через `get()` (filter без options = no-op, :430–434). B1 с живым self-signed сервером воспроизведён.
+
+**Найденное (не блокирует):**
+1. их тест C6 моделирует невозможное состояние — `workspaceFolderValue` без scope в реальном VS Code не существует никогда (configurationModels.ts:1044–1052); пере-строгий тест, замаскировать баг не может;
+2. INFO: folder-scope значения невидимы и новому, и старому ключу — консистентно с get() без resource, не регрессия;
+3. порядок `??` folder→workspace→global у билдера **правильный** по исходникам — мой буквенный §6.1 как приоритет был бы ошибкой, отклонение раскрыто честно.
+
+История «29/30 → баг харнесса» сходится с логом (правился только харнесс). Клеймо «враньё в evidence» снято. Повторного круга не требуется.

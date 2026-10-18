@@ -1,0 +1,678 @@
+[0m
+> build · glm-5.3-prime
+[0m→ [0mRead docs/swarm/DONE-a2-n8n-low.md 
+[0m→ [0mRead docs/swarm/ZAN-b2.md 
+> build · glm-5.3-prime
+Свитчаюсь в режим Зана. Предмет ясен: DONE-a2 заявляет закрытие §5 п.1–6 из ZAN-b2. Читаю код.
+[0m→ [0mRead extensions/n8n-panel/package.json 
+[0m→ [0mRead extensions/n8n-panel/extension.js 
+> build · glm-5.3-prime
+[0m→ [0mRead extensions/n8n-panel/package.nls.json 
+[0m→ [0mRead extensions/n8n-panel/l10n/bundle.l10n.ru.json 
+[0m→ [0mRead extensions/n8n-panel/package.nls.ru.json 
+[0m$ [0mgit status --short && echo "---branch---" && git log --oneline -3 2>/dev/null | head -5
+M ORCHESTRATOR.md
+ M aura-team-server/deploy/Caddyfile
+ M aura-team-server/deploy/server-setup.sh
+ M aura-team-server/scripts/start-local.mjs
+ M aura-team-server/src/config.ts
+ M aura-team-server/src/routes/aggg.ts
+ M aura-team-server/src/routes/auth.ts
+ M aura-team-server/src/routes/keys.ts
+ M aura-team-server/src/routes/teams.ts
+ M aura-team-server/src/server.ts
+ M aura-team-server/test/admin.test.ts
+ M aura-team-server/test/key-probe.test.ts
+ M aura-team-server/test/server.test.ts
+ M build/gulpfile.extensions.ts
+ M build/lib/asar.ts
+ M build/lib/preLaunch.ts
+ M extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+ M extensions/aura-kotlin/src/android.ts
+ M extensions/aura-kotlin/src/deviceScreen.ts
+ M extensions/aura-orca/package.json
+ M extensions/aura-orca/src/extension.ts
+ M extensions/aura-serverkit/package.json
+ M extensions/aura-team/package-lock.json
+ M extensions/aura-team/package.json
+ M extensions/aura-team/package.nls.json
+ M extensions/aura-team/src/api/client.ts
+ M extensions/aura-team/src/extension.ts
+ M extensions/aura-team/src/git/service.ts
+ M extensions/aura-team/src/git/teamSync.ts
+ M extensions/aura-team/src/git/workflow.ts
+ M extensions/aura-team/src/webview/panelProvider.ts
+ M extensions/aura-team/src/webview/template.html
+ M extensions/aura-team/test/manifest.test.mjs
+ M extensions/aura-team/test/sidebar-syntax.test.mjs
+ M extensions/langgraph-orchestrator/src/host.ts
+ M extensions/langgraph-orchestrator/src/panel/template.html
+ M extensions/langgraph-orchestrator/src/tools/index.ts
+ M extensions/langgraph-orchestrator/test/panel-preview.mjs
+ M src/vs/base/node/nls.ts
+ M src/vs/monaco.d.ts
+ M src/vs/workbench/browser/parts/editor/editorGroupWatermark.ts
+ M src/vs/workbench/browser/parts/editor/media/editorgroupview.css
+ M src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css
+ M src/vs/workbench/contrib/aggg/browser/aggg.contribution.ts
+ M src/vs/workbench/contrib/aggg/browser/agggVersionWidget.ts
+ M src/vs/workbench/contrib/aggg/common/agggEntitlements.ts
+ M src/vs/workbench/contrib/aggg/test/common/agggEntitlements.test.ts
+ M src/vs/workbench/contrib/auraApi/browser/auraApi.contribution.ts
+ M src/vs/workbench/contrib/auraApi/browser/auraApiTools.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiChatTools.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiKeys.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiModel.ts
+ M src/vs/workbench/contrib/auraI18n/browser/auraLanguage.contribution.ts
+ M src/vs/workbench/contrib/auraMarket/browser/auraMarketEditorPane.ts
+ M src/vs/workbench/contrib/auraMarket/browser/media/auraMarket.css
+ M src/vs/workbench/contrib/auraMarket/common/auraMarketCatalog.en.ts
+ M src/vs/workbench/contrib/auraMarket/common/auraMarketCatalog.ts
+ M src/vs/workbench/contrib/auraMarket/common/auraPluginService.ts
+ M src/vs/workbench/contrib/auraMarket/test/common/auraMarketCatalog.test.ts
+?? classes.jar
+?? docs/swarm/
+?? extensions/aura-harness/
+?? extensions/aura-orca/package-lock.json
+?? extensions/aura-team/package.nls.ru.json
+?? extensions/aura-team/tmp-regions.txt
+?? extensions/langgraph-orchestrator/patch-kanban.py
+?? extensions/langgraph-orchestrator/src/harness/
+?? extensions/n8n-panel/
+---branch---
+2b4ad587 orca: плагин Orca — CLI-агенты (Claude Code, Codex, Gemini, Qwen, opencode, Aider) во вкладках-терминалах, worktree на агента, настройки ключей/base URL/модели, инструмент agent.cli для оркестратора
+f02516bb team: командный процесс GitHub по кнопкам — своя ветка, свежий main, тесты, графический дифф, PR, слияние, откат
+4be44e73 team+orchestrator: канбан агентов, полный русский, проверка ключей, удаление событий, админ
+> build · glm-5.3-prime
+Код и манифесты прочитаны. Теперь проверяю первоисточники: поведение `get()` в ext host (это решает, работает ли «софт-миграция» из §5.4 на самом деле), строку vscode.d.ts:10149, инфра-заявки из DONE, и карту swarm-зоны.
+[0m✗ [0mGrep "reveal\(viewColumn|reveal\(" failed
+[91m[1mError: [0mSearch path does not exist: C:\new-aura-ide\vscode-main\src\vs\vscode.d.ts
+[0m→ [0mRead src/vs/workbench/api/common/extHostConfiguration.ts [90m[limit=120][0m
+[0m$ [0mls docs/swarm/ 2>/dev/null; echo "---db-tools---"; ls db-tools/ 2>/dev/null || echo "нет db-tools"; echo "---node_modules---"; ls node_modules/.bin/tsc* 2>/dev/null | head -3; ls extensions/node_modules/@types/ 2>/dev/null | head -5; echo "---root-tsconfig---"; ls tsconfig*.json 2>/dev/null
+DONE-a2-n8n-low.md
+DONE-a2-team.md
+DONE-b1.md
+DONE-b1fix.md
+DONE-b1fix2.md
+DONE-b2.md
+PROMPT-a2-n8n-low.md
+PROMPT-a2-team.md
+PROMPT-b1-kotlin-emulator.md
+PROMPT-b1fix.md
+PROMPT-b1fix2.md
+PROMPT-b2-n8n-market.md
+PROMPT-explorer.md
+PROMPT-zan-a2-n8n.md
+PROMPT-zan-a2-team.md
+PROMPT-zan-b1.md
+PROMPT-zan-b2.md
+PROMPT-zan2-b1.md
+PROMPT-zan3-b1.md
+REVIEW-AURA.md
+ZAN-b1.md
+ZAN-b2.md
+ZAN-zan2-b1.md
+ZAN-zan3-b1.md
+a2-n8n-low.log
+a2-team.log
+b1.log
+b1fix.log
+b1fix2.log
+b2.log
+explorer-aura.log
+run-a2-n8n-low.sh
+run-a2-team.sh
+run-b1-restart.sh
+run-b1.sh
+run-b1fix.sh
+run-b1fix2.sh
+run-b2.sh
+run-zan-a2-n8n.sh
+run-zan-a2-team.sh
+run-zan-b1.sh
+run-zan-b2.sh
+run-zan2-b1.sh
+run-zan3-b1.sh
+zan-a2-n8n.log
+zan-a2-team.log
+zan-b1.log
+zan-b2.log
+zan2-b1-smoke.cjs
+zan2-b1.log
+zan3-b1.log
+---db-tools---
+нет db-tools
+---node_modules---
+node_modules/.bin/tsc
+node_modules/.bin/tsc.cmd
+node_modules/.bin/tsc.ps1
+---root-tsconfig---
+tsconfig.json
+> build · glm-5.3-prime
+[0m→ [0mRead docs/swarm/PROMPT-a2-n8n-low.md 
+[0m✱ [0mGlob "**/vscode.d.ts" [90min . · 1 match[0m
+> build · glm-5.3-prime
+[0m→ [0mRead src/vscode-dts/vscode.d.ts [90m[offset=10130, limit=45][0m
+[0m$ [0mgrep -rn "reveal(vscode.ViewColumn\|reveal(ViewColumn" extensions/n8n-panel/ ; echo "exit=$?"; echo "---l10n-t-count---"; grep -c "vscode.l10n.t(" extensions/n8n-panel/extension.js; echo "---pct-keys---"; grep -o "%[A-Za-z.]*%" extensions/n8n-panel/package.json | sort | uniq -c
+exit=1
+---l10n-t-count---
+12
+---pct-keys---
+      1 %command.openExternal%
+      1 %command.openTab%
+      1 %configuration.allowSelfSigned%
+      1 %configuration.title%
+      1 %configuration.url%
+      1 %description%
+      1 %displayName%
+      1 %view.launcher.name%
+      1 %viewsContainer.title%
+> build · glm-5.3-prime
+vscode.d.ts:10149 подтверждён (reveal без аргумента = текущая колонка). Теперь — критичный для §5.4 вопрос: что реально возвращает `get()` для незаданного ключа с заdeclared дефолтом. Читаю реализацию провайдера конфигурации.
+[0m→ [0mRead src/vs/workbench/api/common/extHostConfiguration.ts [90m[limit=140, offset=121][0m
+[0m$ [0mhead -30 src/vscode-dts/vscode.d.ts | grep -n "declare module" ; echo "---root-tsconfig---"; cat tsconfig.json
+6:declare module 'vscode' {
+---root-tsconfig---
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "skipLibCheck": true,
+    "strict": false,
+    "target": "ES2020"
+  },
+  "exclude": [
+    "node_modules"
+  ],
+  "include": [
+    "src/vs/workbench/contrib/auraApi/**/*"
+  ]
+}
+> build · glm-5.3-prime
+[91m[1mError: [0mECONNRESET: The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()
+> build · glm-5.3-prime
+Продолжаю. Смотрю лог билдера и свой промпт-файл, параллельно проверяю «зону поражения» — не вылез ли n8n-panel за пределы своей папки.
+[0m$ [0mtail -60 docs/swarm/a2-n8n-low.log 2>/dev/null; echo "===PROMPT-ZAN==="; cat docs/swarm/PROMPT-zan-a2-n8n.md 2>/dev/null | head -20
+PASS getUrl https untouched
+PASS getUrl empty
+PASS checkStatus sync-throw -> false
+PASS checkStatus ok path -> true
+PASS selfsigned new key wins
+PASS selfsigned old-key fallback
+PASS selfsigned default false
+PASS jsonForScript escapes <
+PASS tabHtml STR has no raw <\/script
+PASS tabHtml embeds RENDER_TOKEN
+PASS launcherHtml STR escaped
+PASS tab listener gates on token
+PASS forged msg (no token) rejected
+PASS extension msg (with token) accepted
+PASS reveal() no ViewColumn arg
+PASS postMessage load carries token
+PASS nls EN says iframe not affected
+PASS nls RU says iframe not affected
+ALL PASSED (20)
+EXIT=0
+CHECK_OK
+?? docs/swarm/
+?? extensions/n8n-panel/
+> build · qwen3.8-flash
+Все 20 ассертов зелёные. Собираю точные строки для отчёта (валюта роя):
+[0m✱ [0mGrep "RENDER_TOKEN|jsonForScript|token: renderToken|catch \{|https://\$\{configured\}|getConfiguration\('n8n'\)|reveal\(\)|n8nPanel.allowSelfSigned" [90min extensions/n8n-panel/extension.js · 11 matches[0m
+[0m✱ [0mGrep "n8nPanel.allowSelfSigned|Does not affect|не влияет" [90min extensions/n8n-panel · 4 matches[0m
+> build · qwen3.8-flash
+[0m✱ [0mGrep "function tabHtml|const renderToken|const val = vscode.workspace" [90min extensions/n8n-panel/extension.js · 3 matches[0m
+> build · qwen3.8-flash
+Пишу финальный отчёт; параллельно проверяю, есть ли в этом билде db-tools/findings для заноса находок:
+[0m✱ [0mGlob "{db-tools/**,scripts/findings.py,**/findings.py}" [90m0 matches[0m
+> build · qwen3.8-flash
+[0m← [0mWrite docs/swarm/DONE-a2-n8n-low.md
+Created file successfully: docs/swarm/DONE-a2-n8n-low.md
+> build · qwen3.8-flash
+[0m$ [0mwc -l /c/new-aura-ide/vscode-main/docs/swarm/DONE-a2-n8n-low.md && git -C /c/new-aura-ide/vscode-main status --short -- extensions/n8n-panel product.json
+13 /c/new-aura-ide/vscode-main/docs/swarm/DONE-a2-n8n-low.md
+?? extensions/n8n-panel/
+> build · qwen3.8-flash
+Готово: все 6 пунктов Зан-b2 §5 закрыты в `extensions/n8n-panel`, ничего не коммичено (`product.json` чист, папка по-прежнему `??`). Отчёт: `docs/swarm/DONE-a2-n8n-low.md` (13 строк, file:line сверены grep'ом после правок — по Зану п.9 валюта точная).
+
+**По пунктам:**
+
+| # | Что сделано | Где |
+|---|---|---|
+| 1 | per-render токен: `randomBytes(16).hex` вшивается в HTML, `{type:'load'}` без `token` отбрасывается | extension.js:296, :108, :162, :301 |
+| 2 | try/catch в executor checkStatus + `https://` для голого хоста в getUrl | extension.js:50, :18-23 |
+| 3 | `jsonForScript` = stringify + `\u003c`, применён к STR в обоих webview и токену | extension.js:67-69, :107, :108, :214 |
+| 4 | `n8nPanel.allowSelfSigned` в манифесте; старый `n8n.allowSelfSigned` читается фолбэком | package.json:37, extension.js:28-32 |
+| 5 | `reveal()` без ViewColumn — проверено по d.ts форка:10149 (undefined = текущая колонка) | extension.js:284 |
+| 6 | «только проверка статуса, на загрузку вкладки (iframe) не влияет» — EN и RU | package.nls.json:6, package.nls.ru.json:6 |
+
+**Проверка:** `node --check` OK; JSON ×4 парсятся; манифест-ключи 9↔9↔9, l10n 10 цел; живой прогон точных функций из extension.js (извлечение исходника, не переписывание) — 20/20 ассертов: sync-throw резолвится false, форд-сообщение без токена отбросилось, `</script><b>` в l10n-значении не выходит из скрипт-контекста, миграция фолбэчится.
+
+**Честные оговорки:**
+- aggg2-mandatory-reads не установлен в этом билде (`tool.execution` ошибка), db-tools/findings.py в воркспейсе нет — находки легли только в DONE-файл; веб-ресёрч заменён первоисточниками форка (vscode.d.ts) — для этого репо это и есть истина, как постановил сам Зан.
+- НЕ проверено глазами: рендер renamed-ключа в UI настроек и живой n8n — нужен запуск IDE; в dev-режиме nls всё равно EN (Зан §5 п.7).
+
+Харнес лежал в temp и удалён не был, но в отчёте как evidence не значится — по выводу Зана §6.
+===PROMPT-ZAN===
+Ты — Зан, жёсткий ревьюер без цензуры. Репозиторий: /c/new-aura-ide/vscode-main. Предмет: /c/new-aura-ide/vscode-main/docs/swarm/DONE-a2-n8n-low.md против /c/new-aura-ide/vscode-main/docs/swarm/ZAN-b2.md.
+
+Проверь каждый пункт по коду построчно, цифры из DONE воспроизведи сам (тесты/смоуки прогони). Враньё в evidence называй своим именем. npx tsc --noEmit по затронутым расширениям / корню — зафиксируй. В репо могут быть параллельные следы других билдеров — не путай зоны.
+
+Формат: /c/new-aura-ide/vscode-main/docs/swarm/ZAN-zan-a2-n8n.md — вердикт первой строкой (ACCEPT / REQUEST_CHANGES); по пунктам с доказательствами; новые проблемы. Без комплиментов. По-русски.
+[0m$ [0mgrep -rln "n8n" src/vs build product.json extensions.json 2>/dev/null | grep -v n8n-panel | head -10; echo "exit=$?"; ls ~/.config/opencode/skills 2>/dev/null | grep -i aggg; echo "skills-aggg-exit=$?"
+(no output)
+
+Command exceeded timeout of 120000 ms. Retry with a larger timeout if the command is expected to take longer.
+> build · glm-5.3-prime
+Лог билдера получен: «20/20 ассертов», включая `selfsigned old-key fallback` — это проверялось под стабом. Вторая команда упёрлась в таймаут — GNU grep по src/ медленный. Повторяю через ripgrep.
+[0m$ [0mgrep -l "n8n" product.json build/lib/extensions.ts build/lib/builtInExtensions.ts 2>/dev/null; echo "grep-exit=$?"; ls ~/.config/opencode/skills 2>/dev/null | grep -i aggg || echo "no-aggg-skill"; ls db-tools scripts/findings.py 2>/dev/null || echo "no-db-tools-in-repo"
+grep-exit=1
+no-aggg-skill
+no-db-tools-in-repo
+[0m✱ [0mGrep "n8n" [90min src · 3 matches[0m
+> build · glm-5.3-prime
+Лог билдера изучен: их харнес показал «20/20 PASS», включая `selfsigned old-key fallback` — под стабом, где незаданный ключ возвращает `undefined`. Проверю, чем это оборачивается в реальном рантайме VS Code. Пишу независимый харнес.
+[0m← [0mWrite C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+Created file successfully: C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+[0m$ [0mls node_modules/@types/node/package.json 2>/dev/null && echo "types-node-OK"; node --version
+node_modules/@types/node/package.json
+types-node-OK
+v24.21.0
+> build · glm-5.3-prime
+Харнес написан, но есть два дефекта, которые сам же и вижу: фазы запускаются конкурентно (IIFE без await), а в фазе 5 осталась мусорная async-заглушка в check. Чиню до запуска — иначе получу гонки и ложный PASS.
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+@@ -142,9 +142,9 @@
+ 	return { els, winL, sandbox };
+ }
+ 
+ /* ---------- фаза 1: getUrl / checkStatus на живой сети ---------- */
+-(async function phase1() {
++async function phase1() {
+ 	state.config.n8nPanel = { url: 'localhost:5678/' };
+ 	await openTabSafe();
+ 	check('§5.2 getUrl: голый хост → https:// + трим хвостовых /', () =>
+ 		assert.ok(lastPanel().webview.html.includes('src="https://localhost:5678"'), 'iframe src не совпал'));
+
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+@@ -198,12 +198,12 @@
+ 		rq.on('error', () => {});
+ 	} catch (e) { probe = 'sync throw: ' + e.message; }
+ 	console.log('INFO  uppercase HTTPS:// при живом сервере: warnings=' + upperWarns + '; http.get(https-URL): ' + probe);
+ 	await new Promise((r) => server2.close(r));
+-})();
++}
+ 
+ /* ---------- фаза 2: токен §5.1 ---------- */
+-(async function phase2() {
++async function phase2() {
+ 	state.config.n8nPanel = { url: 'https://n8n.example.test' };
+ 	lastPanel().dispose();
+ 	await openTabSafe();
+ 	const panel = lastPanel();
+
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+@@ -239,12 +239,12 @@
+ 	});
+ 	fire(sent);
+ 	check('§5.1: reconnect-петля целиком — frame.src = свежий URL из настроек', () =>
+ 		assert.strictEqual(frame.src, 'https://localhost:9999'));
+-})();
++}
+ 
+ /* ---------- фаза 3: экранирование §5.3 ---------- */
+-(async function phase3() {
++async function phase3() {
+ 	state.l10nHook = () => '</script><b>INJECT';
+ 	lastPanel().dispose();
+ 	await openTabSafe();
+ 	const html = lastPanel().webview.html;
+
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+@@ -263,12 +263,12 @@
+ 		assert.strictEqual(count, 1, '</script> вхождений: ' + count);
+ 		assert.ok(lwv.html.includes('\\u003c/script>\\u003cb>INJECT'));
+ 	});
+ 	state.l10nHook = null;
+-})();
++}
+ 
+ /* ---------- фаза 4: reveal §5.5 ---------- */
+-(async function phase4() {
++async function phase4() {
+ 	state.config.n8nPanel = { url: 'https://n8n.example.test' };
+ 	const before = panels.length;
+ 	await openTabSafe();
+ 	await openTabSafe(); // повторный вызов — должен reveal, не плодить
+
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+@@ -281,12 +281,12 @@
+ 	lastPanel().dispose();
+ 	const n = panels.length;
+ 	await openTabSafe();
+ 	check('§5.5/АУРА-006: после dispose создаётся заново', () => assert.strictEqual(panels.length, n + 1));
+-})();
++}
+ 
+ /* ---------- фаза 5: §5.4 матрица — стаб-семантика VS реальный VS Code ---------- */
+-(async function phase5() {
++async function phase5() {
+ 	const httpsCalls = [];
+ 	const origGet = https.get;
+ 	https.get = function (url, options, cb) {
+ 		httpsCalls.push({ url: String(url), rejectUnauthorized: options && options.rejectUnauthorized });
+
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+@@ -303,9 +303,8 @@
+ 	/* семантика «голого» стаба (как тестировал билдер): незаданный ключ → undefined */
+ 	state.realistic = false;
+ 	state.config.n8n = { allowSelfSigned: true };
+ 	state.config.n8nPanel = {};
+-	check('§5.4 (стаб билдера): новый незадан → старый n8n.allowSelfSigned=true читается', async () => {});
+ 	const r1 = await probe(); check('§5.4 (стаб билдера): фолбэк на старый ключ работает → rejectUnauthorized=false', () => assert.strictEqual(r1, false));
+ 	state.config.n8nPanel = { allowSelfSigned: true };
+ 	const r2 = await probe(); check('§5.4: новый ключ=true приоритетен → false', () => assert.strictEqual(r2, false));
+ 	state.config.n8nPanel = { allowSelfSigned: false };
+
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+@@ -316,14 +316,16 @@
+ 	const r4 = await probe();
+ 	check('§5.4 КРИТИКА: реальный VS Code — манифест-дефолт false → get() возвращает boolean → старый ключ НЕ читается (fallback мёртв)', () =>
+ 		assert.strictEqual(r4, true, 'ожидалось true (verify) — старый ключ проигнорирован'));
+ 	https.get = origGet;
+-})();
++}
+ 
+ /* ---------- итог ---------- */
+-setTimeout(() => {
++(async () => {
++	await phase1(); await phase2(); await phase3(); await phase4(); await phase5();
++	await new Promise((r) => setTimeout(r, 1500));
+ 	const fails = results.filter((r) => r[0] === 'FAIL').length;
+ 	console.log('\n==== ' + (results.length - fails) + '/' + results.length + ' PASS, unhandledRejections=' + state.unhandled.length + ' ====');
+ 	if (state.unhandled.length) console.log('UNHANDLED: ' + state.unhandled.join(' | '));
+ 	if (state.uncaught.length) console.log('UNCAUGHT: ' + state.uncaught.join(' | '));
+ 	process.exitCode = fails ? 1 : 0;
+-}, 1500);
++})();
+
+> build · glm-5.3-prime
+Запускаю харнес и параллельно готовлю tsc-конфиг для расширения.
+[0m← [0mWrite C:/Users/Wiks/AppData/Local/Temp/opencode/tsconfig.zan-a2-n8n.json
+Created file successfully: C:/Users/Wiks/AppData/Local/Temp/opencode/tsconfig.zan-a2-n8n.json
+[0m$ [0mnode "C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs" 2>&1
+PASS  node --check extension.js OK
+PASS  JSON ×4 парсятся
+PASS  манифест: 9 %ключей% ↔ nls ↔ nls.ru 1:1
+FAIL  l10n: 10 уникальных ключей ↔ bundle 1:1 :: Expected values to be strictly equal:
+
+9 !== 10
+
+PASS  package.json: n8nPanel.allowSelfSigned default=false (основа для §5.4-критики)
+PASS  §5.2 getUrl: голый хост → https:// + трим хвостовых /
+PASS  §5.2 getUrl: http:// не трогается
+FAIL  §5.2 checkStatus: синхронный Invalid URL → resolve(false) (warning), не reject :: The expression evaluated to a falsy value:
+
+  assert.ok(warnings[0].text.includes('exa mple.invalid'))
+
+PASS  §5.2 unhandled rejection нет
+PASS  §5.2 checkStatus: живой сервер → true (без warning)
+PASS  §5.2 checkStatus: мёртвый сервер → false (warning)
+PASS  §5.2а unhandled rejection нет (после всех сетевых путей)
+INFO  uppercase HTTPS:// при живом сервере: warnings=1; http.get(https-URL): sync throw: Protocol "https:" not supported. Expected "http:"
+PASS  §5.1: RENDER_TOKEN вшит в HTML (extension.js:108)
+PASS  §5.1: токен = randomBytes(16).hex → 32 hex-символа
+PASS  §5.1: форджери без токена → отброшено (frame.src не менялся)
+PASS  §5.1: форджери с чужим токеном → отброшено
+PASS  §5.1: сообщение с верным токеном → принято (frame.src обновлён)
+PASS  §5.1/:301: extension шлёт {type:"load", url, token} с тем же токеном
+PASS  §5.1: reconnect-петля целиком — frame.src = свежий URL из настроек
+PASS  §5.3 tab: `</script><b>` в l10n НЕ вырывает из скрипт-контекста (\u003c, ровно 1 закрывающий тег)
+PASS  §5.3 launcher: STR экранирован, вырыва нет
+FAIL  §5.5: повторный openTab → reveal() без аргументов, панель не размножается :: Expected values to be strictly equal:
+
+8 !== 9
+
+PASS  §5.5/АУРА-006: после dispose создаётся заново
+PASS  §5.4 (стаб билдера): фолбэк на старый ключ работает → rejectUnauthorized=false
+PASS  §5.4: новый ключ=true приоритетен → false
+PASS  §5.4: явный false нового ключа бьёт старый true → rejectUnauthorized=true
+PASS  §5.4 КРИТИКА: реальный VS Code — манифест-дефолт false → get() возвращает boolean → старый ключ НЕ читается (fallback мёртв)
+
+==== 24/27 PASS, unhandledRejections=0 ====
+> build · glm-5.3-prime
+24/27. Все три FAIL — мои же дефекты харнеса, не кода билдера: (1) регэкс не ловил двухаргументный `l10n.t('…', url)` на :308; (2) стаб `l10n.t` не подставлял `{0}`, поэтому URL не попал в текст warning; (3) фаза 3 не_dispose'ила панель — фаза 4 начинала с живой `currentPanel` и оба вызова ушли в reveal (что, кстати, само по себе подтверждает §5.5). Чиню и перегоняю.
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+@@ -45,9 +45,9 @@
+ 	};
+ }
+ const vscodeStub = {
+ 	workspace: { getConfiguration: (s) => makeConfig(s) },
+-	l10n: { t: (s) => (state.l10nHook ? state.l10nHook(s) : s) },
++	l10n: { t: (s, ...rest) => { let out = s; const args = Array.isArray(rest[0]) ? rest[0] : rest; args.forEach((a, i) => { out = out.replace('{' + i + '}', String(a)); }); return out; } },
+ 	window: {
+ 		registerWebviewViewProvider(id, p) { state.provider = p; return { dispose() {} }; },
+ 		createWebviewPanel(viewType, title, column, opts) {
+ 			const wv = makeWebview();
+
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+@@ -107,9 +107,9 @@
+ 	assert.strictEqual(pctKeys.size, 9);
+ 	assert.deepStrictEqual([...pctKeys].sort(), Object.keys(nlsEn).sort());
+ 	assert.deepStrictEqual([...pctKeys].sort(), Object.keys(nlsRu).sort());
+ });
+-const l10nCalls = new Set((src.match(/vscode\.l10n\.t\('([^']*)'\)/g) || []).map((s) => s.match(/'([^']*)'/)[1]));
++const l10nCalls = new Set((src.match(/\bvscode\.l10n\.t\('((?:[^'\\]|\\.)*)'/g) || []).map((s) => s.match(/'((?:[^'\\]|\\.)*)'/)[1]));
+ check('l10n: 10 уникальных ключей ↔ bundle 1:1', () => {
+ 	assert.strictEqual(l10nCalls.size, 10);
+ 	assert.deepStrictEqual([...l10nCalls].sort(), Object.keys(l10n).sort());
+ });
+
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+@@ -263,8 +263,9 @@
+ 		assert.strictEqual(count, 1, '</script> вхождений: ' + count);
+ 		assert.ok(lwv.html.includes('\\u003c/script>\\u003cb>INJECT'));
+ 	});
+ 	state.l10nHook = null;
++	lastPanel().dispose(); // фаза 4 должна стартовать с чистой currentPanel
+ }
+ 
+ /* ---------- фаза 4: reveal §5.5 ---------- */
+ async function phase4() {
+
+> build · glm-5.3-prime
+Стоп — новым стабом я снёс поддержку `l10nHook`, на которой держится фаза 3 (экранирование). Возвращаю оба поведения.
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs
+@@ -45,9 +45,15 @@
+ 	};
+ }
+ const vscodeStub = {
+ 	workspace: { getConfiguration: (s) => makeConfig(s) },
+-	l10n: { t: (s, ...rest) => { let out = s; const args = Array.isArray(rest[0]) ? rest[0] : rest; args.forEach((a, i) => { out = out.replace('{' + i + '}', String(a)); }); return out; } },
++	l10n: { t: (s, ...rest) => {
++		if (state.l10nHook) { return state.l10nHook(s); }
++		let out = s;
++		const args = Array.isArray(rest[0]) ? rest[0] : rest;
++		args.forEach((a, i) => { out = out.replace('{' + i + '}', String(a)); });
++		return out;
++	} },
+ 	window: {
+ 		registerWebviewViewProvider(id, p) { state.provider = p; return { dispose() {} }; },
+ 		createWebviewPanel(viewType, title, column, opts) {
+ 			const wv = makeWebview();
+
+> build · glm-5.3-prime
+[0m$ [0mnode "C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs" 2>&1
+PASS  node --check extension.js OK
+PASS  JSON ×4 парсятся
+PASS  манифест: 9 %ключей% ↔ nls ↔ nls.ru 1:1
+PASS  l10n: 10 уникальных ключей ↔ bundle 1:1
+PASS  package.json: n8nPanel.allowSelfSigned default=false (основа для §5.4-критики)
+PASS  §5.2 getUrl: голый хост → https:// + трим хвостовых /
+PASS  §5.2 getUrl: http:// не трогается
+PASS  §5.2 checkStatus: синхронный Invalid URL → resolve(false) (warning), не reject
+PASS  §5.2 unhandled rejection нет
+PASS  §5.2 checkStatus: живой сервер → true (без warning)
+PASS  §5.2 checkStatus: мёртвый сервер → false (warning)
+PASS  §5.2а unhandled rejection нет (после всех сетевых путей)
+INFO  uppercase HTTPS:// при живом сервере: warnings=1; http.get(https-URL): sync throw: Protocol "https:" not supported. Expected "http:"
+PASS  §5.1: RENDER_TOKEN вшит в HTML (extension.js:108)
+PASS  §5.1: токен = randomBytes(16).hex → 32 hex-символа
+PASS  §5.1: форджери без токена → отброшено (frame.src не менялся)
+PASS  §5.1: форджери с чужим токеном → отброшено
+PASS  §5.1: сообщение с верным токеном → принято (frame.src обновлён)
+PASS  §5.1/:301: extension шлёт {type:"load", url, token} с тем же токеном
+PASS  §5.1: reconnect-петля целиком — frame.src = свежий URL из настроек
+PASS  §5.3 tab: `</script><b>` в l10n НЕ вырывает из скрипт-контекста (\u003c, ровно 1 закрывающий тег)
+PASS  §5.3 launcher: STR экранирован, вырыва нет
+PASS  §5.5: повторный openTab → reveal() без аргументов, панель не размножается
+PASS  §5.5/АУРА-006: после dispose создаётся заново
+PASS  §5.4 (стаб билдера): фолбэк на старый ключ работает → rejectUnauthorized=false
+PASS  §5.4: новый ключ=true приоритетен → false
+PASS  §5.4: явный false нового ключа бьёт старый true → rejectUnauthorized=true
+PASS  §5.4 КРИТИКА: реальный VS Code — манифест-дефолт false → get() возвращает boolean → старый ключ НЕ читается (fallback мёртв)
+
+==== 27/27 PASS, unhandledRejections=0 ====
+> build · glm-5.3-prime
+27/27. Все заявленные проверки DONE воспроизведены, включая kill-shot по §5.4: в реальном рантайме VS Code фолбэк на старый ключ мёртв. Для железности ссылки на первоисточник добью одну цепочку — `Configuration.parse/getValue` (откуда в `get()` попадает манифест-дефолт), и запускаю tsc.
+[0m✱ [0mGrep "static parse|getValue\(section|_defaults|defaults" [90min src/vs/platform/configuration/common/configurationModels.ts · 15 matches[0m
+[0m$ [0mnpx tsc --noEmit -p "C:/Users/Wiks/AppData/Local/Temp/opencode/tsconfig.zan-a2-n8n.json" 2>&1 | head -40; echo "TSC-N8N-EXIT=$?"
+npm warn Unknown project config "disturl". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "target". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "ms_build_id". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "runtime". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "build_from_source". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "timeout". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown user config "msvs_spectre_mitigation". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+../../Users/Wiks/AppData/Local/Temp/opencode/tsconfig.zan-a2-n8n.json(8,23): error TS5107: Option 'moduleResolution=node10' is deprecated and will stop functioning in TypeScript 7.0. Specify compilerOption '"ignoreDeprecations": "6.0"' to silence this error.
+  Visit https://aka.ms/ts6 for migration information.
+TSC-N8N-EXIT=0
+> build · glm-5.3-prime
+TS-конфиг дал только TS5107 (deprecation моего `moduleResolution: node`) — и я по классике потерял реальный exit-код через пайп в head. Чиню конфиг, перегоняю честно, и дочитываю мерж дефолтов в configurationModels.
+[0m→ [0mRead src/vs/platform/configuration/common/configurationModels.ts [90m[limit=75, offset=940][0m
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/tsconfig.zan-a2-n8n.json
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/tsconfig.zan-a2-n8n.json
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/tsconfig.zan-a2-n8n.json
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/tsconfig.zan-a2-n8n.json
+@@ -9,9 +9,10 @@
+ 		"lib": ["ES2022", "DOM"],
+ 		"types": ["node"],
+ 		"typeRoots": ["C:/new-aura-ide/vscode-main/node_modules/@types"],
+ 		"strict": false,
+-		"skipLibCheck": true
++		"skipLibCheck": true,
++		"ignoreDeprecations": "6.0"
+ 	},
+ 	"files": [
+ 		"C:/new-aura-ide/vscode-main/extensions/n8n-panel/extension.js",
+ 		"C:/new-aura-ide/vscode-main/src/vscode-dts/vscode.d.ts"
+
+> build · glm-5.3-prime
+[0m✱ [0mGrep "_defaultConfiguration\.merge|mergeConsolidationConfigurationModel|private _defaultConfiguration" [90min src/vs/platform/configuration/common/configurationModels.ts · 2 matches[0m
+[0m$ [0mnpx tsc --noEmit -p "C:/Users/Wiks/AppData/Local/Temp/opencode/tsconfig.zan-a2-n8n.json" > "C:/Users/Wiks/AppData/Local/Temp/opencode/tsc-n8n-out.txt" 2>&1; echo "TSC-N8N-EXIT=$?"; grep -v "^npm warn" "C:/Users/Wiks/AppData/Local/Temp/opencode/tsc-n8n-out.txt" | head -40; echo "---(bytes)---"; wc -c < "C:/Users/Wiks/AppData/Local/Temp/opencode/tsc-n8n-out.txt"
+TSC-N8N-EXIT=0
+---(bytes)---
+1083
+> build · glm-5.3-prime
+Цепочка закрыта: configurationModels.ts:1024 — `_defaultConfiguration.merge(userConfiguration, …)` → getValue → extHostConfiguration.ts:194-198. Манифест-дефолт `false` всегда доезжает до `get()`, фолбэк-extension.js:32 недостижим в реальном рантайме. tsc по расширению — чистый (exit 0, 0 ошибок). Остался корневой tsconfig.
+[0m$ [0mnpx tsc --noEmit -p tsconfig.json > "C:/Users/Wiks/AppData/Local/Temp/opencode/tsc-root-out.txt" 2>&1; echo "TSC-ROOT-EXIT=$?"; grep -v "^npm warn" "C:/Users/Wiks/AppData/Local/Temp/opencode/tsc-root-out.txt" | head -30; echo "---error-lines---"; grep -c "error TS" "C:/Users/Wiks/AppData/Local/Temp/opencode/tsc-root-out.txt"
+TSC-ROOT-EXIT=2
+src/vs/amdX.ts(39,27): error TS2304: Cannot find name 'TrustedTypePolicy'.
+src/vs/amdX.ts(185,45): error TS1343: The 'import.meta' meta-property is only allowed when the '--module' option is 'es2020', 'es2022', 'esnext', 'system', 'node16', 'node18', 'node20', or 'nodenext'.
+src/vs/base/browser/browser.ts(145,44): error TS2304: Cannot find name 'TrustedTypePolicyOptions'.
+src/vs/base/browser/browser.ts(148,22): error TS2304: Cannot find name 'TrustedTypePolicy'.
+src/vs/base/browser/browser.ts(148,79): error TS2304: Cannot find name 'TrustedTypePolicyOptions'.
+src/vs/base/browser/cssValue.ts(31,20): error TS2550: Property 'replaceAll' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2021' or later.
+src/vs/base/browser/cssValue.ts(39,20): error TS2550: Property 'replaceAll' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2021' or later.
+src/vs/base/browser/cssValue.ts(47,20): error TS2550: Property 'replaceAll' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2021' or later.
+src/vs/base/browser/cssValue.ts(55,30): error TS2550: Property 'replaceAll' does not exist on type 'string'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2021' or later.
+src/vs/base/browser/dnd.ts(15,19): error TS2304: Cannot find name 'Timeout'.
+src/vs/base/browser/dom.ts(2154,56): error TS2550: Property 'at' does not exist on type 'string[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.
+src/vs/base/browser/dom.ts(2477,138): error TS2339: Property 'editContext' does not exist on type 'HTMLElement'.
+src/vs/base/browser/domSanitize.ts(238,79): error TS2304: Cannot find name 'TrustedHTML'.
+src/vs/base/browser/domSanitize.ts(243,108): error TS2304: Cannot find name 'TrustedHTML'.
+src/vs/base/browser/domSanitize.ts(244,116): error TS2304: Cannot find name 'TrustedHTML'.
+src/vs/base/browser/domSanitize.ts(333,21): error TS2304: Cannot find name 'TrustedHTML'.
+src/vs/base/browser/iframe.ts(13,19): error TS2304: Cannot find name 'WeakRef'.
+src/vs/base/browser/iframe.ts(58,19): error TS2304: Cannot find name 'WeakRef'.
+src/vs/base/browser/iframe.ts(63,19): error TS2304: Cannot find name 'WeakRef'.
+src/vs/base/browser/markdownRenderer.ts(573,4): error TS2304: Cannot find name 'TrustedHTML'.
+src/vs/base/browser/markdownRenderer.ts(1005,31): error TS2550: Property 'at' does not exist on type 'ListItem[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.
+src/vs/base/browser/markdownRenderer.ts(1127,27): error TS2339: Property 'at' does not exist on type 'TokensList'.
+src/vs/base/browser/touch.ts(128,2): error TS1241: Unable to resolve signature of method decorator when called as an expression.
+  The runtime will invoke the decorator with 2 arguments, but the decorator expects 3.
+src/vs/base/browser/touch.ts(138,2): error TS1241: Unable to resolve signature of method decorator when called as an expression.
+  The runtime will invoke the decorator with 2 arguments, but the decorator expects 3.
+src/vs/base/browser/touch.ts(205,55): error TS2550: Property 'at' does not exist on type 'number[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.
+src/vs/base/browser/touch.ts(206,55): error TS2550: Property 'at' does not exist on type 'number[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.
+src/vs/base/browser/touch.ts(209,35): error TS2550: Property 'at' does not exist on type 'number[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.
+src/vs/base/browser/touch.ts(210,35): error TS2550: Property 'at' does not exist on type 'number[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.
+---error-lines---
+4540
+> build · glm-5.3-prime
+Все проверки завершены. Корневой tsc — 4540 ошибок, но все из транзитивно притянутого base-кода (чужой конфиг без lib/DOM, зона auraApi — параллельного билдера), ни одной строки про n8n. Пишу вердикт.
+[0m← [0mWrite docs/swarm/ZAN-zan-a2-n8n.md
+Created file successfully: docs/swarm/ZAN-zan-a2-n8n.md
+> build · glm-5.3-prime
+Готово. Вердикт записан: `docs/swarm/ZAN-zan-a2-n8n.md`.
+
+**REQUEST_CHANGES** — один блокер, и он не про качество кода, а про честность evidence.
+
+**Что воспроизведено независимо (харнес 27/27, 0 unhandled rejection):**
+- §5.1 токен — работает целиком: форджери без токена и с чужим токеном отброшены, верный принят, reconnect-петля webview→extension→webview живая, токен 32 hex
+- §5.2 — sync-throw `Invalid URL` → `resolve(false)`, голый хост → `https://`, живой/мёртвый сервер различаются
+- §5.3 — `</script><b>` в l10n не вырывает из скрипт-контекста, `\u003c` в обоих webview
+- §5.5/§5.6 — reveal() без аргументов, vscode.d.ts:10149 точен, nls-описания на месте
+- Цифры DONE: node --check, JSON ×4, 9↔9↔9, l10n 10, `?? extensions/n8n-panel/` — всё сошлось
+
+**Kill-shot — §5.4 «софт-миграция»:**
+DONE заявляет «старый читается, когда новый не задан». Враньё. Цепочка: package.json:39 `default: false` → configurationModels.ts:1024 (defaults мержатся в consolidated) → extHostConfiguration.ts:194-198 (`get()` возвращает манифест-дефолт, а не undefined) → extension.js:29 `typeof val === 'boolean'` всегда true → фолбэк на :32 **недостижим в реальном VS Code**. Матрица прогнана живьём: под стабом билдера фолбэк работает, под реальной семантикой — старый `n8n.allowSelfSigned: true` молча игнорируется. Impact LOW (падает в безопасную сторону), но заявленная проверка существует только в голове стаба.
+
+**tsc:** расширение — 0 ошибок (checkJs против vscode.d.ts репо); корневой tsconfig — 4540 ошибок, но это чужая зона (auraApi-конфиг без DOM-lib), ни одной строки про n8n.
+
+**Новые проблемы (3):** регистр схемы `HTTPS://` → ложный offline (sync-throw `Protocol "https:" not supported`, воспроизведено); трим хвостовых `/` ест слэш пути; асимметрия токена в launcher (не эксплойт).
+
+Харнес остался на диске: `C:\Users\Wiks\AppData\Local\Temp\opencode\zan-a2-verify.cjs` — перепроверяется одной командой.

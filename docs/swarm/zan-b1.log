@@ -1,0 +1,786 @@
+[0m
+> build · glm-5.3-prime
+<puissant>
+[0m✗ [0mWeb Search "WebCodecs VideoDecoder H.264 Annex B description avcC AVCDecoderConfigurationRecord requirement" failed
+[91m[1mError: [0mWeb search cancelled
+[0m→ [0mRead docs/swarm/DONE-b1.md 
+[0m→ [0mRead docs/swarm/REVIEW-AURA.md 
+[0m$ [0mgit status --short -- extensions/aura-kotlin && echo '---STAT---' && git diff --stat -- extensions/aura-kotlin && echo '---LOG---' && git log --oneline -5
+M extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+ M extensions/aura-kotlin/src/android.ts
+ M extensions/aura-kotlin/src/deviceScreen.ts
+?? extensions/aura-kotlin/package-lock.json
+---STAT---
+warning: in the working copy of 'extensions/aura-kotlin/src/deviceScreen.ts', LF will be replaced by CRLF the next time Git touches it
+ extensions/aura-kotlin/l10n/bundle.l10n.ru.json |   2 +
+ extensions/aura-kotlin/src/android.ts           |   7 +-
+ extensions/aura-kotlin/src/deviceScreen.ts      | 477 +++++++++++++++++++++---
+ 3 files changed, 437 insertions(+), 49 deletions(-)
+---LOG---
+2b4ad587 orca: плагин Orca — CLI-агенты (Claude Code, Codex, Gemini, Qwen, opencode, Aider) во вкладках-терминалах, worktree на агента, настройки ключей/base URL/модели, инструмент agent.cli для оркестратора
+f02516bb team: командный процесс GitHub по кнопкам — своя ветка, свежий main, тесты, графический дифф, PR, слияние, откат
+4be44e73 team+orchestrator: канбан агентов, полный русский, проверка ключей, удаление событий, админ
+92f18435 build: sync allowScripts pins with locked versions; fix approve-scripts spawn on Windows
+2afc5bfb orchestrator: рабочий запуск сайдкара и новый UI панели; api: редизайн менеджера ключей
+[0m✱ [0mGlob "extensions/aura-kotlin/**/*" [90min . · 100 matches[0m
+> build · glm-5.3-prime
+<execute>
+<code>
+// Placeholder — actual reads below via tools
+</code>
+</execute>
+[0m→ [0mRead extensions/aura-kotlin/src/deviceScreen.ts 
+[0m$ [0mgit diff -- extensions/aura-kotlin/src/android.ts extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+diff --git a/extensions/aura-kotlin/l10n/bundle.l10n.ru.json b/extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+index f38b67c2..652be4fc 100644
+--- a/extensions/aura-kotlin/l10n/bundle.l10n.ru.json
++++ b/extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+@@ -110,6 +110,8 @@
+ 	"Type text…": "Ввести текст…",
+ 	"Send": "Отправить",
+ 	"Device offline — reconnecting…": "Устройство офлайн — переподключение…",
++	"Live video stream": "Живой видеопоток",
++	"Screenshot stream (fallback)": "Поток скриншотов (фолбэк)",
+ 	"File {0} already exists.": "Файл {0} уже существует.",
+ 	"Open a workspace first.": "Сначала откройте workspace.",
+ 	"File template": "Шаблон файла",
+diff --git a/extensions/aura-kotlin/src/android.ts b/extensions/aura-kotlin/src/android.ts
+index 3f6f262b..dae2d406 100644
+--- a/extensions/aura-kotlin/src/android.ts
++++ b/extensions/aura-kotlin/src/android.ts
+@@ -463,8 +463,11 @@ export class AndroidPanel implements vscode.Disposable {
+ 	async screenSize(device: string): Promise<{ width: number; height: number } | undefined> {
+ 		try {
+ 			const text = await this.adb('-s', device, 'shell', 'wm', 'size');
+-			const match = /(\d+)x(\d+)/.exec(text);
+-			if (match) { return { width: Number(match[1]), height: Number(match[2]) }; }
++			// Берём последнее совпадение: при заданном Override size именно оно отражает
++			// текущие размеры (включая поворот экрана), а не первую строку Physical size.
++			const matches = [...text.matchAll(/(\d+)x(\d+)/g)];
++			const last = matches[matches.length - 1];
++			if (last) { return { width: Number(last[1]), height: Number(last[2]) }; }
+ 		} catch { /* устройство недоступно */ }
+ 		return undefined;
+ 	}
+> build · glm-5.3-prime
+Код прочёл. Теперь — заявленные зависимости: `android.ts` (adbPath, screenSize, captureScreen, inputTap, inputSwipe, rotateScreen), package.json, tsconfig, и старая версия файла для сравнения.
+[0m→ [0mRead extensions/aura-kotlin/src/android.ts [90m[limit=560, offset=1][0m
+[0m$ [0mgit show HEAD:extensions/aura-kotlin/src/deviceScreen.ts | sed -n '1,80p' && echo '===OLD-INPUT===' && git show HEAD:extensions/aura-kotlin/src/deviceScreen.ts | grep -n 'toDevice\|inputTap\|inputSwipe\|Math.round\|wm size\|CSP\|Content-Security' 
+/*---------------------------------------------------------------------------------------------
+ *  Aura Kotlin — встроенный экран устройства («красивый эмулятор» внутри IDE).
+ *  Webview-панель: живой экран через adb exec-out screencap (периодические кадры),
+ *  тапы/свайпы мышью по картинке (координаты масштабируются в разрешение устройства),
+ *  панель кнопок (назад/домой/недавние/громкость/power/поворот) и ввод текста.
+ *  Панель одна на устройство; при закрытии стрим останавливается.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as vscode from 'vscode';
+import { tr } from './l10n';
+import { AndroidPanel } from './android';
+
+/** Целевая точка входа: строка с id, узел дерева устройства или AVD. */
+type ScreenTarget = string | { id?: string; runningDevice?: string } | undefined;
+
+const KEYCODES = { back: 4, home: 3, recents: 187, volDown: 25, volUp: 24, power: 26 } as const;
+const FRAME_INTERVAL_MS = 800;
+
+class DeviceScreen implements vscode.Disposable {
+
+	private readonly panel: vscode.WebviewPanel;
+	private timer: NodeJS.Timeout | undefined;
+	private busy = false;
+	private disposed = false;
+
+	constructor(
+		private readonly android: AndroidPanel,
+		private readonly device: string,
+		onDispose: () => void,
+	) {
+		this.panel = vscode.window.createWebviewPanel(
+			'auraKotlin.deviceScreen',
+			`${device}`,
+			vscode.ViewColumn.Beside,
+			{ enableScripts: true, retainContextWhenHidden: true },
+		);
+		this.panel.iconPath = new vscode.ThemeIcon('device-mobile');
+		this.panel.webview.html = this.html();
+		this.panel.webview.onDidReceiveMessage(message => void this.onMessage(message));
+		this.panel.onDidDispose(() => { this.disposed = true; this.stop(); onDispose(); });
+		this.stream();
+	}
+
+	dispose(): void {
+		this.disposed = true;
+		this.stop();
+		this.panel.dispose();
+	}
+
+	reveal(): void {
+		this.panel.reveal();
+		if (!this.timer) { this.stream(); }
+	}
+
+	private stop(): void {
+		if (this.timer) { clearTimeout(this.timer); this.timer = undefined; }
+	}
+
+	/** Цикл кадров: screencap → base64 → webview; ошибка = «устройство офлайн», ретраи медленнее. */
+	private stream(): void {
+		const tick = async () => {
+			if (this.disposed) { return; }
+			if (this.busy) { this.timer = setTimeout(tick, FRAME_INTERVAL_MS); return; }
+			this.busy = true;
+			let delay = FRAME_INTERVAL_MS;
+			try {
+				const frame = await this.android.captureScreen(this.device);
+				if (frame.length > 100) {
+					await this.panel.webview.postMessage({ type: 'frame', data: frame.toString('base64') });
+				}
+			} catch {
+				await this.panel.webview.postMessage({ type: 'offline' });
+				delay = FRAME_INTERVAL_MS * 4;
+			}
+			this.busy = false;
+			if (!this.disposed) { this.timer = setTimeout(tick, delay); }
+		};
+		void tick();
+	}
+
+===OLD-INPUT===
+85:					await this.android.inputTap(this.device, Number(message.x), Number(message.y));
+88:					await this.android.inputSwipe(this.device, Number(message.x1), Number(message.y1), Number(message.x2), Number(message.y2), Number(message.duration));
+150:	function toDevice(e) {
+157:	img.addEventListener('mousedown', e => { down = { ...toDevice(e), time: Date.now() }; });
+160:		const up = toDevice(e);
+> build · glm-5.3-prime
+Теперь ключевая развилка: поведение `wm size` при повороте и поддержка Annex-B в WebCodecs. Проверяю первоисточники параллельно с локальными конфигами.
+[0m✗ [0mWeb Search "adb shell wm size output change after rotation landscape "Override size" "Physical size"" failed
+[91m[1mError: [0mWeb search cancelled
+[0m✗ [0mWeb Search "WebCodecs VideoDecoder H.264 Annex B stream without description avcC Chrome support" failed
+[91m[1mError: [0mWeb search cancelled
+[0m→ [0mRead extensions/aura-kotlin/tsconfig.json 
+[0m✱ [0mGrep "vscode-webview" [90min src/vs/workbench/contrib/webview · 0 matches[0m
+[0m$ [0mhead -c 600 extensions/aura-kotlin/package-lock.json; echo; echo '---PKG---'; cat extensions/aura-kotlin/package.json | head -40; echo '---ELECTRON---'; grep -m2 '"electron"' package.json
+{
+	"name": "aura-kotlin",
+	"version": "0.2.0",
+	"lockfileVersion": 3,
+	"requires": true,
+	"packages": {
+		"": {
+			"name": "aura-kotlin",
+			"version": "0.2.0",
+			"license": "MIT",
+			"devDependencies": {
+				"@types/node": "24.x"
+			},
+			"engines": {
+				"vscode": "*"
+			}
+		},
+		"node_modules/@types/node": {
+			"version": "24.19.0",
+			"resolved": "https://registry.npmjs.org/@types/node/-/node-24.19.0.tgz",
+			"integrity": "sha512-zY+5tKxXdhGh1PYI0ac+7juvEu4OI6vWtVVoj5i2m42jxAY1U+zHGt6QCyOFwykdP62sM3MJ9stoYYUw5aCWew==",
+			"dev": true,
+			"license": "MIT",
+			"depend
+---PKG---
+{
+	"name": "aura-kotlin",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.2.0",
+	"publisher": "aura",
+	"license": "MIT",
+	"engines": { "vscode": "*" },
+	"main": "./out/extension.js",
+	"activationEvents": ["onLanguage:kotlin", "onView:auraKotlin.androidView", "onCommand:auraKotlin.checkToolchain", "onCommand:auraKotlin.compileFile", "onCommand:auraKotlin.androidDoctor", "onCommand:auraKotlin.newProject", "onCommand:auraKotlin.newFile", "onCommand:auraKotlin.restartLsp", "onCommand:auraKotlin.installLsp", "onCommand:auraKotlin.debugFile", "onCommand:auraKotlin.gradle.sync", "onCommand:auraKotlin.gradle.build", "onCommand:auraKotlin.gradle.clean", "onCommand:auraKotlin.gradle.test", "onCommand:auraKotlin.gradle.release", "onCommand:auraKotlin.gradle.runTask", "onCommand:auraKotlin.syncDependencies", "onCommand:auraKotlin.showClasspath", "onCommand:auraKotlin.android.devices", "onCommand:auraKotlin.android.pickDevice", "onCommand:auraKotlin.android.installApk", "onCommand:auraKotlin.android.logcat", "onCommand:auraKotlin.android.logcatFilter", "onCommand:auraKotlin.android.logcatStop", "onCommand:auraKotlin.android.startEmulator", "onCommand:auraKotlin.android.startAvd", "onCommand:auraKotlin.android.stopEmulator", "onCommand:auraKotlin.android.createAvd", "onCommand:auraKotlin.android.runAndDebug", "onCommand:auraKotlin.android.deviceScreen", "onCommand:auraKotlin.refreshAndroidView", "onDebug", "onDebugAdapterDynamicConfiguration:kotlin", "workspaceContains:build.gradle", "workspaceContains:build.gradle.kts", "workspaceContains:gradlew", "onLanguage:java", "onCommand:auraKotlin.java.restartLsp", "onCommand:auraKotlin.java.organizeImports", "onCommand:auraKotlin.java.installLsp", "onCommand:auraKotlin.java.downloadSources"],
+	"categories": ["Programming Languages", "Other"],
+	"l10n": "./l10n",
+	"contributes": {
+		"languages": [{
+			"id": "kotlin",
+			"aliases": ["Kotlin", "kotlin"],
+			"extensions": [".kt", ".kts"],
+			"configuration": "./language-configuration.json"
+		}],
+		"viewsContainers": {
+			"activitybar": [{
+				"id": "auraKotlin-android",
+				"title": "Android",
+				"icon": "media/android.svg"
+			}]
+		},
+		"views": {
+			"auraKotlin-android": [{
+				"id": "auraKotlin.androidView",
+				"name": "Android",
+				"icon": "media/android.svg",
+				"when": "auraPlugin.aura-kotlin.enabled == true"
+			}]
+		},
+		"menus": {
+			"view/title": [{
+				"command": "auraKotlin.newProject",
+				"when": "view == auraKotlin.androidView",
+				"group": "navigation@1"
+			}, {
+---ELECTRON---
+    "electron": "node build/lib/electron.ts",
+> build · glm-5.3-prime
+websearch падает — беру первоисточники напрямую: спецификация WebCodecs AVC, MDN, исходник AOSP screenrecord. Параллельно — регистрация webview-схемы и Electron в репо.
+[0m$ [0mnode -p "require('./node_modules/electron/package.json').version" 2>/dev/null; grep -rn "registerSchemesAsPrivileged\|secure: true" src/vs/code/electron-main/app.ts src/vs/platform/webview/common/*.ts 2>/dev/null | head -20; grep -rn "webview" src/vs/code/electron-main/app.ts | head -10
+97:import { IWebviewManagerService } from '../../platform/webview/common/webviewManagerService.js';
+98:import { WebviewMainService } from '../../platform/webview/electron-main/webviewMainService.js';
+355:		// But allow them if they are made from inside an webview
+359:				// (e.g. the originating webview/window was closed or navigated away)
+396:				return true; // Only restrict top level page of webviews: index.html
+420:					this.logService.error('Blocked vscode-webview request', details.url);
+1434:		const webviewChannel = ProxyChannel.fromService(accessor.get(IWebviewManagerService), disposables);
+1435:		mainProcessElectronServer.registerChannel('webview', webviewChannel);
+[0m% [0mWebFetch https://www.w3.org/TR/webcodecs-avc-codec-registration/ 
+[0m✗ [0mWebFetch https://developer.mozilla.org/en-US/docs/Web/API/VideoDecoderConfig failed
+[91m[1mError: [0mStatusCode: non 2xx status code (404 GET https://developer.mozilla.org/en-US/docs/Web/API/VideoDecoderConfig)
+[0m✱ [0mGrep "vscode-webview" [90min src · 19 matches[0m
+> build · glm-5.3-prime
+Спека подтвердила главное: **без `description` поток считается Annex-B — это легальный режим**; а `avc: {format}` — член ТОЛЬКО `VideoEncoderConfig`. Теперь — AOSP-исходники (wm size, screenrecord) и регистрация схемы webview в main.ts.
+[0m→ [0mRead src/main.ts [90m[limit=40, offset=80][0m
+[0m✗ [0mWebFetch https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/cmds/wm/src/com/android/commands/wm/Wm.java failed
+[91m[1mError: [0mStatusCode: non 2xx status code (404 GET https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/cmds/wm/src/com/android/commands/wm/Wm.java)
+[0m% [0mWebFetch https://android.googlesource.com/platform/frameworks/av/+/refs/heads/main/cmds/screenrecord/screenrecord.cpp 
+> build · glm-5.3-prime
+[0m$ [0mls "C:\Users\Wiks\.local\share\opencode\tool-output\" | tail -5; f=$(ls -t "C:\Users\Wiks\.local\share\opencode\tool-output\" | head -1); echo "FILE=$f"; grep -n "TIME_LIMIT\|kMaxTimeLimit\|1920\|outFormat\|OUTPUT_FORMAT\|stdout\|rotate\|Rotation\|maxVideoBitrate\|bit-rate\|--size\|setSize\|help\b" "C:\Users\Wiks\.local\share\opencode\tool-output\$f" | head -60
+/usr/bin/bash: -c: line 1: unexpected EOF while looking for matching `"'
+[0m% [0mWebFetch https://developer.mozilla.org/en-US/docs/Web/API/VideoDecoder/configure 
+[0m% [0mWebFetch https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/cmds/wm/ 
+> build · glm-5.3-prime
+[0m$ [0mf="C:/Users/Wiks/.local/share/opencode/tool-output"; ls -t "$f" | head -4; file=$(ls -t "$f" | head -1); echo "USING: $file"; grep -n "gMonotonic\|kTimeLimit\|180\|1920\|output-format\|h264\|stdout\|rotate\|onRot\|setParameters\|setMaxDuration\|prepare\|codec\|format" "$f/$file" | head -70
+tool_14d1619b9001cWXnwu0RznNs59
+USING: tool_14d1619b9001cWXnwu0RznNs59
+> build · glm-5.3-prime
+[0m$ [0mf="C:/Users/Wiks/.local/share/opencode/tool-output/tool_14d1619b9001cWXnwu0RznNs59"; wc -c "$f"; head -c 200 "$f"; echo; base64 -d "$f" > /tmp/screenrecord.cpp 2>/dev/null || python -c "import base64;open(r'C:/Users/Wiks/AppData/Local/Temp/opencode/screenrecord.cpp','wb').write(base64.b64decode(open(r'$f','rb').read()))" ; ls -la /tmp/screenrecord.cpp 2>/dev/null; head -c 300 /tmp/screenrecord.cpp 2>/dev/null
+70212 C:/Users/Wiks/.local/share/opencode/tool-output/tool_14d1619b9001cWXnwu0RznNs59
+LyoKICogQ29weXJpZ2h0IDIwMTMgVGhlIEFuZHJvaWQgT3BlbiBTb3VyY2UgUHJvamVjdAogKgogKiBMaWNlbnNlZCB1bmRlciB0aGUgQXBhY2hlIExpY2Vuc2UsIFZlcnNpb24gMi4wICh0aGUgIkxpY2Vuc2UiKTsKICogeW91IG1heSBub3QgdXNlIHRoaXMgZmls
+-rw-r--r-- 1 Wiks 197121 52657 Oct 18 06:38 /tmp/screenrecord.cpp
+/*
+ * Copyright 2013 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless
+> build · glm-5.3-prime
+[0m$ [0mgrep -n "kMaxTimeLimit\|180\|gLimitSec\|kMaxVideoBitrate\|1920\|outFfd\|stdout\|\"-\"\|strcmp\|rotate\|Rotation\|kClose\|display.width\|gSize\|setInputSurface\|prepareV\|C2\|AMediaFormat\|frame-count\|MAX" /tmp/screenrecord.cpp | head -50; echo '---ARGS---'; grep -n "output-format\|bit-rate\|time-limit\|bugreport\|help\|--size\|monotonic\|MONOTONIC" /tmp/screenrecord.cpp | head -30
+102:static const uint32_t kMaxTimeLimitSec = 180;       // 3 minutes
+109:static bool gVerbose = false;           // chatty on stdout
+110:static bool gRotate = false;            // rotate 90 degrees
+117:static bool gSizeSpecified = false;     // was size explicitly requested?
+124:static uint32_t gTimeLimitSec = kMaxTimeLimitSec;
+193:        fflush(stdout);
+204:    format->setInt32(KEY_MAX_B_FRAMES, gBframes);
+245:        err = codec->setInputSurface(surface);
+289:    // post-rotation, so if the display is rotated 90 degrees we need to
+290:    // "pre-rotate" it by flipping width/height, so that the orientation
+325:            fflush(stdout);
+329:            fflush(stdout);
+361:static status_t prepareVirtualDisplay(
+607:                fflush(stdout);
+701:                AMediaFormat *ndkFormat = AMediaFormat_fromMsg(&newFormat);
+705:                        AMediaFormat *metaFormat = AMediaFormat_new();
+706:                        AMediaFormat_setString(metaFormat, AMEDIAFORMAT_KEY_MIME, kMimeTypeApplicationOctetstream);
+709:                        AMediaFormat_delete(metaFormat);
+745:        fflush(stdout);
+764: * Raw H.264 byte stream output requested.  Send the output to stdout
+771:    if (strcmp(fileName, "-") == 0) {
+776:        rawFp = stdout;
+912:        fflush(stdout);
+931:        if (err != NO_ERROR && !gSizeSpecified) {
+979:            fflush(stdout);
+991:    err = prepareVirtualDisplay(displayState, bufferProducer, &recordingData.dpy, &mirrorRoot);
+1080:            fflush(stdout);
+1090:    } else if (rawFp != stdout) {
+1123:        fflush(stdout);
+1146:            ALOGV("closing stdout/stderr in child");
+1239:        "    Display interesting information on stdout.\n"
+1265:        { "rotate",             no_argument,        NULL, 'r' },
+1303:            gSizeSpecified = true;
+1334:                fflush(stdout);
+1353:            if (strcmp(optarg, "mp4") == 0) {
+1355:            } else if (strcmp(optarg, "h264") == 0) {
+1357:            } else if (strcmp(optarg, "webm") == 0) {
+1359:            } else if (strcmp(optarg, "3gpp") == 0) {
+1361:            } else if (strcmp(optarg, "frames") == 0) {
+1363:            } else if (strcmp(optarg, "raw-frames") == 0) {
+---ARGS---
+111:static bool gMonotonicTime = false;     // use system monotonic time for timestamps
+434:        - systemTime(SYSTEM_TIME_MONOTONIC)) / 1000;
+471: * - Realtime-to-elapsed time offset (instead of realtime-to-monotonic)
+472: * - Frame timestamps in elapsed clock timebase (instead of monotonic)
+483:            elapsedTimeNs - systemTime(SYSTEM_TIME_MONOTONIC);
+579:    int64_t startWhenNsec = systemTime(CLOCK_MONOTONIC);
+604:        if (systemTime(CLOCK_MONOTONIC) > endWhenNsec) {
+638:                    ptsUsec = systemTime(SYSTEM_TIME_MONOTONIC) / 1000;
+744:                        systemTime(CLOCK_MONOTONIC) - startWhenNsec));
+1049:        // using "--bugreport" mode.
+1222:        "--size WIDTHxHEIGHT\n"
+1226:        "--bit-rate RATE\n"
+1229:        "--bugreport\n"
+1230:        "    Add additional information, such as a timestamp overlay, that is helpful\n"
+1232:        "--time-limit TIME\n"
+1242:        "--help\n"
+1256:        { "help",               no_argument,        NULL, 'h' },
+1259:        { "bit-rate",           required_argument,  NULL, 'b' },
+1260:        { "time-limit",         required_argument,  NULL, 't' },
+1261:        { "bugreport",          no_argument,        NULL, 'u' },
+1266:        { "output-format",      required_argument,  NULL, 'o' },
+1268:        { "monotonic-time",     no_argument,        NULL, 'm' },
+1408:        fprintf(stderr, "Must specify output file (see --help).\n");
+> build · glm-5.3-prime
+[0m$ [0msed -n '270,310p' /tmp/screenrecord.cpp; echo '=== SIZE HELP ==='; sed -n '1215,1240p' /tmp/screenrecord.cpp; echo '=== SETDISPLAYSIZE ==='; sed -n '900,1010p' /tmp/screenrecord.cpp
+}
+
+/*
+ * Sets the display projection, based on the display dimensions, video size,
+ * and device orientation.
+ */
+static status_t setDisplayProjection(
+        SurfaceComposerClient::Transaction& t,
+        const sp<IBinder>& dpy,
+        const ui::DisplayState& displayState) {
+    // Set the region of the layer stack we're interested in, which in our case is "all of it".
+    Rect layerStackRect(displayState.layerStackSpaceRect);
+
+    // We need to preserve the aspect ratio of the display.
+    float displayAspect = layerStackRect.getHeight() / static_cast<float>(layerStackRect.getWidth());
+
+
+    // Set the way we map the output onto the display surface (which will
+    // be e.g. 1280x720 for a 720p video).  The rect is interpreted
+    // post-rotation, so if the display is rotated 90 degrees we need to
+    // "pre-rotate" it by flipping width/height, so that the orientation
+    // adjustment changes it back.
+    //
+    // We might want to encode a portrait display as landscape to use more
+    // of the screen real estate.  (If players respect a 90-degree rotation
+    // hint, we can essentially get a 720x1280 video instead of 1280x720.)
+    // In that case, we swap the configured video width/height and then
+    // supply a rotation value to the display projection.
+    uint32_t videoWidth, videoHeight;
+    uint32_t outWidth, outHeight;
+    if (!gRotate) {
+        videoWidth = gVideoWidth;
+        videoHeight = gVideoHeight;
+    } else {
+        videoWidth = gVideoHeight;
+        videoHeight = gVideoWidth;
+    }
+    if (videoHeight > (uint32_t)(videoWidth * displayAspect)) {
+        // limited by narrow width; reduce height
+        outWidth = videoWidth;
+        outHeight = (uint32_t)(videoWidth * displayAspect);
+=== SIZE HELP ===
+static void usage() {
+    fprintf(stderr,
+        "Usage: screenrecord [options] <filename>\n"
+        "\n"
+        "Android screenrecord v%d.%d.  Records the device's display to a .mp4 file.\n"
+        "\n"
+        "Options:\n"
+        "--size WIDTHxHEIGHT\n"
+        "    Set the video size, e.g. \"1280x720\".  Default is the device's main\n"
+        "    display resolution (if supported), 1280x720 if not.  For best results,\n"
+        "    use a size supported by the AVC encoder.\n"
+        "--bit-rate RATE\n"
+        "    Set the video bit rate, in bits per second.  Value may be specified as\n"
+        "    bits or megabits, e.g. '4000000' is equivalent to '4M'.  Default %dMbps.\n"
+        "--bugreport\n"
+        "    Add additional information, such as a timestamp overlay, that is helpful\n"
+        "    in videos captured to illustrate bugs.\n"
+        "--time-limit TIME\n"
+        "    Set the maximum recording time, in seconds.  Default is %d. Set to 0\n"
+        "    to remove the time limit.\n"
+        "--display-id ID\n"
+        "    specify the physical display ID to record. Default is the primary display.\n"
+        "    see \"dumpsys SurfaceFlinger --display-id\" for valid display IDs.\n"
+        "--verbose\n"
+        "    Display interesting information on stdout.\n"
+        "--version\n"
+=== SETDISPLAYSIZE ===
+    if (displayState.layerStack == ui::INVALID_LAYER_STACK) {
+        fprintf(stderr, "ERROR: INVALID_LAYER_STACK, please check your display state.\n");
+        return INVALID_OPERATION;
+    }
+
+    const ui::Size layerStackSpaceRect =
+        gPhysicalDisplayId ? displayState.layerStackSpaceRect : getMaxDisplaySize();
+    if (gVerbose) {
+        printf("Display is %dx%d @%.2ffps (orientation=%s), layerStack=%u\n",
+               layerStackSpaceRect.getWidth(), layerStackSpaceRect.getHeight(),
+               displayMode.peakRefreshRate, toCString(displayState.orientation),
+               displayState.layerStack.id);
+        fflush(stdout);
+    }
+
+    // Encoder can't take odd number as config
+    if (gVideoWidth == 0) {
+        gVideoWidth = floorToEven(layerStackSpaceRect.getWidth());
+    }
+    if (gVideoHeight == 0) {
+        gVideoHeight = floorToEven(layerStackSpaceRect.getHeight());
+    }
+
+    RecordingData recordingData = RecordingData();
+    // Configure and start the encoder.
+    sp<FrameOutput> frameOutput;
+    sp<IGraphicBufferProducer> encoderInputSurface;
+    if (gOutputFormat != FORMAT_FRAMES && gOutputFormat != FORMAT_RAW_FRAMES) {
+        err = prepareEncoder(displayMode.peakRefreshRate, &recordingData.encoder,
+                             &encoderInputSurface);
+
+        if (err != NO_ERROR && !gSizeSpecified) {
+            // fallback is defined for landscape; swap if we're in portrait
+            bool needSwap = gVideoWidth < gVideoHeight;
+            uint32_t newWidth = needSwap ? kFallbackHeight : kFallbackWidth;
+            uint32_t newHeight = needSwap ? kFallbackWidth : kFallbackHeight;
+            if (gVideoWidth != newWidth && gVideoHeight != newHeight) {
+                ALOGV("Retrying with 720p");
+                fprintf(stderr, "WARNING: failed at %dx%d, retrying at %dx%d\n",
+                        gVideoWidth, gVideoHeight, newWidth, newHeight);
+                gVideoWidth = newWidth;
+                gVideoHeight = newHeight;
+                err = prepareEncoder(displayMode.peakRefreshRate, &recordingData.encoder,
+                                     &encoderInputSurface);
+            }
+        }
+        if (err != NO_ERROR) return err;
+
+        // From here on, we must explicitly release() the encoder before it goes
+        // out of scope, or we will get an assertion failure from stagefright
+        // later on in a different thread.
+    } else {
+        // We're not using an encoder at all.  The "encoder input surface" we hand to
+        // SurfaceFlinger will just feed directly to us.
+        frameOutput = new FrameOutput();
+        err = frameOutput->createInputSurface(gVideoWidth, gVideoHeight, &encoderInputSurface);
+        if (err != NO_ERROR) {
+            return err;
+        }
+    }
+
+    // Draw the "info" page by rendering a frame with GLES and sending
+    // it directly to the encoder.
+    // TODO: consider displaying this as a regular layer to avoid b/11697754
+    if (gWantInfoScreen) {
+        Overlay::drawInfoPage(encoderInputSurface);
+    }
+
+    // Configure optional overlay.
+    sp<IGraphicBufferProducer> bufferProducer;
+    if (gWantFrameTime) {
+        // Send virtual display frames to an external texture.
+        recordingData.overlay = new Overlay(gMonotonicTime);
+        err = recordingData.overlay->start(encoderInputSurface, &bufferProducer);
+        if (err != NO_ERROR) {
+            return err;
+        }
+        if (gVerbose) {
+            printf("Bugreport overlay created\n");
+            fflush(stdout);
+        }
+    } else {
+        // Use the encoder's input surface as the virtual display surface.
+        bufferProducer = encoderInputSurface;
+    }
+
+    // We need to hold a reference to mirrorRoot during the entire recording to ensure it's not
+    // cleaned up by SurfaceFlinger. When the reference is dropped, SurfaceFlinger will delete
+    // the resource.
+    sp<SurfaceControl> mirrorRoot;
+    // Configure virtual display.
+    err = prepareVirtualDisplay(displayState, bufferProducer, &recordingData.dpy, &mirrorRoot);
+    if (err != NO_ERROR) {
+        return err;
+    }
+
+    AMediaMuxer *muxer = nullptr;
+    FILE* rawFp = NULL;
+    switch (gOutputFormat) {
+        case FORMAT_MP4:
+        case FORMAT_WEBM:
+        case FORMAT_3GPP: {
+            // Configure muxer.  We have to wait for the CSD blob from the encoder
+            // before we can start it.
+            err = unlink(fileName);
+            if (err != 0 && errno != ENOENT) {
+                fprintf(stderr, "ERROR: couldn't remove existing file\n");
+                abort();
+            }
+            int fd = open(fileName, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
+            if (fd < 0) {
+> build · glm-5.3-prime
+[0m% [0mWebFetch https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/services/core/java/com/android/server/wm/WindowManagerShellCommand.java 
+[0m% [0mWebFetch https://webcodecsfundamentals.org/datasets/codec-support-table/ 
+> build · glm-5.3-prime
+[0m$ [0mf="C:/Users/Wiks/.local/share/opencode/tool-output/tool_14d17b473001sW0oAfTyduoUGn"; base64 -d "$f" > /tmp/wmsc.java 2>/dev/null; wc -l /tmp/wmsc.java; grep -n "Physical size\|Override size\|Override display size\|runSize\|getBaseDisplaySize\|getInitialDisplaySize\|BaseDisplayInfo\|case \"size\"" /tmp/wmsc.java
+1768 /tmp/wmsc.java
+101:                case "size":
+201:            mInterface.getInitialDisplaySize(displayId, initialSize);
+202:            mInterface.getBaseDisplaySize(displayId, baseSize);
+203:            pw.println("Physical size: " + initialSize.x + "x" + initialSize.y);
+205:                pw.println("Override size: " + baseSize.x + "x" + baseSize.y);
+208:            // Can't call getInitialDisplaySize() on IWindowManager or
+209:            // Can't call getBaseDisplaySize() on IWindowManager
+403:     * Override display size and metrics to reflect the DisplayArea of the calling activity.
+> build · glm-5.3-prime
+`wm size`: Physical печатается первым, Override — вторым (приоритет «последний» — ок). Но оба берутся из `getInitialDisplaySize`/`getBaseDisplaySize`. Теперь главное — ротация: меняет ли `getBaseDisplaySize` оси. Копаю `DisplayContent.java`.
+[0m% [0mWebFetch https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/services/core/java/com/android/server/wm/DisplayContent.java 
+> build · glm-5.3-prime
+[0m$ [0mf="C:/Users/Wiks/.local/share/opencode/tool-output/tool_14d185715001Cyn2BVuES3mvkT"; base64 -d "$f" > /tmp/DisplayContent.java 2>/dev/null; wc -l /tmp/DisplayContent.java; grep -n "getBaseDisplaySize\|getInitialDisplaySize\|setBaseDisplaySize\|mBaseDisplayInfo\|updateBaseDisplayInfo\|getOverrideDisplayInfo" /tmp/DisplayContent.java | head -30
+7193 /tmp/DisplayContent.java
+> build · glm-5.3-prime
+[0m$ [0mhead -5 /tmp/DisplayContent.java; grep -c "DisplayContent" /tmp/DisplayContent.java; grep -in "basesize\|initialsize\|displayinfo" /tmp/DisplayContent.java | head -20
+/*
+ * Copyright (C) 2012 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+78
+158:import static com.android.server.wm.utils.DisplayInfoOverrides.WM_OVERRIDE_FIELDS;
+159:import static com.android.server.wm.utils.DisplayInfoOverrides.copyDisplayInfoFields;
+218:import android.view.DisplayInfo;
+314:     * @see DisplayInfo#displayId
+322:     * @see DisplayInfo#uniqueId
+462:    private final DisplayInfo mDisplayInfo = new DisplayInfo();
+465:     * Contains the last DisplayInfo override that was sent to DisplayManager or null if we haven't
+469:    private DisplayInfo mLastDisplayInfoOverride;
+1143:        display.getDisplayInfo(mDisplayInfo);
+1152:                mDisplayInfo, calculateDisplayCutoutForRotation(mDisplayInfo.rotation),
+1153:                calculateRoundedCornersForRotation(mDisplayInfo.rotation),
+1154:                calculatePrivacyIndicatorBoundsForRotation(mDisplayInfo.rotation),
+1155:                calculateDisplayShapeForRotation(mDisplayInfo.rotation));
+1184:        mDisplayRotation = new DisplayRotation(mWmService, this, mDisplayInfo.address,
+1519:    DisplayInfo getDisplayInfo() {
+1520:        return mDisplayInfo;
+2104:        final DisplayInfo info = computeScreenConfiguration(mTmpConfiguration, rotation);
+2120:     * @see WindowToken#applyFixedRotationTransform(DisplayInfo, DisplayFrames, Configuration)
+2301:        t.setFixedTransformHint(sc, (rotation + mDisplayInfo.installOrientation) % 4);
+2311:     * Update {@link #mDisplayInfo} and other internal variables when display is rotated or config
+> build · glm-5.3-prime
+[0m$ [0msed -n '2300,2360p' /tmp/DisplayContent.java; echo '=== rotateDisplayInfo? ==='; grep -n "logicalWidth\|logicalHeight\|installOrientation\|DisplayInfo\b.*rotat" /tmp/DisplayContent.java | head -15
+void setFixedTransformHint(Transaction t, SurfaceControl sc, int rotation) {
+        t.setFixedTransformHint(sc, (rotation + mDisplayInfo.installOrientation) % 4);
+    }
+
+    void configureDisplayPolicy() {
+        mRootWindowContainer.updateDisplayImePolicyCache();
+        mDisplayPolicy.updateConfigurationAndScreenSizeDependentBehaviors();
+        mDisplayRotation.configure(mBaseDisplayWidth, mBaseDisplayHeight);
+    }
+
+    /**
+     * Update {@link #mDisplayInfo} and other internal variables when display is rotated or config
+     * changed.
+     * Do not call if {@link WindowManagerService#mDisplayReady} == false.
+     */
+    private DisplayInfo updateDisplayAndOrientation(Configuration outConfig) {
+        // Use the effective "visual" dimensions based on current rotation
+        final int rotation = getRotation();
+        final boolean rotated = (rotation == ROTATION_90 || rotation == ROTATION_270);
+        final int dw = rotated ? mBaseDisplayHeight : mBaseDisplayWidth;
+        final int dh = rotated ? mBaseDisplayWidth : mBaseDisplayHeight;
+
+        // Update application display metrics.
+        final DisplayCutout displayCutout = calculateDisplayCutoutForRotation(rotation);
+        final RoundedCorners roundedCorners = calculateRoundedCornersForRotation(rotation);
+        final DisplayShape displayShape = calculateDisplayShapeForRotation(rotation);
+
+        final Rect appFrame = mDisplayPolicy.getDecorInsetsInfo(rotation, dw, dh).mNonDecorFrame;
+        mDisplayInfo.rotation = rotation;
+        mDisplayInfo.logicalWidth = dw;
+        mDisplayInfo.logicalHeight = dh;
+        mDisplayInfo.logicalDensityDpi = mBaseDisplayDensity;
+        mDisplayInfo.physicalXDpi = mBaseDisplayPhysicalXDpi;
+        mDisplayInfo.physicalYDpi = mBaseDisplayPhysicalYDpi;
+        mDisplayInfo.appWidth = appFrame.width();
+        mDisplayInfo.appHeight = appFrame.height();
+        if (isDefaultDisplay) {
+            mDisplayInfo.getLogicalMetrics(mRealDisplayMetrics,
+                    CompatibilityInfo.DEFAULT_COMPATIBILITY_INFO, null);
+        }
+        mDisplayInfo.displayCutout = displayCutout.isEmpty() ? null : displayCutout;
+        mDisplayInfo.roundedCorners = roundedCorners;
+        mDisplayInfo.displayShape = displayShape;
+        mDisplayInfo.getAppMetrics(mDisplayMetrics);
+        if (mDisplayScalingDisabled) {
+            mDisplayInfo.flags |= Display.FLAG_SCALING_DISABLED;
+        } else {
+            mDisplayInfo.flags &= ~Display.FLAG_SCALING_DISABLED;
+        }
+
+        computeSizeRanges(mDisplayInfo, rotated, dw, dh, mDisplayMetrics.density, outConfig,
+                false /* overrideConfig */);
+
+        setDisplayInfoOverride();
+
+        if (isDefaultDisplay) {
+            mCompatibleScreenScale = CompatibilityInfo.computeCompatibleScaling(mDisplayMetrics,
+                    mCompatDisplayMetrics);
+        }
+
+        onDisplayInfoChanged();
+=== rotateDisplayInfo? ===
+1152:                mDisplayInfo, calculateDisplayCutoutForRotation(mDisplayInfo.rotation),
+1153:                calculateRoundedCornersForRotation(mDisplayInfo.rotation),
+1154:                calculatePrivacyIndicatorBoundsForRotation(mDisplayInfo.rotation),
+1155:                calculateDisplayShapeForRotation(mDisplayInfo.rotation));
+2104:        final DisplayInfo info = computeScreenConfiguration(mTmpConfiguration, rotation);
+2301:        t.setFixedTransformHint(sc, (rotation + mDisplayInfo.installOrientation) % 4);
+2311:     * Update {@link #mDisplayInfo} and other internal variables when display is rotated or config
+2328:        mDisplayInfo.rotation = rotation;
+2329:        mDisplayInfo.logicalWidth = dw;
+2330:        mDisplayInfo.logicalHeight = dh;
+2350:        computeSizeRanges(mDisplayInfo, rotated, dw, dh, mDisplayMetrics.density, outConfig,
+2470:    DisplayInfo computeScreenConfiguration(Configuration outConfig, int rotation) {
+2480:        displayInfo.logicalWidth = dw;
+2481:        displayInfo.logicalHeight = dh;
+2523:        final int dw = displayInfo.logicalWidth;
+> build · glm-5.3-prime
+`wm size` вопрос закрыт жёстко: base-размеры не свопаются при повороте (AOSP `DisplayContent.updateDisplayAndOrientation`: `dw = rotated ? mBaseDisplayHeight : mBaseDisplayWidth` — а `wm size` печатает именно base/initial). Проверяю ещё `getMaxDisplaySize` в screenrecord — что будет, если `--size` вообще не передавать.
+[0m$ [0mgrep -n "getMaxDisplaySize" /tmp/screenrecord.cpp; sed -n "$(grep -n 'getMaxDisplaySize' /tmp/screenrecord.cpp | head -2 | tail -1 | cut -d: -f1),+30p" /tmp/screenrecord.cpp; echo '=== kFallback ==='; grep -n "kFallbackWidth\|kFallbackHeight" /tmp/screenrecord.cpp | head -3
+825:static ui::Size getMaxDisplaySize() {
+906:        gPhysicalDisplayId ? displayState.layerStackSpaceRect : getMaxDisplaySize();
+        gPhysicalDisplayId ? displayState.layerStackSpaceRect : getMaxDisplaySize();
+    if (gVerbose) {
+        printf("Display is %dx%d @%.2ffps (orientation=%s), layerStack=%u\n",
+               layerStackSpaceRect.getWidth(), layerStackSpaceRect.getHeight(),
+               displayMode.peakRefreshRate, toCString(displayState.orientation),
+               displayState.layerStack.id);
+        fflush(stdout);
+    }
+
+    // Encoder can't take odd number as config
+    if (gVideoWidth == 0) {
+        gVideoWidth = floorToEven(layerStackSpaceRect.getWidth());
+    }
+    if (gVideoHeight == 0) {
+        gVideoHeight = floorToEven(layerStackSpaceRect.getHeight());
+    }
+
+    RecordingData recordingData = RecordingData();
+    // Configure and start the encoder.
+    sp<FrameOutput> frameOutput;
+    sp<IGraphicBufferProducer> encoderInputSurface;
+    if (gOutputFormat != FORMAT_FRAMES && gOutputFormat != FORMAT_RAW_FRAMES) {
+        err = prepareEncoder(displayMode.peakRefreshRate, &recordingData.encoder,
+                             &encoderInputSurface);
+
+        if (err != NO_ERROR && !gSizeSpecified) {
+            // fallback is defined for landscape; swap if we're in portrait
+            bool needSwap = gVideoWidth < gVideoHeight;
+            uint32_t newWidth = needSwap ? kFallbackHeight : kFallbackWidth;
+            uint32_t newHeight = needSwap ? kFallbackWidth : kFallbackHeight;
+            if (gVideoWidth != newWidth && gVideoHeight != newHeight) {
+=== kFallback ===
+103:static const uint32_t kFallbackWidth = 1280;        // 720p
+104:static const uint32_t kFallbackHeight = 720;
+934:            uint32_t newWidth = needSwap ? kFallbackHeight : kFallbackWidth;
+> build · glm-5.3-prime
+[0m$ [0msed -n '815,860p' /tmp/screenrecord.cpp
+if (encoder != nullptr) {
+            encoder->stop();
+            encoder->release();
+        }
+    }
+};
+
+/*
+ * Computes the maximum width and height across all physical displays.
+ */
+static ui::Size getMaxDisplaySize() {
+    const std::vector<PhysicalDisplayId> physicalDisplayIds =
+            SurfaceComposerClient::getPhysicalDisplayIds();
+    if (physicalDisplayIds.empty()) {
+        fprintf(stderr, "ERROR: Failed to get physical display ids\n");
+        return {};
+    }
+
+    ui::Size result;
+    for (auto& displayId : physicalDisplayIds) {
+        sp<IBinder> displayToken = SurfaceComposerClient::getPhysicalDisplayToken(displayId);
+        if (!displayToken) {
+            fprintf(stderr, "ERROR: failed to get display token\n");
+            continue;
+        }
+
+        ui::DisplayState displayState;
+        status_t err = SurfaceComposerClient::getDisplayState(displayToken, &displayState);
+        if (err != NO_ERROR) {
+            fprintf(stderr, "ERROR: failed to get display state\n");
+            continue;
+        }
+
+        result.height = std::max(result.height, displayState.layerStackSpaceRect.getHeight());
+        result.width = std::max(result.width, displayState.layerStackSpaceRect.getWidth());
+    }
+    return result;
+}
+
+/*
+ * Main "do work" start point.
+ *
+ * Configures codec, muxer, and virtual display, then starts moving bits
+ * around.
+ */
+static status_t recordScreen(const char* fileName) {
+> build · glm-5.3-prime
+Финальные проверки: tsc по расширению, собранный `out/deviceScreen.js` (не кормит ли нас сборка старым кодом при `--noEmit`), и синтаксис inline-скрипта webview.
+[0m$ [0mls -la extensions/aura-kotlin/out/deviceScreen.js 2>/dev/null; grep -c "videoGen\|VideoDecoder\|video-chunk" extensions/aura-kotlin/out/deviceScreen.js 2>/dev/null; grep -c "FRAME_INTERVAL_MS" extensions/aura-kotlin/out/deviceScreen.js 2>/dev/null; echo '---'; ls -la extensions/aura-kotlin/node_modules 2>/dev/null | head -5
+-rw-r--r-- 1 Wiks 197121 11433 Oct 15 20:11 extensions/aura-kotlin/out/deviceScreen.js
+0
+4
+---
+total 24
+drwxr-xr-x 1 Wiks 197121   0 Oct  1 01:19 .
+drwxr-xr-x 1 Wiks 197121   0 Oct 15 20:11 ..
+-rw-r--r-- 1 Wiks 197121 785 Oct  1 05:49 .package-lock.json
+drwxr-xr-x 1 Wiks 197121   0 Oct  1 01:18 @types
+[0m$ [0mnode --version; node_modules/.bin/tsc -p extensions/aura-kotlin/tsconfig.json --noEmit; echo "TSC_EXIT=$?"
+v24.21.0
+TSC_EXIT=0
+> build · glm-5.3-prime
+[0m$ [0mnode -e "
+const fs=require('fs');
+const src=fs.readFileSync('extensions/aura-kotlin/src/deviceScreen.ts','utf8');
+const m=src.match(/<script>([\s\S]*?)<\/script>/);
+if(!m){console.error('NO SCRIPT');process.exit(1);}
+let js=m[1].replace(/\\\$\{[^{}]*\}/g, '\"INTERP\"');
+fs.writeFileSync('C:/Users/Wiks/AppData/Local/Temp/opencode/webview-script.js', js);
+console.log('script bytes:', js.length, 'interpolations replaced:', (m[1].match(/\\\$\{[^{}]*\}/g)||[]).length);
+" && node --check "C:/Users/Wiks/AppData/Local/Temp/opencode/webview-script.js" && echo "SYNTAX_OK"
+script bytes: 8587 interpolations replaced: 2
+SYNTAX_OK
+> build · glm-5.3-prime
+Последний источник — документация Node по `windowsHide` (для Windows-спавна), затем пишу отчёт.
+[0m% [0mWebFetch https://nodejs.org/api/child_process.html#optionswindowshide 
+> build · glm-5.3-prime
+[0m← [0mWrite docs/swarm/ZAN-b1.md
+Created file successfully: docs/swarm/ZAN-b1.md
+> build · glm-5.3-prime
+Отчёт: `docs/swarm/ZAN-b1.md`. Отработано по полной: построчная сверка DONE с кодом, tsc, `node --check` вебвью-скрипта, AOSP-исходники (screenrecord.cpp, WindowManager, DisplayContent).
+
+**Вердикт: REQUEST_CHANGES.** Ядро тракта статически добротное — Annex-B парсер, 180-секундный рестарт, фолбэк, ген-счётчики — всё подтверждено. Но:
+
+- **ZAN-1, блокер:** фича не собрана. В `out/deviceScreen.js` — артефакт от 15 октября, старый image-луп. `--noEmit` проверил типы, эмит не делал. «Живой поток» существует только в src.
+- **ZAN-2, блокер:** AURA-008 построен на ложной посылке. `wm size` **не меняет оси при повороте** — AOSP считает base-размеры в нативной ориентации. После rotate: летербокс-видео и кривые координаты тапов. Фикс — `dumpsys window displays` (cur=) или ручной свап осей по известному `user_rotation`.
+
+Плюс мейджоры: дроп чанков при перегрузке рвёт референс-цепь (ZAN-6), двойной image-луп через поздний `video-error` (ZAN-5), `avc: {format: 'annexb'}` — плацебо, такого члена в `VideoDecoderConfig` нет (ZAN-4), и многослайсные кадры режутся на частичные AU (ZAN-8, условный).
+
+По твоему ключевому вопросу: Annex-B **без** description — легальный режим, спека и Chrome его поддерживают, подход рабочий. Работает не благодаря `avc.format`, а благодаря отсутствию description — сам конфиг мёртвый, убрать.
+
+Ответ Зану на «screenrecord завершается при повороте» — ложь по исходнику, рестарт ручной. Комментарии в коде переписать.
+
+Минимум к следующей итерации: эмит билда + честные оси. Остальное — списком в отчёте.

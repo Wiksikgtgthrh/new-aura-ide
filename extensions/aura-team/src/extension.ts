@@ -5,7 +5,8 @@
 
 import * as vscode from 'vscode';
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { AuraApiClient } from './api/client';
 import { GITHUB_TOKEN_KEY, connectGitHub, createGithubRepo, disconnectGitHub, hasGitHubToken, listGithubRepos, pickAndCloneGithubRepo } from './auth/github';
@@ -40,6 +41,17 @@ async function autoStartLocalServer(context: vscode.ExtensionContext, output: vs
 	if (!['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) { return; }
 	const probe = async (): Promise<boolean> => fetch(`${url.origin}/health`, { signal: AbortSignal.timeout(1500) }).then(r => r.ok).catch(() => false);
 	if (await probe()) { return; }
+	// Прошлое окно могло оставить живой сервер-сироту, который не отвечает (завис
+	// или потерял порт): гасим его по pid-файлу перед повторным запуском, иначе
+	// плодим процессы на каждый запуск IDE.
+	const pidFile = join(context.globalStorageUri.fsPath, '.aura-team-server.pid');
+	const killPid = (pid: number): void => { try { process.kill(pid); } catch { /* уже мёртв */ } };
+	try {
+		const stale = Number(readFileSync(pidFile, 'utf8').trim());
+		if (Number.isInteger(stale) && stale > 0 && stale !== process.pid) {
+			try { process.kill(stale, 0); killPid(stale); output.appendLine(`[server] killed stale server pid ${stale}`); } catch { /* процесса уже нет */ }
+		}
+	} catch { /* pid-файла ещё нет */ }
 	// Ищем aura-team-server/scripts/start-local.mjs вверх по дереву каталогов
 	// (в репозитории — <root>/aura-team-server рядом с <root>/extensions).
 	let dir = context.extensionPath;
@@ -55,14 +67,25 @@ async function autoStartLocalServer(context: vscode.ExtensionContext, output: vs
 	const script = join(serverRoot, 'scripts', 'start-local.mjs');
 	if (!existsSync(script)) { output.appendLine(`[server] autostart skipped: ${script} not found`); return; }
 	output.appendLine(`[server] not responding on ${url.origin}, starting local server...`);
-	const child = spawn(process.execPath, [script], { cwd: serverRoot, stdio: 'ignore', detached: true });
+	// process.execPath в extension host — это Electron: без ELECTRON_RUN_AS_NODE он не
+	// исполняет .mjs как node-скрипт, а плодит лишние GUI-процессы вместо сервера.
+	const child = spawn(process.execPath, [script], { cwd: serverRoot, stdio: 'ignore', detached: true, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
 	child.unref();
 	// Ждём до 10 секунд, пока сервер начнёт отвечать.
 	for (let i = 0; i < 20; i++) {
 		await new Promise(resolve => setTimeout(resolve, 500));
-		if (await probe()) { output.appendLine(`[server] local server is up at ${url.origin}`); return; }
+		if (await probe()) {
+			// pid пишем только после успешного probe: иначе следующее окно убьёт
+			// чужой здоровый сервер по устаревшему файлу.
+			if (child.pid) { try { mkdirSync(dirname(pidFile), { recursive: true }); writeFileSync(pidFile, String(child.pid)); } catch { /* pid-файл не критичен */ } }
+			output.appendLine(`[server] local server is up at ${url.origin}`);
+			return;
+		}
 	}
 	output.appendLine('[server] local server did not start within 10s');
+	// Не оставляем сироту: недостартовавший сервер дождётся следующего окна и
+	// будет убит как stale по pid-файлу, а этот экземпляр гасим сразу.
+	if (child.pid) { killPid(child.pid); }
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<AuraTeamPublicApi> {
@@ -70,6 +93,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 	// Локальный сервер поднимаем до первого запроса API (не блокируя активацию дольше 10с).
 	void autoStartLocalServer(context, output);
 	const api = new AuraApiClient(context, output);
+	// WS-соединение, reconnect-таймеры и emitter гасятся вместе с расширением.
+	context.subscriptions.push(api);
 	const gitExtension = vscode.extensions.getExtension('vscode.git');
 	await gitExtension?.activate();
 	// Учётные данные для git push/pull/clone на github.com — из сохранённого токена.
@@ -190,7 +215,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 	]);
 
 	// Кэш git-снапшота: buildState() вызывается часто (каждый broadcast), а git log — дорогой.
+	// TTL 10 с + сброс по событию репозитория: после commit/checkout/изменения файлов
+	// state.onDidChange срабатывает и панель не показывает устаревшую ветку до 10 секунд.
+	const GIT_CACHE_TTL_MS = 10_000;
 	let gitCache: { at: number; value: Awaited<ReturnType<GitService['getSnapshot']>> } | undefined;
+	const watchedGitRepos = new WeakSet<object>();
+	const watchGitRepo = (): void => {
+		const repo = git?.repository;
+		if (!repo || watchedGitRepos.has(repo)) { return; }
+		watchedGitRepos.add(repo);
+		context.subscriptions.push(repo.state.onDidChange(() => { gitCache = undefined; }));
+	};
+	const gitSnapshot = async (): Promise<AuraState['git']> => {
+		if (!git) { return undefined; }
+		if (gitCache && Date.now() - gitCache.at < GIT_CACHE_TTL_MS) { return gitCache.value; }
+		try {
+			const value = await gitSvc().getSnapshot();
+			gitCache = { at: Date.now(), value };
+			watchGitRepo();
+			return value;
+		} catch {
+			return undefined;
+		}
+	};
 	// Подзадачи живут markdown-чекбоксами в описании задачи, а /summary описаний не отдаёт:
 	// добираем прогресс из уже загруженной доски, чтобы сайдбар читался без открытия карточки.
 	const subtaskProgress = (description?: string): { done: number; total: number } | undefined => {
@@ -214,7 +261,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 		teamId: state.teamId,
 		board: state.board,
 		keys: state.keys,
-		git: git ? ((gitCache && Date.now() - gitCache.at < 2000) ? gitCache.value : await gitSvc().getSnapshot().then(value => { gitCache = { at: Date.now(), value }; return value; }).catch(() => undefined)) : undefined,
+		git: await gitSnapshot(),
 		activity: state.activity,
 		dismissedActivity: dismissedActivity(),
 		summary: withSubtaskProgress(state.summary),
@@ -284,6 +331,37 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 		await refresh();
 	});
 
+	// Агрегатор тостов: при шквале событий (импорт, массовое назначение задач) IDE
+	// засыпало пользователя десятками уведомлений. Первый тост — сразу, дальше за
+	// окно 5 с всё собирается в один «сообщение (+N more)», с потолком backlog 10.
+	const TOAST_WINDOW_MS = 5000;
+	const TOAST_BACKLOG_CAP = 10;
+	let toastWindowOpen = false;
+	let toastBacklog: string[] = [];
+	let toastOverflow = 0;
+	let toastTimer: ReturnType<typeof setTimeout> | undefined;
+	const flushToasts = (): void => {
+		toastTimer = undefined;
+		toastWindowOpen = false;
+		const backlog = toastBacklog;
+		toastBacklog = [];
+		const extra = backlog.length - 1 + toastOverflow;
+		toastOverflow = 0;
+		if (!backlog.length) { return; }
+		const text = extra > 0 ? vscode.l10n.t('{0} (+{1} more)', backlog[0], extra) : backlog[0];
+		void vscode.window.showInformationMessage(text);
+	};
+	const notifyToast = (message: string): void => {
+		if (!toastWindowOpen) {
+			toastWindowOpen = true;
+			void vscode.window.showInformationMessage(message);
+			toastTimer = setTimeout(flushToasts, TOAST_WINDOW_MS);
+			return;
+		}
+		if (toastBacklog.length < TOAST_BACKLOG_CAP) { toastBacklog.push(message); } else { toastOverflow++; }
+	};
+	context.subscriptions.push({ dispose: () => { if (toastTimer) { clearTimeout(toastTimer); toastTimer = undefined; } } });
+
 	// Уведомления IDE: новые задачи, назначенные на тебя, и свежие события команды.
 	let lastNotifiedActivityId: string | undefined;
 	const notifyOnChanges = (previousBoard: BoardSnapshot | undefined, previousActivity: TeamActivityEvent[] | undefined): void => {
@@ -295,7 +373,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 					if (onOther || !previousBoard.tasks.some(prev => prev.id === task.id)) {
 						// Назначена тебе (ранее была без тебя) или создана сразу на тебя.
 						if (previousBoard.tasks.some(prev => prev.id === task.id && prev.assigneeId !== me) || !previousBoard.tasks.some(prev => prev.id === task.id)) {
-							void vscode.window.showInformationMessage(vscode.l10n.t('📋 Task assigned to you: {0}', task.title));
+							notifyToast(vscode.l10n.t('📋 Task assigned to you: {0}', task.title));
 						}
 					}
 				}
@@ -306,7 +384,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 			const fresh = state.activity.filter(ev => !previousActivity.some(prev => prev.createdAt === ev.createdAt && prev.action === ev.action) && ev.userId !== me);
 			if (fresh.length) {
 				const first = fresh[0];
-				void vscode.window.showInformationMessage(vscode.l10n.t('🔔 {0}: {1}', first.userName, first.action));
+				notifyToast(vscode.l10n.t('🔔 {0}: {1}', first.userName, first.action));
 			}
 		}
 		lastNotifiedActivityId = state.activity?.[0]?.targetId ?? lastNotifiedActivityId;
@@ -320,9 +398,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 		refreshing = doRefresh().finally(() => { refreshing = undefined; });
 		return refreshing;
 	};
+	// Живые обновления доски по WebSocket: сервер стреляет onDidChange на каждое
+	// событие команды, раньше никто не слушал — обновлялось только вручную.
+	// Debounce 1 c, чтобы очередь сообщений не выливалась в лавину refresh.
+	let wsRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+	context.subscriptions.push(api.onDidChange(() => {
+		if (wsRefreshTimer) { clearTimeout(wsRefreshTimer); }
+		wsRefreshTimer = setTimeout(() => { wsRefreshTimer = undefined; void refresh(); }, 1000);
+	}));
 	/** Маскировать значение ключа: первые 3 символа + … + последние 4 символа. */
 	const maskKey = (value: string): string => {
-		if (!value || value.length < 8) { return value; }
+		// Короткие значения не отдаём как есть — иначе keyHint короткого ключа = весь ключ.
+		if (!value || value.length < 8) { return '•••'; }
 		return value.slice(0, 3) + '…' + value.slice(-4);
 	};
 	// Старый сервер отдаёт last_ok как 1/0 — UI сравнивает строго с true/false, из-за чего
@@ -335,6 +422,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 		try {
 			state.session = await api.getSession();
 			state.demo = false;
+			demoBoardCache = undefined;
 			state.teamId = state.teamId && state.session.teams.some(team => team.id === state.teamId) ? state.teamId : state.session.teams[0]?.id;
 			// Пять независимых чтений — одним залпом. По очереди это пять сетевых кругов
 			// подряд: на удалённом сервере (40–60 мс на запрос) обновление доски ждало
@@ -803,6 +891,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 		await refresh();
 		return result;
 	}, false);
+	// Показать исходный ключ: сервер отдаёт расшифрованное значение только по явному
+	// запросу maintainer и выше, а факт показа пишет в аудит команды.
+	register('auraTeam.revealApiKey', async (keyId?: string) => {
+		if (!keyId) { return ''; }
+		const result = await api.revealApiKey(requireTeam(state), String(keyId));
+		return result?.value ?? '';
+	}, false);
 	// Ключи из встроенного плагина Aura API: список для импорта + какие уже перенесены.
 	const importedAuraKeys = (): Record<string, { teamKeyId?: string; label?: string; at?: string }> => context.globalState.get(IMPORTED_AURA_KEYS, {});
 	const listAuraKeys = async (): Promise<AuraApiKey[]> => {
@@ -937,7 +1032,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 
 	// Аватар: сохранение dataURL (JPEG, до ~200 КБ после сжатия на стороне webview).
 	register('auraTeam.setAvatar', async (dataUrl?: string) => {
-		if (!dataUrl || !dataUrl.startsWith('data:image/')) { throw new Error(vscode.l10n.t('Invalid image.')); }
+		// Строгая проверка формата: одного префикса data:image/ мало — кавычка в значении
+		// ломала бы атрибут src и добавляла обработчики.
+		if (!dataUrl || !/^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/.test(dataUrl)) { throw new Error(vscode.l10n.t('Invalid image.')); }
 		if (dataUrl.length > 280_000) { throw new Error(vscode.l10n.t('Image is too large (max ~200 KB).')); }
 		await profiles.save({ avatar: dataUrl } as never);
 		updateAvatar();
@@ -1448,7 +1545,8 @@ class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
 		});
 		webviewView.onDidDispose(() => { this.view = undefined; this.visible = false; });
 		webviewView.webview.options = { enableScripts: true };
-		const nonce = String(Date.now()) + '-' + Math.floor(Math.random() * 1e9);
+		// Nonce — криптографический: Date.now+Math.random предсказуем и подбирается.
+		const nonce = randomUUID();
 		// NB: replace() меняет только первое вхождение — nonce остался бы в CSP,
 		// а <script nonce="__NONCE__"> был бы заблокирован CSP (пустой сайдбар).
 		webviewView.webview.html = LAUNCHER_HTML
@@ -2191,17 +2289,17 @@ function memberRowHtml(m, meId) {
 		'<span class=\"title\">' + esc(m.displayName) + '</span>' +
 		'<span class=\"end\">' + role + '<span class=\"actions\">' + memberKickHtml(m, meId) + '</span></span></div>';
 }
-/* Событие: ✕ скрывает запись только у вас, корзина (owner/maintainer) удаляет
-   её из аудита для всей команды. */
-function eventRowHtml(ev, evKey, canDelete) {
+/* Событие: ✕ скрывает запись только у вас. Кнопку-корзину «удалить для всей
+   команды» убрали: рядом стоял крестик, и промахнуться по значку удаления
+   чужого события было слишком легко. */
+function eventRowHtml(ev, evKey) {
 	/* A2: счётчик повторов — инлайн ×N сразу после сущности */
 	const rep = ev.count > 1 ? ' <span class=\"rep\">' + t('times2') + ev.count + '</span>' : '';
-	const delBtn = canDelete && ev.id ? '<button class=\"act-btn danger\" data-del-event=\"' + esc(ev.id) + '\" aria-label=\"' + esc(t('delEvent')) + '\" title=\"' + esc(t('delEvent')) + '\">' + ci('trash') + '</button>' : '';
 	return '<div class=\"row ev-row\" data-evkey=\"' + esc(evKey) + '\">' +
 		'<span></span>' +
 		'<span class=\"title\">' + esc(ev.userName) + ' ' + esc(describe(ev)) + (ev.taskTitle ? ' <span class=\"ev-entity\" data-view=\"board\">«' + esc(ev.taskTitle) + '»</span>' : '') + rep + '</span>' +
 		'<span class=\"end\"><span class=\"time\">' + esc(timeAgo(ev.latestAt)) + '</span>' +
-		'<span class=\"actions\">' + delBtn +
+		'<span class=\"actions\">' +
 		'<button class=\"act-btn\" data-dismiss-ev=\"' + esc(evKey) + '\" aria-label=\"' + esc(t('hideEvent')) + '\" title=\"' + esc(t('hideEvent')) + '\">' + ci('closeSmall') + '</button>' +
 		'</span></span></div>';
 }
@@ -2306,7 +2404,6 @@ function updateLists() {
 \tconst dismissed = new Set(state.dismissedActivity ?? []);
 \tconst key = (ev) => ev.createdAt + '|' + ev.action + '|' + ev.userId;
 \tconst me = members.find((m) => m.id === u.id);
-	const canDeleteEvents = Boolean((me && (me.role === 'owner' || me.role === 'maintainer')) || state.session?.admin);
 	const deletedEv = deletedEvents;
 	const feedAll = (state.activity ?? []).filter(ev => !dismissed.has(key(ev)) && !deletedEv.has(String(ev.id)));
 	const hiddenEvents = (state.activity ?? []).length - feedAll.length;
@@ -2334,7 +2431,7 @@ function updateLists() {
 \t\trequestAnimationFrame(() => { tailWrap.dataset.open = 'true'; });
 \t} else if (!tail.length && tailWrap) { tailWrap.dataset.open = 'false'; setTimeout(() => tailWrap.remove(), 250); }
 \tconst tailList = document.getElementById('eventTailList');
-\tsyncList(eventList, head, (ev) => eventRowHtml(ev, key(ev), canDeleteEvents), (ev) => key(ev), (el, ev) => {
+\tsyncList(eventList, head, (ev) => eventRowHtml(ev, key(ev)), (ev) => key(ev), (el, ev) => {
 \t\tconst rep = ev.count > 1 ? t('times2') + ev.count : '';
 \t\tconst repEl = el.querySelector('.rep');
 \t\tif (rep && !repEl) { el.querySelector('.title').insertAdjacentHTML('beforeend', ' <span class="rep">' + esc(rep) + '</span>'); }
@@ -2342,7 +2439,7 @@ function updateLists() {
 \t\telse if (!rep && repEl) { repEl.remove(); }
 \t\tel.querySelector('.time').textContent = timeAgo(ev.latestAt);
 \t});
-\tif (tailList) { syncList(tailList, tail, (ev) => eventRowHtml(ev, key(ev), canDeleteEvents), (ev) => key(ev), (el, ev) => { el.querySelector('.time').textContent = timeAgo(ev.latestAt); }); }
+\tif (tailList) { syncList(tailList, tail, (ev) => eventRowHtml(ev, key(ev)), (ev) => key(ev), (el, ev) => { el.querySelector('.time').textContent = timeAgo(ev.latestAt); }); }
 \tconst clearFeedBtn = document.getElementById('clearFeedBtn');
 \tclearFeedBtn.style.display = collapsed.length ? '' : 'none';
 }
@@ -2415,21 +2512,6 @@ function bindListHandlers() {
 			const hideRow = dismissBtn.closest('.ev-row');
 			if (hideRow) { hideRow.style.height = hideRow.offsetHeight + 'px'; hideRow.offsetHeight; hideRow.classList.add('removing'); setTimeout(() => hideRow.remove(), 260); }
 			vscode.postMessage({ type: 'invoke', command: 'auraTeam.dismissActivity', args: [evHideKey] });
-			return;
-		}
-\t\tconst delEvBtn = e.target.closest('[data-del-event]');
-		if (delEvBtn) {
-			e.stopPropagation();
-			deletedEvents.add(String(delEvBtn.dataset.delEvent));
-			const delRow = delEvBtn.closest('.ev-row');
-			if (delRow && !delRow.classList.contains('removing')) {
-				/* плавное схлопывание: фиксируем высоту, затем анимируем в 0 */
-				delRow.style.height = delRow.offsetHeight + 'px';
-				delRow.offsetHeight;
-				delRow.classList.add('removing');
-				setTimeout(() => delRow.remove(), 260);
-			}
-			vscode.postMessage({ type: 'invoke', command: 'auraTeam.deleteActivity', args: [delEvBtn.dataset.delEvent] });
 			return;
 		}
 		const entity = e.target.closest('.ev-entity');

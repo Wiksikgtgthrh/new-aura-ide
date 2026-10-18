@@ -1,0 +1,405 @@
+[0m
+> build · qwen3.8-flash
+[0m✗ [0mSkill "aggg2-mandatory-reads" failed
+[91m[1mError: [0mUnable to load skill aggg2-mandatory-reads
+[0m→ [0mRead docs/swarm/ZAN-zan-a2-n8n.md 
+> build · qwen3.8-flash
+Канон-чек: скилл `aggg2-mandatory-reads` в этом билде недоступен (ошибка загрузки) — это подтверждено и в самом ревью (§5: «db-tools/findings.py и aggg2-скилла в этом билде нет»). Рабочий канон: AGENTS.md проекта прочитан (контекст), находки — только в docs/swarm. Задача понятна: закрыть §6 Зана (миграция `inspect()`, строка в DONE, регистр схемы), зона — только `extensions/n8n-panel`.
+
+Смотрю код:
+[0m$ [0mls -la extensions/n8n-panel/ && git status --porcelain extensions/n8n-panel/ | head -20
+total 73
+drwxr-xr-x 1 Wiks 197121     0 Oct 18 05:13 .
+drwxr-xr-x 1 Wiks 197121     0 Oct  6 21:00 ..
+-rw-r--r-- 1 Wiks 197121   147 Oct  6 21:00 README.md
+-rw-r--r-- 1 Wiks 197121 13799 Oct 18 09:15 extension.js
+drwxr-xr-x 1 Wiks 197121     0 Oct 18 05:13 l10n
+drwxr-xr-x 1 Wiks 197121     0 Oct 18 05:09 media
+-rw-r--r-- 1 Wiks 197121  1501 Oct 18 09:15 package.json
+-rw-r--r-- 1 Wiks 197121   707 Oct 18 09:15 package.nls.json
+-rw-r--r-- 1 Wiks 197121  1004 Oct 18 09:15 package.nls.ru.json
+?? extensions/n8n-panel/
+> build · qwen3.8-flash
+[0m→ [0mRead extensions/n8n-panel/extension.js 
+> build · qwen3.8-flash
+[0m→ [0mRead extensions/n8n-panel/package.json 
+[0m✱ [0mGrep "interface ConfigurationInspect<T>" [90min src/vscode-dts/vscode.d.ts · 0 matches[0m
+[0m$ [0mls /c/Users/Wiks/AppData/Local/Temp/opencode/ | grep -i -E 'zan|n8n' ; ls docs/swarm/
+a2-n8n-low-harness.cjs
+gen-n8n-icon.cjs
+n8n-harness.cjs
+n8n-keycheck.cjs
+tsc-n8n-out.txt
+tsconfig.zan-a2-n8n.json
+zan-a2-verify.cjs
+zan-b2-check.cjs
+zan-final-vh-b1
+zan-rerun.txt
+zan2-b1-parser-test.cjs
+zan2-b1-webview-script.js
+zan2-b1-webview-test.cjs
+zan2-b1-webview.html
+zan2-vh-b1
+zanb1-pg
+zanfix-pg
+zanfix2-pg
+zansec-pg
+zansec-pg2
+zansec-shims
+DONE-a2-n8n-low.md
+DONE-a2-team.md
+DONE-b1.md
+DONE-b1fix.md
+DONE-b1fix2.md
+DONE-b2.md
+PROMPT-a2-n8n-fix.md
+PROMPT-a2-n8n-low.md
+PROMPT-a2-team-fix.md
+PROMPT-a2-team.md
+PROMPT-b1-kotlin-emulator.md
+PROMPT-b1fix.md
+PROMPT-b1fix2.md
+PROMPT-b2-n8n-market.md
+PROMPT-explorer.md
+PROMPT-zan-a2-n8n.md
+PROMPT-zan-a2-team.md
+PROMPT-zan-b1.md
+PROMPT-zan-b2.md
+PROMPT-zan2-b1.md
+PROMPT-zan3-b1.md
+REVIEW-AURA.md
+ZAN-b1.md
+ZAN-b2.md
+ZAN-zan-a2-n8n.md
+ZAN-zan-a2-team.md
+ZAN-zan2-b1.md
+ZAN-zan3-b1.md
+a2-n8n-fix.log
+a2-n8n-low.log
+a2-team-fix.log
+a2-team.log
+b1.log
+b1fix.log
+b1fix2.log
+b2.log
+explorer-aura.log
+run-a2-n8n-fix.sh
+run-a2-n8n-low.sh
+run-a2-team-fix.sh
+run-a2-team.sh
+run-b1-restart.sh
+run-b1.sh
+run-b1fix.sh
+run-b1fix2.sh
+run-b2.sh
+run-zan-a2-n8n.sh
+run-zan-a2-team.sh
+run-zan-b1.sh
+run-zan-b2.sh
+run-zan2-b1.sh
+run-zan3-b1.sh
+zan-a2-n8n.log
+zan-a2-team.log
+zan-b1.log
+zan-b2.log
+zan2-b1-smoke.cjs
+zan2-b1.log
+zan3-b1.log
+> build · qwen3.8-flash
+[0m→ [0mRead docs/swarm/DONE-a2-n8n-low.md 
+[0m✱ [0mGrep "ConfigurationInspect" [90min src/vscode-dts/vscode.d.ts · 0 matches[0m
+> build · qwen3.8-flash
+[0m✱ [0mGrep "inspect\(section" [90min src/vscode-dts/vscode.d.ts · 0 matches[0m
+[0m✱ [0mGrep "globalValue|workspaceFolderValue" [90min src/vscode-dts/vscode.d.ts · 9 matches[0m
+> build · qwen3.8-flash
+[0m→ [0mRead src/vscode-dts/vscode.d.ts [90m[offset=6820, limit=80][0m
+> build · qwen3.8-flash
+[0m→ [0mRead C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs [90m[limit=120][0m
+[0m→ [0mRead C:/Users/Wiks/AppData/Local/Temp/opencode/tsconfig.zan-a2-n8n.json 
+> build · qwen3.8-flash
+[0m→ [0mRead C:/Users/Wiks/AppData/Local/Temp/opencode/zan-a2-verify.cjs [90m[offset=121][0m
+> build · qwen3.8-flash
+[0m← [0mEdit extensions/n8n-panel/extension.js
+Index: extensions/n8n-panel/extension.js
+===================================================================
+--- extensions/n8n-panel/extension.js
++++ extensions/n8n-panel/extension.js
+@@ -19,9 +19,11 @@
+ 	const configured = (vscode.workspace.getConfiguration('n8nPanel').get('url') || '').trim().replace(/\/+$/, '');
+ 	if (configured && !/^https?:\/\//i.test(configured)) {
+ 		return `https://${configured}`;
+ 	}
+-	return configured;
++	// ZAN-zan-a2 §4.1: нормализуем регистр схемы — checkStatus различает её чувствительным startsWith,
++	// «HTTPS://host» уходил в http-клиент, Node синхронно кидал Protocol-not-supported → offline при живом сервере.
++	return configured.replace(/^(https?):/i, (match, scheme) => `${scheme.toLowerCase()}:`);
+ }
+ 
+ /** AURA-004: самоподписанные — только по явной n8nPanel.allowSelfSigned. Зан-ревью §5 п.4: старый ключ n8n.allowSelfSigned читается как фолбэк (софт-миграция). */
+ function isSelfSignedAllowed() {
+
+[0m← [0mEdit extensions/n8n-panel/extension.js
+Index: extensions/n8n-panel/extension.js
+===================================================================
+--- extensions/n8n-panel/extension.js
++++ extensions/n8n-panel/extension.js
+@@ -24,13 +24,19 @@
+ 	// «HTTPS://host» уходил в http-клиент, Node синхронно кидал Protocol-not-supported → offline при живом сервере.
+ 	return configured.replace(/^(https?):/i, (match, scheme) => `${scheme.toLowerCase()}:`);
+ }
+ 
+-/** AURA-004: самоподписанные — только по явной n8nPanel.allowSelfSigned. Зан-ревью §5 п.4: старый ключ n8n.allowSelfSigned читается как фолбэк (софт-миграция). */
++/** AURA-004: самоподписанные — только по явной n8nPanel.allowSelfSigned.
++ * ZAN-zan-a2 §6.1: софт-миграция через get()-фолбэк была мертва в реальном VS Code — незаданный ключ даёт
++ * не undefined, а манифест-дефолт false (extHostConfiguration.ts: lookUp, undefined → только тогда defaultValue),
++ * поэтому `typeof val === 'boolean'` всегда true и старый ключ не читался. Теперь смотрим ТОЛЬКО юзеровские
++ * значения по scope через inspect(): не задан ни в одном scope → читаем старый n8n.allowSelfSigned. */
+ function isSelfSignedAllowed() {
+-	const val = vscode.workspace.getConfiguration('n8nPanel').get('allowSelfSigned');
+-	if (typeof val === 'boolean') {
+-		return val;
++	const insp = vscode.workspace.getConfiguration('n8nPanel').inspect('allowSelfSigned');
++	// приоритет совпадает с эффективным значением VS Code: workspaceFolder > workspace > global
++	const userVal = insp && (insp.workspaceFolderValue ?? insp.workspaceValue ?? insp.globalValue);
++	if (typeof userVal === 'boolean') {
++		return userVal;
+ 	}
+ 	return vscode.workspace.getConfiguration('n8n').get('allowSelfSigned', false);
+ }
+ 
+
+> build · qwen3.8-flash
+§6.1 и §6.3 закрыты в коде. Теперь §6.2 — переписать враньё-строку в DONE-a2-n8n-low.md:
+[0m← [0mEdit docs/swarm/DONE-a2-n8n-low.md
+Index: docs/swarm/DONE-a2-n8n-low.md
+===================================================================
+--- docs/swarm/DONE-a2-n8n-low.md
++++ docs/swarm/DONE-a2-n8n-low.md
+@@ -4,9 +4,9 @@
+ 
+ 1. §5.1 токен — extension.js:296 `crypto.randomBytes(16)` per-render, вшивка в HTML :108, сверка в слушателе :162 (`msg.token === RENDER_TOKEN`), своё сообщение с токеном :301. Проверка: forgery без токена → отброс, с токеном → accept; сигнатура `tabHtml(url, renderToken)` :72.
+ 2. §5.2 checkStatus — try/catch в executor extension.js:50 (синхронный throw → `resolve(false)`, не unhandled rejection); getUrl :18-23 автодополняет `https://` голому хосту/IP, `http(s)://` не трогает, трим хвостовых `/`. Проверка: mock-throw `Invalid URL` резолвится false.
+ 3. §5.3 экранирование — helper extension.js:67-69 `jsonForScript` = stringify + `.replace(/</g,'\\u003c')`; применён в tab :107, launcher :214, токен :108. Проверка: l10n-значение `</script><b>` — в обоих HTML нет сырого `</script>`, есть `\u003c`.
+-4. §5.4 один префикс — package.json:37 `n8nPanel.allowSelfSigned`; софт-миграция: extension.js:28 новый ключ, :32 фолбэк старого `n8n.allowSelfSigned`. Проверка: новый приоритетен / старый читается, когда новый не задан / дефолт false.
++4. §5.4 один префикс — package.json:37 `n8nPanel.allowSelfSigned`; софт-миграция: extension.js:34 (`inspect('allowSelfSigned')`, scope-значения workspaceFolder→workspace→global) — старый `n8n.allowSelfSigned` (:40) читается, только когда новый **не задан юзером ни в одном scope**; в рантайме VS Code `get()` на незаданном ключе возвращает манифест-дефолт false, поэтому fолбэк по `get()` был мёртв (ZAN-zan-a2 §6.1 — исправлено). Проверка: realistic-стаб (get=манифест-дефолт, inspect=scope) — новый приоритетен / старый читается при unset / дефолт false.
+ 5. §5.5 reveal — extension.js:284 `currentPanel.reveal()` без аргументов. Проверка: первоисточник форка vscode.d.ts:10149 — `undefined` = текущая viewColumn; вхождений `reveal(vscode.ViewColumn` в файле не осталось.
+ 6. §5.6 описание — package.nls.json:6 и package.nls.ru.json:6: скоуп «только проверка статуса» + «на загрузку вкладки (iframe) не влияет». Проверка: grep обоих файлов.
+ 
+ **НЕ проверено:** живой n8n и рендер настроек в UI (нужен запуск IDE); в dev-режиме манифест-nls всегда EN (Зан §5 п.7) — renamed-ключ глазами не сверян.
+
+> build · qwen3.8-flash
+[0m$ [0mnode -v; openssl version 2>/dev/null || echo NO_OPENSSL; ls node_modules/typescript/package.json 2>/dev/null && grep -o '"version": "[^"]*"' node_modules/typescript/package.json | head -1
+v24.21.0
+OpenSSL 3.2.4 11 Feb 2025 (Library: OpenSSL 3.2.4 11 Feb 2025)
+node_modules/typescript/package.json
+"version": "6.0.2"
+> build · qwen3.8-flash
+TS 6.0.2 (флаг Зана валиден), openssl есть, Node 24. Генерю self-signed серт для живого https-теста и пишу харнесс с realistic-стабом (scope-значения + `inspect()`, `get()` = манифест-дефолт):
+[0m$ [0mmkdir -p /c/Users/Wiks/AppData/Local/Temp/opencode/a2fix-cert && cd /c/Users/Wiks/AppData/Local/Temp/opencode/a2fix-cert && openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 1 -nodes -subj "/CN=127.0.0.1" -addext "subjectAltName=IP:127.0.0.1" 2>&1 | tail -2 && ls
+B43F0000:error:80000002:system library:BIO_new_file:No such file or directory:../openssl-3.2.4/crypto/bio/bss_file.c:67:calling fopen(C:\Program Files\PostgreSQL\psqlODBC\etc\openssl.cnf, r)
+B43F0000:error:10000080:BIO routines:BIO_new_file:no such file:../openssl-3.2.4/crypto/bio/bss_file.c:75:
+> build · qwen3.8-flash
+OPENSSL_CONF указывает на несуществующий файл (реликт psqlODBC). Обхожу:
+[0m$ [0mcd /c/Users/Wiks/AppData/Local/Temp/opencode/a2fix-cert && OPENSSL_CONF=NUL openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 1 -nodes -subj "/CN=127.0.0.1" -addext "subjectAltName=IP:127.0.0.1" 2>&1 | tail -1; ls *.pem
+req: subject name is expected to be in the format /type0=value0/type1=value1/type2=... where characters may be escaped by \. This name is not in that format: 'C:/Program Files/Git/CN=127.0.0.1'
+key.pem
+> build · qwen3.8-flash
+MSYS конвертит `/CN=` в путь. Отключаю конверсию:
+[0m$ [0mcd /c/Users/Wiks/AppData/Local/Temp/opencode/a2fix-cert && MSYS_NO_PATHCONV=1 OPENSSL_CONF=NUL openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 1 -nodes -subj "/CN=127.0.0.1" -addext "subjectAltName=IP:127.0.0.1" 2>&1 | tail -1; ls *.pem && MSYS_NO_PATHCONV=1 OPENSSL_CONF=NUL openssl x509 -in cert.pem -noout -subject -ext subjectAltName
+-----
+cert.pem
+key.pem
+subject=CN=127.0.0.1
+X509v3 Subject Alternative Name: 
+    IP Address:127.0.0.1
+> build · qwen3.8-flash
+[0m← [0mWrite C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-fix-verify.cjs
+Created file successfully: C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-fix-verify.cjs
+> build · qwen3.8-flash
+[0m$ [0mnode /c/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-fix-verify.cjs 2>&1
+PASS  node --check extension.js OK
+PASS  JSON ×4 парсятся
+PASS  манифест: 9 %ключей% ↔ nls ↔ nls.ru 1:1
+PASS  l10n: 10 уникальных ключей ↔ bundle 1:1
+PASS  §6.1: миграция через inspect(), мёртвого get()-фолбэка нет
+PASS  A1 getUrl: голый хост → https:// + трим хвостовых /
+PASS  A2 getUrl: http:// не трогается
+PASS  A3 checkStatus: синхронный Invalid URL → resolve(false), не reject
+PASS  A4 live http: мёртвая ссылка → warning
+PASS  A5 checkStatus: живой сервер → 0 warning
+PASS  A6 checkStatus: мёртвый сервер → 1 warning
+PASS  B1 БЛОКЕР§6.1+§6.3: unset-новый + старый n8n.allowSelfSigned=true + «HTTPS://» → живой self-signed сервер онлайн (миграция жива, схема lowercased)
+PASS  B2 iframe src: схема нормализована в нижний регистр
+PASS  B3 дефолт остался безопасным: нигде не задано → rejectUnauthorized → offline (1 warning)
+PASS  B4 новый ключ global=true → онлайн
+PASS  B5 явный новый false бьёт старый true → offline
+PASS  C0 контроль бага: старая логика на realistic-семантике игнорирует старый ключ (dead code подтверждён)
+PASS  C1 БЛОКЕР§6.1: новый unset ни в одном scope + старый true → allow (rejectUnauthorized=false)
+PASS  C2 нигде не задано → verify (true)
+PASS  C3 новый global=true приоритетнее старого false
+PASS  C4 новый global=false приоритетнее старого true
+PASS  C5 workspace бьёт global false → allow
+PASS  C6 workspaceFolder бьёт workspace/global → allow (приоритет folder>workspace>global)
+PASS  D1 токен вшит (per-panel)
+PASS  D2 токен = 32 hex
+PASS  D3 форджери (без токена / чужой токен) → отброшены
+PASS  D4 верный токен → принят
+PASS  D5 экранирование tab: ровно 1 </script>, payload только как \u003c
+FAIL  D6 reveal() без аргументов, панель не размножается :: Expected values to be strictly equal:
+
+17 !== 18
+
+PASS  E1 unhandledRejection=0, uncaughtException=0
+
+==== 29/30 PASS ====
+> build · qwen3.8-flash
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-fix-verify.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-fix-verify.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-fix-verify.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-fix-verify.cjs
+@@ -314,10 +314,11 @@
+ 	});
+ 	state.l10nHook = null;
+ 
+ 	const before = panels.length;
+-	await openTabSafe();
+-	await openTabSafe();
++	lastPanel().dispose(); // стартуем с чистой currentPanel (как в оригинальном харнессе Зана)
++	await openTabSafe(); // создаёт
++	await openTabSafe(); // повторный — reveal, не плодит
+ 	check('D6 reveal() без аргументов, панель не размножается', () => {
+ 		assert.strictEqual(panels.length, before + 1);
+ 		const p = lastPanel();
+ 		assert.strictEqual(p._reveals.length, 1);
+
+> build · qwen3.8-flash
+[0m$ [0mnode /c/Users/Wiks/AppData/Local/Temp/opencode/a2-n8n-fix-verify.cjs 2>&1 | tail -8; echo "---TSC---"; node node_modules/typescript/bin/tsc -p /c/Users/Wiks/AppData/Local/Temp/opencode/tsconfig.zan-a2-n8n.json; echo "tsc exit: $?"
+PASS  D2 токен = 32 hex
+PASS  D3 форджери (без токена / чужой токен) → отброшены
+PASS  D4 верный токен → принят
+PASS  D5 экранирование tab: ровно 1 </script>, payload только как \u003c
+PASS  D6 reveal() без аргументов, панель не размножается
+PASS  E1 unhandledRejection=0, uncaughtException=0
+
+==== 30/30 PASS ====
+---TSC---
+node:internal/modules/cjs/loader:1568
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\new-aura-ide\vscode-main\node_modules\typescript\bin\tsc'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1142:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)
+    at Module._load (node:internal/modules/cjs/loader:1341:5)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.21.0
+tsc exit: 1
+> build · qwen3.8-flash
+30/30. tsc в этом дистрибутиве лежит в `lib/tsc.js`, не `bin/tsc`:
+[0m$ [0mls node_modules/typescript/bin/ node_modules/typescript/lib/tsc.js 2>&1 | head -5; echo "---"; node node_modules/typescript/lib/tsc.js -p /c/Users/Wiks/AppData/Local/Temp/opencode/tsconfig.zan-a2-n8n.json; echo "tsc exit: $?"
+node_modules/typescript/lib/tsc.js
+
+node_modules/typescript/bin/:
+tsc6
+---
+tsc exit: 0
+> build · qwen3.8-flash
+tsc exit 0 (allowJs+checkJs против живого `vscode.d.ts`). Теперь точные номера строк для отчёта:
+[0m$ [0mgrep -n -E 'function getUrl|configured.replace|function isSelfSignedAllowed|inspect\(|userVal|typeof userVal|getConfiguration\(.n8n.\)|startsWith..https|rejectUnauthorized' extensions/n8n-panel/extension.js; echo "---DONE строка 4---"; grep -n '§5.4' docs/swarm/DONE-a2-n8n-low.md; echo "---git zone---"; git status --porcelain | grep -v '^??' | head; git log --oneline -1
+18:function getUrl() {
+25:	return configured.replace(/^(https?):/i, (match, scheme) => `${scheme.toLowerCase()}:`);
+32: * значения по scope через inspect(): не задан ни в одном scope → читаем старый n8n.allowSelfSigned. */
+33:function isSelfSignedAllowed() {
+34:	const insp = vscode.workspace.getConfiguration('n8nPanel').inspect('allowSelfSigned');
+36:	const userVal = insp && (insp.workspaceFolderValue ?? insp.workspaceValue ?? insp.globalValue);
+37:	if (typeof userVal === 'boolean') {
+38:		return userVal;
+40:	return vscode.workspace.getConfiguration('n8n').get('allowSelfSigned', false);
+47:			const client = url.startsWith('https') ? https : http;
+49:			if (url.startsWith('https')) {
+50:				options.rejectUnauthorized = !isSelfSignedAllowed();
+---DONE строка 4---
+8:4. §5.4 один префикс — package.json:37 `n8nPanel.allowSelfSigned`; софт-миграция: extension.js:34 (`inspect('allowSelfSigned')`, scope-значения workspaceFolder→workspace→global) — старый `n8n.allowSelfSigned` (:40) читается, только когда новый **не задан юзером ни в одном scope**; в рантайме VS Code `get()` на незаданном ключе возвращает манифест-дефолт false, поэтому fолбэк по `get()` был мёртв (ZAN-zan-a2 §6.1 — исправлено). Проверка: realistic-стаб (get=манифест-дефолт, inspect=scope) — новый приоритетен / старый читается при unset / дефолт false.
+---git zone---
+ M ORCHESTRATOR.md
+ M aura-team-server/deploy/Caddyfile
+ M aura-team-server/deploy/server-setup.sh
+ M aura-team-server/scripts/start-local.mjs
+ M aura-team-server/src/config.ts
+ M aura-team-server/src/routes/aggg.ts
+ M aura-team-server/src/routes/auth.ts
+ M aura-team-server/src/routes/keys.ts
+ M aura-team-server/src/routes/teams.ts
+ M aura-team-server/src/server.ts
+2b4ad587 orca: плагин Orca — CLI-агенты (Claude Code, Codex, Gemini, Qwen, opencode, Aider) во вкладках-терминалах, worktree на агента, настройки ключей/base URL/модели, инструмент agent.cli для оркестратора
+> build · qwen3.8-flash
+[0m← [0mEdit docs/swarm/DONE-a2-n8n-low.md
+Index: docs/swarm/DONE-a2-n8n-low.md
+===================================================================
+--- docs/swarm/DONE-a2-n8n-low.md
++++ docs/swarm/DONE-a2-n8n-low.md
+@@ -4,9 +4,9 @@
+ 
+ 1. §5.1 токен — extension.js:296 `crypto.randomBytes(16)` per-render, вшивка в HTML :108, сверка в слушателе :162 (`msg.token === RENDER_TOKEN`), своё сообщение с токеном :301. Проверка: forgery без токена → отброс, с токеном → accept; сигнатура `tabHtml(url, renderToken)` :72.
+ 2. §5.2 checkStatus — try/catch в executor extension.js:50 (синхронный throw → `resolve(false)`, не unhandled rejection); getUrl :18-23 автодополняет `https://` голому хосту/IP, `http(s)://` не трогает, трим хвостовых `/`. Проверка: mock-throw `Invalid URL` резолвится false.
+ 3. §5.3 экранирование — helper extension.js:67-69 `jsonForScript` = stringify + `.replace(/</g,'\\u003c')`; применён в tab :107, launcher :214, токен :108. Проверка: l10n-значение `</script><b>` — в обоих HTML нет сырого `</script>`, есть `\u003c`.
+-4. §5.4 один префикс — package.json:37 `n8nPanel.allowSelfSigned`; софт-миграция: extension.js:34 (`inspect('allowSelfSigned')`, scope-значения workspaceFolder→workspace→global) — старый `n8n.allowSelfSigned` (:40) читается, только когда новый **не задан юзером ни в одном scope**; в рантайме VS Code `get()` на незаданном ключе возвращает манифест-дефолт false, поэтому fолбэк по `get()` был мёртв (ZAN-zan-a2 §6.1 — исправлено). Проверка: realistic-стаб (get=манифест-дефолт, inspect=scope) — новый приоритетен / старый читается при unset / дефолт false.
++4. §5.4 один префикс — package.json:37 `n8nPanel.allowSelfSigned`; софт-миграция: extension.js:34 (`inspect('allowSelfSigned')`, scope-значения workspaceFolder→workspace→global) — старый `n8n.allowSelfSigned` (:40) читается, только когда новый **не задан юзером ни в одном scope**; в рантайме VS Code `get()` на незаданном ключе возвращает манифест-дефолт false, поэтому фолбэк по `get()` был мёртв (ZAN-zan-a2 §6.1 — исправлено). Проверка: realistic-стаб (get=манифест-дефолт, inspect=scope) — новый приоритетен / старый читается при unset / дефолт false.
+ 5. §5.5 reveal — extension.js:284 `currentPanel.reveal()` без аргументов. Проверка: первоисточник форка vscode.d.ts:10149 — `undefined` = текущая viewColumn; вхождений `reveal(vscode.ViewColumn` в файле не осталось.
+ 6. §5.6 описание — package.nls.json:6 и package.nls.ru.json:6: скоуп «только проверка статуса» + «на загрузку вкладки (iframe) не влияет». Проверка: grep обоих файлов.
+ 
+ **НЕ проверено:** живой n8n и рендер настроек в UI (нужен запуск IDE); в dev-режиме манифест-nls всегда EN (Зан §5 п.7) — renamed-ключ глазами не сверян.
+
+[0m← [0mWrite docs/swarm/DONE-a2-n8n-fix.md
+Created file successfully: docs/swarm/DONE-a2-n8n-fix.md
+> build · qwen3.8-flash
+[0m$ [0msed -n '28,42p' extensions/n8n-panel/extension.js | cat -n; echo "---"; wc -l docs/swarm/DONE-a2-n8n-fix.md; git status --porcelain extensions/n8n-panel/ docs/swarm/DONE-a2-n8n-fix.md docs/swarm/DONE-a2-n8n-low.md; git log --oneline --since='6 hours ago' | head -3; node --check extensions/n8n-panel/extension.js && echo "final node --check OK"
+1	/** AURA-004: самоподписанные — только по явной n8nPanel.allowSelfSigned.
+     2	 * ZAN-zan-a2 §6.1: софт-миграция через get()-фолбэк была мертва в реальном VS Code — незаданный ключ даёт
+     3	 * не undefined, а манифест-дефолт false (extHostConfiguration.ts: lookUp, undefined → только тогда defaultValue),
+     4	 * поэтому `typeof val === 'boolean'` всегда true и старый ключ не читался. Теперь смотрим ТОЛЬКО юзеровские
+     5	 * значения по scope через inspect(): не задан ни в одном scope → читаем старый n8n.allowSelfSigned. */
+     6	function isSelfSignedAllowed() {
+     7		const insp = vscode.workspace.getConfiguration('n8nPanel').inspect('allowSelfSigned');
+     8		// приоритет совпадает с эффективным значением VS Code: workspaceFolder > workspace > global
+     9		const userVal = insp && (insp.workspaceFolderValue ?? insp.workspaceValue ?? insp.globalValue);
+    10		if (typeof userVal === 'boolean') {
+    11			return userVal;
+    12		}
+    13		return vscode.workspace.getConfiguration('n8n').get('allowSelfSigned', false);
+    14	}
+    15	
+---
+19 docs/swarm/DONE-a2-n8n-fix.md
+?? docs/swarm/DONE-a2-n8n-fix.md
+?? docs/swarm/DONE-a2-n8n-low.md
+?? extensions/n8n-panel/
+final node --check OK
+> build · qwen3.8-flash
+готово. все три блока §6 закрыты, ничего не коммичено.
+
+**результат по пунктам:**
+
+| §6 | статус | доказательство |
+|---|---|---|
+| 1. миграция мертва (`get()`-фолбэк) | закрыт | extension.js:33–41 — `isSelfSignedAllowed` теперь через `inspect('allowSelfSigned')` (:34): юзеровские scope-значения folder→workspace→global (:36), не задан ни в одном → старый `n8n.allowSelfSigned` (:40) |
+| 2. враньё-строка в DONE | закрыт | DONE-a2-n8n-low.md:8 переписана под реальную семантику |
+| 3. регистр схемы (§4.1) | закрыт | extension.js:25 — `getUrl` нормализует схему в нижний регистр; `checkStatus` :47/:49 не тронут, но больше не видит `HTTPS://` |
+
+**реальные прогоны (не заявка):**
+- харнесс `a2-n8n-fix-verify.cjs` — стаб 'vscode' с **настоящей** семантикой рантайма (`get()`=манифест-дефолт, `inspect()`=scope) + живой self-signed **https**-сервер + vm-прогон их webview + регрессия фаз Зана 1–4: **30/30 PASS**, unhandledRejection=0. Ключ: `B1` (старый ключ=true + unset новый + `HTTPS://` → живой сервер онлайн — ровно блокер-кейс), `C0` (контроль: старая логика на той же семантике игнорирует старый ключ — dead-code подтверждён и починен), `C1–C6` матрица приоритетов, `B3` дефолт остался безопасным.
+- `tsc -p` конфигом Зана (allowJs+checkJs против `src/vscode-dts/vscode.d.ts`): **exit 0, 0 ошибок**.
+- `node --check` OK; JSON×4, 9↔9↔9 %ключей%, l10n 10↔10 — регрессии нет.
+
+нюанс для ревью: порядок `??` взял folder→workspace→global, а не литеральный из §6.1 («globalValue ?? workspaceValue…»): это семантика эффективного значения VS Code (d.ts:6865–6890 сверены), а суть Зана — «unset ни в одном scope → старый» — сохранена ровно. Первая серия была 29/30 — FAIL D6 оказался багом моего харнесса (забыл dispose перед reveal-фазой), не кода.
+
+финал в `docs/swarm/DONE-a2-n8n-fix.md` (19 строк, номера сверены post-edit). Следующий шаг: повторный прогон Зана — он сам писал «вердикт перевернётся без второго круга»; его старый харнесс нужно дополнить `inspect()`-стабом (в моём realism-режиме это 15 строк, путь в отчёте).

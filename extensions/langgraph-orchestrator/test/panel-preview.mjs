@@ -97,6 +97,18 @@ const state = {
 		{ ts: NOW - 40_000, level: 'error', node: 'tester#1.1', message: 'проверки не прошли за 3 попыток' },
 	],
 	runDefaults: { planner: 'auto', plannerTier: 'high', maxParallel: 4 },
+	harness: {
+		available: true,
+		version: '2.3.0',
+		workspace: true,
+		tasks: [
+			{ id: 'T-0001', title: 'Прогнать gates на лендинге', role: 'qa', risk: 'write', status: 'pending', attempts: 0, maxAttempts: 3, owner: null, verified: false, deps: [], lastError: null, updatedAt: new Date(NOW - 3000).toISOString() },
+			{ id: 'T-0002', title: 'Удалить устаревшие ассеты', role: 'builder', risk: 'destructive', status: 'awaiting_approval', attempts: 0, maxAttempts: 3, owner: null, verified: false, deps: [], lastError: null, updatedAt: new Date(NOW - 2500).toISOString() },
+			{ id: 'T-0003', title: 'Собрать hero-иллюстрацию', role: 'builder', risk: 'write', status: 'running', attempts: 1, maxAttempts: 3, owner: 'aura-panel', verified: false, deps: [], lastError: null, updatedAt: new Date(NOW - 2000).toISOString() },
+			{ id: 'T-0004', title: 'Починить мёртвые пункты меню', role: 'builder', risk: 'write', status: 'done', attempts: 2, maxAttempts: 3, owner: null, verified: true, deps: [], lastError: null, updatedAt: new Date(NOW - 1500).toISOString() },
+			{ id: 'T-0005', title: 'Прогнать nav-completeness', role: 'qa', risk: 'read', status: 'failed', attempts: 3, maxAttempts: 3, owner: null, verified: false, deps: [], lastError: { class: 'permanent', message: 'FAIL: Рынки, Фьючерсы, Стейкинг', at: new Date(NOW - 1000).toISOString() }, updatedAt: new Date(NOW - 1000).toISOString() },
+		],
+	},
 	team: {
 		available: true,
 		tasks: [
@@ -131,9 +143,20 @@ const shim = `
 
 const bootstrap = `
 	<script nonce="preview">
-		const forced = new URLSearchParams(location.search).get('lang');
+		const previewParams = new URLSearchParams(location.search);
+		const forced = previewParams.get('lang');
 		if (forced === 'ru' || forced === 'en') { window.__previewState.uiLanguage = forced; }
 		window.dispatchEvent(new MessageEvent('message', { data: { type: 'state', payload: window.__previewState } }));
+		const previewTab = previewParams.get('tab');
+		if (previewTab) { window.dispatchEvent(new MessageEvent('message', { data: { type: 'tab', payload: previewTab } })); }
+		const previewView = previewParams.get('view');
+		if (previewView) {
+			setTimeout(() => {
+				const index = { agents: 1, team: 2, harness: 3 }[previewView];
+				const button = index ? document.querySelector('#boardViewSeg button:nth-child(' + index + ')') : null;
+				if (button) { button.click(); }
+			}, 50);
+		}
 	</script>`;
 
 const html = template

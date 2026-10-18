@@ -5,6 +5,7 @@ import * as path from 'path';
 import { ApprovalPolicy, OrchestratorConfig } from '../util/config';
 import { GitClient } from '../git/gitClient';
 import { CACHEABLE_TOOLS, ToolCache } from './cache';
+import { HarnessRunner } from '../harness/runner';
 import { logInfo } from '../util/log';
 
 export interface ToolDef {
@@ -266,6 +267,42 @@ export const TOOL_DEFS: ToolDef[] = [
 			required: ['ref', 'path'],
 		},
 	},
+	{
+		name: 'harness.tasks',
+		description: 'List the Agent Harness task queue of the project (.agent-state/tasks.json): statuses, owners, attempts, evidence.',
+		mutating: false,
+		inputSchema: {
+			type: 'object',
+			properties: {},
+		},
+	},
+	{
+		name: 'harness.doctor',
+		description: 'Run the Agent Harness environment check (tools/doctor.mjs) and return its report.',
+		mutating: false,
+		inputSchema: {
+			type: 'object',
+			properties: {},
+		},
+	},
+	{
+		name: 'harness.gates',
+		description: 'Run Agent Harness quality gates (tools/gates.mjs: e2e/a11y/visual/perf) in the workspace. Optionally pass a single suite name.',
+		mutating: true,
+		inputSchema: {
+			type: 'object',
+			properties: { suite: { type: 'string', description: 'Optional gate suite, e.g. e2e or a11y' } },
+		},
+	},
+	{
+		name: 'harness.journeys',
+		description: 'Run Agent Harness scenario journeys (tools/journeys.mjs) in the workspace. Optionally pass a journey filter substring.',
+		mutating: true,
+		inputSchema: {
+			type: 'object',
+			properties: { filter: { type: 'string', description: 'Optional journey name filter' } },
+		},
+	},
 ];
 
 export class ToolExecutor {
@@ -275,6 +312,8 @@ export class ToolExecutor {
 		private git: GitClient = new GitClient(),
 		/** Кэш read-only тулов (Этап 5.3). Без него всё работает как раньше. */
 		private cache?: ToolCache,
+		/** Мост к Agent Harness (Этап harness): без него harness.* честно отвечают отказом. */
+		private harness?: HarnessRunner,
 	) {
 		this.git.setPath(this.config.gitPath);
 	}
@@ -381,6 +420,10 @@ export class ToolExecutor {
 			case 'git.finalPatch': return this.finalPatch(input);
 			case 'git.applyPatch': return this.applyPatch(input);
 			case 'git.readRef': return this.readRef(input);
+			case 'harness.tasks': return this.harnessTasks(cwd);
+			case 'harness.doctor': return this.harnessTool('doctor.mjs', []);
+			case 'harness.gates': return this.harnessTool('gates.mjs', input.suite ? [String(input.suite)] : [], cwd);
+			case 'harness.journeys': return this.harnessTool('journeys.mjs', input.filter ? [String(input.filter)] : [], cwd);
 			default: throw new Error(`no executor for ${name}`);
 		}
 	}
@@ -481,6 +524,29 @@ export class ToolExecutor {
 		return folder.uri;
 	}
 
+	// ---- Agent Harness (мост через aura-harness или ~/.agent-harness) ----
+
+	private async harnessTasks(cwd?: string): Promise<string> {
+		if (!this.harness) {
+			throw new Error('Agent Harness недоступен: плагин aura-harness не подключён');
+		}
+		const root = cwd ?? this.workspaceRootFs();
+		const tasks = await this.harness.listTasks(root);
+		return JSON.stringify({ tasks }, null, 2);
+	}
+
+	private async harnessTool(tool: string, args: string[], cwd?: string): Promise<string> {
+		if (!this.harness) {
+			throw new Error('Agent Harness недоступен: плагин aura-harness не подключён');
+		}
+		const result = await this.harness.run(tool, args, cwd);
+		const output = (result.stdout + result.stderr).trim();
+		if (result.code !== 0) {
+			throw new Error(output || `${tool} exited ${result.code}`);
+		}
+		return output;
+	}
+
 	private workspaceRootFs(): string {
 		return this.workspaceRoot().fsPath;
 	}
@@ -500,13 +566,31 @@ export class ToolExecutor {
 			throw new Error('agent.cli: the Orca plugin is not installed or disabled (Market → Orca)');
 		}
 		const timeoutMs = Math.min(Math.max(Number(input.timeoutMs) || CLI_AGENT_TIMEOUT_MS, 10_000), 3_600_000);
-		const result = await vscode.commands.executeCommand<{ ok: boolean; exitCode?: number | null; error?: string; output?: string } | undefined>('auraOrca.runHeadless', {
-			agent: input.agent ? String(input.agent) : undefined,
-			task,
-			cwd: this.baseDir(cwd),
-			title: task.slice(0, 60),
-			timeoutMs,
-		});
+		const title = task.slice(0, 60);
+		// AURA-033: долгий headless-запуск молчал — живой агент не отличался от
+		// зависшего. Пока ждём результат, раз в 20 с пишем в лог аптайм и объём
+		// вывода сессии Orca (матчим по точному заголовку, который сами же задали).
+		const heartbeat = setInterval(() => {
+			void vscode.commands.executeCommand<{ sessions?: { title: string; status: string; startedAt?: number; output?: string }[] } | undefined>('auraOrca.getState')
+				.then(state => {
+					const session = state?.sessions?.find(item => item.title === title);
+					if (!session) { return; }
+					const uptime = session.startedAt ? Math.round((Date.now() - session.startedAt) / 1000) : 0;
+					logInfo(`agent.cli heartbeat: "${title}" ${session.status}, uptime ${uptime}s, output ${Math.round((session.output ?? '').length / 1024)} KB`);
+				}, () => { /* Orca недоступна — молчим */ });
+		}, 20_000);
+		let result: { ok: boolean; exitCode?: number | null; error?: string; output?: string } | undefined;
+		try {
+			result = await vscode.commands.executeCommand<typeof result>('auraOrca.runHeadless', {
+				agent: input.agent ? String(input.agent) : undefined,
+				task,
+				cwd: this.baseDir(cwd),
+				title,
+				timeoutMs,
+			});
+		} finally {
+			clearInterval(heartbeat);
+		}
 		if (!result) {
 			throw new Error('agent.cli: Orca returned no result');
 		}

@@ -1,0 +1,610 @@
+[0m
+> build · glm-5.3-prime
+[0m→ [0mRead docs/swarm/REVIEW-AURA.md 
+[0m→ [0mRead docs/swarm/DONE-b2.md 
+[0m$ [0mgit status --short -- extensions/n8n-panel product.json && echo "---UNTRACKED---" && git ls-files --others --exclude-standard extensions/n8n-panel | head -50
+?? extensions/n8n-panel/
+---UNTRACKED---
+extensions/n8n-panel/README.md
+extensions/n8n-panel/extension.js
+extensions/n8n-panel/l10n/bundle.l10n.ru.json
+extensions/n8n-panel/media/icon.svg
+extensions/n8n-panel/media/n8n-icon.png
+extensions/n8n-panel/package.json
+extensions/n8n-panel/package.nls.json
+extensions/n8n-panel/package.nls.ru.json
+> build · glm-5.3-prime
+Весь `extensions/n8n-panel/` — untracked (`??`), значит диффа по нему нет, проверяю файлы напрямую.
+[0m→ [0mRead extensions/n8n-panel/package.json 
+[0m→ [0mRead extensions/n8n-panel/extension.js 
+> build · glm-5.3-prime
+Файлы манифеста и кода прочитаны. Теперь — nls/l10n, иконки, и места в build/, на которые ссылается билдер.
+[0m→ [0mRead extensions/n8n-panel/package.nls.json 
+[0m→ [0mRead extensions/n8n-panel/README.md 
+[0m→ [0mRead extensions/n8n-panel/media/icon.svg 
+[0m→ [0mRead extensions/n8n-panel/package.nls.ru.json 
+[0m→ [0mRead extensions/n8n-panel/l10n/bundle.l10n.ru.json 
+> build · glm-5.3-prime
+Теперь проверяю аргументацию билдера по product.json — build/lib/extensions.ts и build/lib/builtInExtensions.ts.
+[0m→ [0mRead build/lib/builtInExtensions.ts [90m[offset=70, limit=70][0m
+[0m→ [0mRead build/lib/extensions.ts [90m[offset=400, limit=80][0m
+> build · glm-5.3-prime
+Аргументация по build/lib/extensions.ts:433 и builtInExtensions.ts:96-118 пока подтверждается текстуально. Теперь: верх extensions.ts (excludedExtensions), product.json, схема views в исходниках VS Code, и механизм package.nls.
+[0m→ [0mRead build/lib/extensions.ts [90m[limit=60, offset=1][0m
+[0m✱ [0mGrep "viewsContainers" [90min src/vs/workbench/services/extensions/common · 1 match[0m
+[0m$ [0mnode -e "const p=require('./product.json'); console.log('version(vscode):', require('./package.json').version); console.log('builtInExtensions:', JSON.stringify((p.builtInExtensions||[]).map(e=>e.name))); console.log('extensionsGallery:', p.extensionsGallery ? JSON.stringify(Object.keys(p.extensionsGallery)) : 'none'); console.log('webExtensions:', JSON.stringify((p.webBuiltInExtensions||[]).map(e=>e.name)));"
+version(vscode): 1.137.0
+builtInExtensions: ["ms-vscode.js-debug-companion","ms-vscode.js-debug","ms-vscode.vscode-js-profile-table"]
+extensionsGallery: ["serviceUrl","cacheUrl","itemUrl","publisherUrl","resourceUrlTemplate","extensionUrlTemplate","controlUrl","nlsBaseUrl"]
+webExtensions: []
+[0m$ [0mgrep -rn "package\.nls" src/vs --include=*.ts -l | head -20
+src/vs/platform/extensionManagement/common/extensionsScannerService.ts
+src/vs/platform/extensionManagement/test/node/extensionsScannerService.test.ts
+src/vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.ts
+src/vs/workbench/services/extensionManagement/browser/webExtensionsScannerService.ts
+> build · glm-5.3-prime
+[0m✗ [0mRead src/vs/workbench/contrib/views/browser/viewsExtensionPoint.ts failed
+[91m[1mError: [0mFile not found: C:\new-aura-ide\vscode-main\src\vs\workbench\contrib\views\browser\viewsExtensionPoint.ts
+[0m$ [0mgrep -n "package\.nls" src/vs/platform/extensionManagement/common/extensionsScannerService.ts | head -20; echo ---; grep -n "package\.nls" src/vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.ts | head -20; echo ---; grep -n "excludedExtensions" build/lib/extensions.ts | head; echo ---; grep -rn "package\.nls\|nlsPath\|nls\.json" src/vs/workbench/api/node/extHostExtensionService.ts | head -20
+825:		const defaultPackageNLS = joinPath(extensionLocation, 'package.nls.json');
+911:				const toCheck = joinPath(extensionLocation, `package.nls.${locale}.json`);
+914:						c({ localized: toCheck, original: joinPath(extensionLocation, 'package.nls.json') });
+918:						c({ localized: joinPath(extensionLocation, 'package.nls.json'), original: null });
+926:				return c({ localized: joinPath(extensionLocation, 'package.nls.json'), original: null });
+---
+97:		// the `package` endpoint returns the translations in a key-value format similar to the package.nls.json file.
+---
+322:const excludedExtensions = [
+432:			.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
+---
+> build · glm-5.3-prime
+[0m→ [0mRead src/vs/platform/extensionManagement/common/extensionsScannerService.ts [90m[limit=50, offset=895][0m
+[0m$ [0msed -n '318,330p' build/lib/extensions.ts
+'git',
+	'microsoft-authentication',
+];
+
+const excludedExtensions = [
+	'copilot',
+	'vscode-api-tests',
+	'vscode-colorize-tests',
+	'vscode-colorize-perf-tests',
+	'vscode-test-resolver',
+	'ms-vscode.node-debug',
+	'ms-vscode.node-debug2',
+];
+[0m✱ [0mGlob "src/vs/workbench/**/viewsExtensionPoint.ts" [90m1 match[0m
+> build · glm-5.3-prime
+[0m→ [0mRead src/vs/workbench/api/browser/viewsExtensionPoint.ts [90m[limit=130][0m
+[0m$ [0mgrep -n "nls" src/vs/workbench/services/extensions/node/extensionPoints.ts | head -30; echo ===; grep -rn "package\.nls\|findMessageBundles\|NlsConfiguration" src/vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.ts | head -20
+grep: src/vs/workbench/services/extensions/node/extensionPoints.ts: No such file or directory
+===
+97:		// the `package` endpoint returns the translations in a key-value format similar to the package.nls.json file.
+> build · glm-5.3-prime
+viewsExtensionPoint: view-дескриптор требует `icon` — надо читать дальше, там два разных сценария (свой контейнер vs чужой).
+[0m→ [0mRead src/vs/workbench/api/browser/viewsExtensionPoint.ts [90m[limit=150, offset=131][0m
+> build · glm-5.3-prime
+viewsExtensionPoint требует `icon` в view-дескрипторе (`required: ['id','name','icon']`, строка 118) — а n8n-panel иконку в view не дал. Проверяю эмпирически: как объявляют views другие расширения в этом репо.
+[0m$ [0mfor f in $(grep -l '"views"' extensions/*/package.json | head -12); do echo "== $f"; node -e "const p=require('./$f'); const v=p.contributes&&p.contributes.views; if(v){for(const k of Object.keys(v)){for(const view of v[k]){console.log(k,'->',JSON.stringify({id:view.id,type:view.type,icon:view.icon?'yes':'NO_ICON'}));}}}" 2>/dev/null; done
+== extensions/aura-kotlin/package.json
+auraKotlin-android -> {"id":"auraKotlin.androidView","icon":"yes"}
+== extensions/aura-team/package.json
+auraTeam -> {"id":"auraTeam.home","type":"webview","icon":"NO_ICON"}
+== extensions/copilot/package.json
+copilot-chat -> {"id":"copilot-chat","icon":"yes"}
+context-inspector -> {"id":"context-inspector","icon":"yes"}
+== extensions/langgraph-orchestrator/package.json
+auraOrchestrator -> {"id":"auraOrchestrator.home","type":"webview","icon":"NO_ICON"}
+== extensions/n8n-panel/package.json
+n8nPanel -> {"id":"n8nPanel.launcher","type":"webview","icon":"NO_ICON"}
+== extensions/npm/package.json
+explorer -> {"id":"npm","icon":"yes"}
+== extensions/references-view/package.json
+references-view -> {"id":"references-view.tree","icon":"NO_ICON"}
+== extensions/vscode-api-tests/package.json
+remote -> {"id":"test.treeId","icon":"NO_ICON"}
+remote -> {"id":"test.treeSwitchUpdate","icon":"NO_ICON"}
+> build · glm-5.3-prime
+Сигналы смешанные: references-view (встроенное от Microsoft) — тоже без иконки. Смотрю его манифест и как валидация применяется в рантайме.
+[0m$ [0mnode -e "const p=require('./extensions/references-view/package.json'); console.log(JSON.stringify(p.contributes.views,null,1))"
+{
+ "references-view": [
+  {
+   "id": "references-view.tree",
+   "name": "%view.title%",
+   "when": "reference-list.isActive"
+  }
+ ]
+}
+[0m$ [0mgrep -rn "required" src/vs/workbench/api/browser/viewsExtensionPoint.ts | head; echo ===UPSTREAM===; git log --oneline -3 -- src/vs/workbench/api/browser/viewsExtensionPoint.ts 2>/dev/null | cat
+57:	required: ['id', 'title', 'icon']
+118:	required: ['id', 'name', 'icon'],
+181:	required: ['id', 'name'],
+===UPSTREAM===
+b616c3c1 Чистый код VS Code без LFS
+> build · glm-5.3-prime
+[0m$ [0mgrep -n "validate\|required\|IJSONSchema" src/vs/workbench/services/extensions/common/extensionsRegistry.ts | head -30
+8:import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+161:const extensionKindSchema: IJSONSchema = {
+174:export const schema: IJSONSchema = {
+440:				required: ['url', 'href', 'description'],
+563:					required: ['supported'],
+647:	jsonSchema: IJSONSchema;
+651:	 * A function which runs before the extension point has been validated and which
+> build · glm-5.3-prime
+[0m$ [0mgrep -n "jsonSchema\|validate\|collector.error\|extensionPoint\b" src/vs/workbench/services/extensions/common/extensionsRegistry.ts | sed -n '1,40p'; echo ===; grep -n "class ExtensionPoint\b\|processExtension\|_processExtension" src/vs/workbench/services/extensions/common/extensionsRegistry.ts
+8:import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+645:	extensionPoint: string;
+647:	jsonSchema: IJSONSchema;
+651:	 * A function which runs before the extension point has been validated and which
+662:		if (this._extensionPoints.has(desc.extensionPoint)) {
+663:			throw new Error('Duplicate extension point: ' + desc.extensionPoint);
+665:		const result = new ExtensionPoint<T>(desc.extensionPoint, desc.defaultExtensionKind, desc.canHandleResolver);
+666:		this._extensionPoints.set(desc.extensionPoint, result);
+668:			ImplicitActivationEvents.register(desc.extensionPoint, desc.activationEventsGenerator);
+671:		schema.properties!['contributes'].properties![desc.extensionPoint] = desc.jsonSchema;
+===
+109:export class ExtensionPoint<T> implements IExtensionPoint<T> {
+> build · glm-5.3-prime
+[0m$ [0mgrep -rn "validateExtensionManifest" src/vs --include=*.ts | grep -v test | head; echo ===; grep -n "required\|icon" src/vs/platform/extensions/common/extensionValidator.ts | head -20
+src/vs/platform/extensionManagement/common/extensionsScannerService.ts:26:import { validateExtensionManifest } from '../../extensions/common/extensionValidator.js';
+src/vs/platform/extensionManagement/common/extensionsScannerService.ts:756:		const validations = validateExtensionManifest(input.productVersion, input.productDate, input.location, extension.manifest, extension.isBuiltin);
+src/vs/platform/extensions/common/extensionValidator.ts:242:export function validateExtensionManifest(productVersion: string, productDate: ProductDate, extensionLocation: URI, extensionManifest: IExtensionManifest, extensionIsBuiltin: boolean): readonly [Severity, string][] {
+src/vs/workbench/services/extensionManagement/browser/webExtensionsScannerService.ts:40:import { validateExtensionManifest } from '../../../../platform/extensions/common/extensionValidator.js';
+src/vs/workbench/services/extensionManagement/browser/webExtensionsScannerService.ts:770:		validations.push(...validateExtensionManifest(this.productService.version, this.productService.date, webExtension.location, manifest, false));
+===
+> build · glm-5.3-prime
+[0m→ [0mRead src/vs/platform/extensionManagement/common/extensionsScannerService.ts [90m[limit=45, offset=740][0m
+> build · glm-5.3-prime
+[0m$ [0msed -n '1,60p' src/vs/platform/extensions/common/extensionValidator.ts; echo ...; grep -n "validate(\|import.*schema\|from.*extensionsRegistry" src/vs/platform/extensions/common/extensionValidator.ts | head
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { isEqualOrParent, joinPath } from '../../../base/common/resources.js';
+import Severity from '../../../base/common/severity.js';
+import { URI } from '../../../base/common/uri.js';
+import * as nls from '../../../nls.js';
+import * as semver from '../../../base/common/semver/semver.js';
+import { IExtensionManifest } from './extensions.js';
+
+export interface IParsedVersion {
+	hasCaret: boolean;
+	hasGreaterEquals: boolean;
+	majorBase: number;
+	majorMustEqual: boolean;
+	minorBase: number;
+	minorMustEqual: boolean;
+	patchBase: number;
+	patchMustEqual: boolean;
+	preRelease: string | null;
+}
+
+export interface INormalizedVersion {
+	majorBase: number;
+	majorMustEqual: boolean;
+	minorBase: number;
+	minorMustEqual: boolean;
+	patchBase: number;
+	patchMustEqual: boolean;
+	notBefore: number; /* milliseconds timestamp, or 0 */
+	isMinimum: boolean;
+}
+
+const VERSION_REGEXP = /^(\^|>=)?((\d+)|x)\.((\d+)|x)\.((\d+)|x)(\-.*)?$/;
+const NOT_BEFORE_REGEXP = /^-(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?$/;
+
+export function isValidVersionStr(version: string): boolean {
+	version = version.trim();
+	return (version === '*' || VERSION_REGEXP.test(version));
+}
+
+export function parseVersion(version: string): IParsedVersion | null {
+	if (!isValidVersionStr(version)) {
+		return null;
+	}
+
+	version = version.trim();
+
+	if (version === '*') {
+		return {
+			hasCaret: false,
+			hasGreaterEquals: false,
+			majorBase: 0,
+			majorMustEqual: false,
+			minorBase: 0,
+			minorMustEqual: false,
+			patchBase: 0,
+			patchMustEqual: false,
+...
+> build · glm-5.3-prime
+[0m→ [0mRead src/vs/platform/extensions/common/extensionValidator.ts [90m[limit=75, offset=242][0m
+> build · glm-5.3-prime
+[0m→ [0mRead src/vs/workbench/services/extensions/common/extensionsRegistry.ts [90m[limit=85, offset=109][0m
+> build · glm-5.3-prime
+[0m$ [0mgrep -n "function handleExtensionPoints\|validate(" src/vs/workbench/services/extensions/common/extensionsRegistry.ts; echo ===; sed -n '680,780p' src/vs/workbench/services/extensions/common/extensionsRegistry.ts
+===
+}
+
+const PRExtensions = {
+	ExtensionsRegistry: 'ExtensionsRegistry'
+};
+Registry.add(PRExtensions.ExtensionsRegistry, new ExtensionsRegistryImpl());
+export const ExtensionsRegistry: ExtensionsRegistryImpl = Registry.as(PRExtensions.ExtensionsRegistry);
+
+schemaRegistry.registerSchema(schemaId, schema);
+
+
+schemaRegistry.registerSchema(productSchemaId, {
+	properties: {
+		extensionEnabledApiProposals: {
+			description: nls.localize('product.extensionEnabledApiProposals', "API proposals that the respective extensions can freely use."),
+			type: 'object',
+			properties: {},
+			additionalProperties: {
+				anyOf: [{
+					type: 'array',
+					uniqueItems: true,
+					items: {
+						type: 'string',
+						enum: Object.keys(allApiProposals),
+						markdownEnumDescriptions: Object.values(allApiProposals).map(value => value.proposal)
+					}
+				}]
+			}
+		}
+	}
+});
+> build · glm-5.3-prime
+[0m$ [0mgrep -rn "handleExtensionPoints\|_activateModules\|checkProposedApiEnabled" src/vs/workbench/api/node/extHostExtensionService.ts 2>/dev/null | head; echo ===; grep -rln "handleExtensionPoints" src/vs | head
+===
+> build · glm-5.3-prime
+[0m$ [0mgrep -rln "ExtensionMessageCollector" src/vs --include=*.ts | head; echo ===; grep -rn "contributes" src/vs/workbench/services/extensions/common/extensionsRegistry.ts | head -8
+src/vs/workbench/api/browser/viewsExtensionPoint.ts
+src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts
+src/vs/workbench/contrib/tasks/common/problemMatcher.ts
+src/vs/workbench/contrib/tasks/common/taskDefinitionRegistry.ts
+src/vs/workbench/services/actions/common/menusExtensionPoint.ts
+src/vs/workbench/services/extensions/common/abstractExtensionService.ts
+src/vs/workbench/services/extensions/common/extensionsRegistry.ts
+src/vs/workbench/services/keybinding/browser/keybindingService.ts
+src/vs/workbench/services/language/common/languageService.ts
+src/vs/workbench/services/textMate/browser/textMateTokenizationFeatureImpl.ts
+===
+226:		contributes: {
+227:			description: nls.localize('vscode.extension.contributes', 'All contributions of the VS Code extension represented by this package.'),
+495:			description: nls.localize('vscode.extension.contributes.extensionPack', "A set of extensions that can be installed together. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp."),
+594:			description: nls.localize('vscode.extension.contributes.sponsor', "Specify the location from where users can sponsor your extension."),
+601:					description: nls.localize('vscode.extension.contributes.sponsor.url', "URL from where users can sponsor your extension. It must be a valid URL with a HTTP or HTTPS protocol. Example value: https://github.com/sponsors/nvaccess"),
+671:		schema.properties!['contributes'].properties![desc.extensionPoint] = desc.jsonSchema;
+> build · glm-5.3-prime
+[0m$ [0mgrep -n "ExtensionMessageCollector\|validate\|contributes\|_create\|Registry\|extensionPoints" src/vs/workbench/services/extensions/common/abstractExtensionService.ts | head -25
+31:import { Registry } from '../../../../platform/registry/common/platform.js';
+37:import { IExtensionFeaturesRegistry, Extensions as ExtensionFeaturesExtensions, IExtensionFeatureMarkdownRenderer, IRenderedData, } from '../../extensionManagement/common/extensionFeatures.js';
+39:import { ExtensionDescriptionRegistryLock, ExtensionDescriptionRegistrySnapshot, IActivationEventsReader, LockableExtensionDescriptionRegistry } from './extensionDescriptionRegistry.js';
+50:import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from './extensionsRegistry.js';
+86:	private readonly _registry = new LockableExtensionDescriptionRegistry(this._activationEventReader);
+253:		let lock: ExtensionDescriptionRegistryLock | null = null;
+271:	private async _deltaExtensions(lock: ExtensionDescriptionRegistryLock, _toAdd: IExtension[], _toRemove: string[] | IExtension[]): Promise<void> {
+519:	private async _resolveAndProcessExtensions(lock: ExtensionDescriptionRegistryLock,): Promise<void> {
+837:			const res = this._createExtensionHostManager(location, isInitialStart, initialActivationEvents);
+845:	private _createExtensionHostManager(runningLocation: ExtensionRunningLocation, isInitialStart: boolean, initialActivationEvents: string[]): null | [IExtensionHostManager, DisposableStore] {
+1077:	protected _getExtensionRegistrySnapshotWhenReady(): Promise<ExtensionDescriptionRegistrySnapshot> {
+1093:				if (desc.contributes && hasOwnProperty.call(desc.contributes, extPoint.name)) {
+1094:					result.push(new ExtensionPointContribution<T>(desc, desc.contributes[extPoint.name as keyof typeof desc.contributes] as T));
+1155:			if (extensionDescription.contributes) {
+1156:				for (const extPointName in extensionDescription.contributes) {
+1157:					if (hasOwnProperty.call(extensionDescription.contributes, extPointName)) {
+1166:		const extensionPoints = ExtensionsRegistry.getExtensionPoints();
+1168:		for (const extensionPoint of extensionPoints) {
+1233:			if (desc.contributes && hasOwnProperty.call(desc.contributes, extensionPoint.name)) {
+1236:					value: desc.contributes[extensionPoint.name as keyof typeof desc.contributes] as T,
+1237:					collector: new ExtensionMessageCollector(messageHandler, desc, extensionPoint.name)
+1623:Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+> build · glm-5.3-prime
+[0m→ [0mRead src/vs/workbench/services/extensions/common/abstractExtensionService.ts [90m[limit=70, offset=1148][0m
+> build · glm-5.3-prime
+[0m→ [0mRead src/vs/workbench/services/extensions/common/abstractExtensionService.ts [90m[limit=50, offset=1220][0m
+> build · glm-5.3-prime
+[0m→ [0mRead src/vs/workbench/api/browser/viewsExtensionPoint.ts [90m[limit=120, offset=281][0m
+> build · glm-5.3-prime
+[0m→ [0mRead src/vs/workbench/api/browser/viewsExtensionPoint.ts [90m[limit=150, offset=401][0m
+> build · glm-5.3-prime
+[0m$ [0msed -n '550,620p' src/vs/workbench/api/browser/viewsExtensionPoint.ts
+this.viewsRegistry.registerViews2(allViewDescriptors);
+	}
+
+	private getViewType(type: string | undefined): ViewType | undefined {
+		if (type === ViewType.Webview) {
+			return ViewType.Webview;
+		}
+		if (!type || type === ViewType.Tree) {
+			return ViewType.Tree;
+		}
+		return undefined;
+	}
+
+	private getDefaultViewContainer(): ViewContainer {
+		return this.viewContainersRegistry.get(EXPLORER)!;
+	}
+
+	private removeViews(extensions: readonly IExtensionPointUser<ViewExtensionPointType>[]): void {
+		const removedExtensions: ExtensionIdentifierSet = extensions.reduce((result, e) => { result.add(e.description.identifier); return result; }, new ExtensionIdentifierSet());
+		for (const viewContainer of this.viewContainersRegistry.all) {
+			const removedViews = this.viewsRegistry.getViews(viewContainer).filter(v => (v as ICustomViewDescriptor).extensionId && removedExtensions.has((v as ICustomViewDescriptor).extensionId));
+			if (removedViews.length) {
+				this.viewsRegistry.deregisterViews(removedViews, viewContainer);
+				for (const view of removedViews) {
+					const anyView = view as ICustomViewDescriptor;
+					if (anyView.treeView) {
+						anyView.treeView.dispose();
+					}
+				}
+			}
+		}
+	}
+
+	private convertInitialVisibility(value: string | undefined): InitialVisibility | undefined {
+		if (Object.values(InitialVisibility).includes(value as InitialVisibility)) {
+			return value as InitialVisibility;
+		}
+		return undefined;
+	}
+
+	private isValidViewDescriptors(viewDescriptors: IUserFriendlyViewDescriptor[], collector: ExtensionMessageCollector): boolean {
+		if (!Array.isArray(viewDescriptors)) {
+			collector.error(localize('requirearray', "views must be an array"));
+			return false;
+		}
+
+		for (const descriptor of viewDescriptors) {
+			if (typeof descriptor.id !== 'string') {
+				collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'id'));
+				return false;
+			}
+			if (typeof descriptor.name !== 'string') {
+				collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'name'));
+				return false;
+			}
+			if (descriptor.when && typeof descriptor.when !== 'string') {
+				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'));
+				return false;
+			}
+			if (descriptor.icon && typeof descriptor.icon !== 'string') {
+				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'icon'));
+				return false;
+			}
+			if (descriptor.contextualTitle && typeof descriptor.contextualTitle !== 'string') {
+				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'contextualTitle'));
+				return false;
+			}
+			if (descriptor.visibility && !this.convertInitialVisibility(descriptor.visibility)) {
+				collector.error(localize('optenum', "property `{0}` can be omitted or must be one of {1}", 'visibility', Object.values(InitialVisibility).join(', ')));
+				return false;
+> build · glm-5.3-prime
+Рантайм-валидация views: `icon` опционален (isValidViewDescriptors, строки 585+), фолбэк на иконку контейнера (строка 522). Теперь — поведение WebviewView при скрытии/показе (повторный вызов resolveWebviewView?) и полный программный прогон проверок.
+[0m$ [0mgrep -rn "resolveWebviewView\|_resolve\|retainContextWhenHidden" src/vs/workbench/contrib/webviewView/browser/webviewViewPane.ts | head -20; echo ===; grep -rn "resolveWebviewView" src/vs/workbench/contrib/webviewView/browser/webviewViewService.ts | head
+===
+> build · glm-5.3-prime
+[0m$ [0mls src/vs/workbench/contrib/webviewView/browser/ 2>/dev/null; echo ===; grep -rln "resolveWebviewView" src/vs | head
+webviewView.contribution.ts
+webviewViewPane.ts
+webviewViewService.ts
+===
+src/vs/workbench/api/browser/mainThreadWebviewViews.ts
+src/vs/workbench/api/common/extHost.protocol.ts
+src/vs/workbench/api/common/extHostWebviewView.ts
+> build · glm-5.3-prime
+[0m$ [0mgrep -n "resolve\|dispose\|visible\|retain" src/vs/workbench/api/common/extHostWebviewView.ts | head -30
+48:	public override dispose() {
+56:		this.#webview.dispose();
+58:		super.dispose();
+93:	public get visible(): boolean { return this.#isVisible; }
+99:	/* internal */ _setVisible(visible: boolean) {
+100:		if (visible === this.#isVisible || this.#isDisposed) {
+104:		this.#isVisible = visible;
+132:			throw new Error('Webview is disposed');
+160:			retainContextWhenHidden?: boolean;
+169:			retainContextWhenHidden: webviewOptions?.retainContextWhenHidden,
+179:	async $resolveWebviewView(
+198:		await provider.resolveWebviewView(revivedView, { state }, cancellation);
+203:		visible: boolean
+206:		webviewView._setVisible(visible);
+209:	async $disposeWebviewView(webviewHandle: string) {
+212:		webviewView.dispose();
+> build · glm-5.3-prime
+[0m→ [0mRead src/vs/workbench/api/common/extHostWebviewView.ts [90m[limit=60, offset=85][0m
+> build · glm-5.3-prime
+[0m→ [0mRead src/vs/workbench/api/common/extHostWebviewView.ts [90m[limit=45, offset=175][0m
+[0m$ [0mgrep -n "retainContextWhenHidden\|dispose\|_resolve\|visible" src/vs/workbench/contrib/webviewView/browser/webviewViewPane.ts | head -30
+111:	override dispose() {
+114:		super.dispose();
+203:		// Cancel in-flight revival when the webview is torn down (dispose or re-activation)
+225:				dispose: () => {
+226:					// Only reset and clear the webview itself. Don't dispose of the view container
+> build · glm-5.3-prime
+[0m→ [0mRead src/vs/workbench/contrib/webviewView/browser/webviewViewPane.ts [90m[limit=75, offset=180][0m
+> build · glm-5.3-prime
+[0m$ [0mgrep -n "onDidChangeBodyVisibility\|_activated\|webviewWindow\|shouldShow\|recreateWebview\|_webview.clear\|onDidChangeCheckboxState" src/vs/workbench/contrib/webviewView/browser/webviewViewPane.ts; echo ===; sed -n '120,180p' src/vs/workbench/contrib/webviewView/browser/webviewViewPane.ts
+27:import { WebviewWindowDragMonitor } from '../../webview/browser/webviewWindowDragMonitor.js';
+52:	private _activated = false;
+93:		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
+162:		if (this._activated) {
+166:		this._activated = true;
+213:				onDidChangeVisibility: this.onDidChangeBodyVisibility,
+227:					this._activated = false;
+228:					this._webview.clear();
+===
+	}
+
+	protected override renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
+		this._container = container;
+		this._rootContainer = undefined;
+
+		// The webview iframe lives in an overlay at the document root for DOM
+		// reasons (iframes can't be reparented). This means it's outside the
+		// normal Tab order of the sidebar. Add a tabbable proxy element so
+		// keyboard users can Tab into the webview content.
+		container.tabIndex = 0;
+		container.setAttribute('role', 'document');
+		this._register(addDisposableListener(container, 'focus', (e) => {
+			if (e.target === container && this._webview.value) {
+				this._webview.value.focus();
+			}
+		}));
+
+		this.layoutWebview();
+	}
+
+	public override saveState() {
+		if (this._webview.value) {
+			this.viewState[storageKeys.webviewState] = this._webview.value.state;
+		}
+
+		this.memento.saveMemento();
+		super.saveState();
+	}
+
+	private updateTreeVisibility() {
+		if (this.isBodyVisible()) {
+			this.activate();
+			this._webview.value?.claim(this, getWindow(this.element), undefined);
+		} else {
+			this._webview.value?.release(this);
+		}
+	}
+
+	private activate() {
+		if (this._activated) {
+			return;
+		}
+
+		this._activated = true;
+
+		const origin = this.extensionId ? WebviewViewPane.getOriginStore(this.storageService).getOrigin(this.id, this.extensionId) : undefined;
+		const webview = this.webviewService.createWebviewOverlay({
+			origin,
+			providedViewType: this.id,
+			title: this.title,
+			options: { purpose: WebviewContentPurpose.WebviewView },
+			contentOptions: {},
+			extension: this.extensionId ? { id: this.extensionId } : undefined
+		});
+		webview.state = this.viewState[storageKeys.webviewState];
+		this._webview.value = webview;
+
+		this.layoutWebview();
+> build · glm-5.3-prime
+Механика ясна: resolve у view вызывается один раз на жизнь панели, `onDidChangeVisibility → render()` — задокументированный паттерн, подписки копятся на новых объектах. Теперь полный программный прогон: синтаксис, JSON, PNG-структура с CRC, ключи %…% и l10n 1:1, поведенческие тесты.
+[0m← [0mWrite C:/Users/Wiks/AppData/Local/Temp/opencode/zan-b2-check.js
+Created file successfully: C:/Users/Wiks/AppData/Local/Temp/opencode/zan-b2-check.js
+> build · glm-5.3-prime
+[0m$ [0mnode --check extensions/n8n-panel/extension.js && echo "node --check: OK"; echo ===; node "C:\Users\Wiks\AppData\Local\Temp\opencode\zan-b2-check.js"
+node --check: OK
+===
+file:///C:/Users/Wiks/AppData/Local/Temp/opencode/zan-b2-check.js:2
+const fs = require('fs');
+           ^
+
+ReferenceError: require is not defined in ES module scope, you can use import instead
+This file is being treated as an ES module because it has a '.js' file extension and '\\?\C:\Users\Wiks\package.json' contains "type": "module". To treat it as a CommonJS script, rename it to use the '.cjs' file extension.
+    at file:///C:/Users/Wiks/AppData/Local/Temp/opencode/zan-b2-check.js:2:12
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.21.0
+> build · glm-5.3-prime
+Домашняя папка юзера объявляет `"type": "module"` — переименовываю скрипт в .cjs и фиксирую баг с crc32.
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan-b2-check.js
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan-b2-check.js
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan-b2-check.js
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan-b2-check.js
+@@ -52,9 +52,9 @@
+ while (off < png.length) {
+ 	const len = png.readUInt32BE(off); const type = png.slice(off + 4, off + 8).toString('ascii');
+ 	const data = png.slice(off + 8, off + 8 + len);
+ 	const crcActual = png.readUInt32BE(off + 8 + len);
+-	const crcCalc = require('zlib').crc32 ? 0 : crc32(png.slice(off + 4, off + 8 + len));
++	const crcCalc = crc32(png.slice(off + 4, off + 8 + len));
+ 	chunks.push({ type, len });
+ 	if (type === 'IHDR') {
+ 		ihdr = {
+ 			width: data.readUInt32BE(0), height: data.readUInt32BE(4),
+
+> build · glm-5.3-prime
+[0m$ [0mmv "C:\Users\Wiks\AppData\Local\Temp\opencode\zan-b2-check.js" "C:\Users\Wiks\AppData\Local\Temp\opencode\zan-b2-check.cjs" && node "C:\Users\Wiks\AppData\Local\Temp\opencode\zan-b2-check.cjs"
+PASS  JSON parse: package.json
+PASS  JSON parse: package.nls.json
+PASS  JSON parse: package.nls.ru.json
+PASS  JSON parse: l10n/bundle.l10n.ru.json
+PASS  %keys% 1:1 vs package.nls.json  | manifest=9 nls=9 missing=[] extra=[]
+PASS  %keys% 1:1 vs package.nls.ru.json  | manifest=9 nls=9 missing=[] extra=[]
+PASS  l10n.t keys 1:1 vs bundle.l10n.ru.json  | runtime=10 bundle=10 missing=[] extra=[]
+PASS  CSP: found 2 csp definitions  | ["default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src https: http:;","default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';"]
+PASS  CSP script-src nonce + no unsafe-inline  | 'nonce-${nonce}'
+PASS  CSP script-src nonce + no unsafe-inline  | 'nonce-${nonce}'
+PASS  no inline onclick handlers
+PASS  PNG signature
+PASS  PNG IHDR 128x128 RGBA (colorType 6, bitDepth 8)  | {"width":128,"height":128,"bitDepth":8,"colorType":6,"compression":0,"filter":0,"interlace":0}
+PASS  PNG ends with IEND  | IHDR:13 IDAT:1707 IEND:0
+PASS  PNG IDAT inflates; size matches 128x128 RGBA  | raw=65664 expected=65664
+FAIL  http.get scheme-less URL: no sync throw  | Invalid URL — вылетает синхронно -> rejected promise -> unhandled rejection в render()
+
+15/16 passed, 1 failed
+> build · glm-5.3-prime
+Прогоны: 15/16 PASS, единственный FAIL — мой поведенческий тест (http.get без схемы падает синхронно → это реальная дырка в checkStatus). Добиваю последнюю проверку — nativeExtensions в сборке, чтобы закрыть вопрос «попадёт ли n8n-panel в бандл».
+[0m$ [0msed -n '300,322p' build/lib/extensions.ts; echo ===; grep -rn "94.141.160.70\|sslip" extensions/n8n-panel/ | head -5
+latest
+	}))
+		.pipe(buffer())
+		.pipe(vinylZip.src())
+		.pipe(filter('extension/**'))
+		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
+		.pipe(packageJsonFilter)
+		.pipe(buffer())
+		.pipe(jsonEditor({ __metadata: metadata }))
+		.pipe(packageJsonFilter.restore)
+		.done();
+}
+
+/**
+ * All extensions that are known to have some native component and thus must be built on the
+ * platform that is being built.
+ */
+const nativeExtensions = [
+	'git',
+	'microsoft-authentication',
+];
+
+const excludedExtensions = [
+===
+extensions/n8n-panel/package.json:34:					"default": "https://94.141.160.70.sslip.io",
+> build · glm-5.3-prime
+Все проверки закрыты. Пишу отчёт.
+[0m← [0mWrite docs/swarm/ZAN-b2.md
+Created file successfully: docs/swarm/ZAN-b2.md
+> build · glm-5.3-prime
+Готово. Отчёт: `docs/swarm/ZAN-b2.md`.
+
+**Вердикт: ACCEPT** — с хвостом из 3 LOW на следующий проход.
+
+**Что проверил (не по вере):**
+- git: вся папка `extensions/n8n-panel/` untracked (8 файлов), product.json чист. Диффа «до/после» физически нет — сверял с REVIEW-AURA.md.
+- Каждый пункт DONE по коду: все 7 (AURA-001…006 + l10n) подтверждены file:line, включая nonce-CSP в обоих webview, TLS-дефолт, reconnect-цепочку, singleton+onDidDispose.
+- Прогнал свой батч: `node --check` OK, 4 JSON валидны, PNG проверен глубже билдера (CRC всех чанков + IDAT inflate = 65664 байта — валидный 128×128 RGBA), %ключи% 9/9/9 и l10n 10/10 — строго 1:1.
+- Спорные решения билдера — оба **верны** по исходникам: builtInExtensions.ts:96-119 + extensions.ts:433 подтверждают, что product.json трогать было нельзя (упало бы на маркет-скачивании); retainContextWhenHidden оправдан — утечка была в размножении панелей, а не в retain.
+- viewsContainers/views — схема-совместимы: рантайм-валидация требует id+name (icon опционален, фолбэк на контейнер) — viewsExtensionPoint.ts:585+, references-view у Microsoft тоже без иконки.
+
+**Что нашёл (§5 отчёта):**
+1. LOW: message-listener в tabHtml принимает `{type:'load', url}` от кого угодно — скомпрометированный n8n может перегнать iframe на произвольный URL. Чинится токеном за один дифф.
+2. LOW: URL без схемы → `http.get` кидает синхронно → unhandled rejection, лаунчер виснет на «Проверяю…». Проверено прогоном, не догадка.
+3. LOW: `JSON.stringify` в `<script>` без экранирования `<` — потенциальный выход из CSP-контекста через строку перевода.
+
+**Заявлено, но не подтвердилось: ничего.** Дрейф строк-цитат в DONE есть (напр. «44-52,58» — CSP реально на :61/:165), враньём не считаю, но в п.9 отчёта зафиксировал.
+
+Вопрос: гнать ли хвост из трёх LOW отдельной заявкой на билдера, или закрыть задачу и внести в бэклог?

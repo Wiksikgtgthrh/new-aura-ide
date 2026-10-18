@@ -1,0 +1,739 @@
+[0m
+> build · glm-5.3-prime
+[0m→ [0mRead docs/swarm/ZAN-b1.md 
+[0m→ [0mRead docs/swarm/DONE-b1fix.md 
+> build · glm-5.3-prime
+[0m→ [0mRead docs/swarm 
+[0m✱ [0mGlob "extensions/aura-kotlin/**" [90m100 matches[0m
+> build · glm-5.3-prime
+[0m✱ [0mGlob "**/*smoke*.ts" [90min docs · 0 matches[0m
+[0m✱ [0mGlob "docs/swarm/*smoke*" [90m0 matches[0m
+> build · glm-5.3-prime
+[0m✱ [0mGrep "smoke|pglite|PGlite|drizzle-kit" [90min docs/swarm · 4 matches[0m
+[0m$ [0mgit status --porcelain | head -50 && echo "---" && git log --oneline -8
+M ORCHESTRATOR.md
+ M aura-team-server/deploy/Caddyfile
+ M aura-team-server/deploy/server-setup.sh
+ M aura-team-server/scripts/start-local.mjs
+ M aura-team-server/src/config.ts
+ M aura-team-server/src/routes/aggg.ts
+ M aura-team-server/src/routes/auth.ts
+ M aura-team-server/src/routes/keys.ts
+ M aura-team-server/src/routes/teams.ts
+ M aura-team-server/src/server.ts
+ M aura-team-server/test/admin.test.ts
+ M aura-team-server/test/key-probe.test.ts
+ M aura-team-server/test/server.test.ts
+ M build/gulpfile.extensions.ts
+ M build/lib/asar.ts
+ M build/lib/preLaunch.ts
+ M extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+ M extensions/aura-kotlin/src/android.ts
+ M extensions/aura-kotlin/src/deviceScreen.ts
+ M extensions/aura-orca/package.json
+ M extensions/aura-serverkit/package.json
+ M extensions/aura-team/package-lock.json
+ M extensions/aura-team/package.json
+ M extensions/aura-team/src/api/client.ts
+ M extensions/aura-team/src/extension.ts
+ M extensions/aura-team/src/git/service.ts
+ M extensions/aura-team/src/git/workflow.ts
+ M extensions/aura-team/src/webview/panelProvider.ts
+ M extensions/aura-team/src/webview/template.html
+ M extensions/aura-team/test/sidebar-syntax.test.mjs
+ M extensions/langgraph-orchestrator/src/host.ts
+ M extensions/langgraph-orchestrator/src/panel/template.html
+ M extensions/langgraph-orchestrator/src/tools/index.ts
+ M extensions/langgraph-orchestrator/test/panel-preview.mjs
+ M src/vs/base/node/nls.ts
+ M src/vs/monaco.d.ts
+ M src/vs/workbench/browser/parts/editor/editorGroupWatermark.ts
+ M src/vs/workbench/browser/parts/editor/media/editorgroupview.css
+ M src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css
+ M src/vs/workbench/contrib/aggg/browser/aggg.contribution.ts
+ M src/vs/workbench/contrib/aggg/browser/agggVersionWidget.ts
+ M src/vs/workbench/contrib/aggg/common/agggEntitlements.ts
+ M src/vs/workbench/contrib/aggg/test/common/agggEntitlements.test.ts
+ M src/vs/workbench/contrib/auraApi/browser/auraApi.contribution.ts
+ M src/vs/workbench/contrib/auraApi/browser/auraApiTools.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiChatTools.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiKeys.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiModel.ts
+ M src/vs/workbench/contrib/auraI18n/browser/auraLanguage.contribution.ts
+ M src/vs/workbench/contrib/auraMarket/browser/auraMarketEditorPane.ts
+---
+2b4ad587 orca: плагин Orca — CLI-агенты (Claude Code, Codex, Gemini, Qwen, opencode, Aider) во вкладках-терминалах, worktree на агента, настройки ключей/base URL/модели, инструмент agent.cli для оркестратора
+f02516bb team: командный процесс GitHub по кнопкам — своя ветка, свежий main, тесты, графический дифф, PR, слияние, откат
+4be44e73 team+orchestrator: канбан агентов, полный русский, проверка ключей, удаление событий, админ
+92f18435 build: sync allowScripts pins with locked versions; fix approve-scripts spawn on Windows
+2afc5bfb orchestrator: рабочий запуск сайдкара и новый UI панели; api: редизайн менеджера ключей
+d3771cc3 team: редизайн профиля поверх актуального кода
+5e17e88a Merge remote-tracking branch 'wiks/main'
+8a4c761a wip: локальные изменения
+> build · glm-5.3-prime
+Смоук-скриптов `docs/swarm/*smoke*.ts` в репо физически нет — это шаблонная фраза из промпта, в b1fix-зоне их никогда не существовало (подтверждаю глопом и логами прошлых прогонов). PGlite/drizzle — это другая зона (b2). Проверяю предмет ревью.
+[0m→ [0mRead extensions/aura-kotlin/src/deviceScreen.ts 
+> build · glm-5.3-prime
+Пункт за пунктом. Сначала — сопутствующий код и артефакты билда, затем проверю спеки и прогоню живые тесты парсера.
+[0m✱ [0mGrep "screenSize|rotateScreen|user_rotation|wm size|inputTap|inputSwipe" [90min extensions/aura-kotlin/src/android.ts · 8 matches[0m
+[0m$ [0mcd extensions/aura-kotlin && ls -la out/ | head -30 && echo "---DEVICESCREEN OUT---" && ls -la out/deviceScreen.js out/android.js 2>/dev/null && echo "---GREP VideoDecoder---" && grep -c "VideoDecoder" out/deviceScreen.js && echo "---GREP isFirstSlice---" && grep -n "isFirstSlice" out/deviceScreen.js | head && echo "---UNTRACKED---" && git status --porcelain . && echo "---SRC DATES---" && ls -la src/deviceScreen.ts src/android.ts l10n/bundle.l10n.ru.json
+total 1108
+drwxr-xr-x 1 Wiks 197121     0 Oct 15 20:11 .
+drwxr-xr-x 1 Wiks 197121     0 Oct 18 07:11 ..
+-rw-r--r-- 1 Wiks 197121 52107 Oct 18 07:12 android.js
+-rw-r--r-- 1 Wiks 197121 87836 Oct 15 20:11 android.js.map
+-rw-r--r-- 1 Wiks 197121 18312 Oct 18 07:12 avdForm.js
+-rw-r--r-- 1 Wiks 197121 22708 Oct 15 20:11 avdForm.js.map
+-rw-r--r-- 1 Wiks 197121 34150 Oct 18 07:12 classpath.js
+-rw-r--r-- 1 Wiks 197121 64849 Oct 15 20:11 classpath.js.map
+-rw-r--r-- 1 Wiks 197121 34700 Oct 18 07:12 debugAdapter.js
+-rw-r--r-- 1 Wiks 197121 64159 Oct 15 20:11 debugAdapter.js.map
+-rw-r--r-- 1 Wiks 197121 36438 Oct 18 07:12 deviceScreen.js
+-rw-r--r-- 1 Wiks 197121 15866 Oct 15 20:11 deviceScreen.js.map
+-rw-r--r-- 1 Wiks 197121 11755 Oct 18 07:12 extension.js
+-rw-r--r-- 1 Wiks 197121 19087 Oct 15 20:11 extension.js.map
+-rw-r--r-- 1 Wiks 197121 14659 Oct 18 07:12 gradle.js
+-rw-r--r-- 1 Wiks 197121 23827 Oct 15 20:11 gradle.js.map
+-rw-r--r-- 1 Wiks 197121 16088 Oct 18 07:12 javaInstall.js
+-rw-r--r-- 1 Wiks 197121 26475 Oct 15 20:11 javaInstall.js.map
+-rw-r--r-- 1 Wiks 197121 20040 Oct 18 07:12 javaLsp.js
+-rw-r--r-- 1 Wiks 197121 31700 Oct 15 20:11 javaLsp.js.map
+-rw-r--r-- 1 Wiks 197121 10939 Oct 18 07:12 javaProject.js
+-rw-r--r-- 1 Wiks 197121 17777 Oct 15 20:11 javaProject.js.map
+-rw-r--r-- 1 Wiks 197121 21228 Oct 18 07:12 javaSources.js
+-rw-r--r-- 1 Wiks 197121 37009 Oct 15 20:11 javaSources.js.map
+-rw-r--r-- 1 Wiks 197121 10089 Oct 18 07:12 javaUris.js
+-rw-r--r-- 1 Wiks 197121 14973 Oct 15 20:11 javaUris.js.map
+-rw-r--r-- 1 Wiks 197121 18832 Oct 18 07:12 jdwp.js
+-rw-r--r-- 1 Wiks 197121 38038 Oct 15 20:11 jdwp.js.map
+-rw-r--r-- 1 Wiks 197121  2830 Oct 18 07:12 l10n.js
+---DEVICESCREEN OUT---
+-rw-r--r-- 1 Wiks 197121 52107 Oct 18 07:12 out/android.js
+-rw-r--r-- 1 Wiks 197121 36438 Oct 18 07:12 out/deviceScreen.js
+---GREP VideoDecoder---
+5
+---GREP isFirstSlice---
+277:    static isFirstSlice(buf, headerEnd) {
+293:                    if (seenSlice && DeviceScreen.isFirstSlice(this.pending, nal.headerEnd)) {
+---UNTRACKED---
+ M extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+ M extensions/aura-kotlin/src/android.ts
+ M extensions/aura-kotlin/src/deviceScreen.ts
+---SRC DATES---
+-rw-r--r-- 1 Wiks 197121 17446 Oct 18 05:29 l10n/bundle.l10n.ru.json
+-rw-r--r-- 1 Wiks 197121 47438 Oct 18 05:29 src/android.ts
+-rw-r--r-- 1 Wiks 197121 32795 Oct 18 07:11 src/deviceScreen.ts
+> build · glm-5.3-prime
+[0m→ [0mRead extensions/aura-kotlin/src/android.ts [90m[offset=455, limit=55][0m
+[0m$ [0mcd extensions/aura-kotlin && cat tsconfig.json && echo "---PKG---" && grep -E '"(main|scripts)"' -A4 package.json && echo "---VideoDecoder occurrences---" && grep -o "VideoDecoder" out/deviceScreen.js | wc -l && echo "---windowsHide in out---" && grep -n "windowsHide" out/deviceScreen.js && echo "---CSP in out---" && grep -c "Content-Security-Policy" out/deviceScreen.js
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"rootDir": "./src",
+		"outDir": "./out",
+		"types": ["node"],
+		"typeRoots": ["../aura-team/node_modules/@types"]
+	},
+	"include": ["src/**/*", "../../src/vscode-dts/vscode.d.ts"]
+}
+---PKG---
+	"main": "./out/extension.js",
+	"activationEvents": ["onLanguage:kotlin", "onView:auraKotlin.androidView", "onCommand:auraKotlin.checkToolchain", "onCommand:auraKotlin.compileFile", "onCommand:auraKotlin.androidDoctor", "onCommand:auraKotlin.newProject", "onCommand:auraKotlin.newFile", "onCommand:auraKotlin.restartLsp", "onCommand:auraKotlin.installLsp", "onCommand:auraKotlin.debugFile", "onCommand:auraKotlin.gradle.sync", "onCommand:auraKotlin.gradle.build", "onCommand:auraKotlin.gradle.clean", "onCommand:auraKotlin.gradle.test", "onCommand:auraKotlin.gradle.release", "onCommand:auraKotlin.gradle.runTask", "onCommand:auraKotlin.syncDependencies", "onCommand:auraKotlin.showClasspath", "onCommand:auraKotlin.android.devices", "onCommand:auraKotlin.android.pickDevice", "onCommand:auraKotlin.android.installApk", "onCommand:auraKotlin.android.logcat", "onCommand:auraKotlin.android.logcatFilter", "onCommand:auraKotlin.android.logcatStop", "onCommand:auraKotlin.android.startEmulator", "onCommand:auraKotlin.android.startAvd", "onCommand:auraKotlin.android.stopEmulator", "onCommand:auraKotlin.android.createAvd", "onCommand:auraKotlin.android.runAndDebug", "onCommand:auraKotlin.android.deviceScreen", "onCommand:auraKotlin.refreshAndroidView", "onDebug", "onDebugAdapterDynamicConfiguration:kotlin", "workspaceContains:build.gradle", "workspaceContains:build.gradle.kts", "workspaceContains:gradlew", "onLanguage:java", "onCommand:auraKotlin.java.restartLsp", "onCommand:auraKotlin.java.organizeImports", "onCommand:auraKotlin.java.installLsp", "onCommand:auraKotlin.java.downloadSources"],
+	"categories": ["Programming Languages", "Other"],
+	"l10n": "./l10n",
+	"contributes": {
+--
+	"scripts": { "compile": "gulp compile-extension:aura-kotlin", "watch": "gulp watch-extension:aura-kotlin", "fetch-server": "node scripts/fetch-lsp.mjs" },
+	"devDependencies": { "@types/node": "24.x" }
+}
+---VideoDecoder occurrences---
+5
+---windowsHide in out---
+173:            child = (0, node_child_process_1.spawn)(this.android.adbPath() ?? 'adb', args, { windowsHide: true });
+---CSP in out---
+1
+> build · glm-5.3-prime
+[0m→ [0mRead docs/swarm/ZAN-b2.md [90m[limit=40][0m
+[0m$ [0mcd extensions/aura-kotlin && npx tsc --noEmit -p tsconfig.json; echo "TSC_NOEMIT_EXIT=$?"
+npm warn Unknown user config "msvs_spectre_mitigation". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+node:internal/modules/cjs/loader:1568
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\new-aura-ide\vscode-main\extensions\node_modules\typescript\bin\tsc'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1142:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)
+    at Module._load (node:internal/modules/cjs/loader:1341:5)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.21.0
+TSC_NOEMIT_EXIT=1
+> build · glm-5.3-prime
+[0m$ [0mls node_modules/typescript/bin/tsc 2>/dev/null; ls extensions/aura-kotlin/../../node_modules/.bin/tsc* 2>/dev/null | head -3; which tsc 2>/dev/null; node -v
+extensions/aura-kotlin/../../node_modules/.bin/tsc
+extensions/aura-kotlin/../../node_modules/.bin/tsc.cmd
+extensions/aura-kotlin/../../node_modules/.bin/tsc.ps1
+/c/Users/Wiks/AppData/Roaming/npm/tsc
+v24.21.0
+> build · glm-5.3-prime
+[0m$ [0mgrep -n "tsc" docs/swarm/b1fix.log | head -20; echo "==="; grep -n "tsc" docs/swarm/zan-b1.log | head -10
+7:[0m→ [0mRead extensions/aura-kotlin/tsconfig.json 
+536:[0m→ [0mRead extensions/tsconfig.base.json 
+538:[0m$ [0mcd /c/new-aura-ide/vscode-main && npx tsc -p extensions/aura-kotlin/tsconfig.json 2>&1
+547:tsc exit 0. Проверяю свежесть `out/`
+553:[0m$ [0mcd /c/new-aura-ide/vscode-main && npx tsc --noEmit -p extensions/aura-kotlin/tsconfig.json 2>&1
+565:tsc чист, синтаксис webview OK. Проверяю, есть ли смоук-скрипт от Зана
+573:Смоук-скрипты — это лаунчеры opencode, не верификационные. Зан не приложил отдельного проверочного скрипта. Верифа: `tsc --noEmit` exit 0, `node --check` webview SYNTAX_OK, свежий `out/deviceScreen.js` (36 КБ, VideoDecoder на месте).
+630:- **ZAN-1:** `tsc -p` с эмитом — `out/deviceScreen.js` 36 КБ, VideoDecoder на месте
+643:- `tsc -p ...` → exit 0 (эмит)
+644:- `tsc --noEmit -p ...` → exit 0
+===
+66:Код прочёл. Теперь — заявленные зависимости: `android.ts` (adbPath, screenSize, captureScreen, inputTap, inputSwipe, rotateScreen), package.json, tsconfig, и старая версия файла для сравнения.
+161:[0m→ [0mRead extensions/aura-kotlin/tsconfig.json 
+740:Финальные проверки: tsc по расширению, собранный `out/deviceScreen.js` (не кормит ли нас сборка старым кодом при `--noEmit`), и синтаксис inline-скрипта webview.
+751:[0m$ [0mnode --version; node_modules/.bin/tsc -p extensions/aura-kotlin/tsconfig.json --noEmit; echo "TSC_EXIT=$?"
+773:Отчёт: `docs/swarm/ZAN-b1.md`. Отработано по полной: построчная сверка DONE с кодом, tsc, `node --check` вебвью-скрипта, AOSP-исходники (screenrecord.cpp, WindowManager, DisplayContent).
+> build · glm-5.3-prime
+[0m$ [0mnpx tsc --noEmit -p extensions/aura-kotlin/tsconfig.json 2>&1; echo "TSC_NOEMIT_EXIT=$?"
+npm warn Unknown project config "disturl". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "target". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "ms_build_id". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "runtime". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "build_from_source". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown project config "timeout". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown user config "msvs_spectre_mitigation". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+TSC_NOEMIT_EXIT=0
+> build · glm-5.3-prime
+[0m$ [0mcd extensions/aura-kotlin && head -30 out/deviceScreen.js && echo "=== l10n.js ===" && head -20 out/l10n.js
+"use strict";
+/*---------------------------------------------------------------------------------------------
+ *  Aura Kotlin — встроенный экран устройства («красивый эмулятор» внутри IDE).
+ *  Webview-панель: живой экран через adb exec-out screenrecord --output-format=h264
+ *  (кадры режутся по NAL-границам и декодируются WebCodecs VideoDecoder в canvas),
+ *  фолбэк — screencap-кадры подряд, без фиксированного интервала. Тапы/свайпы мышью и
+ *  пальцем (Pointer Events, координаты масштабируются в разрешение устройства), два
+ *  пальца — локальный pinch-zoom картинки, даблклик — сброс зума. Панель
+ *  кнопок (назад/домой/недавние/громкость/power/поворот) и ввод текста. Поворот экрана
+ *  пересчитывает wm size и раскладку stage. Пока панель скрыта, поток на паузе.
+ *  Панель одна на устройство; при закрытии стрим останавливается, screenrecord убивается.
+ *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+=== l10n.js ===
+"use strict";
+/*---------------------------------------------------------------------------------------------
+ *  Aura Kotlin — перевод интерфейса (Russian-first).
+ *  Локаль IDE в dev-сборке английская, поэтому vscode.l10n.t отдавал бы исходный
+ *  английский, хотя продукт локализован на русский. Берём строки напрямую из
+ *  ru-бандла; английский остаётся фолбэком для отсутствующих ключей.
+ *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+> build · glm-5.3-prime
+tsc — exit 0, подтверждено. Теперь решающая проверка: живой прогон парсера AU из собранного `out/deviceScreen.js` на синтетическом h264-потоке.
+[0m← [0mWrite C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+Created file successfully: C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+> build · glm-5.3-prime
+[0m$ [0mnode "C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs"
+C:\Users\Wiks\AppData\Local\Temp\opencode\zan2-b1-parser-test.cjs:50
+const nal = DeviceScreen.nextNal(probe, 0);
+                         ^
+
+TypeError: Cannot read properties of undefined (reading 'nextNal')
+    at Object.<anonymous> (C:\Users\Wiks\AppData\Local\Temp\opencode\zan2-b1-parser-test.cjs:50:26)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14)
+    at Object..js (node:internal/modules/cjs/loader:2060:10)
+    at Module.load (node:internal/modules/cjs/loader:1651:32)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1443:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.21.0
+> build · glm-5.3-prime
+[0m$ [0mcd extensions/aura-kotlin && grep -n "exports\." out/deviceScreen.js | head && grep -n "class DeviceScreen" out/deviceScreen.js
+47:exports.DeviceScreenManager = void 0;
+48:exports.registerDeviceScreen = registerDeviceScreen;
+722:exports.DeviceScreenManager = DeviceScreenManager;
+66:class DeviceScreen {
+684:class DeviceScreenManager {
+> build · glm-5.3-prime
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+@@ -13,9 +13,14 @@
+ 	}
+ 	return origLoad.apply(this, arguments);
+ };
+ 
+-const { DeviceScreen } = require('C:/new-aura-ide/vscode-main/extensions/aura-kotlin/out/deviceScreen.js');
++const mod = require('C:/new-aura-ide/vscode-main/extensions/aura-kotlin/out/deviceScreen.js');
++// DeviceScreen не экспортирован — достаём через менеджер (тот же прототип, тот же скомпилированный код)
++const manager = new mod.DeviceScreenManager({});
++void manager.open('emu-test');
++const ds = manager.screens.get('emu-test');
++const DS = Object.getPrototypeOf(ds); // DeviceScreen.prototype
+ 
+ // ---------- Синтетический Annex-B поток ----------
+ // SPS (type 7): profile 0x42, constraints 0x00, level 0x1F (baseline L3.1)
+ const SPS = Buffer.concat([Buffer.from([0x00, 0x00, 0x00, 0x01, 0x67, 0x42, 0x00, 0x1f]), Buffer.alloc(12, 0xab)]);
+
+> build · glm-5.3-prime
+[0m$ [0mcd "C:/Users/Wiks/AppData/Local/Temp/opencode" && sed -i 's/DeviceScreen\.nextNal/DS.nextNal/g; s/DeviceScreen\.isFirstSlice/DS.isFirstSlice/g; s/Object\.create(DeviceScreen\.prototype)/Object.create(DS)/g; s/DeviceScreen\.prototype\.onVideoData/DS.onVideoData/g' zan2-b1-parser-test.cjs && node zan2-b1-parser-test.cjs
+C:\Users\Wiks\AppData\Local\Temp\opencode\zan2-b1-parser-test.cjs:22
+const DS = Object.getPrototypeOf(ds); // DeviceScreen.prototype
+                  ^
+
+TypeError: Cannot convert undefined or null to object
+    at Object.getPrototypeOf (<anonymous>)
+    at Object.<anonymous> (C:\Users\Wiks\AppData\Local\Temp\opencode\zan2-b1-parser-test.cjs:22:19)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14)
+    at Object..js (node:internal/modules/cjs/loader:2060:10)
+    at Module.load (node:internal/modules/cjs/loader:1651:32)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1443:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.21.0
+> build · glm-5.3-prime
+[0m← [0mWrite C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+Wrote file successfully: C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+> build · glm-5.3-prime
+[0m$ [0mnode "C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs"
+FAIL: TypeError: vscode.ThemeIcon is not a constructor
+    at new DeviceScreen (C:\new-aura-ide\vscode-main\extensions\aura-kotlin\out\deviceScreen.js:97:31)
+    at DeviceScreenManager.open (C:\new-aura-ide\vscode-main\extensions\aura-kotlin\out\deviceScreen.js:712:24)
+    at main (C:\Users\Wiks\AppData\Local\Temp\opencode\zan2-b1-parser-test.cjs:48:16)
+    at Object.<anonymous> (C:\Users\Wiks\AppData\Local\Temp\opencode\zan2-b1-parser-test.cjs:90:1)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14)
+    at Object..js (node:internal/modules/cjs/loader:2060:10)
+    at Module.load (node:internal/modules/cjs/loader:1651:32)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1443:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+> build · glm-5.3-prime
+Опечатка в моке (ThemeIcon вложен в window). Правлю и повторяю:
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+@@ -5,9 +5,10 @@
+ const origLoad = Module._load;
+ Module._load = function (request, parent, isMain) {
+ 	if (request === 'vscode') {
+ 		return {
+-			window: { createWebviewPanel: () => ({ webview: {}, onDidReceiveMessage: () => { }, onDidChangeViewState: () => { }, onDidDispose: () => { }, dispose: () => { } }), ThemeIcon: class { } },
++			window: { createWebviewPanel: () => ({ webview: {}, onDidReceiveMessage: () => { }, onDidChangeViewState: () => { }, onDidDispose: () => { }, dispose: () => { } }) },
++			ThemeIcon: class { },
+ 			ViewColumn: { Beside: 1 },
+ 			commands: { registerCommand: () => ({ dispose() { } }) },
+ 		};
+ 	}
+
+> build · glm-5.3-prime
+[0m$ [0mnode "C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs"
+FAIL: TypeError: this.panel.webview.onDidReceiveMessage is not a function
+    at new DeviceScreen (C:\new-aura-ide\vscode-main\extensions\aura-kotlin\out\deviceScreen.js:99:28)
+    at DeviceScreenManager.open (C:\new-aura-ide\vscode-main\extensions\aura-kotlin\out\deviceScreen.js:712:24)
+    at main (C:\Users\Wiks\AppData\Local\Temp\opencode\zan2-b1-parser-test.cjs:49:16)
+    at Object.<anonymous> (C:\Users\Wiks\AppData\Local\Temp\opencode\zan2-b1-parser-test.cjs:91:1)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14)
+    at Object..js (node:internal/modules/cjs/loader:2060:10)
+    at Module.load (node:internal/modules/cjs/loader:1651:32)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1443:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+> build · glm-5.3-prime
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+@@ -5,9 +5,9 @@
+ const origLoad = Module._load;
+ Module._load = function (request, parent, isMain) {
+ 	if (request === 'vscode') {
+ 		return {
+-			window: { createWebviewPanel: () => ({ webview: {}, onDidReceiveMessage: () => { }, onDidChangeViewState: () => { }, onDidDispose: () => { }, dispose: () => { } }) },
++			window: { createWebviewPanel: () => ({ webview: { onDidReceiveMessage: () => { }, postMessage: async () => true }, onDidChangeViewState: () => { }, onDidDispose: () => { }, dispose: () => { } }) },
+ 			ThemeIcon: class { },
+ 			ViewColumn: { Beside: 1 },
+ 			commands: { registerCommand: () => ({ dispose() { } }) },
+ 		};
+
+> build · glm-5.3-prime
+[0m$ [0mnode "C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs"
+FAIL: TypeError: DS.nextNal is not a function
+    at main (C:\Users\Wiks\AppData\Local\Temp\opencode\zan2-b1-parser-test.cjs:55:17)
+> build · glm-5.3-prime
+[0m$ [0mcd extensions/aura-kotlin && grep -n "nextNal\|isFirstSlice\|codecFromSps\|prototype\." out/deviceScreen.js | head -20
+33:            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+262:    static nextNal(buf, from) {
+277:    static isFirstSlice(buf, headerEnd) {
+289:            let nal = DeviceScreen.nextNal(this.pending, 0);
+293:                    if (seenSlice && DeviceScreen.isFirstSlice(this.pending, nal.headerEnd)) {
+299:                nal = DeviceScreen.nextNal(this.pending, nal.headerEnd);
+316:        let nal = DeviceScreen.nextNal(unit, 0);
+325:            nal = DeviceScreen.nextNal(unit, nal.headerEnd);
+328:            const codec = DeviceScreen.codecFromSps(sps);
+341:    static codecFromSps(sps) {
+> build · glm-5.3-prime
+Статики лежат на конструкторе, не на прототипе. Правлю доступ:
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+@@ -47,9 +47,9 @@
+ 	const mod = require('C:/new-aura-ide/vscode-main/extensions/aura-kotlin/out/deviceScreen.js');
+ 	const manager = new mod.DeviceScreenManager({});
+ 	await manager.open('emu-test');
+ 	const ds = manager.screens.get('emu-test');
+-	const DS = Object.getPrototypeOf(ds); // DeviceScreen.prototype — скомпилированный код артефакта
++	const DS = ds.constructor; // класс DeviceScreen из собранного артефакта: statics на нём, onVideoData на DS.prototype
+ 
+ 	// ---------- Тест 1: nextNal — где headerEnd ----------
+ 	const probe = Buffer.from([0x00, 0x00, 0x01, 0x41, 0x80, 0x00]);
+ 	const nal = DS.nextNal(probe, 0);
+
+> build · glm-5.3-prime
+[0m← [0mEdit C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+Index: C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+===================================================================
+--- C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
++++ C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs
+@@ -34,9 +34,9 @@
+ const stream2 = Buffer.concat([P3a, P3b, P4]);             // второй кусок (реассемблинг pending)
+ 
+ function makeInst(DS) {
+ 	const sent = [];
+-	const inst = Object.create(DS);
++	const inst = Object.create(DS.prototype);
+ 	inst.pending = Buffer.alloc(0);
+ 	inst.lastCodec = '';
+ 	inst.frameTs = 0;
+ 	inst.panel = { webview: { postMessage: async (m) => { sent.push(m); } } };
+
+> build · glm-5.3-prime
+[0m$ [0mnode "C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-parser-test.cjs"
+TEST1 nextNal: start=0 headerEnd=3 type=1 (ожидаемо 0/3/1)
+TEST1 buf[headerEnd]=0x41 — это ЗАГОЛОВОК NAL (forbidden|ref_idc|type); buf[headerEnd+1]=0x80 — slice header, где живёт first_mb_in_slice
+TEST2 isFirstSlice(first_mb=0)=false (должно быть TRUE) | isFirstSlice(first_mb=1)=false (должно быть FALSE)
+TEST3 КАДРОВ ОТПРАВЛЕНО В WEBVIEW: 0 (ожидаемо 3: IDR, кадр2, многослайсный кадр3) | video-config: 0 | pending: 373 байт
+TEST4 С ПОПРАВКОЙ(+1 байт): кадров=3 (ожидалось 3) | pending=69 байт (кадр 4 ждёт хвоста — норма)
+   chunk: key=true bytes=97
+   chunk: key=false bytes=69
+   chunk: key=false bytes=138
+TEST5 маркировка: AU0 key=true (TRUE — SPS+IDR) | AU1 key=false (FALSE)
+> build · glm-5.3-prime
+Парсер из собранного артефакта подтверждает катастрофу: **0 кадров уходит в webview**. Дожимаю остальное: синтакс-чек webview-скрипта из живого `html()` и спеку WebCodecs по `reset()`.
+[0m← [0mWrite C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-webview-test.cjs
+Created file successfully: C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-webview-test.cjs
+> build · glm-5.3-prime
+[0m$ [0mnode "C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-webview-test.cjs"
+CSP meta default-src none: true
+script nonce: true
+avc: { в configure (должно быть false): false
+MODE_TITLES из dataset: true
+decoder.reset при перегрузке: true
+интерполяций t() в HTML-атрибутах (плейсхолдер риска): 0 []
+node --check: OK
+--- toDevice ---
+function toDevice(el, e) {
+		const rect = el.getBoundingClientRect();
+		// Истина — фактический размер элемента (naturalWidth/Height), devSize только как последний фолбэк.
+		const w = el.naturalWidth || el.width || (devSize && devSize.width) || rect.width;
+		const h = el.naturalHeight || el.height || (devSize && devSize.height) || rect.height;
+		return { x: (e.clientX - rect.left) * (w / rect.width), y: (e.clientY
+--- layout src ---
+const src = (mode === 'video' && canvas.width) ? { w: canvas.width, h: canvas.height }
+			: img.naturalWidth ? { w: img.naturalWidth, h: img.naturalHeight } : null;
+		// Истина — фактический размер медиа (canvas/img), devSize — только фолбэк для CSS до первого кадра.
+		const w = src ? src.w : (devSize ? devSiz
+--- порог тапа ---
+const scale = ((devSize && devSize.width) || el.naturalWidth || el.width || rect.width) / rect.width;
+			const dist = Math.hypot(up.x - down.x, up.y - down.y);
+			if (dist < 12 * scale && Date.now() - down.time <
+[0m% [0mWebFetch https://www.w3.org/TR/webcodecs/#dom-videodecoder-reset 
+> build · glm-5.3-prime
+Спека получена. Проверяю точную формулировку Reset VideoDecoder в сохранённом полном тексте спеки:
+[0m$ [0mgrep -A 12 "Reset VideoDecoder (with exception)" "C:\Users\Wiks\.local\share\opencode\tool-output\tool_14d64b203001rzgfz49T0SuZKE" | head -20; echo "==="; grep -B2 -A 6 "resets all state including configuration" "C:\Users\Wiks\.local\share\opencode\tool-output\tool_14d64b203001rzgfz49T0SuZKE" | head -20
+**Reset VideoDecoder (with exception)**
+: Run these steps:
+
+1. If [`state`](#dom-videodecoder-state) is `"closed"`, throw an [`InvalidStateError`](https://webidl.spec.whatwg.org/#invalidstateerror).
+
+2. Set [`state`](#dom-videodecoder-state) to `"unconfigured"`.
+
+3. Signal [`[[codec implementation]]`](#dom-videodecoder-codec-implementation-slot) to cease producing output for the previous configuration.
+
+4. Remove all [control messages](#control-message) from the [`[[control message queue]]`](#dom-videodecoder-control-message-queue-slot).
+
+5. If [`[[decodeQueueSize]]`](#dom-videodecoder-decodequeuesize-slot) is greater than zero:
+
+===
+
+**`reset()`**
+: Immediately resets all state including configuration, [control messages](#control-message) in the [control message queue](#control-message-queue), and all pending callbacks.
+
+When invoked, run the [Reset AudioDecoder](#reset-audiodecoder) algorithm with an [`AbortError`](https://webidl.spec.whatwg.org/#aborterror) [`DOMException`](https://webidl.spec.whatwg.org/#idl-DOMException).
+
+**`close()`**
+: Immediately aborts all pending work and releases [system resources](#system-resources). Close is final.
+
+--
+
+**`reset()`**
+: Immediately resets all state including configuration, [control messages](#control-message) in the [control message queue](#control-message-queue), and all pending callbacks.
+
+When invoked, run the [Reset VideoDecoder](#reset-videodecoder) algorithm with an [`AbortError`](https://webidl.spec.whatwg.org/#aborterror) [`DOMException`](https://webidl.spec.whatwg.org/#idl-DOMException).
+
+**`close()`**
+: Immediately aborts all pending work and releases [system resources](#system-resources). Close is final.
+
+--
+> build · glm-5.3-prime
+[0m$ [0mgrep -A 14 '^\*\*`decode(chunk)`\*\*' "C:\Users\Wiks\.local\share\opencode\tool-output\tool_14d64b203001rzgfz49T0SuZKE" | grep -m 2 -B1 -A3 "InvalidStateError\|not .configured" ; echo "=== VideoDecoder decode (2nd occurrence) ==="; awk '/decode\(chunk\)/{n++} n==2 && /If .state. is not/ {print; exit}' "C:\Users\Wiks\.local\share\opencode\tool-output\tool_14d64b203001rzgfz49T0SuZKE"
+1. If [`[[state]]`](#dom-audiodecoder-state-slot) is not `"configured"`, throw an [`InvalidStateError`](https://webidl.spec.whatwg.org/#invalidstateerror).
+
+2. If [`[[key chunk required]]`](#dom-audiodecoder-key-chunk-required-slot) is `true`:
+
+--
+
+1. If [`[[state]]`](#dom-videodecoder-state-slot) is not `"configured"`, throw an [`InvalidStateError`](https://webidl.spec.whatwg.org/#invalidstateerror).
+
+2. If [`[[key chunk required]]`](#dom-videodecoder-key-chunk-required-slot) is `true`:
+
+=== VideoDecoder decode (2nd occurrence) ===
+> build · glm-5.3-prime
+Спека подтверждает: `reset()` переводит декодер в `unconfigured`, а `decode()` в этом состоянии бросает `InvalidStateError`. Добиваю оставшиеся проверки: диффы зоны, l10n-ключи, source maps.
+[0m$ [0mcd extensions/aura-kotlin && echo "=== git diff android.ts (zone b1) ===" && git diff src/android.ts | head -80 && echo "=== l10n diff ===" && git diff l10n/bundle.l10n.ru.json | grep -E "^[+-]" | head -30 && echo "=== package-lock ===" && ls package-lock.json 2>&1; echo "=== tsconfig.base sourceMap ===" && grep -E "sourceMap|inlineSourceMap" ../tsconfig.base.json
+=== git diff android.ts (zone b1) ===
+diff --git a/extensions/aura-kotlin/src/android.ts b/extensions/aura-kotlin/src/android.ts
+index 3f6f262b..dae2d406 100644
+--- a/extensions/aura-kotlin/src/android.ts
++++ b/extensions/aura-kotlin/src/android.ts
+@@ -463,8 +463,11 @@ export class AndroidPanel implements vscode.Disposable {
+ 	async screenSize(device: string): Promise<{ width: number; height: number } | undefined> {
+ 		try {
+ 			const text = await this.adb('-s', device, 'shell', 'wm', 'size');
+-			const match = /(\d+)x(\d+)/.exec(text);
+-			if (match) { return { width: Number(match[1]), height: Number(match[2]) }; }
++			// Берём последнее совпадение: при заданном Override size именно оно отражает
++			// текущие размеры (включая поворот экрана), а не первую строку Physical size.
++			const matches = [...text.matchAll(/(\d+)x(\d+)/g)];
++			const last = matches[matches.length - 1];
++			if (last) { return { width: Number(last[1]), height: Number(last[2]) }; }
+ 		} catch { /* устройство недоступно */ }
+ 		return undefined;
+ 	}
+=== l10n diff ===
+--- a/extensions/aura-kotlin/l10n/bundle.l10n.ru.json
++++ b/extensions/aura-kotlin/l10n/bundle.l10n.ru.json
++	"Live video stream": "Живой видеопоток",
++	"Screenshot stream (fallback)": "Поток скриншотов (фолбэк)",
+=== package-lock ===
+ls: cannot access 'package-lock.json': No such file or directory
+=== tsconfig.base sourceMap ===
+> build · glm-5.3-prime
+[0m$ [0mgrep -o 'data-video="[^"]*" data-image="[^"]*"' "C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-webview.html"; echo "==="; grep -o 'title="[^"]*"' "C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-webview.html" | head -5; echo "=== src/l10n.ts bundle path ==="; grep -n "readFile\|join\|__dirname\|dirname" src/l10n.ts | head; echo "=== deviceScreen.ts diff vs HEAD: краткая сводка изменений ==="; git diff --stat src/deviceScreen.ts && git diff src/deviceScreen.ts | grep -cE "^[+-][^+-]"
+data-video="Живой видеопоток" data-image="Поток скриншотов (фолбэк)"
+===
+title="Назад"
+title="Домой"
+title="Недавние"
+title="Vol −"
+title="Vol +"
+=== src/l10n.ts bundle path ===
+16:			ruBundle = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'l10n', 'bundle.l10n.ru.json'), 'utf8')) as Record<string, string>;
+28:		text = text.split(`{${i}}`).join(String(args[i]));
+=== deviceScreen.ts diff vs HEAD: краткая сводка изменений ===
+warning: in the working copy of 'extensions/aura-kotlin/src/deviceScreen.ts', LF will be replaced by CRLF the next time Git touches it
+ extensions/aura-kotlin/src/deviceScreen.ts | 512 ++++++++++++++++++++++++++---
+ 1 file changed, 464 insertions(+), 48 deletions(-)
+warning: in the working copy of 'extensions/aura-kotlin/src/deviceScreen.ts', LF will be replaced by CRLF the next time Git touches it
+488
+> build · glm-5.3-prime
+Спека зафиксирована. Добиваю: счётчики VideoDecoder, CSS-рамка в билде, findings-инструментарий, RFC для цитаты по slice header.
+[0m$ [0mcd extensions/aura-kotlin && echo "=== VideoDecoder counts ===" && echo -n "out lines: " && grep -c VideoDecoder out/deviceScreen.js && echo -n "out occurrences: " && grep -o VideoDecoder out/deviceScreen.js | wc -l && echo -n "src occurrences: " && grep -o VideoDecoder src/deviceScreen.ts | wc -l && echo -n "out lines total: " && wc -l < out/deviceScreen.js && echo "=== CSS-рамка в билде ===" && grep -c "#device" "C:/Users/Wiks/AppData/Local/Temp/opencode/zan2-b1-webview.html" && echo "=== findings tooling ===" && ls ../../db-tools/findings.py 2>&1 | head -1; ls C:/new-aura-ide/db-tools/findings.py 2>&1 | head -1; echo "=== tsbuildinfo ignored? ===" && git check-ignore -v tsconfig.tsbuildinfo 2>&1
+=== VideoDecoder counts ===
+out lines: 5
+out occurrences: 5
+src occurrences: 5
+out lines total: 727
+=== CSS-рамка в билде ===
+5
+=== findings tooling ===
+ls: cannot access '../../db-tools/findings.py': No such file or directory
+ls: cannot access 'C:/new-aura-ide/db-tools/findings.py': No such file or directory
+=== tsbuildinfo ignored? ===
+.gitignore:31:*.tsbuildinfo	tsconfig.tsbuildinfo
+[0m% [0mWebFetch https://www.rfc-editor.org/rfc/rfc6184.html 
+> build · glm-5.3-prime
+RFC 6184 §1.3/§5.3 даёт цитату: NAL-заголовок — один байт `F|NRI|Type`, F (запрещённый бит) обязан быть 0; slice header с first_mb_in_slice идёт ПОСЛЕ него. Воспроизвожу эмит-претензию DONE и пишу смоук-скрипт для зоны.
+[0m$ [0mmd5sum extensions/aura-kotlin/out/deviceScreen.js && npx tsc -p extensions/aura-kotlin/tsconfig.json 2>&1 | grep -v "npm warn"; echo "TSC_EMIT_EXIT=$?" && md5sum extensions/aura-kotlin/out/deviceScreen.js && ls -la extensions/aura-kotlin/out/deviceScreen.js
+e9158e15c6156d955b42bd9f8e2156e3 *extensions/aura-kotlin/out/deviceScreen.js
+TSC_EMIT_EXIT=1
+e9158e15c6156d955b42bd9f8e2156e3 *extensions/aura-kotlin/out/deviceScreen.js
+-rw-r--r-- 1 Wiks 197121 36438 Oct 18 08:06 extensions/aura-kotlin/out/deviceScreen.js
+> build · glm-5.3-prime
+[0m$ [0mnpx tsc -p extensions/aura-kotlin/tsconfig.json > /dev/null 2>&1; echo "TSC_EMIT_EXIT=$?"; md5sum extensions/aura-kotlin/out/deviceScreen.js
+TSC_EMIT_EXIT=0
+e9158e15c6156d955b42bd9f8e2156e3 *extensions/aura-kotlin/out/deviceScreen.js
+> build · glm-5.3-prime
+Эмит детерминирован (md5 совпадает), exit 0. Теперь смоук-скрипт зоны — прикладываю в `docs/swarm/`, чтобы следующий фиксер мог прогнать его как гейт:
+[0m← [0mWrite docs/swarm/zan2-b1-smoke.cjs
+Created file successfully: docs/swarm/zan2-b1-smoke.cjs
+> build · glm-5.3-prime
+[0m$ [0mnode docs/swarm/zan2-b1-smoke.cjs; echo "SMOKE_EXIT=$?"
+FAIL S2 isFirstSlice(first_mb=0)===true — buf[headerEnd] — это NAL-заголовок (F|NRI|Type), а не slice header
+PASS S2b isFirstSlice(first_mb=1)===false
+FAIL S1 кадров >= 3 (AU-парсер жив) — фактически 0: видео в webview не поедет вообще
+PASS S1b многослайсный кадр не разрезан — кадр3 = слайс А + слайс Б в одном AU
+FAIL S1c video-config отправлен — кодек-строка из SPS
+FAIL S1d первый AU key, остальные delta
+FAIL S3 после трёх fallbackToImages ровно один image-луп (ZAN-5) — макс. параллельных captureScreen в стабильном окне: 0
+PASS S4 start() до ready не стартует стрим (ZAN-9) — streaming=false, captures=0
+FAIL S4b после ready start() стартует
+PASS S5 CSP default-src none
+PASS S5b script nonce
+PASS S5c avc-плацебо удалено
+PASS S5d MODE_TITLES через data-атрибуты
+PASS S5e node --check webview-скрипта
+
+ИТОГ: 6 FAIL — код не принимается
+SMOKE_EXIT=1
+> build · glm-5.3-prime
+Мои синтетические инстансы забыли поля-инициализаторы класса (`imageGen`) — конструктор не звался. Чиню сетап теста:
+[0m← [0mEdit docs/swarm/zan2-b1-smoke.cjs
+Index: docs/swarm/zan2-b1-smoke.cjs
+===================================================================
+--- docs/swarm/zan2-b1-smoke.cjs
++++ docs/swarm/zan2-b1-smoke.cjs
+@@ -86,8 +86,10 @@
+ 	const inst2 = Object.create(DS.prototype);
+ 	inst2.pending = Buffer.alloc(0);
+ 	inst2.lastCodec = '';
+ 	inst2.frameTs = 0;
++	inst2.imageGen = 0;
++	inst2.videoGen = 0;
+ 	inst2.streaming = true;
+ 	inst2.disposed = false;
+ 	inst2.mode = 'video';
+ 	inst2.android = {
+
+> build · glm-5.3-prime
+[0m← [0mEdit docs/swarm/zan2-b1-smoke.cjs
+Index: docs/swarm/zan2-b1-smoke.cjs
+===================================================================
+--- docs/swarm/zan2-b1-smoke.cjs
++++ docs/swarm/zan2-b1-smoke.cjs
+@@ -118,8 +118,10 @@
+ 	const inst3 = Object.create(DS.prototype);
+ 	inst3.pending = Buffer.alloc(0);
+ 	inst3.lastCodec = '';
+ 	inst3.frameTs = 0;
++	inst3.imageGen = 0;
++	inst3.videoGen = 0;
+ 	inst3.disposed = false;
+ 	inst3.streaming = false;
+ 	inst3.webviewReady = false;
+ 	inst3.webviewCodecs = false;
+
+> build · glm-5.3-prime
+[0m$ [0mnode docs/swarm/zan2-b1-smoke.cjs; echo "SMOKE_EXIT=$?"
+FAIL S2 isFirstSlice(first_mb=0)===true — buf[headerEnd] — это NAL-заголовок (F|NRI|Type), а не slice header
+PASS S2b isFirstSlice(first_mb=1)===false
+FAIL S1 кадров >= 3 (AU-парсер жив) — фактически 0: видео в webview не поедет вообще
+PASS S1b многослайсный кадр не разрезан — кадр3 = слайс А + слайс Б в одном AU
+FAIL S1c video-config отправлен — кодек-строка из SPS
+FAIL S1d первый AU key, остальные delta
+PASS S3 после трёх fallbackToImages ровно один image-луп (ZAN-5) — макс. параллельных captureScreen в стабильном окне: 1
+PASS S4 start() до ready не стартует стрим (ZAN-9) — streaming=false, captures=0
+PASS S4b после ready start() стартует
+PASS S5 CSP default-src none
+PASS S5b script nonce
+PASS S5c avc-плацебо удалено
+PASS S5d MODE_TITLES через data-атрибуты
+PASS S5e node --check webview-скрипта
+
+ИТОГ: 4 FAIL — код не принимается
+SMOKE_EXIT=1
+> build · glm-5.3-prime
+Смоук решён: 4 FAIL — ровно то, что нужно как гейт. Проверяю лаунчер-соглашения зоны и пишу отчёт:
+[0m$ [0mcat docs/swarm/run-zan2-b1.sh 2>/dev/null | head -20; echo "==="; tail -5 docs/swarm/zan2-b1.log 2>/dev/null
+#!/usr/bin/env bash
+. ~/.secrets/dashscope.env
+cd "/c/new-aura-ide/vscode-main"
+opencode run -m dashscope/glm-5.3-prime "$(cat docs/swarm/PROMPT-zan2-b1.md)" 2>&1 | tee docs/swarm/zan2-b1.log
+echo "=== zan2-b1 ЗАВЕРШЕНО ==="
+read -r -p "Enter — закрыть вкладку"
+===
+
+ИТОГ: 4 FAIL — код не принимается
+SMOKE_EXIT=1
+> build · glm-5.3-prime
+Смоук решён: 4 FAIL — ровно то, что нужно как гейт. Проверяю лаунчер-соглашения зоны и пишу отчёт:
+> build · glm-5.3-prime
+[0m← [0mWrite docs/swarm/ZAN-zan2-b1.md
+Created file successfully: docs/swarm/ZAN-zan2-b1.md
+> build · glm-5.3-prime
+Финальная сверка — что в репо от меня только два артефакта ревью и ничего лишнего:
+[0m$ [0mgit status --porcelain docs/swarm/ extensions/aura-kotlin/ && echo "---" && head -1 docs/swarm/ZAN-zan2-b1.md && node docs/swarm/zan2-b1-smoke.cjs > /dev/null 2>&1; echo "SMOKE_EXIT=$?"
+M extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+ M extensions/aura-kotlin/src/android.ts
+ M extensions/aura-kotlin/src/deviceScreen.ts
+?? docs/swarm/
+---
+# REQUEST_CHANGES
+SMOKE_EXIT=1
+> build · glm-5.3-prime
+Готово. Отчёт: `docs/swarm/ZAN-zan2-b1.md`, вердикт первой строкой — **REQUEST_CHANGES**.
+
+**Суть в две строки:** «фикс» ZAN-8 — офф-бай-один в `isFirstSlice` — убил видеотракт целиком: парсер из собранного `out/deviceScreen.js` не эмитит **ни одного кадра** (доказано живым прогоном на синтетическом Annex-B потоке; с правкой одного байта `buf[headerEnd + 1]` — ровно 3 кадра, включая многослайсный). А «фикс» ZAN-6 по спеке W3C гарантированно бросает `InvalidStateError`: `reset()` переводит декодер в unconfigured, а следующий `decode()` в нём кидает исключение → перманентный уход в картинки.
+
+**По пунктам:** честно закрыто 6 из 11 (ZAN-1, 4, 5, 7, 9, 11; ZAN-5 и 9 — проверены динамикой, не статикой). ZAN-2 — частично: rotate-рестарт чист, но 180-секундный автоперезапуск после поворота снова спросит неповернутый `wm size` и запустит screenrecord с `--size` старой ориентации. ZAN-3/10 — закрыты с хвостами (порог тапа `:566` ставит devSize первым; `${t()}` в HTML-атрибутах без экранирования). Плюс 8 новых проблем, три из них BLOCKER/MAJOR/MAJOR.
+
+**Гейты:** `npx tsc --noEmit` — exit 0, эмит воспроизводится байт-в-байт. Смоук-скриптов из промпта (`*smoke*.ts`, PGlite/drizzle) в зоне физически нет — это шаблонный хвост из чужой b2-зоны, прогонять было нечего. Взамен приложил свой: `node docs/swarm/zan2-b1-smoke.cjs` — сейчас 4 FAIL / exit 1, следующая итерация обязана дать exit 0.
+
+Параллельный билдер в зону не лез: в aura-kotlin ровно 3 файла билдера, следы n8n/aura-team/aggg не пересекаются. Враньё в доказательствах DONE поймал и записал: «grep VideoDecoder=15» — фактически 5, «комментарии исправлены» — не все (`android.ts:466` снова врёт про поворот Override size).
+
+Минимум к следующему проходу: байт-смещение в `isFirstSlice`, skipUntilKey + повторный `configure` после `reset()`, skipSize для 180-с перезапуска после поворота — и зелёный смоук.

@@ -1,0 +1,73 @@
+{
+	"name": "n8n-panel",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.1.0",
+	"publisher": "aura",
+	"license": "MIT",
+	"icon": "media/n8n-icon.png",
+	"galleryBanner": {
+		"color": "#ff6d5a",
+		"theme": "dark"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/aura-ide/n8n-panel"
+	},
+	"engines": {
+		"vscode": "^1.85.0"
+	},
+	"categories": ["Visualization", "Other"],
+	"keywords": ["n8n", "workflow", "automation"],
+	"activationEvents": [
+		"onView:n8nPanel.launcher",
+		"onCommand:n8nPanel.openTab",
+		"onCommand:n8nPanel.openExternal"
+	],
+	"main": "./extension.js",
+	"contributes": {
+		"configuration": {
+			"title": "%configuration.title%",
+			"properties": {
+				"n8nPanel.url": {
+					"type": "string",
+					"default": "https://94.141.160.70.sslip.io",
+					"description": "%configuration.url%"
+				},
+				"n8nPanel.allowSelfSigned": {
+					"type": "boolean",
+					"default": false,
+					"description": "%configuration.allowSelfSigned%"
+				}
+			}
+		},
+		"commands": [
+			{
+				"command": "n8nPanel.openTab",
+				"title": "%command.openTab%"
+			},
+			{
+				"command": "n8nPanel.openExternal",
+				"title": "%command.openExternal%"
+			}
+		],
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "n8nPanel",
+					"title": "%viewsContainer.title%",
+					"icon": "media/icon.svg"
+				}
+			]
+		},
+		"views": {
+			"n8nPanel": [
+				{
+					"id": "n8nPanel.launcher",
+					"type": "webview",
+					"name": "%view.launcher.name%"
+				}
+			]
+		}
+	}
+}

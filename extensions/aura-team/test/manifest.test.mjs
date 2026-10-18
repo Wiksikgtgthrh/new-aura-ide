@@ -65,7 +65,9 @@ check(`идентификаторы команд уникальны (${declared.
 // допустимы и зарегистрированы.
 const badlyNamed = declared.filter(id => !/^auraTeam\.[a-z]/.test(id));
 check('все объявленные команды в пространстве аура-Тим', badlyNamed.length === 0, badlyNamed);
-const outsideCategory = commands.filter(command => command.category !== 'Team').map(command => command.command);
+// Категория может быть nls-ключом (%category.team%) — сравниваем уже разрешённый текст.
+const resolveNls = value => String(value ?? '').replace(/%([A-Za-z0-9_.]+)%/g, (match, key) => en[key] ?? match);
+const outsideCategory = commands.filter(command => resolveNls(command.category) !== 'Team').map(command => command.command);
 check('у всех команд категория Team (иначе палитра перемешает их с чужими)', outsideCategory.length === 0, outsideCategory);
 const withoutEnablement = commands.filter(command => !String(command.enablement ?? '').includes('auraPlugin.aura-team.enabled')).map(command => command.command);
 check('все команды спрятаны, когда плагин выключен', withoutEnablement.length === 0, withoutEnablement);

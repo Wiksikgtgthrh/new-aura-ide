@@ -1,10 +1,8 @@
 {
 	"displayName": "ServerKit",
-	"description": "ServerKit — панель управления сервером: деплой приложений, базы данных, Docker-контейнеры и мониторинг прямо из IDE.",
+	"description": "Server control panel: app deployment, databases, Docker containers and monitoring right from the IDE.",
 	"configuration.title": "ServerKit",
-	"configuration.serverUrl": "URL развернутого ServerKit (панель управления сервером)",
-	"container.title": "ServerKit",
-	"view.home": "ServerKit",
-	"command.openDashboard": "Открыть панель управления",
-	"command.checkStatus": "Проверить статус сервера"
+	"configuration.serverUrl": "URL of the deployed ServerKit (server control panel)",
+	"command.openDashboard": "Open Dashboard",
+	"command.checkStatus": "Check Server Status"
 }

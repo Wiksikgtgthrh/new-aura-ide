@@ -11,7 +11,7 @@
 
 import * as vscode from 'vscode';
 import { ChildProcess, exec, execFile, spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
@@ -57,6 +57,14 @@ export function activate(context: vscode.ExtensionContext): unknown {
 	const sessions: Session[] = [];
 	let panel: vscode.WebviewPanel | undefined;
 	const installedCache = new Map<string, { at: number; path?: string }>();
+	// AURA-023: temp-папки снапшотов для vscode.changes (openChanges). Раньше
+	// копились в %TEMP% навсегда — чистим при закрытии панели и деактивации.
+	const tempDirs = new Set<string>();
+	const cleanupTempDirs = (): void => {
+		for (const dir of tempDirs) { try { rmSync(dir, { recursive: true, force: true }); } catch { /* занято/нет прав */ } }
+		tempDirs.clear();
+	};
+	context.subscriptions.push({ dispose: cleanupTempDirs });
 
 	/* ---------------- Настройки CLI ---------------- */
 	const allSettings = (): Record<string, CliSettings> => context.globalState.get<Record<string, CliSettings>>(SETTINGS_KEY, {});
@@ -136,6 +144,9 @@ export function activate(context: vscode.ExtensionContext): unknown {
 		const listener = vscode.window.onDidChangeTerminalShellIntegration(event => {
 			if (event.terminal === terminal) { listener.dispose(); send(); }
 		});
+		// AURA-022: слушатель жил до выстрела или таймаута, но не до деактивации
+		// расширения — при выключенном плагине оставался висеть на окне.
+		context.subscriptions.push(listener);
 		setTimeout(() => { listener.dispose(); send(); }, 3000);
 	};
 
@@ -164,6 +175,15 @@ export function activate(context: vscode.ExtensionContext): unknown {
 				session.status = 'running';
 				void pushState();
 				child.stdin?.end();
+				// AURA-032: долгий молчаливый запуск выглядел зависшим. Раз в 30 с
+				// тусклая строка «работает Ns, вывод X КБ» — видно, что процесс жив,
+				// без редизайна протокола.
+				const heartbeat = setInterval(() => {
+					const seconds = Math.round((Date.now() - session.startedAt) / 1000);
+					const kb = Math.round(session.output.length / 1024);
+					echo(`\x1b[2m… ♥ ${vscode.l10n.t('running for {0}s, output {1} KB', seconds, kb)}\x1b[0m\n`);
+					log(`[heartbeat] ${session.title}: ${seconds}s, ${kb} KB`);
+				}, 30_000);
 				const onData = (chunk: Buffer): void => {
 					const text = chunk.toString('utf8');
 					echo(text);
@@ -174,6 +194,7 @@ export function activate(context: vscode.ExtensionContext): unknown {
 				const timer = timeoutMs > 0 ? setTimeout(() => { echo(`\n\x1b[33m⏱ timeout ${Math.round(timeoutMs / 1000)}s\x1b[0m\n`); child.kill(); }, timeoutMs) : undefined;
 				child.on('error', error => {
 					if (timer) { clearTimeout(timer); }
+					clearInterval(heartbeat);
 					const message = (error as NodeJS.ErrnoException).code === 'ENOENT' ? vscode.l10n.t('{0} is not installed or not in PATH.', binary) : String(error);
 					echo(`\n\x1b[31m${message}\x1b[0m\n`);
 					finish(session, undefined, message);
@@ -181,6 +202,7 @@ export function activate(context: vscode.ExtensionContext): unknown {
 				});
 				child.on('close', code => {
 					if (timer) { clearTimeout(timer); }
+					clearInterval(heartbeat);
 					echo(`\n\x1b[2m— ${vscode.l10n.t('finished, exit code {0}', String(code ?? '?'))} —\x1b[0m\n`);
 					finish(session, code ?? undefined);
 					resolveDone();
@@ -276,7 +298,10 @@ export function activate(context: vscode.ExtensionContext): unknown {
 		if (!session.worktree) { throw new Error(vscode.l10n.t('This agent works in the main folder — see Source Control.')); }
 		const changes = await worktrees.changes(session.worktree);
 		if (changes.files.length === 0) { void vscode.window.showInformationMessage(vscode.l10n.t('The agent has not changed any files yet.')); return; }
+		// Снапшоты прошлого просмотра больше не нужны — новый diff их заменяет.
+		cleanupTempDirs();
 		const dir = mkdtempSync(join(tmpdir(), 'orca-base-'));
+		tempDirs.add(dir);
 		const entries: [vscode.Uri, vscode.Uri | undefined, vscode.Uri | undefined][] = [];
 		for (const file of changes.files.slice(0, 80)) {
 			const current = vscode.Uri.file(join(session.worktree.path, file.path));
@@ -342,7 +367,7 @@ export function activate(context: vscode.ExtensionContext): unknown {
 		panel.webview.html = readFileSync(join(context.extensionPath, 'media', 'panel.html'), 'utf8')
 			.split('__NONCE__').join(nonce)
 			.split('__CSP__').join(panel.webview.cspSource);
-		panel.onDidDispose(() => { panel = undefined; }, undefined, context.subscriptions);
+		panel.onDidDispose(() => { panel = undefined; cleanupTempDirs(); }, undefined, context.subscriptions);
 		panel.webview.onDidReceiveMessage(async (message: { type?: string; id?: number; command?: string; args?: unknown[] }) => {
 			if (message?.type === 'ready') { await pushState(); return; }
 			if (message?.type !== 'invoke' || !message.command) { return; }

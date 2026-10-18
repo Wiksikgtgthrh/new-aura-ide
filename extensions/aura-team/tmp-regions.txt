@@ -1,0 +1,48 @@
+##### hit 1244
+1244 | <TAB><TAB>void this.view.webview.postMessage({ type: 'inviteCode', invite: { code: invite.code ?? null, expiresAt: invite.expiresAt ?? null, role: invite.role ?? null } });
+1245 | <TAB><TAB>await this.push();
+1246 | <TAB>}
+1247 | <TAB>/** Код отозван или протух: сбрасываем кэш, чтобы push() не вернул его в панель. */
+1248 | <TAB>clearInvite(): void {
+1249 | <TAB><TAB>this.lastInviteCode = undefined;
+1250 | <TAB><TAB>this.lastInviteExpires = null;
+##### hit 1261
+1261 | <TAB><TAB><TAB>void this.view.webview.postMessage({ type: 'state', state: this.lastState, inviteCode: this.lastInviteCode, inviteExpires: this.lastInviteExpires, inviteRole: this.lastInviteRole ?? undefined });
+1262 | <TAB><TAB>}
+1263 | <TAB>}
+1264 | }
+1265 | 
+1266 | const LAUNCHER_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-__NONCE__'; font-src data:;">
+1267 | <style>
+##### hit 1400
+1400 | .invite-hint { margin: var(--sp-3) var(--sp-2) 0; font-size: 11px; line-height: 1.45; color: var(--vscode-descriptionForeground); }
+1401 | .invite-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
+1402 | .invite-actions button { flex: 1; min-height: 28px; padding: 0 var(--sp-2); border-radius: var(--r-ctl); background: var(--vscode-button-secondaryBackground, color-mix(in srgb, var(--vscode-foreground) 10%, transparent)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); font-size: 12px; text-align: center; transition: background-color var(--dur-1) var(--ease-out); }
+1403 | .invite-actions button:hover { background: var(--vscode-button-secondaryHoverBackground, color-mix(in srgb, var(--vscode-foreground) 16%, transparent)); }
+1404 | .invite-actions button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+1405 | .invite-search { width: 100%; min-height: 28px; margin-top: var(--sp-4); padding: 0 var(--sp-2); font-family: inherit; font-size: 12px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: var(--r-ctl); }
+1406 | .invite-search::placeholder { color: var(--vscode-input-placeholderForeground); }
+##### hit 1405
+1405 | .invite-search { width: 100%; min-height: 28px; margin-top: var(--sp-4); padding: 0 var(--sp-2); font-family: inherit; font-size: 12px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: var(--r-ctl); }
+1406 | .invite-search::placeholder { color: var(--vscode-input-placeholderForeground); }
+1407 | .invite-hit .email { display: block; font-size: 11px; color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+1408 | .invite-hit .btn-invite { min-height: 20px; padding: 0 var(--sp-2); border-radius: var(--r-ctl); font-size: 11px; white-space: nowrap; background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent); transition: background-color var(--dur-1) var(--ease-out); }
+1409 | .invite-hit .btn-invite:hover { background: color-mix(in srgb, var(--vscode-foreground) 18%, transparent); }
+1410 | .invite-hit .btn-invite[data-sent='true'] { color: var(--vscode-testing-iconPassed, var(--vscode-charts-green)); background: none; cursor: default; }
+1411 | .invite-empty { padding: var(--sp-2); font-size: 11px; color: var(--vscode-descriptionForeground); }
+##### hit 1750
+1750 | <TAB>vscode.postMessage({ type: 'invoke', command: 'auraTeam.copyToClipboard', args: [state._inviteCode] });
+1751 | <TAB>toastText(t('copiedCode'));
+1752 | }
+1753 | async function regenerateInvite() {
+1754 | <TAB>try {
+1755 | <TAB><TAB>const invite = await invokeRemote('auraTeam.createInvite', []);
+1756 | <TAB><TAB>state._inviteCode = invite?.code ?? null;
+##### hit 2178
+2178 | <BS>tif (e.data?.type === 'openInvite') { setInviteOpen(true); return; }
+2179 | <BS>tif (e.data?.type === 'state') {
+2180 | <BS>t<BS>tstate = e.data.state;
+2181 | <BS>t<BS>tif (typeof e.data.inviteCode === 'string') { state._inviteCode = e.data.inviteCode || null; }
+2182 | <BS>t<BS>tif (e.data.inviteExpires !== undefined) { state._inviteExpires = e.data.inviteExpires; }
+2183 | <BS>t<BS>t/* diff-обновление списков на месте: строки не перерисовываются целиком, фокус и скролл сохраняются */
+2184 | <BS>t<BS>tif (staticRendered) { updateLists(); updateNav(); renderInviteSection(); wireInvite(); } else { render(); }

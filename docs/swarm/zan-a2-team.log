@@ -1,0 +1,416 @@
+[0m
+> build · glm-5.3-prime
+[0m→ [0mRead docs/swarm/DONE-a2-team.md 
+[0m→ [0mRead docs/swarm/REVIEW-AURA.md 
+[0m→ [0mRead docs/swarm 
+> build · glm-5.3-prime
+Читаю вводные. Прежде чем гнать по пунктам — посмотрю формат прошлых ZAN-ревью, промпт этой задачи и состояние рабочего дерева, чтобы отделить зону a2-team от параллельных билдеров.
+[0m→ [0mRead docs/swarm/PROMPT-zan-a2-team.md 
+[0m→ [0mRead docs/swarm/ZAN-zan3-b1.md 
+[0m$ [0mgit status --porcelain && echo "---BRANCH---" && git branch --show-current && echo "---LOG---" && git log --oneline -5
+M ORCHESTRATOR.md
+ M aura-team-server/deploy/Caddyfile
+ M aura-team-server/deploy/server-setup.sh
+ M aura-team-server/scripts/start-local.mjs
+ M aura-team-server/src/config.ts
+ M aura-team-server/src/routes/aggg.ts
+ M aura-team-server/src/routes/auth.ts
+ M aura-team-server/src/routes/keys.ts
+ M aura-team-server/src/routes/teams.ts
+ M aura-team-server/src/server.ts
+ M aura-team-server/test/admin.test.ts
+ M aura-team-server/test/key-probe.test.ts
+ M aura-team-server/test/server.test.ts
+ M build/gulpfile.extensions.ts
+ M build/lib/asar.ts
+ M build/lib/preLaunch.ts
+ M extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+ M extensions/aura-kotlin/src/android.ts
+ M extensions/aura-kotlin/src/deviceScreen.ts
+ M extensions/aura-orca/package.json
+ M extensions/aura-orca/src/extension.ts
+ M extensions/aura-serverkit/package.json
+ M extensions/aura-team/package-lock.json
+ M extensions/aura-team/package.json
+ M extensions/aura-team/package.nls.json
+ M extensions/aura-team/src/api/client.ts
+ M extensions/aura-team/src/extension.ts
+ M extensions/aura-team/src/git/service.ts
+ M extensions/aura-team/src/git/teamSync.ts
+ M extensions/aura-team/src/git/workflow.ts
+ M extensions/aura-team/src/webview/panelProvider.ts
+ M extensions/aura-team/src/webview/template.html
+ M extensions/aura-team/test/manifest.test.mjs
+ M extensions/aura-team/test/sidebar-syntax.test.mjs
+ M extensions/langgraph-orchestrator/src/host.ts
+ M extensions/langgraph-orchestrator/src/panel/template.html
+ M extensions/langgraph-orchestrator/src/tools/index.ts
+ M extensions/langgraph-orchestrator/test/panel-preview.mjs
+ M src/vs/base/node/nls.ts
+ M src/vs/monaco.d.ts
+ M src/vs/workbench/browser/parts/editor/editorGroupWatermark.ts
+ M src/vs/workbench/browser/parts/editor/media/editorgroupview.css
+ M src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css
+ M src/vs/workbench/contrib/aggg/browser/aggg.contribution.ts
+ M src/vs/workbench/contrib/aggg/browser/agggVersionWidget.ts
+ M src/vs/workbench/contrib/aggg/common/agggEntitlements.ts
+ M src/vs/workbench/contrib/aggg/test/common/agggEntitlements.test.ts
+ M src/vs/workbench/contrib/auraApi/browser/auraApi.contribution.ts
+ M src/vs/workbench/contrib/auraApi/browser/auraApiTools.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiChatTools.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiKeys.ts
+ M src/vs/workbench/contrib/auraApi/common/auraApiModel.ts
+ M src/vs/workbench/contrib/auraI18n/browser/auraLanguage.contribution.ts
+ M src/vs/workbench/contrib/auraMarket/browser/auraMarketEditorPane.ts
+ M src/vs/workbench/contrib/auraMarket/browser/media/auraMarket.css
+ M src/vs/workbench/contrib/auraMarket/common/auraMarketCatalog.en.ts
+ M src/vs/workbench/contrib/auraMarket/common/auraMarketCatalog.ts
+ M src/vs/workbench/contrib/auraMarket/common/auraPluginService.ts
+ M src/vs/workbench/contrib/auraMarket/test/common/auraMarketCatalog.test.ts
+?? classes.jar
+?? docs/swarm/
+?? extensions/aura-harness/
+?? extensions/aura-orca/package-lock.json
+?? extensions/aura-team/package.nls.ru.json
+?? extensions/aura-team/tmp-regions.txt
+?? extensions/langgraph-orchestrator/patch-kanban.py
+?? extensions/langgraph-orchestrator/src/harness/
+?? extensions/n8n-panel/
+---BRANCH---
+main
+---LOG---
+2b4ad587 orca: плагин Orca — CLI-агенты (Claude Code, Codex, Gemini, Qwen, opencode, Aider) во вкладках-терминалах, worktree на агента, настройки ключей/base URL/модели, инструмент agent.cli для оркестратора
+f02516bb team: командный процесс GitHub по кнопкам — своя ветка, свежий main, тесты, графический дифф, PR, слияние, откат
+4be44e73 team+orchestrator: канбан агентов, полный русский, проверка ключей, удаление событий, админ
+92f18435 build: sync allowScripts pins with locked versions; fix approve-scripts spawn on Windows
+2afc5bfb orchestrator: рабочий запуск сайдкара и новый UI панели; api: редизайн менеджера ключей
+> build · glm-5.3-prime
+Зона определена: `aura-team`, `aura-orca`, `langgraph-orchestrator`. В дереве полно чужих следов (aura-kotlin = зона b1, n8n-panel = зона b2, core `src/vs/...`) — их не трогаю. Есть логи билдера и след прошлого zan-прогона. Читаю лог билдера и код.
+[0m→ [0mRead docs/swarm/a2-team.log 
+[0m→ [0mRead extensions/aura-team/src/extension.ts 
+> build · glm-5.3-prime
+Лог билдера прочитан наполовину — там вся история правок. Дочитываю, чтобы знать, что ещё заявлено.
+[0m→ [0mRead docs/swarm/a2-team.log [90m[offset=946, limit=1000][0m
+> build · glm-5.3-prime
+Дочитываю лог билдера до конца.
+[0m→ [0mRead docs/swarm/a2-team.log [90m[limit=600, offset=1746][0m
+> build · glm-5.3-prime
+Лог билдера прочитан полностью. Теперь верифицирую сам: читаю затронутые файлы построчно. Начинаю с orca и orchestrator.
+[0m→ [0mRead extensions/aura-orca/src/extension.ts 
+> build · glm-5.3-prime
+Orca сверена: 022/023/032/021 — по коду на месте, номера строк у 023 съехали на ~10 (288-291 → фактически 301-304, ~360 → 370). Теперь orchestrator.
+[0m→ [0mRead extensions/langgraph-orchestrator/src/extension.ts [90m[limit=40, offset=55][0m
+[0m→ [0mRead extensions/langgraph-orchestrator/src/tools/index.ts [90m[limit=70, offset=550][0m
+> build · glm-5.3-prime
+Оркестратор: 019 на строке 70, 033 на 573-592 — бьётся. Теперь манифесты и тесты aura-team.
+[0m→ [0mRead extensions/aura-team/package.nls.ru.json 
+[0m→ [0mRead extensions/aura-team/package.nls.json 
+[0m→ [0mRead extensions/aura-team/test/manifest.test.mjs 
+> build · glm-5.3-prime
+nls-файлы и тест прочитаны. Теперь template.html в заявленных местах и teamSync/package.json.
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=60, offset=1786][0m
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=55, offset=1660][0m
+> build · glm-5.3-prime
+[0m→ [0mRead extensions/aura-team/src/extension.ts [90m[limit=25, offset=805][0m
+[0m→ [0mRead extensions/aura-team/src/git/teamSync.ts [90m[limit=30, offset=50][0m
+[0m→ [0mRead extensions/aura-team/src/webview/template.html [90m[limit=30, offset=3315][0m
+> build · glm-5.3-prime
+Ключевые места кода сверены. Теперь живые прогоны: тесты aura-team, tsc по трём расширениям, подсчёт ключей nls через git diff, и проверка манифеста.
+[0m$ [0mcd extensions/aura-team && git diff package.nls.json | grep -c '^+.*":' ; echo "---keys in EN now:"; node -e "const en=require('./package.nls.json'); const ru=require('./package.nls.ru.json'); console.log('EN keys:', Object.keys(en).length, 'RU keys:', Object.keys(ru).length); const missEn=Object.keys(en).filter(k=>!(k in ru)); const missRu=Object.keys(ru).filter(k=>!(k in en)); console.log('RU missing:', missEn, 'RU extra:', missRu);"; echo "---package.json hardcoded check:"; grep -nE '"(title|description|displayName|category)": "[^%]' package.json; echo "(пусто = все на ключах)"; grep -n '"minimum"' package.json; grep -c '%category.team%' package.json
+16
+---keys in EN now:
+EN keys: 58 RU keys: 58
+RU missing: [] RU extra: []
+---package.json hardcoded check:
+(пусто = все на ключах)
+70:					"minimum": 60,
+37
+[0m$ [0mcd extensions/aura-team && node test/run-all.mjs 2>&1 | tail -30; echo "EXIT=$?"
+ok   каталог запрошен у расширения
+  ok   каталог отрисован строками
+  ok   email кандидата виден в строке
+  ok   присутствие показано только у участника команды
+  ok   участник команды уже помечен приглашённым
+  ok   кандидат без приглашения — кнопка активна
+  ok   отправка идёт с id пользователя
+  ok   кнопка сразу показывает «Приглашён»
+  ok   ошибка отправки откатывает кнопку
+  ok   поиск отправляется после debounce
+  ok   фокус остаётся в поле поиска после обновления состояния
+  ok   набранный текст не сбрасывается
+  ok   строка каталога переиспользуется, а не пересоздаётся
+  ok   секцию можно закрыть
+  ok   отзыв кода уходит на сервер
+  ok   до ответа сервера код остаётся на месте
+  ok   после отзыва показано пустое состояние с кнопкой создания
+  ok   новый код появляется вместо пустого состояния
+  ok   кнопка копирования вернулась и работает
+  ok   Diff-обновление: строка t1 — тот же DOM-узел
+  ok   Фокус сохранён после broadcast
+  ok   Смена статуса: data-state обновился
+  ok   Смена статуса: старый текст кросфейдится (2 слоя)
+  ok   Diff-обновление: прогресс подзадач пересчитан
+  ok   Diff-обновление: счётчик не дублируется
+  ok   Diff-обновление: исчезнувшие подзадачи убирают счётчик
+
+ALL CHECKS PASSED
+
+ALL 18 STEPS PASSED
+EXIT=0
+> build · glm-5.3-prime
+Тесты: **18/18 PASSED, exit 0** — цифра DONE воспроизводится. EN/RU по 58 ключей, RU покрывает EN без дыр, `minimum: 60` на строке 70 — всё бьётся. Теперь tsc по трём расширениям — и как требует промпт, фиксирую поведение `npx tsc` тоже.
+[93m[1m! [0mpermission requested: external_directory (C:/new-aura-ide/langgraph-orchestrator/*); auto-rejecting
+[0m✗ [0mcd extensions/aura-orca && node ../../node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json && echo "ORCA-TSC-CLEAN exit=0"; cd ../langgraph-orchestrator && node ../../node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json && echo "ORCH-TSC-CLEAN exit=0" failed
+[91m[1mError: [0mUnable to execute command: cd extensions/aura-orca && node ../../node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json && echo "ORCA-TSC-CLEAN exit=0"; cd ../langgraph-orchestrator && node ../../node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json && echo "ORCH-TSC-CLEAN exit=0"
+[0m$ [0mcd extensions/aura-team && echo "=== npx tsc (как в промпте) ==="; npx tsc --noEmit -p tsconfig.json 2>&1 | tail -3; echo "npx exit: $?"; echo "=== node tsc.js (рабочий путь, npx ловит несуществующий extensions/node_modules) ==="; node ../../node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json && echo "TEAM-TSC-CLEAN exit=0"; node ../../node_modules/typescript/lib/tsc.js --version
+=== npx tsc (как в промпте) ===
+}
+
+Node.js v24.21.0
+npx exit: 0
+=== node tsc.js (рабочий путь, npx ловит несуществующий extensions/node_modules) ===
+TEAM-TSC-CLEAN exit=0
+Version 6.0.3
+> build · glm-5.3-prime
+Первая команда: `npx tsc` в extensions/* падает с MODULE_NOT_FOUND (ловит несуществующий `extensions/node_modules/typescript`) — та же.environment-грабля, что у билдера; рабочий путь через корневой `node_modules/typescript` — **TEAM-TSC-CLEAN, exit 0**. Вторая команда споткнулась о перенос — прогоняю по одному.
+[0m$ [0mcd extensions/aura-orca && node ../../node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json && echo "ORCA-TSC-CLEAN exit=0"
+ORCA-TSC-CLEAN exit=0
+> build · glm-5.3-prime
+[0m$ [0mcd extensions/langgraph-orchestrator && node ../../node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json && echo "ORCH-TSC-CLEAN exit=0"
+ORCH-TSC-CLEAN exit=0
+> build · glm-5.3-prime
+[91m[1mError: [0mECONNRESET: The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()
+> build · glm-5.3-prime
+Продолжаю верификацию: прогон manifest-теста отдельно (чтобы увидеть nls-чеки), точный подсчёт новых EN-ключей, и проверка «already done»-заявок (019/021) — были ли они в HEAD до билдера.
+[0m$ [0mcd extensions/aura-team && node test/manifest.test.mjs 2>&1 | head -25
+ok   все ключи %…% из package.json есть в package.nls.json (58)
+  ok   в package.nls.json нет мёртвых ключей (58)
+  ok   package.nls.ru.json покрывает те же ключи, что и английский
+  ok   идентификаторы команд уникальны (37)
+  ok   все объявленные команды в пространстве аура-Тим
+  ok   у всех команд категория Team (иначе палитра перемешает их с чужими)
+  ok   все команды спрятаны, когда плагин выключен
+  ok   каждая команда из манифеста зарегистрирована в коде
+  ok   события onCommand ссылаются на живые команды (11)
+  ok   main указывает на собранный out/
+  ok   main: файл существует после сборки (иначе расширение не загрузится)
+  ok   представления привязаны к существующему контейнеру
+  ok   представление сайдбара существует и включается по контексту
+
+ALL CHECKS PASSED
+[0m$ [0mcd extensions/aura-team && git diff package.nls.json | grep -E '^\+\s+"' | sed 's/^\+\s*"//; s/".*//' ; echo "==="; git diff package.nls.json | grep -cE '^\+\s+"[A-Za-z0-9_.]+":'
+command.getState
+command.inviteOpen
+command.syncNow
+command.toggleAutoPush
+category.team
+customEditor.displayName
+configuration.autoStartServer
+configuration.syncMode
+configuration.syncMode.off
+configuration.syncMode.ask
+configuration.syncMode.auto
+configuration.syncAutoPush
+configuration.syncIntervalSeconds
+configuration.syncCommitTemplate
+configuration.gitTestCommand
+configuration.uiLanguage.auto
+===
+16
+[0m$ [0mgit diff HEAD -- extensions/langgraph-orchestrator/src/extension.ts | grep -E '^[-+].*(statusBar|subscriptions\.push)' | head; echo "=== orca installedCache in diff:"; git diff HEAD -- extensions/aura-orca/src/extension.ts | grep -E '^[-+].*installedCache' | head; echo "=== tmp-regions.txt:"; wc -l extensions/aura-team/tmp-regions.txt; head -5 extensions/aura-team/tmp-regions.txt
+=== orca installedCache in diff:
+=== tmp-regions.txt:
+47 extensions/aura-team/tmp-regions.txt
+##### hit 1244
+1244 | <TAB><TAB>void this.view.webview.postMessage({ type: 'inviteCode', invite: { code: invite.code ?? null, expiresAt: invite.expiresAt ?? null, role: invite.role ?? null } });
+1245 | <TAB><TAB>await this.push();
+1246 | <TAB>}
+1247 | <TAB>/** Код отозван или протух: сбрасываем кэш, чтобы push() не вернул его в панель. */
+> build · glm-5.3-prime
+Manifest-тест зелёный (58/58/58), но нашёл важное: **«16 новых EN» — на деле 15 новых ключей + 1 тронутый** (`command.getState` перезаписан из-за запятой). И «already done» по 019/021 подтверждается: `git diff HEAD` по этим строкам пуст — фиксы уже в коммитах, билдер не приписал себе чужое. Теперь сверю, что все заявленные правки a2-team реально в диффе (атрибуция), и проверю l10n-бандлы.
+[0m$ [0mgit diff HEAD -- extensions/aura-team/src/extension.ts | grep -E '^@@|^[-+][^-+]' | grep -vE '^\+\s*(//|/\*|\*)' | head -60
+@@ -5,7 +5,8 @@
+-import { existsSync, readFileSync } from 'node:fs';
++import { randomUUID } from 'node:crypto';
++import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+@@ -40,6 +41,17 @@ async function autoStartLocalServer(context: vscode.ExtensionContext, output: vs
++	const pidFile = join(context.globalStorageUri.fsPath, '.aura-team-server.pid');
++	const killPid = (pid: number): void => { try { process.kill(pid); } catch { /* уже мёртв */ } };
++	try {
++		const stale = Number(readFileSync(pidFile, 'utf8').trim());
++		if (Number.isInteger(stale) && stale > 0 && stale !== process.pid) {
++			try { process.kill(stale, 0); killPid(stale); output.appendLine(`[server] killed stale server pid ${stale}`); } catch { /* процесса уже нет */ }
++		}
++	} catch { /* pid-файла ещё нет */ }
+@@ -55,14 +67,25 @@ async function autoStartLocalServer(context: vscode.ExtensionContext, output: vs
+-	const child = spawn(process.execPath, [script], { cwd: serverRoot, stdio: 'ignore', detached: true });
++	const child = spawn(process.execPath, [script], { cwd: serverRoot, stdio: 'ignore', detached: true, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+-		if (await probe()) { output.appendLine(`[server] local server is up at ${url.origin}`); return; }
++		if (await probe()) {
++			if (child.pid) { try { mkdirSync(dirname(pidFile), { recursive: true }); writeFileSync(pidFile, String(child.pid)); } catch { /* pid-файл не критичен */ } }
++			output.appendLine(`[server] local server is up at ${url.origin}`);
++			return;
++		}
++	if (child.pid) { killPid(child.pid); }
+@@ -70,6 +93,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
++	context.subscriptions.push(api);
+@@ -190,7 +215,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
++	const GIT_CACHE_TTL_MS = 10_000;
++	const watchedGitRepos = new WeakSet<object>();
++	const watchGitRepo = (): void => {
++		const repo = git?.repository;
++		if (!repo || watchedGitRepos.has(repo)) { return; }
++		watchedGitRepos.add(repo);
++		context.subscriptions.push(repo.state.onDidChange(() => { gitCache = undefined; }));
++	};
++	const gitSnapshot = async (): Promise<AuraState['git']> => {
++		if (!git) { return undefined; }
++		if (gitCache && Date.now() - gitCache.at < GIT_CACHE_TTL_MS) { return gitCache.value; }
++		try {
++			const value = await gitSvc().getSnapshot();
++			gitCache = { at: Date.now(), value };
++			watchGitRepo();
++			return value;
++		} catch {
++			return undefined;
++		}
++	};
+@@ -214,7 +261,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
+-		git: git ? ((gitCache && Date.now() - gitCache.at < 2000) ? gitCache.value : await gitSvc().getSnapshot().then(value => { gitCache = { at: Date.now(), value }; return value; }).catch(() => undefined)) : undefined,
++		git: await gitSnapshot(),
+@@ -284,6 +331,37 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
++	const TOAST_WINDOW_MS = 5000;
++	const TOAST_BACKLOG_CAP = 10;
++	let toastWindowOpen = false;
++	let toastBacklog: string[] = [];
++	let toastOverflow = 0;
++	let toastTimer: ReturnType<typeof setTimeout> | undefined;
++	const flushToasts = (): void => {
++		toastTimer = undefined;
++		toastWindowOpen = false;
++		const backlog = toastBacklog;
+[0m$ [0mls extensions/aura-team/l10n 2>/dev/null || echo "aura-team: НЕТ l10n-бандла (runtime l10n.t без переводов)"; ls extensions/aura-orca/l10n 2>/dev/null && cat extensions/aura-orca/l10n/bundle.l10n.ru.json 2>/dev/null || echo "aura-orca: НЕТ l10n-бандла"; echo "=== grep heartbeat строк в бандлах:"; grep -rn "running for\|finished, exit code" extensions/aura-orca/l10n/ extensions/langgraph-orchestrator/l10n/ 2>/dev/null || echo "не найдено"; echo "=== mtime мусора:"; stat -c '%y %n' extensions/aura-team/tmp-regions.txt extensions/langgraph-orchestrator/patch-kanban.py 2>/dev/null; stat -c '%y %n' docs/swarm/DONE-a2-team.md docs/swarm/a2-team.log
+aura-team: НЕТ l10n-бандла (runtime l10n.t без переводов)
+aura-orca: НЕТ l10n-бандла
+=== grep heartbeat строк в бандлах:
+не найдено
+=== mtime мусора:
+2026-09-24 03:47:07.496769100 +0300 extensions/aura-team/tmp-regions.txt
+2026-10-05 12:29:17.205999700 +0300 extensions/langgraph-orchestrator/patch-kanban.py
+2026-10-18 09:54:57.676477400 +0300 docs/swarm/DONE-a2-team.md
+2026-10-18 09:55:32.956001500 +0300 docs/swarm/a2-team.log
+> build · glm-5.3-prime
+Дифф подтверждает: все заявленные правки a2-team — в uncommitted-диффе (плюс в тех же файлах лежат более старые чужие следы: `randomUUID`, `ELECTRON_RUN_AS_NODE`, `subscriptions.push(api)` — их в логе a2-team нет, это до-эпохальный слой). Мусор `tmp-regions.txt` датирован 24.09 — старьё, не билдера. l10n-бандлов нет ни у team, ни у orca — runtime-строки EN-only. Последние проверки: что покрывают jsdom-тесты и состав run-all.
+[0m$ [0mcd extensions/aura-team && cat test/run-all.mjs && echo "=== scroll в тестах:" && grep -rn "scroll\|lastMountedRoute" test/ | head -10 || echo "scroll не покрыт тестами"
+/*---------------------------------------------------------------------------------------------
+ *  Один прогон «зелёной сборки» расширения Aura Team.
+ *
+ *  Порядок важен: часть проверок читает собранный `out/` (сайдбар рендерится из
+ *  скомпилированного extension.js), поэтому сначала компиляция, потом тесты.
+ *  Запуск: `npm test` внутри extensions/aura-team.
+ *--------------------------------------------------------------------------------------------*/
+import { spawnSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const root = join(here, '..');
+const tsc = join(root, '..', '..', 'node_modules', 'typescript', 'lib', 'tsc.js');
+
+const step = (title, command, args) => {
+	process.stdout.write(`\n=== ${title} ===\n`);
+	const result = spawnSync(command, args, { cwd: root, stdio: 'inherit' });
+	if (result.status !== 0) {
+		process.stdout.write(`\n${title}: FAILED (${result.status ?? 'spawn error'})\n`);
+		process.exit(result.status ?? 1);
+	}
+};
+
+// Компиляция: она же типизация. out/ читают тесты сайдбара.
+step('tsc (сборка out/)', process.execPath, [tsc, '-p', 'tsconfig.json']);
+
+const tests = readdirSync(here).filter(name => name.endsWith('.test.mjs')).sort();
+for (const test of tests) {
+	step(test, process.execPath, [join(here, test)]);
+}
+
+process.stdout.write(`\nALL ${tests.length + 1} STEPS PASSED\n`);
+=== scroll в тестах:
+test/admin.render.test.mjs:28:		window.Element.prototype.scrollIntoView = function () { };
+test/git.render.test.mjs:32:		window.Element.prototype.scrollIntoView = function () { };
+test/kanban.render.test.mjs:32:		window.Element.prototype.scrollIntoView = function () { };
+> build · glm-5.3-prime
+`run-all` = 1 tsc-сборка + 17 тест-файлов = 18 шагов, всё зелёное. Но grep показывает: **скролл-рестор (lastMountedRoute/scrollTop) тестами не покрыт вообще** — в тестах только jsdom-заглушки scrollIntoView. Проверю, покрывают ли invite-тесты новый regen-флоу, как заявляет DONE.
+[0m$ [0mcd extensions/aura-team && grep -n "revoke\|Пересоздать\|regen\|createInvite\|cancelled" test/invite.sidebar.test.mjs | head -20; echo "==="; grep -n "mount\|innerHTML" test/kanban.render.test.mjs | head -10
+160:answer('auraTeam.removeMember', { ok: false, cancelled: true });
+182:check('отзыв уходит на сервер через расширение', posted.some(m => m.type === 'invoke' && m.command === 'auraTeam.revokeInvite'));
+183:answer('auraTeam.revokeInvite', { ok: true });
+195:answer('auraTeam.revokeInvite', { ok: false, cancelled: true });
+217:const codeRequest = posted.find(m => m.type === 'invoke' && m.command === 'auraTeam.createInvite');
+219:answer('auraTeam.createInvite', { code: 'AURA-MAINT-CODE', expiresAt: new Date(Date.now() + 7 * 864e5).toISOString(), role: 'maintainer' });
+===
+> build · glm-5.3-prime
+[0m→ [0mRead extensions/aura-team/test/invite.sidebar.test.mjs [90m[limit=75, offset=155][0m
+> build · glm-5.3-prime
+Тесты гоняют сайдбар-путь (`inviteRevokeBtn` → `#secInvite`), а правка a2-team — в модалке (`wireInviteActions`, `[data-revoke-invite]`). Проверяю, есть ли покрытие именно модал-пути.
+[0m$ [0mcd extensions/aura-team && grep -rn "data-revoke-invite\|wireInviteActions\|openInviteMenu\|data-gen-invite" test/ | head; echo "=== сайдбар-путь в шаблоне:"; grep -n "inviteRevokeBtn\|inviteNewBtn" src/webview/template.html | head -8
+=== сайдбар-путь в шаблоне:
+> build · glm-5.3-prime
+[0m$ [0mcd extensions/aura-team && grep -rn "inviteRevokeBtn" src/ | head -5; echo "==="; grep -rn "data-revoke-invite\|wireInviteActions" src/webview/ | head -8; echo "=== где живёт sidebar:"; ls src/webview/
+src/extension.ts:2014:		'<button id="inviteRevokeBtn">' + esc(t('inviteRevoke')) + '</button></div>';
+src/extension.ts:2087:	on('inviteRevokeBtn', () => { void revokeInvite(); });
+===
+src/webview/template.html:1648:						<button class="btn ghost sm danger-text" data-revoke-invite>${esc(T('inviteRegen'))}</button></div>
+src/webview/template.html:1675:	wireInviteActions(overlay);
+src/webview/template.html:1677:function wireInviteActions(overlay) {
+src/webview/template.html:1679:	const revoke = overlay.querySelector('[data-revoke-invite]');
+=== где живёт sidebar:
+panelProvider.ts
+template.html
+> build · glm-5.3-prime
+Два разных пути подтверждены: сайдбар (`extension.ts:2087`, покрыт тестами) и модалка (`template.html:1677`, правка a2-team). Проверю последнее — покрыт ли deleteArchive тестами, и соберу точные номера строк для вердикта.
+[0m$ [0mcd extensions/aura-team && grep -rn "deleteArchive\|data-del-archive\|confirmAction" test/ | head -5 || echo "deleteArchive тестами не покрыт"; echo "=== точные строки:"; grep -n "notifyToast(vscode.l10n" src/extension.ts; grep -n "GIT_CACHE_TTL_MS = " src/extension.ts; grep -n "TOAST_WINDOW_MS\|TOAST_BACKLOG_CAP = " src/extension.ts; grep -n "cleanupTempDirs();" src/../../extensions/aura-orca/src/extension.ts 2>/dev/null || grep -n "cleanupTempDirs()" ../aura-orca/src/extension.ts
+test/git.render.test.mjs:115:const viewSource = raw.slice(raw.indexOf('function wireGit()'), raw.indexOf('function confirmAction'));
+=== точные строки:
+376:							notifyToast(vscode.l10n.t('📋 Task assigned to you: {0}', task.title));
+387:				notifyToast(vscode.l10n.t('🔔 {0}: {1}', first.userName, first.action));
+220:	const GIT_CACHE_TTL_MS = 10_000;
+337:	const TOAST_WINDOW_MS = 5000;
+338:	const TOAST_BACKLOG_CAP = 10;
+358:			toastTimer = setTimeout(flushToasts, TOAST_WINDOW_MS);
+302:		cleanupTempDirs();
+370:		panel.onDidDispose(() => { panel = undefined; cleanupTempDirs(); }, undefined, context.subscriptions);
+> build · glm-5.3-prime
+Верификация завершена. Картина полная: все 14 пунктов в коде подтверждены, цифры воспроизводятся, но есть одно ложное evidence-заявление (покрытие invite-regen тестами — его нет, тесты гоняют другой путь) и пара мелких неточностей. Пишу вердикт.
+[0m← [0mWrite docs/swarm/ZAN-zan-a2-team.md
+Created file successfully: docs/swarm/ZAN-zan-a2-team.md
+> build · glm-5.3-prime
+Ревью записано: `docs/swarm/ZAN-zan-a2-team.md`
+
+# REQUEST_CHANGES
+
+**Коротко:** все 14 пунктов DONE в коде подтверждены, ключевые цифры воспроизведены моими прогонами — но один evidence-заяв в DONE оказался ложным, и он блокирует.
+
+**Гейты (мои прогоны):**
+
+| Проверка | Результат |
+|---|---|
+| `node test/run-all.mjs` | **18/18 PASSED, exit 0** — цифра DONE бьётся |
+| tsc noEmit × 3 (team/orca/orchestrator) | **все exit 0**, TS 6.0.3 |
+| `npx tsc` в extensions/* | нерабочий в этом окружении (MODULE_NOT_FOUND на `extensions/node_modules`) — прогонял корневым tsc.js, у билдера та же грабля |
+| Ключи nls | EN 58 / RU 58 / покрытие 1:1; `minimum: 60` на строке 70; литералов в манифесте 0 |
+| Корневой tsc | не гнал осознанно — src/vs перепахан параллельными билдерами, результат был бы шумом чужих зон |
+
+**Что воспроизвелось точно:** 024 (pid-файл), 025 (TTL 10с + сброс по onDidChange, ошибочные снапшоты не кэшируются), 026 (агрегатор 5с/backlog 10), 027, 032 (30с heartbeat, clearInterval 197/205), 033 (20с poll, finally-clearInterval), kanban-скролл, deleteArchive-confirm, invite-regen с честным `{cancelled}`. «Already done» по 019/021 — правда: `git diff HEAD` по этим строкам пуст, фиксы в коммитах, билдер чужого не приписал.
+
+**Враньё в evidence, названное именем:**
+1. **«Поведение [invite regen] покрыто существующими invite-тестами» — ложь.** Тесты гоняют сайдбар-путь (`inviteRevokeBtn` → extension.ts:2087), который a2-team не трогал. Изменённый модал-путь (`wireInviteActions`, `[data-revoke-invite]`) в тестах не упоминается ни разу. Тесты зелёные, потому что проверяют другое.
+2. «16 новых EN» — фактически **15** (16-я строка диффа — тронутая запятая на `command.getState`).
+3. Мелочь: «вызовы 376, 388» → 387; AURA-023 «288-291» → фактически 301-304.
+
+**Новые проблемы:** три новых UX-поведения (скролл, deleteArchive, regen) — нулевое тестовое покрытие; runtime-строки новых фич EN-only (l10n-бандлов нет ни у team, ни у orca); метрика «output X KB» в heartbeat оркестратора упирается в усечённые 6000 символов из getState — лог врёт о реальном объёме.
+
+**Зона чистая:** все правки DONE — в диффе и соответствуют логу билдера; чужие следы в тех же файлах (`randomUUID`, `ELECTRON_RUN_AS_NODE`, client.ts и пр.) ни на одну претензию не опираются. `tmp-regions.txt` (24.09) и `patch-kanban.py` (05.10) — мусор до роя, не билдера.
+
+**Минимум к ACCEPT:** убрать/заменить ложное «покрыто тестами» (лучше — дешёвый jsdom-тест на `wireInviteActions`), поправить счётчики 16→15 и номера строк. Без этого не принимать — иначе следующий билдер скопирует паттерн «заявил тесты, которых нет».

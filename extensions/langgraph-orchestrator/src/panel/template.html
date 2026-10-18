@@ -379,6 +379,15 @@ pre {
 .card:hover { border-color: var(--vscode-focusBorder); }
 .card[draggable="true"] { cursor: grab; }
 .card.dragging { opacity: .4; }
+.card.kb-grabbed { outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; }
+.card:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; }
+.drag-ghost { position: fixed; top: -1000px; left: -1000px; transform: rotate(2deg); pointer-events: none; opacity: .92; z-index: 999; box-shadow: 0 10px 28px rgba(0,0,0,.4); }
+.task-placeholder { border: 2px dashed var(--vscode-focusBorder); border-radius: 8px; min-height: 44px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.chip.risk { text-transform: lowercase; }
+.chip.risk-sensitive, .chip.risk-destructive { color: var(--vscode-errorForeground, #f48771); border-color: currentColor; }
+.chip.verified { color: var(--vscode-testing-iconPassed, #4ec9b0); border-color: currentColor; }
+.card.dragging { opacity: .4; }
 .card.selected { border-color: var(--vscode-focusBorder); }
 .card.st-error { border-left: 3px solid var(--c-err); }
 .card.st-waiting { border-left: 3px solid var(--c-warn); }
@@ -577,6 +586,7 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 	</div>
 	<div class="muted" id="addTaskNote"></div>
 	<div id="teamBoard"></div>
+	<div id="kanbanLive" class="sr-only" aria-live="polite"></div>
 </section>
 
 <section id="tab-models">
@@ -713,7 +723,15 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 			sidecarRetry: 'Запустить заново',
 			traceLegendNode: 'узел графа', traceLegendLlm: 'вызов модели', traceLegendErr: 'с ошибкой',
 			tokShort: 'ток.', kilo: ' тыс.', mega: ' млн',
-			boardAgents: 'Агенты запуска', boardTeam: 'Доска команды', boardSearch: 'Поиск по карточкам…',
+			boardAgents: 'Агенты запуска', boardTeam: 'Доска команды', boardHarness: 'Харнесс', boardSearch: 'Поиск по карточкам…',
+			harnessUnavailable: 'Плагин Agent Harness не установлен — очередь задач недоступна.',
+			harnessNoWorkspace: 'Откройте папку проекта: очередь харнесса живёт в .agent-state в её корне.',
+			harnessEmpty: 'Очередь харнесса пуста. Добавьте задачу — она встанет в колонку «Очередь».',
+			taskRisk: 'Риск', riskRead: 'чтение', riskWrite: 'запись', riskSensitive: 'чувствительный', riskDestructive: 'разрушительный',
+			attemptForms: ['попытка', 'попытки', 'попыток'],
+			kbVerified: 'проверено', kbUnverified: 'без проверки', kbAwaiting: 'ждёт аппрува',
+			kbPickUpHint: 'Пробел — взять карточку, стрелки — перенос, Enter — положить, Esc — отмена',
+			kbPickedUp: 'карточка взята', kbPlaced: 'карточка перенесена', kbDragCancel: 'перенос отменён',
 			kbQueue: 'Очередь', kbRunning: 'В работе', kbWaiting: 'Ждут вас', kbDone: 'Готово', kbFailed: 'Ошибки',
 			kbAgentsEmpty: 'Агентов пока нет — запустите задачу, и супервизор разложит её по колонкам.', kbToRun: 'К запуску',
 			kbDetails: 'Подробнее', kbMoveLeft: 'В предыдущую колонку', kbMoveRight: 'В следующую колонку',
@@ -725,7 +743,15 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 		},
 		en: {
 			tokShort: 'tok', kilo: 'k', mega: 'M',
-			boardAgents: 'Run agents', boardTeam: 'Team board', boardSearch: 'Search cards…',
+			boardAgents: 'Run agents', boardTeam: 'Team board', boardHarness: 'Harness', boardSearch: 'Search cards…',
+			harnessUnavailable: 'The Agent Harness plugin is not installed — the task queue is unavailable.',
+			harnessNoWorkspace: 'Open a project folder: the harness queue lives in .agent-state at its root.',
+			harnessEmpty: 'The harness queue is empty. Add a task — it lands in the Queue column.',
+			taskRisk: 'Risk', riskRead: 'read-only', riskWrite: 'write', riskSensitive: 'sensitive', riskDestructive: 'destructive',
+			attemptForms: ['attempt', 'attempts', 'attempts'],
+			kbVerified: 'verified', kbUnverified: 'not verified', kbAwaiting: 'awaiting approval',
+			kbPickUpHint: 'Space picks the card up, arrows move it, Enter drops it, Esc cancels',
+			kbPickedUp: 'card picked up', kbPlaced: 'card moved', kbDragCancel: 'move cancelled',
 			kbQueue: 'Queue', kbRunning: 'Running', kbWaiting: 'Needs you', kbDone: 'Done', kbFailed: 'Failed',
 			kbAgentsEmpty: 'No agents yet — start a task and the supervisor will lay it out on the columns.', kbToRun: 'Go to Run',
 			kbDetails: 'Details', kbMoveLeft: 'Move to previous column', kbMoveRight: 'Move to next column',
@@ -1000,7 +1026,7 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 	const selectOptions = new Map();
 	function fillSelect(select, entries) {
 		let options = selectOptions.get(select);
-		if (!options || options.length !== entries.length) {
+		if (!options || options.length !== entries.length || entries.some((entry, index) => options[index].value !== entry.value)) {
 			clear(select);
 			options = entries.map(entry => el('option', { value: entry.value }));
 			for (const option of options) { select.append(option); }
@@ -1620,19 +1646,295 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 		return col;
 	}
 
+
+	/** Общий drag&drop канбанов: ghost-призрак, placeholder-позиция, клавиатура, aria-анонсы. */
+	let kbDrag = null;
+	let kbGrab = null;
+
+	function announce(text) {
+		const live = document.getElementById('kanbanLive');
+		if (live) { live.textContent = ''; setTimeout(() => { live.textContent = text; }, 30); }
+	}
+
+	function startCardDrag(event, board, id, card) {
+		kbDrag = { board, id };
+		if (event.dataTransfer) {
+			event.dataTransfer.setData('text/plain', board + ':' + id);
+			event.dataTransfer.effectAllowed = 'move';
+		}
+		const ghost = card.cloneNode(true);
+		ghost.classList.add('drag-ghost');
+		ghost.classList.remove('dragging');
+		ghost.style.width = card.offsetWidth + 'px';
+		document.body.appendChild(ghost);
+		if (event.dataTransfer && event.dataTransfer.setDragImage) { event.dataTransfer.setDragImage(ghost, 20, 16); }
+		setTimeout(() => ghost.remove(), 0);
+		requestAnimationFrame(() => card.classList.add('dragging'));
+	}
+
+	function cleanupDrag() {
+		kbDrag = null;
+		document.querySelectorAll('.card.dragging').forEach(card => card.classList.remove('dragging'));
+		document.querySelectorAll('.task-placeholder').forEach(node => node.remove());
+		document.querySelectorAll('.column.drag-over').forEach(col => col.classList.remove('drag-over'));
+	}
+
+	function insertAfterPoint(body, y, excludeId) {
+		const cards = [...body.querySelectorAll('.card')].filter(card => card.dataset.task !== excludeId);
+		for (const card of cards) {
+			const rect = card.getBoundingClientRect();
+			if (y < rect.top + rect.height / 2) { return card; }
+		}
+		return null;
+	}
+
+	function columnDragOver(event, col, board) {
+		if (!kbDrag || kbDrag.board !== board) { return; }
+		event.preventDefault();
+		if (event.dataTransfer) { event.dataTransfer.dropEffect = 'move'; }
+		col.classList.add('drag-over');
+		const body = col.querySelector('.col-body');
+		if (!body) { return; }
+		let placeholder = body.querySelector('.task-placeholder');
+		if (!placeholder) { placeholder = el('div', { class: 'task-placeholder' }); }
+		const before = insertAfterPoint(body, event.clientY, kbDrag.id);
+		if (before) { body.insertBefore(placeholder, before); } else { body.appendChild(placeholder); }
+	}
+
+	/** Дроп: целевой порядок карточек считается по позиции placeholder-а. */
+	function columnDrop(event, board) {
+		event.preventDefault();
+		const raw = event.dataTransfer ? event.dataTransfer.getData('text/plain') : '';
+		const sep = raw.indexOf(':');
+		const dragBoard = sep < 0 ? '' : raw.slice(0, sep);
+		const id = sep < 0 ? '' : raw.slice(sep + 1);
+		const body = event.currentTarget.querySelector('.col-body');
+		let orderedIds = [];
+		if (body) {
+			const kids = [...body.children];
+			orderedIds = kids.filter(node => node.classList.contains('card')).map(node => node.dataset.task).filter(taskId => taskId !== id);
+			const at = kids.findIndex(node => node.classList.contains('task-placeholder'));
+			if (at >= 0) {
+				const before = kids.slice(at + 1).find(node => node.classList.contains('card') && node.dataset.task !== id);
+				const index = before ? orderedIds.indexOf(before.dataset.task) : orderedIds.length;
+				orderedIds.splice(index < 0 ? orderedIds.length : index, 0, id);
+			}
+		}
+		cleanupDrag();
+		if (dragBoard !== board || !id) { return null; }
+		return { id, orderedIds };
+	}
+
+	/** FLIP: карточки перелетают на новые места после перерисовки, а не прыгают. */
+	function captureCardRects(host) {
+		const rects = new Map();
+		host.querySelectorAll('[data-task]').forEach(card => rects.set(card.dataset.task, card.getBoundingClientRect()));
+		return rects;
+	}
+
+	function playCardMoves(host, rects) {
+		host.querySelectorAll('[data-task]').forEach(card => {
+			const old = rects.get(card.dataset.task);
+			if (!old) { return; }
+			const now = card.getBoundingClientRect();
+			const dx = old.left - now.left;
+			const dy = old.top - now.top;
+			if (!dx && !dy) { return; }
+			card.style.transition = 'none';
+			card.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+			requestAnimationFrame(() => {
+				card.style.transition = 'transform .18s ease';
+				card.style.transform = '';
+			});
+		});
+	}
+
+	/** Клавиатурный перенос: Пробел/Enter берёт и кладёт карточку, стрелки двигают, Esc отменяет. */
+	function cardKeyboard(event, board, id, moveBy) {
+		const t = T();
+		const card = event.currentTarget;
+		if (event.key === 'Escape' && kbGrab) {
+			kbGrab = null;
+			document.querySelectorAll('.card.kb-grabbed').forEach(node => node.classList.remove('kb-grabbed'));
+			announce(t.kbDragCancel);
+			event.preventDefault();
+			return;
+		}
+		if (event.key === ' ' || event.key === 'Enter') {
+			event.preventDefault();
+			if (kbGrab && kbGrab.id === id) {
+				kbGrab = null;
+				card.classList.remove('kb-grabbed');
+				announce(t.kbPlaced);
+			} else {
+				kbGrab = { board, id };
+				card.classList.add('kb-grabbed');
+				announce(t.kbPickedUp);
+			}
+			return;
+		}
+		if (kbGrab && kbGrab.id === id && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+			event.preventDefault();
+			kbGrab = null;
+			card.classList.remove('kb-grabbed');
+			moveBy(event.key === 'ArrowLeft' ? -1 : 1);
+			announce(t.kbPlaced);
+		}
+	}
+
+	/** Колонки очереди харнесса: статусы orchestrator.mjs сведены к четырём понятным состояниям. */
+	const HARNESS_COLUMNS = [
+		{ key: 'queue', label: 'kbQueue', status: 'pending', match: st => st === 'pending' || st === 'awaiting_approval' },
+		{ key: 'running', label: 'kbRunning', status: 'running', match: st => st === 'running' },
+		{ key: 'done', label: 'kbDone', status: 'done', match: st => st === 'done' },
+		{ key: 'failed', label: 'kbFailed', status: 'failed', match: st => st === 'failed' || st === 'cancelled' },
+	];
+
+	function riskLabel(t, risk) {
+		return { read: t.riskRead, write: t.riskWrite, sensitive: t.riskSensitive, destructive: t.riskDestructive }[risk] || risk;
+	}
+
+	/** Очередь харнесса: перетаскивание карточки мапится на команду orchestrator.mjs. */
+	function renderHarnessBoard(t, host, harness, query) {
+		if (!harness.available) {
+			host.append(el('div', { class: 'kb-empty', text: t.harnessUnavailable }));
+			return;
+		}
+		if (!harness.workspace) {
+			host.append(el('div', { class: 'kb-empty', text: t.harnessNoWorkspace }));
+			return;
+		}
+		const tasks = (harness.tasks || []).filter(task => matchesQuery(query, task.id, task.title, task.role, task.owner));
+		if ((harness.tasks || []).length === 0) {
+			host.append(el('div', { class: 'kb-empty', text: t.harnessEmpty }));
+			return;
+		}
+		const board = el('div', { class: 'board' });
+		HARNESS_COLUMNS.forEach((column, index) => {
+			const items = tasks.filter(task => column.match(task.status));
+			const cards = items.map(task => harnessCard(t, task, index));
+			const add = el('button', { class: 'col-add', type: 'button', html: KB_ICONS.plus + '<span>' + t.kbAddHere + '</span>', onclick: () => {
+				const input = document.getElementById('newTaskTitle');
+				if (input && input.focus) { input.focus(); }
+			} });
+			const col = kbColumn('harness:' + column.key, column.key, t[column.label], items.length, cards, add);
+			col.addEventListener('dragover', event => columnDragOver(event, col, 'harness'));
+			col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
+			col.addEventListener('drop', event => {
+				const drop = columnDrop(event, 'harness');
+				if (drop) { moveHarnessTask(drop.id, column.key); }
+			});
+			board.append(col);
+		});
+		host.append(board);
+		if (query && tasks.length === 0) { host.append(el('div', { class: 'kb-empty', text: t.kbNothingFound })); }
+	}
+
+	function harnessCard(t, task, columnIndex) {
+		const card = el('div', { class: 'card', draggable: 'true', dataset: { task: task.id } });
+		card.setAttribute('draggable', 'true');
+		card.tabIndex = 0;
+		card.title = t.kbPickUpHint;
+		card.addEventListener('dragstart', event => startCardDrag(event, 'harness', task.id, card));
+		card.addEventListener('dragend', () => cleanupDrag());
+		card.addEventListener('keydown', event => cardKeyboard(event, 'harness', task.id, delta => {
+			const target = HARNESS_COLUMNS[columnIndex + delta];
+			if (target) { moveHarnessTask(task.id, target.key); }
+		}));
+		const top = el('div', { class: 'card-top' });
+		const title = el('div', { class: 'card-title' });
+		title.append(el('b', { text: task.title }), el('div', { class: 'muted', style: 'font-family:var(--mono);font-size:10.5px', text: task.id }));
+		top.append(title);
+		card.append(top);
+		if (task.lastError) { card.append(el('div', { class: 'card-desc err-text', text: String(task.lastError.message || '').slice(0, 220) })); }
+		const meta = el('div', { class: 'card-meta' });
+		meta.append(el('span', { class: 'chip risk risk-' + task.risk, text: riskLabel(t, task.risk) }));
+		meta.append(el('span', { class: 'chip', text: task.role }));
+		if (task.attempts > 0 || task.maxAttempts > 1) { meta.append(el('span', { class: 'chip', text: task.attempts + '/' + task.maxAttempts + ' ' + plural(task.attempts, t.attemptForms) })); }
+		if (task.owner) { meta.append(el('span', { class: 'chip', text: task.owner })); }
+		if (task.status === 'awaiting_approval') { meta.append(el('span', { class: 'chip', text: t.kbAwaiting })); }
+		if (task.status === 'done') { meta.append(el('span', { class: 'chip' + (task.verified ? ' verified' : ''), text: task.verified ? t.kbVerified : t.kbUnverified })); }
+		card.append(meta);
+		const acts = el('div', { class: 'card-acts' });
+		acts.append(el('span', { class: 'grow' }));
+		const prev = HARNESS_COLUMNS[columnIndex - 1];
+		const next = HARNESS_COLUMNS[columnIndex + 1];
+		acts.append(
+			el('button', { class: 'mini', type: 'button', title: t.kbMoveLeft, 'aria-label': t.kbMoveLeft, html: KB_ICONS.left, disabled: !prev, onclick: () => prev && moveHarnessTask(task.id, prev.key) }),
+			el('button', { class: 'mini', type: 'button', title: t.kbMoveRight, 'aria-label': t.kbMoveRight, html: KB_ICONS.right, disabled: !next, onclick: () => next && moveHarnessTask(task.id, next.key) }),
+		);
+		card.append(acts);
+		return card;
+	}
+
+	/** Перенос карточки харнесса: колонка → команда очереди. Оптимистично, при отказе — откат. */
+	function moveHarnessTask(taskId, columnKey) {
+		const t = T();
+		const s = state();
+		const harness = s.harness || { tasks: [] };
+		const task = (harness.tasks || []).find(item => item.id === taskId);
+		const column = HARNESS_COLUMNS.find(item => item.key === columnKey);
+		if (!task || !column || column.match(task.status)) { return; }
+		const action = columnKey === 'running' ? 'claim'
+			: columnKey === 'done' ? 'finish'
+				: columnKey === 'queue' ? 'reopen'
+					: task.status === 'running' ? 'fail' : 'cancel';
+		const before = task.status;
+		task.status = column.status;
+		render();
+		const note = document.getElementById('addTaskNote');
+		invoke('harness.taskAction', { id: taskId, action })
+			.then(result => {
+				const ok = !result || result.ok !== false;
+				if (!ok) { task.status = before; render(); }
+				note.className = ok ? 'ok-text' : 'err-text';
+				note.textContent = ok ? t.kbMoved : (result && result.error ? result.error : t.kbMoveFailed);
+			})
+			.catch(() => { task.status = before; render(); note.className = 'err-text'; note.textContent = t.kbMoveFailed; });
+	}
+
+	/** «Своя задача» вида «Харнесс»: add в очередь проекта с выбранным риском. */
+	function addHarnessTask() {
+		const t = T();
+		const input = document.getElementById('newTaskTitle');
+		const note = document.getElementById('addTaskNote');
+		const button = document.getElementById('btnAddTask');
+		const title = String(input.value || '').trim();
+		if (!title) {
+			note.className = 'muted';
+			note.textContent = t.taskTitleNeeded;
+			return;
+		}
+		button.disabled = true;
+		note.className = 'muted';
+		note.textContent = '';
+		invoke('harness.addTask', { title, risk: document.getElementById('newTaskStatus').value || 'write' })
+			.then(result => {
+				const ok = !result || result.ok !== false;
+				if (ok) { input.value = ''; }
+				note.className = ok ? 'ok-text' : 'err-text';
+				note.textContent = ok ? t.taskAdded : t.taskAddFailed;
+			})
+			.catch(() => { note.className = 'err-text'; note.textContent = t.taskAddFailed; })
+			.finally(() => { button.disabled = false; });
+	}
+
 	function renderBoardTab() {
 		const t = T();
 		const s = state();
 		const team = s.team || { available: false, tasks: [] };
+		const harness = s.harness || { available: false, workspace: false, tasks: [] };
 		const nodes = s.nodes || [];
 		const view = ui.boardView === 'team' && team.available ? 'team'
-			: ui.boardView === 'agents' ? 'agents'
-				: (nodes.length || !team.available ? 'agents' : 'team');
+			: ui.boardView === 'harness' && harness.available ? 'harness'
+				: ui.boardView === 'agents' ? 'agents'
+					: (nodes.length || (!team.available && !harness.available) ? 'agents' : (team.available ? 'team' : 'harness'));
 		const seg = document.getElementById('boardViewSeg');
 		clear(seg);
 		seg.append(
 			el('button', { type: 'button', class: view === 'agents' ? 'active' : '', text: t.boardAgents + (nodes.length ? ' · ' + nodes.length : ''), onclick: () => dispatch({ type: 'boardView', payload: 'agents' }) }),
 			el('button', { type: 'button', class: view === 'team' ? 'active' : '', text: t.boardTeam + (team.available ? ' · ' + (team.tasks || []).length : ''), disabled: !team.available, title: team.available ? '' : t.teamUnavailable, onclick: () => dispatch({ type: 'boardView', payload: 'team' }) }),
+			el('button', { type: 'button', class: view === 'harness' ? 'active' : '', text: t.boardHarness + (harness.available ? ' · ' + (harness.tasks || []).length : ''), disabled: !harness.available, title: harness.available ? '' : t.harnessUnavailable, onclick: () => dispatch({ type: 'boardView', payload: 'harness' }) }),
 		);
 		const search = document.getElementById('boardSearch');
 		search.placeholder = t.boardSearch;
@@ -1640,24 +1942,38 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 		if (search.value !== (ui.boardQuery || '')) { search.value = ui.boardQuery || ''; }
 		const refresh = document.getElementById('btnTeamRefresh');
 		refresh.textContent = t.teamRefresh;
-		refresh.hidden = view !== 'team';
-		document.getElementById('teamHint').textContent = view === 'team' ? t.kbDropHint : '';
-		// Свою задачу заводим прямо здесь: пока Team недоступен, форма скрыта.
+		refresh.hidden = view === 'agents';
+		document.getElementById('teamHint').textContent = view === 'agents' ? '' : t.kbDropHint;
+		// Своя задача: на доске Team — в выбранную колонку, в очереди харнесса — с уровнем риска.
 		const form = document.getElementById('addTaskRow');
-		form.hidden = !team.available || view !== 'team';
+		form.hidden = (view !== 'team' || !team.available) && (view !== 'harness' || !harness.available || !harness.workspace);
 		const titleInput = document.getElementById('newTaskTitle');
 		titleInput.placeholder = t.newTaskPh;
 		titleInput.title = t.newTaskPh;
 		document.getElementById('btnAddTask').textContent = t.addTask;
 		const statusSelect = document.getElementById('newTaskStatus');
-		statusSelect.title = t.taskColumn;
-		statusSelect.setAttribute('aria-label', t.taskColumn);
-		fillSelect(statusSelect, COLUMNS.map(column => ({ value: column.status, text: columnLabel(t, column) })));
+		if (view === 'harness') {
+			statusSelect.title = t.taskRisk;
+			statusSelect.setAttribute('aria-label', t.taskRisk);
+			fillSelect(statusSelect, [
+				{ value: 'write', text: t.riskWrite },
+				{ value: 'read', text: t.riskRead },
+				{ value: 'sensitive', text: t.riskSensitive },
+				{ value: 'destructive', text: t.riskDestructive },
+			]);
+		} else {
+			statusSelect.title = t.taskColumn;
+			statusSelect.setAttribute('aria-label', t.taskColumn);
+			fillSelect(statusSelect, COLUMNS.map(column => ({ value: column.status, text: columnLabel(t, column) })));
+		}
 		const host = document.getElementById('teamBoard');
+		const rects = captureCardRects(host);
 		clear(host);
 		const query = String(ui.boardQuery || '').trim().toLowerCase();
-		if (view === 'agents') { renderAgentBoard(t, host, nodes, s, query); return; }
-		renderTeamBoard(t, host, team, s, query);
+		if (view === 'agents') { renderAgentBoard(t, host, nodes, s, query); }
+		else if (view === 'harness') { renderHarnessBoard(t, host, harness, query); }
+		else { renderTeamBoard(t, host, team, s, query); }
+		playCardMoves(host, rects);
 	}
 
 	/** Канбан агентов: узлы графа по колонкам состояния, с действиями прямо на карточке. */
@@ -1746,13 +2062,11 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 				if (input.focus) { input.focus(); }
 			} });
 			const col = kbColumn('team:' + column.key, column.key, columnLabel(t, column), items.length, cards, add);
-			col.addEventListener('dragover', event => { if (event.preventDefault) { event.preventDefault(); } col.classList.add('drag-over'); });
+			col.addEventListener('dragover', event => columnDragOver(event, col, 'team'));
 			col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
 			col.addEventListener('drop', event => {
-				if (event.preventDefault) { event.preventDefault(); }
-				col.classList.remove('drag-over');
-				const taskId = event.dataTransfer ? event.dataTransfer.getData('text/plain') : '';
-				if (taskId) { moveTeamTask(taskId, column.status); }
+				const drop = columnDrop(event, 'team');
+				if (drop) { moveTeamTask(drop.id, column.status, drop.orderedIds); }
 			});
 			board.append(col);
 		});
@@ -1773,11 +2087,14 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 		const query = String(ui.boardQuery || '').trim().toLowerCase();
 		const card = el('div', { class: 'card', draggable: 'true', dataset: { task: task.id } });
 		card.setAttribute('draggable', 'true');
-		card.addEventListener('dragstart', event => {
-			if (event.dataTransfer) { event.dataTransfer.setData('text/plain', task.id); event.dataTransfer.effectAllowed = 'move'; }
-			card.classList.add('dragging');
-		});
-		card.addEventListener('dragend', () => card.classList.remove('dragging'));
+		card.tabIndex = 0;
+		card.title = t.kbPickUpHint;
+		card.addEventListener('dragstart', event => startCardDrag(event, 'team', task.id, card));
+		card.addEventListener('dragend', () => cleanupDrag());
+		card.addEventListener('keydown', event => cardKeyboard(event, 'team', task.id, delta => {
+			const target = COLUMNS[columnIndex + delta];
+			if (target) { moveTeamTask(task.id, target.status); }
+		}));
 		const title = el('div', { class: 'card-title' });
 		title.append(highlight(task.title, query));
 		const top = el('div', { class: 'card-top' });
@@ -1816,17 +2133,18 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 	}
 
 	/** Смена статуса задачи Team: оптимистично переносим карточку, при отказе — откат и подпись. */
-	function moveTeamTask(taskId, status) {
+	function moveTeamTask(taskId, status, orderedIds) {
 		const t = T();
 		const s = state();
 		const tasks = (s.team && s.team.tasks) || [];
 		const task = tasks.find(item => item.id === taskId);
-		if (!task || task.status === status) { return; }
+		const at = orderedIds ? orderedIds.indexOf(taskId) : -1;
+		if (!task || (task.status === status && at < 0)) { return; }
 		const before = task.status;
 		task.status = status;
 		render();
 		const note = document.getElementById('addTaskNote');
-		invoke('team.moveTask', { taskId, status })
+		invoke('team.moveTask', at >= 0 ? { taskId, status, position: at } : { taskId, status })
 			.then(result => {
 				const ok = !result || result.ok !== false;
 				if (!ok) { task.status = before; render(); }
@@ -1841,6 +2159,7 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 	 * ответом хоста. Поле чистим только при успехе — иначе текст не терялся бы.
 	 */
 	function addBoardTask() {
+		if (ui.boardView === 'harness') { addHarnessTask(); return; }
 		const t = T();
 		const input = document.getElementById('newTaskTitle');
 		const note = document.getElementById('addTaskNote');
@@ -2392,7 +2711,9 @@ details.bedit-toggle[open] > summary { margin-bottom: var(--gap); }
 	document.getElementById('btnRefreshKeys').addEventListener('click', () => invoke('keys.refresh', {}).catch(() => undefined));
 	document.getElementById('btnCheckKeys').addEventListener('click', () => invoke('keys.checkAll', {}).catch(() => undefined));
 	document.getElementById('keySourceFilter').addEventListener('change', event => { keySourceFilter = event.target.value; renderModels(); });
-	document.getElementById('btnTeamRefresh').addEventListener('click', () => invoke('team.refresh', {}).catch(() => undefined));
+	document.getElementById('btnTeamRefresh').addEventListener('click', () => {
+			invoke(ui.boardView === 'harness' ? 'harness.refresh' : 'team.refresh', {}).catch(() => undefined);
+		});
 	document.getElementById('boardSearch').addEventListener('input', event => dispatch({ type: 'boardQuery', payload: event.target.value }));
 	document.getElementById('btnAddTask').addEventListener('click', () => addBoardTask());
 	// Enter в поле задачи создаёт её же: иначе пришлось бы тянуться к кнопке.

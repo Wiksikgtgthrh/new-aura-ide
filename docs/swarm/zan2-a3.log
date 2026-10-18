@@ -1,0 +1,466 @@
+[0m
+> build · glm-5.3-prime
+[0m✗ [0mSkill "aggg2-mandatory-reads" failed
+[91m[1mError: [0mUnable to load skill aggg2-mandatory-reads
+> build · glm-5.3-prime
+Скилл недоступен — иду по сути. Читаю оба документа.
+[0m→ [0mRead docs/swarm/DONE-a3-fix.md 
+[0m→ [0mRead docs/swarm/ZAN-zan-a3.md 
+> build · glm-5.3-prime
+Принято. Зан, ре-ревью. Доказательства собираю сам, в порядке, не разрушающем evidence: сначала mtime/размеры/содержимое, потом — прогоны. Начинаю с фиксации состояния.
+[0m$ [0mdate && echo --- && ls -la docs/swarm/
+Sun Oct 18 23:24:20 RTZ 2026
+---
+total 1258
+drwxr-xr-x 1 Wiks 197121      0 Oct 18 23:23 .
+drwxr-xr-x 1 Wiks 197121      0 Oct 18 04:35 ..
+-rw-r--r-- 1 Wiks 197121   4233 Oct 18 21:11 DONE-a2-n8n-fix.md
+-rw-r--r-- 1 Wiks 197121   3180 Oct 18 21:11 DONE-a2-n8n-low.md
+-rw-r--r-- 1 Wiks 197121   3476 Oct 18 21:11 DONE-a2-team-fix.md
+-rw-r--r-- 1 Wiks 197121   4504 Oct 18 21:11 DONE-a2-team.md
+-rw-r--r-- 1 Wiks 197121   2639 Oct 18 23:06 DONE-a3-fix.md
+-rw-r--r-- 1 Wiks 197121   8081 Oct 18 23:05 DONE-a3.md
+-rw-r--r-- 1 Wiks 197121   4562 Oct 18 06:23 DONE-b1.md
+-rw-r--r-- 1 Wiks 197121   2914 Oct 18 07:13 DONE-b1fix.md
+-rw-r--r-- 1 Wiks 197121   3622 Oct 18 08:36 DONE-b1fix2.md
+-rw-r--r-- 1 Wiks 197121   4635 Oct 18 05:21 DONE-b2.md
+-rw-r--r-- 1 Wiks 197121   1069 Oct 18 21:01 PROMPT-a2-n8n-fix.md
+-rw-r--r-- 1 Wiks 197121   1584 Oct 18 09:12 PROMPT-a2-n8n-low.md
+-rw-r--r-- 1 Wiks 197121   1076 Oct 18 21:01 PROMPT-a2-team-fix.md
+-rw-r--r-- 1 Wiks 197121   2567 Oct 18 09:12 PROMPT-a2-team.md
+-rw-r--r-- 1 Wiks 197121   1649 Oct 18 23:01 PROMPT-a3-fix.md
+-rw-r--r-- 1 Wiks 197121   2919 Oct 18 22:12 PROMPT-a3-i18n-mem.md
+-rw-r--r-- 1 Wiks 197121   3024 Oct 18 04:59 PROMPT-b1-kotlin-emulator.md
+-rw-r--r-- 1 Wiks 197121   1166 Oct 18 07:04 PROMPT-b1fix.md
+-rw-r--r-- 1 Wiks 197121   1399 Oct 18 08:27 PROMPT-b1fix2.md
+-rw-r--r-- 1 Wiks 197121   2733 Oct 18 04:59 PROMPT-b2-n8n-market.md
+-rw-r--r-- 1 Wiks 197121   3463 Oct 18 04:50 PROMPT-explorer.md
+-rw-r--r-- 1 Wiks 197121   1012 Oct 18 20:35 PROMPT-zan-a2-n8n.md
+-rw-r--r-- 1 Wiks 197121   1015 Oct 18 20:35 PROMPT-zan-a2-team.md
+-rw-r--r-- 1 Wiks 197121    967 Oct 18 22:47 PROMPT-zan-a3.md
+-rw-r--r-- 1 Wiks 197121   2700 Oct 18 06:30 PROMPT-zan-b1.md
+-rw-r--r-- 1 Wiks 197121   2421 Oct 18 05:48 PROMPT-zan-b2.md
+-rw-r--r-- 1 Wiks 197121    728 Oct 18 21:41 PROMPT-zan2-a2-n8n.md
+-rw-r--r-- 1 Wiks 197121    731 Oct 18 21:41 PROMPT-zan2-a2-team.md
+-rw-r--r-- 1 Wiks 197121    747 Oct 18 23:23 PROMPT-zan2-a3.md
+-rw-r--r-- 1 Wiks 197121   1466 Oct 18 07:53 PROMPT-zan2-b1.md
+-rw-r--r-- 1 Wiks 197121   1092 Oct 18 08:45 PROMPT-zan3-b1.md
+-rw-r--r-- 1 Wiks 197121  26789 Oct 18 04:57 REVIEW-AURA.md
+-rw-r--r-- 1 Wiks 197121  16996 Oct 18 06:46 ZAN-b1.md
+-rw-r--r-- 1 Wiks 197121  14015 Oct 18 06:04 ZAN-b2.md
+-rw-r--r-- 1 Wiks 197121  10825 Oct 18 20:52 ZAN-zan-a2-n8n.md
+-rw-r--r-- 1 Wiks 197121  16928 Oct 18 20:44 ZAN-zan-a2-team.md
+-rw-r--r-- 1 Wiks 197121  16150 Oct 18 22:57 ZAN-zan-a3.md
+-rw-r--r-- 1 Wiks 197121   9683 Oct 18 21:51 ZAN-zan2-a2-n8n.md
+-rw-r--r-- 1 Wiks 197121  10748 Oct 18 21:46 ZAN-zan2-a2-team.md
+-rw-r--r-- 1 Wiks 197121  20824 Oct 18 08:10 ZAN-zan2-b1.md
+-rw-r--r-- 1 Wiks 197121  10752 Oct 18 08:49 ZAN-zan3-b1.md
+-rw-r--r-- 1 Wiks 197121  30449 Oct 18 21:12 a2-n8n-fix.log
+-rw-r--r-- 1 Wiks 197121  24089 Oct 18 09:18 a2-n8n-low.log
+-rw-r--r-- 1 Wiks 197121  33199 Oct 18 21:12 a2-team-fix.log
+-rw-r--r-- 1 Wiks 197121 122384 Oct 18 09:55 a2-team.log
+-rw-r--r-- 1 Wiks 197121  27452 Oct 18 23:06 a3-fix.log
+-rw-r--r-- 1 Wiks 197121  64772 Oct 18 22:20 a3.log
+-rw-r--r-- 1 Wiks 197121  44337 Oct 18 06:24 b1.log
+-rw-r--r-- 1 Wiks 197121  36469 Oct 18 07:14 b1fix.log
+-rw-r--r-- 1 Wiks 197121  31160 Oct 18 08:36 b1fix2.log
+-rw-r--r-- 1 Wiks 197121  53233 Oct 18 05:22 b2.log
+-rw-r--r-- 1 Wiks 197121  37132 Oct 18 04:57 explorer-aura.log
+-rwxr-xr-x 1 Wiks 197121    294 Oct 18 21:01 run-a2-n8n-fix.sh
+-rwxr-xr-x 1 Wiks 197121    292 Oct 18 09:12 run-a2-n8n-low.sh
+-rwxr-xr-x 1 Wiks 197121    291 Oct 18 21:01 run-a2-team-fix.sh
+-rwxr-xr-x 1 Wiks 197121    277 Oct 18 09:12 run-a2-team.sh
+-rwxr-xr-x 1 Wiks 197121    274 Oct 18 23:01 run-a3-fix.sh
+-rwxr-xr-x 1 Wiks 197121    279 Oct 18 22:12 run-a3.sh
+-rwxr-xr-x 1 Wiks 197121    300 Oct 18 06:13 run-b1-restart.sh
+-rwxr-xr-x 1 Wiks 197121    293 Oct 18 04:59 run-b1.sh
+-rwxr-xr-x 1 Wiks 197121    281 Oct 18 07:04 run-b1fix.sh
+-rwxr-xr-x 1 Wiks 197121    276 Oct 18 08:27 run-b1fix2.sh
+-rwxr-xr-x 1 Wiks 197121    284 Oct 18 04:59 run-b2.sh
+-rwxr-xr-x 1 Wiks 197121    296 Oct 18 20:35 run-zan-a2-n8n.sh
+-rwxr-xr-x 1 Wiks 197121    299 Oct 18 20:35 run-zan-a2-team.sh
+-rwxr-xr-x 1 Wiks 197121    284 Oct 18 22:47 run-zan-a3.sh
+-rwxr-xr-x 1 Wiks 197121    282 Oct 18 06:30 run-zan-b1.sh
+-rwxr-xr-x 1 Wiks 197121    307 Oct 18 05:49 run-zan-b2.sh
+-rwxr-xr-x 1 Wiks 197121    299 Oct 18 21:41 run-zan2-a2-n8n.sh
+-rwxr-xr-x 1 Wiks 197121    302 Oct 18 21:41 run-zan2-a2-team.sh
+-rwxr-xr-x 1 Wiks 197121    287 Oct 18 23:23 run-zan2-a3.sh
+-rwxr-xr-x 1 Wiks 197121    287 Oct 18 07:52 run-zan2-b1.sh
+-rwxr-xr-x 1 Wiks 197121    287 Oct 18 08:45 run-zan3-b1.sh
+-rw-r--r-- 1 Wiks 197121  46509 Oct 18 20:52 zan-a2-n8n.log
+-rw-r--r-- 1 Wiks 197121  33956 Oct 18 20:44 zan-a2-team.log
+-rw-r--r-- 1 Wiks 197121  82095 Oct 18 22:58 zan-a3.log
+-rw-r--r-- 1 Wiks 197121  46373 Oct 18 06:46 zan-b1.log
+-rw-r--r-- 1 Wiks 197121  37093 Oct 18 06:04 zan-b2.log
+-rw-r--r-- 1 Wiks 197121  16245 Oct 18 21:51 zan2-a2-n8n.log
+-rw-r--r-- 1 Wiks 197121  25777 Oct 18 21:46 zan2-a2-team.log
+-rw-r--r-- 1 Wiks 197121    679 Oct 18 23:24 zan2-a3.log
+-rwxr-xr-x 1 Wiks 197121   8247 Oct 18 08:08 zan2-b1-smoke.cjs
+-rw-r--r-- 1 Wiks 197121  52091 Oct 18 08:10 zan2-b1.log
+-rw-r--r-- 1 Wiks 197121  24982 Oct 18 08:49 zan3-b1.log
+[0m$ [0mls -la --full-time extensions/aura-kotlin/out/ 2>/dev/null; echo ---; ls -la --full-time extensions/aura-kotlin/src/avdForm.ts extensions/aura-kotlin/l10n/ 2>/dev/null
+total 444
+drwxr-xr-x 1 Wiks 197121     0 2026-10-18 08:34:10.993834300 +0300 .
+drwxr-xr-x 1 Wiks 197121     0 2026-10-18 07:11:30.959859300 +0300 ..
+-rw-r--r-- 1 Wiks 197121 52439 2026-10-18 23:03:42.980677500 +0300 android.js
+-rw-r--r-- 1 Wiks 197121 18181 2026-10-18 23:03:42.947108400 +0300 avdForm.js
+-rw-r--r-- 1 Wiks 197121 34150 2026-10-18 23:03:42.998567000 +0300 classpath.js
+-rw-r--r-- 1 Wiks 197121 34700 2026-10-18 23:03:43.024820900 +0300 debugAdapter.js
+-rw-r--r-- 1 Wiks 197121 38835 2026-10-18 23:03:43.032343200 +0300 deviceScreen.js
+-rw-r--r-- 1 Wiks 197121 11755 2026-10-18 23:03:43.103423900 +0300 extension.js
+-rw-r--r-- 1 Wiks 197121 14659 2026-10-18 23:03:42.958634400 +0300 gradle.js
+-rw-r--r-- 1 Wiks 197121 16088 2026-10-18 23:03:43.071825100 +0300 javaInstall.js
+-rw-r--r-- 1 Wiks 197121 20040 2026-10-18 23:03:43.088879000 +0300 javaLsp.js
+-rw-r--r-- 1 Wiks 197121 10939 2026-10-18 23:03:43.065298000 +0300 javaProject.js
+-rw-r--r-- 1 Wiks 197121 21228 2026-10-18 23:03:43.078334900 +0300 javaSources.js
+-rw-r--r-- 1 Wiks 197121 10089 2026-10-18 23:03:43.082341000 +0300 javaUris.js
+-rw-r--r-- 1 Wiks 197121 18832 2026-10-18 23:03:43.009295600 +0300 jdwp.js
+-rw-r--r-- 1 Wiks 197121  2830 2026-10-18 23:03:42.935031900 +0300 l10n.js
+-rw-r--r-- 1 Wiks 197121  6247 2026-10-18 23:03:43.058291700 +0300 lsp.js
+-rw-r--r-- 1 Wiks 197121 36309 2026-10-18 23:03:43.048972600 +0300 lspClient.js
+-rw-r--r-- 1 Wiks 197121 16913 2026-10-18 23:03:43.056006800 +0300 lspInstall.js
+-rw-r--r-- 1 Wiks 197121 15192 2026-10-18 23:03:43.098401600 +0300 projectWizard.js
+-rw-r--r-- 1 Wiks 197121 16258 2026-10-18 23:03:43.094856900 +0300 ui.js
+-rw-r--r-- 1 Wiks 197121  9672 2026-10-18 23:03:43.061299600 +0300 zipMember.js
+---
+-rw-r--r-- 1 Wiks 197121 16243 2026-10-18 22:17:55.833373600 +0300 extensions/aura-kotlin/src/avdForm.ts
+
+extensions/aura-kotlin/l10n/:
+total 24
+drwxr-xr-x 1 Wiks 197121     0 2026-10-01 05:24:18.163962900 +0300 .
+drwxr-xr-x 1 Wiks 197121     0 2026-10-18 07:11:30.959859300 +0300 ..
+-rw-r--r-- 1 Wiks 197121 19277 2026-10-18 22:18:22.186444800 +0300 bundle.l10n.ru.json
+[0m$ [0mls -la extensions/aura-serverkit/ && echo --- && ls -la --full-time extensions/aura-serverkit/out/ 2>/dev/null; echo ---; ls -la extensions/aggg-agent/ 2>/dev/null
+total 117
+drwxr-xr-x 1 Wiks 197121     0 Oct 18 22:18 .
+drwxr-xr-x 1 Wiks 197121     0 Oct  6 21:00 ..
+drwxr-xr-x 1 Wiks 197121     0 Oct  1 05:24 media
+drwxr-xr-x 1 Wiks 197121     0 Sep 18 19:54 node_modules
+drwxr-xr-x 1 Wiks 197121     0 Oct 15 20:11 out
+-rw-r--r-- 1 Wiks 197121   978 Oct  1 05:49 package-lock.json
+-rw-r--r-- 1 Wiks 197121  1066 Oct  1 05:47 package.json
+-rw-r--r-- 1 Wiks 197121   365 Oct 18 23:03 package.nls.json
+-rw-r--r-- 1 Wiks 197121   560 Oct 18 23:03 package.nls.ru.json
+drwxr-xr-x 1 Wiks 197121     0 Oct  1 05:24 src
+-rw-r--r-- 1 Wiks 197121   253 Oct  1 05:24 tsconfig.json
+-rw-r--r-- 1 Wiks 197121 51827 Oct 15 20:11 tsconfig.tsbuildinfo
+---
+total 36
+drwxr-xr-x 1 Wiks 197121    0 2026-10-15 20:11:47.807933000 +0300 .
+drwxr-xr-x 1 Wiks 197121    0 2026-10-18 22:18:36.002954000 +0300 ..
+-rw-r--r-- 1 Wiks 197121 7038 2026-10-15 20:11:47.807933000 +0300 dashboardPanel.js
+-rw-r--r-- 1 Wiks 197121 8130 2026-10-15 20:11:47.785256900 +0300 dashboardPanel.js.map
+-rw-r--r-- 1 Wiks 197121 3960 2026-10-15 20:11:47.789861000 +0300 extension.js
+-rw-r--r-- 1 Wiks 197121 4387 2026-10-15 20:11:47.783215200 +0300 extension.js.map
+---
+total 92
+drwxr-xr-x 1 Wiks 197121     0 Sep  7 03:52 .
+drwxr-xr-x 1 Wiks 197121     0 Oct  6 21:00 ..
+drwxr-xr-x 1 Wiks 197121     0 Sep  6 21:59 out
+-rw-r--r-- 1 Wiks 197121 45339 Sep  6 21:59 tsconfig.tsbuildinfo
+[0m$ [0mgit log --oneline -3 && echo --- && git status --porcelain -- extensions/aura-kotlin extensions/aura-serverkit extensions/aggg-agent extensions/aura-team docs/swarm
+2b4ad587 orca: плагин Orca — CLI-агенты (Claude Code, Codex, Gemini, Qwen, opencode, Aider) во вкладках-терминалах, worktree на агента, настройки ключей/base URL/модели, инструмент agent.cli для оркестратора
+f02516bb team: командный процесс GitHub по кнопкам — своя ветка, свежий main, тесты, графический дифф, PR, слияние, откат
+4be44e73 team+orchestrator: канбан агентов, полный русский, проверка ключей, удаление событий, админ
+---
+ M extensions/aura-kotlin/l10n/bundle.l10n.ru.json
+ M extensions/aura-kotlin/src/android.ts
+ M extensions/aura-kotlin/src/avdForm.ts
+ M extensions/aura-kotlin/src/deviceScreen.ts
+ M extensions/aura-serverkit/package.json
+ M extensions/aura-serverkit/package.nls.json
+ M extensions/aura-team/package-lock.json
+ M extensions/aura-team/package.json
+ M extensions/aura-team/package.nls.json
+ M extensions/aura-team/src/api/client.ts
+ M extensions/aura-team/src/extension.ts
+ M extensions/aura-team/src/git/service.ts
+ M extensions/aura-team/src/git/teamSync.ts
+ M extensions/aura-team/src/git/workflow.ts
+ M extensions/aura-team/src/webview/panelProvider.ts
+ M extensions/aura-team/src/webview/template.html
+ M extensions/aura-team/test/kanban.render.test.mjs
+ M extensions/aura-team/test/manifest.test.mjs
+ M extensions/aura-team/test/sidebar-syntax.test.mjs
+?? docs/swarm/
+?? extensions/aura-serverkit/package.nls.ru.json
+?? extensions/aura-team/package.nls.ru.json
+?? extensions/aura-team/test/invite.modal.test.mjs
+?? extensions/aura-team/tmp-regions.txt
+> build · glm-5.3-prime
+Фиксация состояния прошла: `out/avdForm.js` = **18181 байт, 23:03:42** (совпадает с заявкой), весь `out/` перегенерён разом в 23:03 — консистентно с одним прогоном `tsc -p`. Коммитов нет (топ всё ещё `2b4ad587`). Теперь — содержимое и nls-файлы.
+[0m→ [0mRead docs/swarm/PROMPT-a3-fix.md 
+[0m→ [0mRead docs/swarm/DONE-a3.md 
+[0m$ [0mcd extensions/aura-kotlin/out && echo "randomUUID: $(grep -c 'randomUUID' avdForm.js)" && echo "l10n_1.tr: $(grep -c '(0, l10n_1.tr)(' avdForm.js)" && echo "Date.now: $(grep -c 'Date\.now' avdForm.js)" && echo "title-lines:" && grep -n '<title>' avdForm.js; echo "cyrillic lines:"; grep -nP '[А-Яа-яЁё]' avdForm.js | cut -c1-90
+randomUUID: 1
+l10n_1.tr: 27
+Date.now: 0
+title-lines:
+139:<title>${(0, l10n_1.tr)('New emulator')}</title>
+cyrillic lines:
+3: *  Aura Kotlin — форма создания эмулятора (AVD) во вклад
+4: *  Вместо цепочки quick-pick'ов: модель телефона, сист
+5: *  + скачивание по API-уровню), имя и запуск после с�
+6: *  на русском. Создание идёт с живым статусом пря
+134:    // Форма: строки через tr()-ключи (Russian-first через b
+192:/* Кнопки: подъём при наведении, микро-сжатие пр�
+[0m$ [0mnode --check extensions/aura-kotlin/out/avdForm.js && echo "avdForm OK" && node --check extensions/aura-serverkit/out/extension.js && echo "serverkit OK"
+avdForm OK
+serverkit OK
+> build · glm-5.3-prime
+Первые расхождения: `(0, l10n_1.tr)(` — grep по строкам даёт **27**, заявлено 28 вызовов. `grep -c` считает строки, не вхождения — проверяю через `-o`. Также смотрю nls-файлы serverkit и его манифест.
+[0m$ [0mtail -60 docs/swarm/a3-fix.log
+CHECK2-OK
+---
+2b4ad587 orca: плагин Orca — CLI-агенты (Claude Code, Codex, Gemini, Qwen, opencode, Aider) во вкладках-терминалах, worktree на агента, настройки ключей/base URL/модели, инструмент agent.cli для оркестратора
+ M extensions/aura-serverkit/package.json
+ M extensions/aura-serverkit/package.nls.json
+?? docs/swarm/
+?? extensions/aura-serverkit/package.nls.ru.json
+> build · kimi-k3
+26 строк — на одну больше лимита. Сжимаю:
+[0m← [0mEdit docs/swarm/DONE-a3-fix.md
+Index: docs/swarm/DONE-a3-fix.md
+===================================================================
+--- docs/swarm/DONE-a3-fix.md
++++ docs/swarm/DONE-a3-fix.md
+@@ -12,15 +12,14 @@
+ `package.nls.json` переписан на **английский** (был русским с ba9fc3eb), `package.nls.ru.json` — **русский** (был байт-копией). Теперь EN-локаль → английский, RU → русский, функциональная дельта ненулевая.
+ Прогон-сверка каждого `%ключа%` манифеста: 6 используемых (`displayName`, `description`, `configuration.title`, `configuration.serverUrl`, `command.openDashboard`, `command.checkStatus`) — присутствуют в обоих файлах; missing: нет; **dead: нет** (мёртвые `container.title`, `view.home` удалены); кириллица: EN — нет, RU — да; оба JSON валидны.
+ 
+ ## 3. Счётчики в DONE-a3.md ✅
+-«18 строк» → «20 строк (18 новых + 2 существовавших)»; бандл «172–189» → «171–188»; «extension.ts:423» → «425»; serverkit-пункт переписан честно (EN-база + RU, 6 живых ключей, мёртвые удалены).
++«18 строк» → «20 строк (18 новых + 2 существовавших)»; бандл «172–189» → «171–188»; «extension.ts:423» → «425»; serverkit-пункт переписан честно.
+ 
+ ## Гейты
+ | Проверка | Результат |
+ |---|---|
+ | tsc emit aura-kotlin | exit 0 |
+-| tr(/randomUUID в out/avdForm.js | 28 / 1 (>0) |
++| tr(/randomUUID/Date.now в out/avdForm.js | 28 / 1 / 0 |
+ | node --check avdForm.js, serverkit/out/extension.js | OK ×2 |
+ | nls ключи vs манифест | 6/6, dead 0, JSON valid |
+-
+-Ничего не закоммичено. Вне зоны (не трогал): экранирование tr() в JS-строках webview — отдельной задачей; удалённый `icon` в serverkit/package.json — чужой след.
++Ничего не закоммичено. Вне зоны (не трогал): экранирование tr() в JS-строках webview; удалённый `icon` в serverkit/package.json — чужой след.
+
+> build · kimi-k3
+[0m$ [0mwc -l docs/swarm/DONE-a3-fix.md
+25 docs/swarm/DONE-a3-fix.md
+> build · kimi-k3
+**Готово, сэр.** Оба блокера закрыты, все заявки подкреплены живыми прогонами. Отчёт — `docs/swarm/DONE-a3-fix.md` (ровно 25 строк).
+
+## Что сделано
+
+**1. Эмит aura-kotlin (AURA-016/017)**
+- `node node_modules/typescript/lib/tsc.js -p extensions/aura-kotlin/tsconfig.json` → exit 0
+- `out/avdForm.js`: mtime 22:17 → **23:03**, размер 18312 → 18181 байт
+- В компиляте: `crypto.randomUUID()` (:56), **28 вызовов** `(0, l10n_1.tr)(`, `Date.now()` — 0, хардкод-русского — 0 (кириллица только в комментариях)
+- `node --check` — OK
+
+**2. aura-serverkit — настоящая русификация**
+- `package.nls.json` переписан на **английский** (был русским с ba9fc3eb), `package.nls.ru.json` — русский. EN-локаль теперь реально показывает английский
+- Сверка каждого `%ключа%` манифеста прогоном: 6 живых ключей присутствуют в обоих файлах, missing/dead — 0 (мёртвые `container.title`/`view.home` удалены), кириллица EN — нет / RU — да, JSON валиден
+
+**3. Мелочи в DONE-a3.md**: «18 строк» → 20, бандл «172–189» → «171–188», «423» → «425», serverkit-пункт переписан честно.
+
+## Не трогал (вне заявки)
+- `aura-serverkit/src` и `aggg-agent` — не правились, эмит не требовался (`node --check` их out/ — OK)
+- Экранирование `tr()` в JS-строках webview (латентная бомба из новых проблем Зана) — отдельной задачей
+- Удалённый `icon` в serverkit/package.json — чужой след, не моя атрибуция
+
+Ничего не закоммичено — `git log` топ = 2b4ad587, как было.
+[0m$ [0mcat extensions/aura-serverkit/package.nls.json; echo ===; cat extensions/aura-serverkit/package.nls.ru.json; echo ===; cat extensions/aura-serverkit/package.json
+{
+	"displayName": "ServerKit",
+	"description": "Server control panel: app deployment, databases, Docker containers and monitoring right from the IDE.",
+	"configuration.title": "ServerKit",
+	"configuration.serverUrl": "URL of the deployed ServerKit (server control panel)",
+	"command.openDashboard": "Open Dashboard",
+	"command.checkStatus": "Check Server Status"
+}
+===
+{
+	"displayName": "ServerKit",
+	"description": "ServerKit — панель управления сервером: деплой приложений, базы данных, Docker-контейнеры и мониторинг прямо из IDE.",
+	"configuration.title": "ServerKit",
+	"configuration.serverUrl": "URL развернутого ServerKit (панель управления сервером)",
+	"command.openDashboard": "Открыть панель управления",
+	"command.checkStatus": "Проверить статус сервера"
+}
+===
+{
+	"name": "aura-serverkit",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.1.0",
+	"publisher": "aura",
+	"license": "MIT",
+	"engines": { "vscode": "^1.100.0" },
+	"activationEvents": [
+		"onCommand:auraServerkit.openDashboard",
+		"onCommand:auraServerkit.checkStatus"
+	],
+	"main": "./out/extension",
+	"scripts": {
+		"compile": "gulp compile-extension:aura-serverkit",
+		"watch": "gulp watch-extension:aura-serverkit"
+	},
+	"contributes": {
+		"configuration": {
+			"title": "%configuration.title%",
+			"properties": {
+				"auraServerkit.serverUrl": {
+					"type": "string",
+					"default": "https://serverkit.auraide.xyz",
+					"description": "%configuration.serverUrl%"
+				}
+			}
+		},
+		"commands": [
+			{ "command": "auraServerkit.openDashboard", "title": "%command.openDashboard%", "category": "ServerKit", "icon": "$(server)" },
+			{ "command": "auraServerkit.checkStatus", "title": "%command.checkStatus%", "category": "ServerKit" }
+		]
+	},
+	"devDependencies": {
+		"@types/node": "24.x"
+	}
+}
+[0m$ [0mgit diff HEAD -- extensions/aura-serverkit/package.json; echo "---src diff:"; git diff HEAD --stat -- extensions/aura-serverkit/src extensions/aggg-agent 2>/dev/null; echo "(end)"
+diff --git a/extensions/aura-serverkit/package.json b/extensions/aura-serverkit/package.json
+index 32350487..fe1c3cdc 100644
+--- a/extensions/aura-serverkit/package.json
++++ b/extensions/aura-serverkit/package.json
+@@ -4,7 +4,6 @@
+ 	"description": "%description%",
+ 	"version": "0.1.0",
+ 	"publisher": "aura",
+-	"icon": "media/serverkit.svg",
+ 	"license": "MIT",
+ 	"engines": { "vscode": "^1.100.0" },
+ 	"activationEvents": [
+---src diff:
+(end)
+[0m$ [0mcd extensions/aura-kotlin && echo "occurrences out: $(grep -o '(0, l10n_1.tr)(' out/avdForm.js | wc -l)" && echo "occurrences src: $(grep -oE '\btr\(' src/avdForm.ts | wc -l)" && echo "lines out: $(grep -c '(0, l10n_1.tr)(' out/avdForm.js)" && grep -n 'randomUUID' out/avdForm.js | cut -c1-130 && echo "--- double-call lines:" && grep -n '(0, l10n_1.tr)(.*)(0, l10n_1.tr)(' out/avdForm.js | cut -c1-160
+occurrences out: 28
+occurrences src: 29
+lines out: 27
+56:        this.panel.webview.html = this.html(crypto.randomUUID());
+--- double-call lines:
+> build · glm-5.3-prime
+`tr` — 28 вхождений на 27 строках: заявка «28 вызовов» подтверждается по вхождениям (одна строка с двумя вызовами — как в src :306 «две»). В src 29 совпадений `tr(` — одно из них комментарий `:134`. Теперь nls-файлы против HEAD, валидность JSON, свежесть src против эмита и ключи бандла.
+[0m$ [0mls -la --full-time extensions/aura-kotlin/src/ extensions/aura-kotlin/tsconfig.json && echo "--- src tr(' count: $(grep -oE "\btr\('" extensions/aura-kotlin/src/avdForm.ts | wc -l)" && grep -on '(0, l10n_1.tr)(' extensions/aura-kotlin/out/avdForm.js | awk -F: '{c[$1]++} END {for (l in c) if (c[l]>1) print "double line "l": "c[l]" calls"}'
+-rw-r--r-- 1 Wiks 197121 254 2026-10-01 05:24:15.285007300 +0300 extensions/aura-kotlin/tsconfig.json
+
+extensions/aura-kotlin/src/:
+total 408
+drwxr-xr-x 1 Wiks 197121     0 2026-10-01 05:24:18.195642700 +0300 .
+drwxr-xr-x 1 Wiks 197121     0 2026-10-18 07:11:30.959859300 +0300 ..
+-rw-r--r-- 1 Wiks 197121 47754 2026-10-18 08:33:29.561784900 +0300 android.ts
+-rw-r--r-- 1 Wiks 197121 16243 2026-10-18 22:17:55.833373600 +0300 avdForm.ts
+-rw-r--r-- 1 Wiks 197121 32648 2026-10-01 05:24:18.184112400 +0300 classpath.ts
+-rw-r--r-- 1 Wiks 197121 31467 2026-10-01 05:24:18.184112400 +0300 debugAdapter.ts
+-rw-r--r-- 1 Wiks 197121 35179 2026-10-18 08:32:55.746945400 +0300 deviceScreen.ts
+-rw-r--r-- 1 Wiks 197121 10202 2026-10-01 05:24:18.186120600 +0300 extension.ts
+-rw-r--r-- 1 Wiks 197121 13207 2026-10-01 05:24:18.188127200 +0300 gradle.ts
+-rw-r--r-- 1 Wiks 197121 13800 2026-10-01 05:24:18.188127200 +0300 javaInstall.ts
+-rw-r--r-- 1 Wiks 197121 17401 2026-10-01 05:24:18.190134000 +0300 javaLsp.ts
+-rw-r--r-- 1 Wiks 197121 10365 2026-10-01 05:24:18.190134000 +0300 javaProject.ts
+-rw-r--r-- 1 Wiks 197121 19659 2026-10-01 05:24:18.190134000 +0300 javaSources.ts
+-rw-r--r-- 1 Wiks 197121  8711 2026-10-01 05:24:18.190134000 +0300 javaUris.ts
+-rw-r--r-- 1 Wiks 197121 18010 2026-10-01 05:24:17.723185300 +0300 jdwp.ts
+-rw-r--r-- 1 Wiks 197121  1446 2026-10-01 05:24:18.190134000 +0300 l10n.ts
+-rw-r--r-- 1 Wiks 197121  5091 2026-10-01 05:24:18.194133700 +0300 lsp.ts
+-rw-r--r-- 1 Wiks 197121 39518 2026-10-01 05:24:18.194133700 +0300 lspClient.ts
+-rw-r--r-- 1 Wiks 197121 14790 2026-10-01 05:24:18.195642700 +0300 lspInstall.ts
+-rw-r--r-- 1 Wiks 197121 13162 2026-10-01 05:24:18.195642700 +0300 projectWizard.ts
+-rw-r--r-- 1 Wiks 197121 14437 2026-10-01 05:24:18.195642700 +0300 ui.ts
+-rw-r--r-- 1 Wiks 197121  7975 2026-10-01 05:24:18.195642700 +0300 zipMember.ts
+--- src tr(' count: 28
+double line 329: 2 calls
+[0m$ [0mnode -e "const fs=require('fs'); JSON.parse(fs.readFileSync('extensions/aura-serverkit/package.nls.json','utf8')); JSON.parse(fs.readFileSync('extensions/aura-serverkit/package.nls.ru.json','utf8')); console.log('both JSON valid')"; echo ---; git show HEAD:extensions/aura-serverkit/package.nls.json
+both JSON valid
+---
+{
+	"displayName": "ServerKit",
+	"description": "ServerKit — панель управления сервером: деплой приложений, базы данных, Docker-контейнеры и мониторинг прямо из IDE.",
+	"configuration.title": "ServerKit",
+	"configuration.serverUrl": "URL развернутого ServerKit (панель управления сервером)",
+	"container.title": "ServerKit",
+	"view.home": "ServerKit",
+	"command.openDashboard": "Открыть панель управления",
+	"command.checkStatus": "Проверить статус сервера"
+}
+[0m$ [0mnode -e "const b=JSON.parse(require('fs').readFileSync('extensions/aura-kotlin/l10n/bundle.l10n.ru.json','utf8')); const k=Object.keys(b); console.log('total keys:',k.length); console.log('New emulator (pre-existing):', 'New emulator' in b); console.log('Download new system image… (pre-existing):', k.some(x=>x.startsWith('Download new system image')));" && sed -n '171,188p' extensions/aura-kotlin/l10n/bundle.l10n.ru.json | cut -c1-100 && sed -n '61p' extensions/aura-kotlin/out/avdForm.js | cut -c1-80 && sed -n '139p' extensions/aura-kotlin/out/avdForm.js | cut -c1-90
+total keys: 187
+New emulator (pre-existing): true
+Download new system image… (pre-existing): true
+	"New emulator": "Новый эмулятор",
+	"Phone model, Android version and name — the emulator will appear in the Android panel.": "Мод
+	"Device model": "Модель устройства",
+	"System image": "Системный образ",
+	"API level to download": "API-уровень для скачивания",
+	"Image will be downloaded via sdkmanager (~1 GB), licenses are accepted automatically.": "Обра�
+	"Emulator name": "Имя эмулятора",
+	"Letters, digits, dot, dash and underscore.": "Буквы, цифры, точка, дефис и п
+	"Start emulator after creation": "Запустить эмулятор после создания",
+	"Create emulator": "Создать эмулятор",
+	"Architecture:": "Архитектура:",
+	"Name: only letters, digits, dot, dash and underscore.": "Имя: только буквы, цифр
+	"API level — two digits, e.g. 35.": "API-уровень — две цифры, например 3
+	"Creating emulator…": "Создание эмулятора…",
+	"Downloading system image…": "Скачивание системного образа…",
+	"Failed to get SDK data.": "Не удалось получить данные SDK.",
+	"Emulator creation error.": "Ошибка создания эмулятора.",
+	"Emulator \"{0}\" has been created and is now in the Android panel list.": "Эмулятор «{0}�
+    }
+<title>${(0, l10n_1.tr)('New emulator')}</title>
+[0m$ [0msed -n '61p;326p' extensions/aggg-agent/out/extension.js | cut -c1-120; echo ---; node node_modules/typescript/lib/tsc.js --noEmit -p extensions/aura-kotlin/tsconfig.json; echo "kotlin noEmit exit=$?"; node node_modules/typescript/lib/tsc.js --noEmit -p extensions/aura-serverkit/tsconfig.json; echo "serverkit noEmit exit=$?"
+statusItem = vscode.window.createStatusBarItem('status.aggg.agent', vscode.StatusBarAlignment.Left, 90);
+    sanitizedLog = `${sanitizedLog}${redacted}`.slice(-10_000);
+---
+kotlin noEmit exit=0
+serverkit noEmit exit=0
+> build · glm-5.3-prime
+Все проверки пока сходятся: src свежее эмита нет (последний src-чейндж 22:17 < 23:03:42), оба tsc `--noEmit` = exit 0, JSON валидны, HEAD-версия nls.json действительно была русской с 8 ключами (2 мёртвых теперь удалены), бандл — 187 ключей, 18 новых на 171–188. Финальный гейт — контрольный переэмит с хэшем до/после: докажет и «exit 0», и что 23:03-билд байт-в-байт соответствует текущему src.
+[0m$ [0mnode -p "require('./node_modules/typescript/package.json').version" && node -p "require('./extensions/aura-kotlin/package.json').main" && sha256sum extensions/aura-kotlin/out/avdForm.js extensions/aura-kotlin/out/extension.js > /tmp/hash-before.txt && cat /tmp/hash-before.txt
+6.0.2
+./out/extension.js
+f5aa16f547c4f5794081d4f46892a453d2ee067a389b5e3d3ee207ffe524e61b *extensions/aura-kotlin/out/avdForm.js
+dbd0446bf0294eee12251c37ce747723c9fe7845e21cb864f5f6b2b01af03e41 *extensions/aura-kotlin/out/extension.js
+> build · glm-5.3-prime
+Хэши зафиксированы (avdForm.js `f5aa16f5…`, extension.js `dbd0446b…`). Контрольный переэмит:
+[0m$ [0mnode node_modules/typescript/lib/tsc.js -p extensions/aura-kotlin/tsconfig.json; echo "emit exit=$?"; sha256sum -c /tmp/hash-before.txt && ls --full-time extensions/aura-kotlin/out/avdForm.js extensions/aura-kotlin/out/extension.js && ls extensions/aura-kotlin/out/ | wc -l
+emit exit=0
+extensions/aura-kotlin/out/avdForm.js: OK
+extensions/aura-kotlin/out/extension.js: OK
+-rw-r--r-- 1 Wiks 197121 18181 2026-10-18 23:27:25.283323900 +0300 extensions/aura-kotlin/out/avdForm.js
+-rw-r--r-- 1 Wiks 197121 11755 2026-10-18 23:27:25.453046000 +0300 extensions/aura-kotlin/out/extension.js
+20
+> build · glm-5.3-prime
+Контрольный переэмит: **exit 0, хэши байт-в-байт совпали** (`sha256sum -c` — OK ×2). Значит билд от 23:03 — честный и полный: текущий src компилируется ровно в тот же артефакт. mtime теперь 23:27 — это МОЙ контрольный прогон, содержимое не изменилось ни на байт. Проверяю, есть ли в репо стек findings, и пишу вердикт.
+[0m✱ [0mGlob "**/findings.py" [90m0 matches[0m
+[0m✱ [0mGlob "db-tools/*" [90m0 matches[0m
+> build · glm-5.3-prime
+Стека findings в этом репо нет — склад знаний роя это сам `docs/swarm/`. Пишу вердикт.
+[0m← [0mWrite docs/swarm/ZAN-zan2-a3.md
+Created file successfully: docs/swarm/ZAN-zan2-a3.md
+> build · glm-5.3-prime
+Готово. Верdict-файл: `docs/swarm/ZAN-zan2-a3.md`.
+
+**Вердикт: ACCEPT.** Оба блокера закрыты по-настоящему — и я это проверил не чтением их DONE, а своими прогонами:
+
+| Заявка | Моя проверка | Итог |
+|---|---|---|
+| Эмит 23:03, 18181 б | stat: 18181 б, 23:03:42 | ✅ |
+| randomUUID / tr / Date.now = 1/28/0 | grep: 1 (:56) / 28 вхождений / 0 | ✅ |
+| tsc emit exit 0 | **контрольный переэмит: exit 0, sha256 байт-в-байт совпал** | ✅ решающее |
+| nls.json английский | прочитал — весь EN, RU-оверлей русский, 6/6 ключей, dead 0, JSON валидны | ✅ |
+| Счётчики в DONE-a3.md | «20 строк», «171–188», «425», serverkit-раздел честный | ✅ |
+| Ничего не закоммичено | git log топ 2b4ad587 | ✅ |
+
+Ключевой финт — переэмит с хэш-сверкой: единственный способ доказать, что чужой эмит не «нарисован». Мой `tsc -p` из текущего src дал ровно тот же `out/avdForm.js` (`sha256sum -c` OK). Значит билд 23:03 — честный и полный. AURA-017 (nonce) теперь в рантайме.
+
+**Вранья нет. Одна косметика:** в DONE-a3-fix написано «mtime 22:17 → 23:03» — «до»-цифра взята с src-файла, реальный mtime out до эмита был 08:47. Мелочь, суть не меняет. Плюс сам себе зафиксировал: в прошлом ревью я записал TS 6.0.3, на деле 6.0.2 — моя описка.
+
+Осталось открытым (не блокеры): tr()-экранирование в webview (бомба латентная, нужен отдельный таск), неопознанный удалённый `icon` в serverkit, `/out/` в gitignore (фиксы aggg-agent живут в неверсионируемых файлах), typeRoots через соседний node_modules.

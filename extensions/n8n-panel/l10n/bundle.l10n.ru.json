@@ -1,0 +1,12 @@
+{
+	"Loading n8n… {0}s": "Загружаю n8n… осталось {0} с",
+	"Could not load n8n at": "Не удалось загрузить n8n по адресу",
+	"Reconnect": "Переподключиться",
+	"Open n8n": "Открыть n8n",
+	"Open in Browser": "Открыть в браузере",
+	"Checking…": "Проверяю…",
+	"Server is reachable": "Сервер доступен",
+	"Server is not reachable": "Сервер недоступен",
+	"n8n URL is not configured — set it in the n8nPanel.url setting.": "URL n8n не настроен — задайте его в настройке n8nPanel.url.",
+	"n8n is not responding at {0} — the tab may stay empty.": "n8n не отвечает по адресу {0} — вкладка может остаться пустой."
+}

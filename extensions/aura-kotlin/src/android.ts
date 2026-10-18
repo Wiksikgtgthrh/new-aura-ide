@@ -463,8 +463,13 @@ export class AndroidPanel implements vscode.Disposable {
 	async screenSize(device: string): Promise<{ width: number; height: number } | undefined> {
 		try {
 			const text = await this.adb('-s', device, 'shell', 'wm', 'size');
-			const match = /(\d+)x(\d+)/.exec(text);
-			if (match) { return { width: Number(match[1]), height: Number(match[2]) }; }
+			// Берём последнее совпадение: при заданном Override size действующий размер буфера —
+			// именно он, а Physical size (первая строка) тогда не актуален. Оба значения wm
+			// отдаёт в НАТИВНОЙ ориентации устройства — после поворота оси местами НЕ меняются,
+			// поэтому результат годится для раскладки, но не как размер для screenrecord --size.
+			const matches = [...text.matchAll(/(\d+)x(\d+)/g)];
+			const last = matches[matches.length - 1];
+			if (last) { return { width: Number(last[1]), height: Number(last[2]) }; }
 		} catch { /* устройство недоступно */ }
 		return undefined;
 	}

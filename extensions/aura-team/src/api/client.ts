@@ -51,10 +51,14 @@ export class AuraApiClient implements vscode.Disposable {
 
 	private async request<T>(path: string, init: RequestInit = {}, authenticated = true, retry = true): Promise<T> {
 		const token = authenticated ? await this.context.secrets.get('auraTeam.accessToken') : undefined;
+		// Таймаут 30 с: зависший сервер иначе морозит refresh (он под мьютексом) и весь UI.
+		const timeout = AbortSignal.timeout(30_000);
+		const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
 		let response: Response;
 		try {
 			response = await fetch(`${this.baseUrl}${path}`, {
 				...init,
+				signal,
 				headers: { ...contentTypeHeader(init.body), ...(token ? { authorization: `Bearer ${token}` } : {}), ...init.headers }
 			});
 		} catch (error) {
@@ -91,7 +95,9 @@ export class AuraApiClient implements vscode.Disposable {
 			dir = parent;
 		}
 		if (!serverRoot) { return false; }
-		const child = spawn(process.execPath, [join(serverRoot, 'scripts', 'start-local.mjs')], { cwd: serverRoot, stdio: 'ignore', detached: true });
+		// process.execPath — это Electron, а не node: без ELECTRON_RUN_AS_NODE вместо
+		// сервера поднимается лишний GUI-процесс.
+		const child = spawn(process.execPath, [join(serverRoot, 'scripts', 'start-local.mjs')], { cwd: serverRoot, stdio: 'ignore', detached: true, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
 		child.unref();
 		// Ждём до 10 секунд готовности.
 		for (let i = 0; i < 20; i++) {
@@ -160,7 +166,7 @@ export class AuraApiClient implements vscode.Disposable {
 	 *  предлагал имя проекта без расширения, а серверный RFC 5987-заголовок игнорировался. */
 	async downloadArchive(teamId: string, archiveId: string, retry = true): Promise<{ bytes: Uint8Array; filename: string }> {
 		const token = await this.context.secrets.get('auraTeam.accessToken');
-		const response = await fetch(`${this.baseUrl}/v1/teams/${teamId}/archives/${archiveId}`, { headers: token ? { authorization: `Bearer ${token}` } : {} });
+		const response = await fetch(`${this.baseUrl}/v1/teams/${teamId}/archives/${archiveId}`, { headers: token ? { authorization: `Bearer ${token}` } : {}, signal: AbortSignal.timeout(300_000) });
 		if (response.status === 401 && retry && await this.refreshTokens()) { return this.downloadArchive(teamId, archiveId, false); }
 		if (!response.ok) { throw new Error(`HTTP ${response.status}`); }
 		const filename = fileNameFromDisposition(response.headers.get('content-disposition'), 'archive.zip');
@@ -231,6 +237,8 @@ export class AuraApiClient implements vscode.Disposable {
 	listKeyGroups(teamId: string): Promise<KeyGroup[]> { return this.request(`/v1/teams/${teamId}/key-groups`); }
 	createKeyGroup(teamId: string, name: string, priority: number): Promise<KeyGroup> { return this.request(`/v1/teams/${teamId}/key-groups`, { method: 'POST', body: JSON.stringify({ name, priority }) }); }
 	pingKey(teamId: string, keyId: string): Promise<{ ok: boolean; status: number; pingMs: number; error?: string; limited?: boolean }> { return this.request(`/v1/teams/${teamId}/keys/${keyId}/ping`, { method: 'POST', body: '{}' }); }
+	/** Показать исходное значение ключа: сервер отдаёт его только maintainer и выше, с записью в аудит. */
+	revealApiKey(teamId: string, keyId: string): Promise<{ value: string }> { return this.request(`/v1/teams/${teamId}/keys/${keyId}/reveal`, { method: 'POST', body: '{}' }); }
 	uploadArchive(teamId: string, name: string, projectName: string, bytes: Uint8Array, projectId?: string): Promise<{ id: string; projectId: string; expiresAt: string }> {
 		const form = new FormData();
 		form.append('file', new Blob([bytes]), name);
