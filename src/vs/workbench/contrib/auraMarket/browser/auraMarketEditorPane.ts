@@ -17,15 +17,14 @@ import { IStorageService, StorageScope } from '../../../../platform/storage/comm
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { AuraMarketEditorInput } from './auraMarketEditorInput.js';
 import { AuraMarketFilter, IAuraMarketItem, auraMarketInstalledKey, auraMarketDisabledKey } from '../common/auraMarketCatalog.js';
 import { IAuraMarketText, auraMarketItems, auraMarketText } from '../common/auraMarketI18n.js';
-import { AURA_LANGUAGES, AURA_LANGUAGE_LABELS, AURA_LANGUAGE_SETTING, IAuraLanguageService, normalizeAuraLanguage } from '../../auraI18n/common/auraLanguage.js';
+import { AURA_LANGUAGES, AURA_LANGUAGE_LABELS, AURA_LANGUAGE_SETTING, AuraLanguage, IAuraLanguageService, normalizeAuraLanguage } from '../../auraI18n/common/auraLanguage.js';
+import { ILanguagePackService } from '../../../../platform/languagePacks/common/languagePacks.js';
+import { ILocaleService } from '../../../services/localization/common/locale.js';
 import { IAuraPluginService } from '../common/auraPluginService.js';
-import { AGGG_VERSION_SETTING, normalizeAgggVersion } from '../../aggg/common/agggBoost.js';
-import { AgggVersionWidget } from '../../aggg/browser/agggVersionWidget.js';
 
 /** Длительности/изинг — токены auraTokens.css (--dur-2/--dur-3, --ease-out). */
 const UNDO_TOAST_MS = 5000;
@@ -71,9 +70,10 @@ export class AuraMarketEditorPane extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAuraPluginService private readonly pluginService: IAuraPluginService,
 		@IAuraLanguageService private readonly languageService: IAuraLanguageService,
+		@ILanguagePackService private readonly languagePackService: ILanguagePackService,
+		@ILocaleService private readonly localeService: ILocaleService,
 	) {
 		super(AuraMarketEditorPane.ID, group, telemetryService, themeService, marketStorage);
 	}
@@ -137,9 +137,6 @@ export class AuraMarketEditorPane extends EditorPane {
 		this._register(this.pluginService.onDidChangeEnablement(() => this.renderList()));
 		// Язык меняется на лету: шапка, фильтры и карточки перерисовываются без перезагрузки окна.
 		this._register(this.languageService.onDidChange(() => this.applyLanguage()));
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AGGG_VERSION_SETTING)) { this.renderList(); }
-		}));
 
 		this.renderList();
 		getWindow(this.rootEl).requestAnimationFrame(() => this.moveSegmentPill(undefined, false));
@@ -160,7 +157,7 @@ export class AuraMarketEditorPane extends EditorPane {
 		this.langLabelEl = append(wrap, $('span.aura-market-lang-label'));
 		const select = append(wrap, $('select.aura-market-lang-select')) as HTMLSelectElement;
 		this.langSelectEl = select;
-		select.setAttribute('aria-label', 'Aura language');
+		select.setAttribute('aria-label', 'Язык интерфейса');
 		for (const language of AURA_LANGUAGES) {
 			const option = append(select, $('option')) as HTMLOptionElement;
 			option.value = language;
@@ -169,8 +166,31 @@ export class AuraMarketEditorPane extends EditorPane {
 			const picked = normalizeAuraLanguage(select.value);
 			if (picked === this.languageService.setting) { return; }
 			void this.configurationService.updateValue(AURA_LANGUAGE_SETTING, picked, ConfigurationTarget.USER);
+			// Полный русский (меню, проводник, «Открыть папку») — это локаль ядра,
+			// а не aura.language. Поэтому заодно переключаем язык самого IDE.
+			void this.applyIdeLocale(picked);
 		}));
 		this.syncLanguageSwitcher();
+	}
+
+	/**
+	 * Заодно переключить язык самого IDE: строки VS Code (проводник, «Открыть папку»,
+	 * меню) живут в языковых пакетах и никак не зависят от aura.language. Без этого
+	 * «русский в маркете» оставлял оболочку английской.
+	 * Пакет не установлен — молчим: язык Aura уже применён, а тянуть установку из
+	 * галереи за пользователя нельзя. setLocale сам выходит, если язык уже активен,
+	 * и спрашивает про перезапуск — без него смена локали не применяется.
+	 */
+	private async applyIdeLocale(language: AuraLanguage): Promise<void> {
+		if (language === 'auto') { return; }
+		try {
+			const installed = await this.languagePackService.getInstalledLanguages();
+			const pack = installed?.find(item => item.id === language);
+			if (!pack) { return; }
+			await this.localeService.setLocale(pack);
+		} catch {
+			// Ошибка локали не должна откатывать уже применённый язык Aura.
+		}
 	}
 
 	/** Подписи вариантов — всегда на текущем языке интерфейса, значение — из настройки. */
@@ -389,17 +409,8 @@ export class AuraMarketEditorPane extends EditorPane {
 
 		append(card, $('.aura-market-card-desc')).textContent = item.description;
 
-		// AGGG: версия в мета-строке следует за выбором селектора.
-		const version = item.id === 'aggg'
-			? normalizeAgggVersion(this.configurationService.getValue<string>(AGGG_VERSION_SETTING))
-			: item.version;
 		append(card, $('.aura-market-card-meta')).textContent =
-			[item.author, version ? `v${version}` : undefined, item.size].filter(Boolean).join(' · ');
-
-		// AGGG: селектор версии ядра прямо в карточке (установленный плагин).
-		if (item.id === 'aggg' && installed) {
-			this.renderDisposables.add(this.instantiationService.createInstance(AgggVersionWidget, append(card, $('.aura-market-card-version'))));
-		}
+			[item.author, item.version ? `v${item.version}` : undefined, item.size].filter(Boolean).join(' · ');
 
 		const actions = append(card, $('.aura-market-card-actions'));
 		if (!installed) {

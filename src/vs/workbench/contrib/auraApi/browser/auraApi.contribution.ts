@@ -10,7 +10,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { $, append, addDisposableListener } from '../../../../base/browser/dom.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { IEditorFactoryRegistry, EditorExtensions } from '../../../common/editor.js';
@@ -36,7 +36,7 @@ import { ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { IChatAgentService } from '../../chat/common/participants/chatAgents.js';
 import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
 import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
-import { AuraListFilesTool, AuraReadFileTool, AuraWriteFileTool } from './auraApiTools.js';
+import { AuraListFilesTool, AuraOpenProjectTool, AuraReadFileTool, AuraWriteFileTool } from './auraApiTools.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { AuraApiEditorPane } from './auraApiEditorPane.js';
 import { AuraApiEditorInput, AuraApiEditorInputSerializer } from './auraApiEditorInput.js';
@@ -55,8 +55,10 @@ import { IAuraPluginService } from '../../auraMarket/common/auraPluginService.js
 import { managePluginViewContainer } from '../../auraMarket/browser/auraPluginContainers.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+
 
 export const API_KEYS_OPEN_COMMAND_ID = 'apiKeys.openManager';
 export const API_KEYS_ADD_TEAM_PROXY_COMMAND_ID = 'apiKeys.addTeamProxy';
@@ -100,6 +102,9 @@ class AuraApiLauncherViewPane extends ViewPane {
 
 class AuraApiChatKeysViewPane extends ViewPane {
 	private keysBody?: HTMLElement;
+	// Слушатели строк ключей пересоздаются при каждом рендере — без отдельного стора
+	// они копились бы в _register до закрытия окна.
+	private readonly rowDisposables = this._register(new DisposableStore());
 
 	constructor(
 		options: IViewPaneOptions,
@@ -127,6 +132,7 @@ class AuraApiChatKeysViewPane extends ViewPane {
 
 	private renderKeys(): void {
 		if (!this.keysBody) { return; }
+		this.rowDisposables.clear();
 		this.keysBody.textContent = '';
 		const keys = this.keysService.getKeys();
 		if (keys.length === 0) {
@@ -134,7 +140,7 @@ class AuraApiChatKeysViewPane extends ViewPane {
 			empty.textContent = localize('apiKeys.chatKeys.empty', "Ключи для чата не настроены");
 			const open = append(empty, $('button.aura-api-chat-empty-open'));
 			open.textContent = localize('apiKeys.chatKeys.openManager', "Добавить ключ");
-			this._register(addDisposableListener(open, 'click', () => { void this.commandService.executeCommand(API_KEYS_OPEN_COMMAND_ID); }));
+			this.rowDisposables.add(addDisposableListener(open, 'click', () => { void this.commandService.executeCommand(API_KEYS_OPEN_COMMAND_ID); }));
 			return;
 		}
 		const selectedId = this.keysService.getSelectedKeyId();
@@ -147,12 +153,16 @@ class AuraApiChatKeysViewPane extends ViewPane {
 			const detail = append(row, $('small'));
 			detail.textContent = `${key.model} · ${key.priority} · ${status.ok === true ? localize('apiKeys.chatKeys.ready', "готов") : localize('apiKeys.chatKeys.unavailable', "не готов")}`;
 			row.style.cursor = 'pointer';
-			this._register(addDisposableListener(row, 'click', () => { void this.keysService.selectForChat(key.id); }));
+			this.rowDisposables.add(addDisposableListener(row, 'click', () => { void this.keysService.selectForChat(key.id); }));
 		}
 	}
 }
 
 let registered = false;
+
+/** Подтверждённые выдачи секрета (apiKeys.exportKey): id ключа → момент, до которого действует согласие. */
+const exportKeyApprovals = new Map<string, number>();
+const EXPORT_KEY_APPROVAL_WINDOW_MS = 5 * 60_000;
 
 /** Регистрирует вкладку менеджера, иконку слева, команду и мост в чат. Вызывается один раз. */
 function registerAuraApiPlugin(instantiationService: IInstantiationService): void {
@@ -197,15 +207,33 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 		constructor() {
 			super({ id: API_KEYS_EXPORT_KEY_COMMAND_ID, title: localize2('apiKeys.exportKey', "API Keys: Экспорт ключа (в банк команды)"), f1: false });
 		}
-		/** Возвращает { value, provider, baseUrl, model } ключа: использует банк Team. */
+		/**
+		 * Возвращает { value, provider, baseUrl, model } ключа: использует банк Team.
+		 * Команда достижима ЛЮБЫМ расширением через executeCommand, поэтому секрет
+		 * выдаётся только после явного подтверждения пользователем. Подтверждение
+		 * действует 5 минут на ключ — массовый импорт в банк команды не должен
+		 * превращаться в десяток одинаковых диалогов.
+		 */
 		override async run(accessor: ServicesAccessor, keyId?: string): Promise<{ value?: string; provider?: string; baseUrl?: string; model?: string; name?: string; id?: string } | undefined> {
 			if (!keyId) { return undefined; }
 			const keysService = accessor.get(IAuraApiKeysService);
+			const dialogService = accessor.get(IDialogService);
 			const key = keysService.getKeys().find(k => k.id === keyId);
 			if (!key) { return undefined; }
+			const approvedUntil = exportKeyApprovals.get(keyId) ?? 0;
+			if (approvedUntil < Date.now()) {
+				const answer = await dialogService.confirm({
+					type: 'warning',
+					title: localize('apiKeys.exportKey.confirmTitle', "Выдача секретного ключа"),
+					message: localize('apiKeys.exportKey.confirmMessage', "Расширение запрашивает секретный ключ «{0}» для переноса в банк команды. Выдать?", key.name),
+					primaryButton: localize({ key: 'apiKeys.exportKey.allow', comment: ['&& denotes an accelerator'] }, "&&Выдать (5 минут)"),
+				});
+				if (!answer.confirmed) { return undefined; }
+				exportKeyApprovals.set(keyId, Date.now() + EXPORT_KEY_APPROVAL_WINDOW_MS);
+			}
 			const value = await keysService.getSecret(keyId);
 			if (!value) { return undefined; }
-			return { value, provider: key.provider, baseUrl: key.baseUrl, model: key.model };
+			return { value, provider: key.provider, baseUrl: key.baseUrl, model: key.model, name: key.name, id: key.id };
 		}
 	});
 
@@ -281,6 +309,9 @@ function registerAuraApiPlugin(instantiationService: IInstantiationService): voi
 		toolsService.registerTool(AuraReadFileTool.data, new AuraReadFileTool(accessor.get(IFileService), accessor.get(IWorkspaceContextService)));
 		toolsService.registerTool(AuraWriteFileTool.data, new AuraWriteFileTool(accessor.get(IFileService), accessor.get(IWorkspaceContextService)));
 		toolsService.registerTool(AuraListFilesTool.data, new AuraListFilesTool(accessor.get(IFileService), accessor.get(IWorkspaceContextService)));
+		// Открытие проекта: без него чат пишет файлы только в уже открытую папку,
+		// а на «сделай сайт» без папки создавал их мимо проводника.
+		toolsService.registerTool(AuraOpenProjectTool.data, new AuraOpenProjectTool(accessor.get(IFileService), accessor.get(IWorkspaceContextService), accessor.get(ICommandService)));
 
 		// Дефолтный чат-агент на BYOK-ключах. isCore:false — важно: именно такого агента
 		// ждёт SetupAgent (chatSetupProviders.whenAgentReady), иначе панель чата через

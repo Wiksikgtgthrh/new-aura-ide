@@ -45,9 +45,9 @@ export function getOnboardingStepSubtitle(stepId: OnboardingStepId): string {
 
 /**
  * Ordered step IDs for the onboarding flow.
+ * Шаг входа в GitHub Copilot убран из сборки: свои ИИ-ключи, чужой вход не нужен.
  */
 export const ONBOARDING_STEPS: readonly OnboardingStepId[] = [
-	OnboardingStepId.SignIn,
 	OnboardingStepId.Personalize,
 ];
 

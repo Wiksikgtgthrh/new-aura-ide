@@ -5,10 +5,10 @@
 	"configuration.serverUrl": "URL командного сервера",
 	"configuration.simpleMode": "Показывать безопасный упрощённый Git-сценарий для тех, кто не пользуется Git-командами напрямую",
 	"configuration.demoMode": "Демо-режим: показывать пример командных данных, когда сервер недоступен",
-	"configuration.uiLanguage": "Язык панели: auto (переключатель языка Aura, затем язык IDE), ru или en",
+	"configuration.uiLanguage": "Язык панели: auto (переключатель языка интерфейса, затем язык IDE), ru или en",
 	"container.title": "Команда",
 	"view.home": "Команда",
-	"command.open": "Открыть Aura Team",
+	"command.open": "Открыть Team",
 	"command.openProfile": "Открыть профиль",
 	"command.signIn": "Войти",
 	"command.signOut": "Выйти",
@@ -56,5 +56,5 @@
 	"configuration.syncIntervalSeconds": "Как часто стягивать изменения с GitHub (секунды)",
 	"configuration.syncCommitTemplate": "Шаблон сообщения коммита для автопуша. Поддерживает {files} и {date}",
 	"configuration.gitTestCommand": "Команда для кнопки «Запустить тесты» в командном процессе (пусто — определить автоматически: npm test, cargo test, go test, pytest, make test)",
-	"configuration.uiLanguage.auto": "Переключатель языка Aura (aura.language), иначе язык IDE"
+	"configuration.uiLanguage.auto": "Переключатель языка интерфейса, иначе язык IDE"
 }

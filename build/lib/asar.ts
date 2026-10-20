@@ -48,6 +48,10 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 	let pendingInserts = 0;
 	let onFileInserted = () => { pendingInserts--; };
 
+	// asar's insertFile assigns node.offset and only later increments it
+	// (`this.offset += size` sits behind `await getFileIntegrity`), so parallel
+	// inserts race and files land at overlapping offsets. Serialize the inserts.
+
 	// Do not insert twice the same directory
 	const seenDir: { [key: string]: boolean } = {};
 	const insertDirectoryRecursive = (dir: string) => {
@@ -76,12 +80,15 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 		}
 	};
 
+	let insertChain: Promise<unknown> = Promise.resolve();
 	const insertFile = (relativePath: string, stat: { size: number; mode: number }, shouldUnpack: boolean) => {
 		insertDirectoryForFile(relativePath);
 		pendingInserts++;
 		// Do not pass `onFileInserted` directly because it gets overwritten below.
 		// Create a closure capturing `onFileInserted`.
-		filesystem.insertFile(relativePath, shouldUnpack, { stat: stat }, {}).then(() => onFileInserted(), () => onFileInserted());
+		insertChain = insertChain
+			.then(() => filesystem.insertFile(relativePath, shouldUnpack, { stat: stat }, {}))
+			.then(() => onFileInserted(), () => onFileInserted());
 	};
 
 	return es.through(function (file) {

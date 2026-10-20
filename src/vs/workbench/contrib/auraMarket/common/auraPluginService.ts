@@ -59,15 +59,8 @@ const PLUGIN_STORAGE_CLEANUP: Readonly<Record<string, readonly string[]>> = {
  * aura-team и langgraph-orchestrator тоже встроены в сборку и исторически
  * работали всегда: без флага по умолчанию их вьюхи (when: auraPlugin.<id>.enabled)
  * исчезли бы у пользователя после обновления.
- *
- * aggg включён по той же причине: обвязка включается настройкой `aggg.enabled`
- * (и `aggg.projectBoost`), а интерфейса у неё до установки не было вовсе —
- * селектор версии ядра маркет рендерит только у установленного плагина
- * (auraMarketEditorPane), поэтому внешнее ядро нельзя было даже выбрать,
- * а индикатора в статус-баре и команды «Переключить буст» не было тем более.
- * Отключение через Market по-прежнему гасит плагин: индикатор, команду и гейты.
  */
-const DEFAULT_INSTALLED_PLUGINS: ReadonlySet<string> = new Set(['api-keys', 'aura-kotlin', 'aura-team', 'langgraph-orchestrator', 'aggg']);
+const DEFAULT_INSTALLED_PLUGINS: ReadonlySet<string> = new Set(['api-keys', 'aura-kotlin', 'aura-team', 'langgraph-orchestrator', 'aura-harness', 'n8n-panel']);
 
 export class AuraPluginService extends Disposable implements IAuraPluginService {
 

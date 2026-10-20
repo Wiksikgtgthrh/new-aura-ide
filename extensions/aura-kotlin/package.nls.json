@@ -1,6 +1,6 @@
 {
 	"displayName": "Kotlin & Android",
-	"description": "Full Kotlin/Android workflow in Aura IDE: Gradle classpath via init script, build tasks, Android SDK & emulators, run & debug (JDWP), logcat",
+	"description": "Full Kotlin/Android workflow in the IDE: Gradle classpath via init script, build tasks, Android SDK & emulators, run & debug (JDWP), logcat",
 	"configuration.title": "Kotlin & Android",
 	"configuration.compilerPath": "Path or command for the Kotlin compiler",
 	"configuration.androidSdkPath": "Android SDK path; leave empty to auto-detect (ANDROID_HOME, ANDROID_SDK_ROOT, local.properties, default locations)",
@@ -37,5 +37,6 @@
 	"command.javaInstallLsp": "Install Java Language Server",
 	"configuration.javaLspPath": "Path to a custom Eclipse JDT Language Server (jdtls) installation. Leave empty to use the bundled/downloaded server.",
 	"command.javaDownloadSources": "Download sources for android.jar and libraries",
-	"configuration.javaDownloadSources": "Download and attach sources of Android platform and libraries so that go-to-definition and hover work inside android.jar and androidx."
+	"configuration.javaDownloadSources": "Download and attach sources of Android platform and libraries so that go-to-definition and hover work inside android.jar and androidx.",
+	"command.runFile": "Run Kotlin File"
 }

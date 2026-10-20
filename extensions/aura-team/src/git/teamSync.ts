@@ -66,10 +66,10 @@ export class TeamSyncService implements vscode.Disposable {
 
 	private render(state: 'idle' | 'busy' | 'ok' | 'error' | 'offline'): void {
 		switch (state) {
-			case 'busy': this.status.text = '$(sync~spin) Team'; this.status.tooltip = 'Team sync in progress…'; break;
-			case 'ok': this.status.text = '$(check) Team'; this.status.tooltip = 'Team: repository is up to date'; break;
-			case 'error': this.status.text = '$(error) Team'; this.status.tooltip = 'Team sync failed — click to retry'; break;
-			case 'offline': this.status.text = '$(cloud-offline) Team'; this.status.tooltip = 'Team sync unavailable'; break;
+			case 'busy': this.status.text = '$(sync~spin) Team'; this.status.tooltip = vscode.l10n.t('Синхронизация команды…'); break;
+			case 'ok': this.status.text = '$(check) Team'; this.status.tooltip = vscode.l10n.t('Team: репозиторий в актуальном состоянии'); break;
+			case 'error': this.status.text = '$(error) Team'; this.status.tooltip = vscode.l10n.t('Синхронизация не удалась — нажмите для повтора'); break;
+			case 'offline': this.status.text = '$(cloud-offline) Team'; this.status.tooltip = vscode.l10n.t('Синхронизация недоступна'); break;
 			default: this.status.text = '$(sync) Team';
 		}
 		setTimeout(() => { if (this.status.text !== '$(sync~spin) Team') { this.render('idle'); } }, 8_000);
@@ -80,6 +80,13 @@ export class TeamSyncService implements vscode.Disposable {
 	}
 
 	private async autoPull(): Promise<void> {
+		await this.pull(false);
+	}
+
+	private async pull(manual: boolean): Promise<void> {
+		// Фоновый пулл — только в режиме auto: при 'off'/'ask' IDE не должна молча
+		// прятать изменения пользователя в stash и ребейзить рабочее дерево.
+		if (!manual && vscode.workspace.getConfiguration('auraTeam').get<string>('sync.mode', 'off') !== 'auto') { return; }
 		if (this.busy || !(await this.hasRepository())) { return; }
 		// Не пуллим чаще, чем раз в 15 секунд.
 		if (Date.now() - this.lastPull < 15_000) { return; }
@@ -149,7 +156,7 @@ export class TeamSyncService implements vscode.Disposable {
 	}
 
 	async syncNow(): Promise<void> {
-		await this.autoPull();
+		await this.pull(true);
 	}
 
 	dispose(): void {

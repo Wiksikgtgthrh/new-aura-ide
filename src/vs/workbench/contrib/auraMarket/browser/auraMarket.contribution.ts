@@ -39,11 +39,11 @@ export const AURA_MARKET_VIEW_CONTAINER_ID = 'workbench.view.auraMarket';
 const AURA_MARKET_LAUNCHER_VIEW_ID = 'auraMarket.launcher';
 
 // Иконка магазина (упаковка/витрина)
-export const auraMarketViewIcon = registerIcon('aura-market-view-icon', Codicon.package, localize('auraMarketViewIcon', 'View icon of the Aura Market view container.'));
+export const auraMarketViewIcon = registerIcon('aura-market-view-icon', Codicon.package, localize('auraMarketViewIcon', 'View icon of the Market view container.'));
 
 // --- Центральная вкладка ---
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(AuraMarketEditorPane, AuraMarketEditorPane.ID, localize('auraMarketEditor', "Market")),
+	EditorPaneDescriptor.create(AuraMarketEditorPane, AuraMarketEditorPane.ID, localize('auraMarketEditor', "Маркет")),
 	[new SyncDescriptor(AuraMarketEditorInput)]
 );
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(AuraMarketEditorInput.ID, AuraMarketEditorInputSerializer);
@@ -52,8 +52,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: AURA_MARKET_OPEN_COMMAND_ID,
-			title: localize2('auraMarket.open', "Market: Open Market"),
-			category: localize2('auraMarket.category', "Market"),
+			title: localize2('auraMarket.open', "Маркет: Открыть маркет"),
+			category: localize2('auraMarket.category', "Маркет"),
 			f1: true,
 		});
 	}
@@ -93,7 +93,7 @@ class AuraMarketLauncherViewPane extends ViewPane {
 
 const auraMarketContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: AURA_MARKET_VIEW_CONTAINER_ID,
-	title: localize2('auraMarket', "Market"),
+	title: localize2('auraMarket', "Маркет"),
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [AURA_MARKET_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	icon: auraMarketViewIcon,
 	hideIfEmpty: false,
@@ -102,7 +102,7 @@ const auraMarketContainer = Registry.as<IViewContainersRegistry>(ViewContainerEx
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: AURA_MARKET_LAUNCHER_VIEW_ID,
-	name: localize2('auraMarket.launcher', "Market"),
+	name: localize2('auraMarket.launcher', "Маркет"),
 	containerIcon: auraMarketViewIcon,
 	ctorDescriptor: new SyncDescriptor(AuraMarketLauncherViewPane),
 	canToggleVisibility: true,

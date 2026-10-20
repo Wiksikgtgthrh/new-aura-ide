@@ -4,7 +4,7 @@
 	"description": "Мультиагентный оркестратор с тир-маршрутизацией API-ключей (супервизор и воркеры на high/mid/low тирах), на базе LangGraph.",
 	"version": "0.1.0",
 	"publisher": "aura",
-	"icon": "media/orchestrator.svg",
+	"icon": "media/orchestrator.png",
 	"license": "MIT",
 	"engines": {
 		"vscode": "^1.100.0"

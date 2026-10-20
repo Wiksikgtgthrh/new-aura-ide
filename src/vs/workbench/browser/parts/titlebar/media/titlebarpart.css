@@ -289,11 +289,9 @@
 	order: 1;
 }
 
+/* Логотип приложения в углу убран: вместо картинки пустой прозрачный блок */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .window-appicon:not(.codicon) {
-	background-image: url('../../../media/code-icon.svg');
-	background-repeat: no-repeat;
-	background-position: center center;
-	background-size: 16px;
+	background-image: none;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .window-appicon.codicon {

@@ -20,6 +20,11 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { AURA_LANGUAGES, AURA_LANGUAGE_DEFAULT, AURA_LANGUAGE_DESCRIPTIONS, AURA_LANGUAGE_LABELS, AURA_LANGUAGE_SETTING, AuraLanguage, IAuraLanguageService } from '../common/auraLanguage.js';
+// Реализация сервиса регистрируется в собственном модуле, поэтому его надо
+// подключить сайд-эффектом: без него registerSingleton не выполняется и
+// IAuraLanguageService не разрешается в рантайме — падают и маркет
+// («UNKNOWN service auraLanguageService»), и индикатор языка в статус-баре.
+import './auraLanguageService.js';
 
 export const AURA_LANGUAGE_PICK_COMMAND_ID = 'aura.language.pick';
 
@@ -29,19 +34,19 @@ const AURA_LANGUAGE_STATUSBAR_ID = 'status.auraLanguage';
 // независимо от того, включён ли маркет.
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'aura',
-	title: localize('aura.config', "Aura"),
+	title: localize('aura.config', "Интерфейс"),
 	properties: {
 		[AURA_LANGUAGE_SETTING]: {
 			type: 'string',
 			default: AURA_LANGUAGE_DEFAULT,
 			enum: [...AURA_LANGUAGES],
 			enumDescriptions: [
-				localize('aura.language.auto', "Follow the language of the IDE (--locale or the OS locale)."),
-				localize('aura.language.ru', "Russian interface of Aura: market, plugin cards, panels."),
-				localize('aura.language.en', "English interface of Aura: market, plugin cards, panels."),
+				localize('aura.language.auto', "Как в IDE (--locale или язык системы)."),
+				localize('aura.language.ru', "Русский язык: маркет, карточки плагинов, панели."),
+				localize('aura.language.en', "Английский язык: маркет, карточки плагинов, панели."),
 			],
 			scope: ConfigurationScope.APPLICATION,
-			markdownDescription: localize('aura.language.description', "Language of the Aura surfaces — market, plugin cards and plugin panels. `auto` follows the IDE language. Core IDE strings come from language packs and are switched by *Configure Display Language*."),
+			markdownDescription: localize('aura.language.description', "Язык интерфейсных панелей — маркет, карточки и панели плагинов. `auto` — как в IDE. Строки ядра идут из языковых пакетов и переключаются через *Настройку языка интерфейса*."),
 		},
 	},
 });
@@ -67,12 +72,12 @@ class AuraLanguageStatusContribution extends Disposable {
 		const setting = this.languageService.setting;
 		const badge = language.toUpperCase();
 		const entry = {
-			name: localize('aura.language.status.name', "Aura Language"),
+			name: localize('aura.language.status.name', "Язык"),
 			text: `$(globe) ${badge}`,
 			tooltip: setting === 'auto'
-				? localize('aura.language.status.auto', "Язык Aura: {0} (автоматически, как в IDE) — нажмите, чтобы выбрать", badge)
-				: localize('aura.language.status.fixed', "Язык Aura: {0} — нажмите, чтобы выбрать", badge),
-			ariaLabel: `Aura ${badge}`,
+				? localize('aura.language.status.auto', "Язык интерфейса: {0} (автоматически, как в IDE) — нажмите, чтобы выбрать", badge)
+				: localize('aura.language.status.fixed', "Язык интерфейса: {0} — нажмите, чтобы выбрать", badge),
+			ariaLabel: `Язык: ${badge}`,
 			command: AURA_LANGUAGE_PICK_COMMAND_ID,
 			kind: 'standard' as const,
 			showInAllWindows: true,
@@ -104,8 +109,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: AURA_LANGUAGE_PICK_COMMAND_ID,
-			title: localize2('aura.language.pick', "Aura: Change Language"),
-			category: localize2('aura.category', "Aura"),
+			title: localize2('aura.language.pick', "Интерфейс: Сменить язык"),
+			category: localize2('aura.category', "Интерфейс"),
 			f1: true,
 		});
 	}
@@ -132,7 +137,7 @@ registerAction2(class extends Action2 {
 			},
 		];
 		const picked = await quickInputService.pick(items, {
-			placeHolder: current === 'ru' ? 'Язык интерфейса Aura' : 'Language of the Aura interface',
+			placeHolder: current === 'ru' ? 'Язык интерфейса' : 'Interface language',
 		});
 		if (!picked) {
 			return;
@@ -148,8 +153,8 @@ registerAction2(class extends Action2 {
 		notificationService.notify({
 			severity: Severity.Info,
 			message: languageService.t(
-				'Язык Aura: русский — маркет и панели плагинов перерисованы.',
-				'Aura language: English — market and plugin panels have been redrawn.',
+				'Язык: русский — маркет и панели плагинов перерисованы.',
+				'Language: English — market and plugin panels have been redrawn.',
 			),
 		});
 	}

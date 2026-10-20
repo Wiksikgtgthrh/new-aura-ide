@@ -1,6 +1,6 @@
 {
 	"displayName": "Kotlin и Android",
-	"description": "Полный Kotlin/Android-цикл в Aura IDE: classpath из Gradle через init-скрипт, задачи сборки, Android SDK и эмуляторы, запуск и отладка (JDWP), logcat",
+	"description": "Полный Kotlin/Android-цикл в IDE: classpath из Gradle через init-скрипт, задачи сборки, Android SDK и эмуляторы, запуск и отладка (JDWP), logcat",
 	"configuration.title": "Kotlin и Android",
 	"configuration.compilerPath": "Путь или команда для компилятора Kotlin",
 	"configuration.androidSdkPath": "Путь к Android SDK; оставьте пустым для автоопределения (ANDROID_HOME, ANDROID_SDK_ROOT, local.properties, стандартные пути)",
@@ -37,5 +37,6 @@
 	"command.javaInstallLsp": "Установить Java Language Server",
 	"configuration.javaLspPath": "Путь к своей установке Eclipse JDT Language Server (jdtls). Пусто — использовать комплектный или скачанный сервер.",
 	"command.javaDownloadSources": "Скачать исходники для android.jar и библиотек",
-	"configuration.javaDownloadSources": "Скачивать и подключать исходники платформы Android и библиотек, чтобы работали переход к определению и подсказки внутри android.jar и androidx."
+	"configuration.javaDownloadSources": "Скачивать и подключать исходники платформы Android и библиотек, чтобы работали переход к определению и подсказки внутри android.jar и androidx.",
+	"command.runFile": "Запустить файл Kotlin"
 }

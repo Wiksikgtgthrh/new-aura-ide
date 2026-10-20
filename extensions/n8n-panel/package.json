@@ -65,7 +65,8 @@
 				{
 					"id": "n8nPanel.launcher",
 					"type": "webview",
-					"name": "%view.launcher.name%"
+					"name": "%view.launcher.name%",
+					"when": "auraPlugin.n8n-panel.enabled == true"
 				}
 			]
 		}
