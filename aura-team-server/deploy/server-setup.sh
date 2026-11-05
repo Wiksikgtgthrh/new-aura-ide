@@ -5,6 +5,10 @@ set -euo pipefail
 
 SERVER_IP="${AURA_IP:-94.141.160.70}"
 AURA_PORT="${AURA_PORT:-3210}"
+# Публичный URL выносится в окружение: сервер слушает 127.0.0.1, наружу его отдаёт
+# reverse-proxy с TLS (на живом VPS — Caddy за Xray). Дефолт ниже — только для
+# локальной проверки: прод на голом HTTP раздаёт пароли и ключи открытым текстом.
+AURA_PUBLIC_URL_ENV="${AURA_PUBLIC_URL:-https://auraide.xyz}"
 REPO="https://github.com/Wiksikgtgthrh/new-aura-ide.git"
 APP_DIR="/opt/aura-team-server"
 DATA_DIR="/var/lib/aura-team"
@@ -37,7 +41,7 @@ MASTER_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('ba
 cat > /etc/aura-team.env <<ENV
 AURA_HOST=127.0.0.1
 AURA_PORT=$AURA_PORT
-AURA_PUBLIC_URL=http://$SERVER_IP:$AURA_PORT
+AURA_PUBLIC_URL=$AURA_PUBLIC_URL_ENV
 AURA_DATA_DIR=$DATA_DIR
 AURA_JWT_SECRET=$JWT_SECRET
 AURA_MASTER_KEY=$MASTER_KEY
@@ -83,15 +87,19 @@ systemctl enable aura-team >/dev/null 2>&1 || true
 systemctl restart aura-team
 sleep 2
 
-log "6/7 Открытие порта $AURA_PORT в файрволе"
-ufw allow "$AURA_PORT"/tcp >/dev/null 2>&1 || true
+log "6/7 Файрвол: наружу — только SSH и веб (80/443 через reverse-proxy)"
+# 3210 НЕ открываем: сервер слушает 127.0.0.1, наружу его отдаёт reverse-proxy с TLS.
+ufw allow 22/tcp >/dev/null 2>&1 || true
+ufw allow 80/tcp >/dev/null 2>&1 || true
+ufw allow 443/tcp >/dev/null 2>&1 || true
 ufw --force enable >/dev/null 2>&1 || true
-ufw status | grep -q "$AURA_PORT" && log "ufw: порт $AURA_PORT открыт" || log "ВНИМАНИЕ: не смог открыть порт в ufw — откройте его в панели PLAY2GO/внешнем фаерволе."
 
 log "7/7 Проверка"
 sleep 1
 LOCAL=$(curl -sS -m 5 -o /dev/null -w "%{http_code}" "http://127.0.0.1:$AURA_PORT/v1/me" || echo ERR)
 echo "локальный /v1/me -> $LOCAL (ожидается 401/403 — это нормально, нужен токен)"
-echo "внешний  http://$SERVER_IP:$AURA_PORT/v1/me -> $(curl -sS -m 8 -o /dev/null -w '%{http_code}' "http://$SERVER_IP:$AURA_PORT/v1/me" 2>&1 || echo '<недоступен: порт закрыт файрволом хостера>')"
-log "Готово. Регистрация: http://$SERVER_IP:$AURA_PORT/register"
-log "Лог сервера: journalctl -u aura-team -f   (там же ссылка верификации без SMTP)"
+if [[ "$AURA_PUBLIC_URL_ENV" == http://* && "$AURA_PUBLIC_URL_ENV" != http://127.0.0.1* ]]; then
+	log "ВНИМАНИЕ: AURA_PUBLIC_URL без TLS ($AURA_PUBLIC_URL_ENV) — пароли и ключи пойдут открытым текстом. Поставьте Caddy/nginx с доменом."
+fi
+log "Готово. Публичный URL: $AURA_PUBLIC_URL_ENV (reverse-proxy с TLS ставится отдельно, см. deploy/Caddyfile)"
+log "Лог сервера: journalctl -u aura-team -f"

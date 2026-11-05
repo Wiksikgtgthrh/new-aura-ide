@@ -1,0 +1,48 @@
+# Фрагмент Caddy для Aura IDE: фид обновлений + team-сервер.
+# Ставится в /etc/caddy/Caddyfile перед сайтом vibegit.org и перезагружается
+# через `caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy`.
+#
+# Клиент обновлений сам стучится на {updateUrl}/api/update/win32-x64-user/ide/<commit>.
+# product.json новых сборок указывает на auraide.xyz, но блок /api/update продублирован
+# на vibegit.org — старые установки с updateUrl https://vibegit.org тоже получат обновление.
+
+auraide.xyz {
+	encode gzip zstd
+	request_body {
+		# Должно совпадать с AURA_ARCHIVE_MAX_BYTES сервера (дефолт 1 ГиБ):
+		# рассинхрон давал непонятные отказы на больших архивах.
+		max_size 1GB
+	}
+
+	# 1. Фид обновлений IDE (порт 3211) — отдаёт latest.json в формате VS Code.
+	handle /api/update/* {
+		reverse_proxy 127.0.0.1:3211
+	}
+
+	# 2. Установщик: https://auraide.xyz/updates/IDESetup.exe
+	handle_path /updates/* {
+		root * /opt/ide-updates/public
+		file_server
+	}
+
+	# 3. Team-сервер (aura-team-server, порт 3210): /v1/*, /health, websocket.
+	handle {
+		reverse_proxy 127.0.0.1:3210
+	}
+}
+
+vibegit.org {
+	encode gzip zstd
+
+	# Только фид обновлений: остальное по-прежнему уходит в Next.js.
+	handle /api/update/* {
+		reverse_proxy 127.0.0.1:3211
+	}
+	handle {
+		reverse_proxy 127.0.0.1:8600
+	}
+}
+
+www.vibegit.org {
+	redir https://vibegit.org{uri} permanent
+}

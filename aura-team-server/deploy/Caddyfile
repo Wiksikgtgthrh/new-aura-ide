@@ -1,7 +1,9 @@
-team.example.com {
+auraide.xyz {
 	reverse_proxy 127.0.0.1:3210
 	encode zstd gzip
 	request_body {
-		max_size 51MB
+		# Должно совпадать с AURA_ARCHIVE_MAX_BYTES сервера (дефолт 1 ГиБ):
+		# рассинхрон давал непонятные отказы на больших архивах.
+		max_size 1GB
 	}
 }

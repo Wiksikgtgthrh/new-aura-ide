@@ -1,0 +1,22 @@
+[Unit]
+Description=Aura IDE update feed (VS Code update API)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/node /opt/ide-updates/bin/ide-update-server.mjs
+Environment=HOST=127.0.0.1
+Environment=PORT=3211
+Environment=LATEST=/opt/ide-updates/latest.json
+DynamicUser=yes
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=yes
+ReadOnlyPaths=/opt/ide-updates
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
