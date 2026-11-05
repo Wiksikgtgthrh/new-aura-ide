@@ -102,12 +102,10 @@ let loadFn;
 const _loaderErrors = [];
 
 function initNls(opts) {
-	if (opts.build) {
-		// when running from `out-build`, ensure to load the default
-		// messages file, because all `nls.localize` calls have their
-		// english values removed and replaced by an index.
-		globalThis._VSCODE_NLS_MESSAGES = require(`../../../out-build/nls.messages.json`);
-	}
+	// When NLS is enabled, all localize calls use numeric indices and need the
+	// default message table; this applies to both out and out-build.
+	const outdir = opts.build ? 'out-build' : 'out';
+	globalThis._VSCODE_NLS_MESSAGES = require(`../../../${outdir}/nls.messages.json`);
 }
 
 function initLoadFn(opts) {

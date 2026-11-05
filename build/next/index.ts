@@ -20,7 +20,7 @@ import { useEsbuildTranspile } from '../buildConfig.ts';
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 import { runBuildFast } from './build-fast.ts';
 import { bundleDevTunnelsWeb } from './devTunnelsWeb.ts';
-import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
+import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, postProcessFileNLS, transpileFile } from './transpile.ts';
 
 const globAsync = promisify(glob);
 
@@ -688,7 +688,7 @@ function fileContentMapperPlugin(outDir: string, target: BuildTarget): esbuild.P
 // Transpile (Goal 1: TS → JS using esbuild.transform for maximum speed)
 // ============================================================================
 
-async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
+async function transpile(outDir: string, excludeTests: boolean, doNls = false): Promise<void> {
 	// Find all .ts files
 	const ignorePatterns = ['**/*.d.ts'];
 	if (excludeTests) {
@@ -700,13 +700,21 @@ async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 		ignore: ignorePatterns,
 	});
 
-	console.log(`[transpile] Found ${files.length} files`);
+	console.log(`[transpile] Found ${files.length} files${doNls ? ' (nls)' : ''}`);
 
+	const nls = doNls ? { baseDir: path.join(REPO_ROOT, SRC_DIR), collector: createNLSCollector() } : undefined;
 	await mapWithConcurrency(files, MAX_CONCURRENT_FILE_OPERATIONS, file => {
 		const srcPath = path.join(REPO_ROOT, SRC_DIR, file);
 		const destPath = path.join(REPO_ROOT, outDir, file.replace(/\.ts$/, '.js'));
-		return transpileFile(srcPath, destPath);
+		return transpileFile(srcPath, destPath, nls);
 	});
+	if (nls) {
+		const { indexMap } = await finalizeNLS(nls.collector, path.join(REPO_ROOT, outDir));
+		await mapWithConcurrency(files, MAX_CONCURRENT_FILE_OPERATIONS, file => {
+			const destPath = path.join(REPO_ROOT, outDir, file.replace(/\.ts$/, '.js'));
+			return postProcessFileNLS(destPath, indexMap);
+		});
+	}
 }
 
 // ============================================================================
@@ -1157,6 +1165,7 @@ Options for 'build-fast':
 
 Options for 'transpile':
 	--watch            Watch for changes and rebuild incrementally
+	--nls              Process NLS (localization) strings
 	--out <dir>        Output directory (default: out)
 	--exclude-tests    Exclude test files from transpilation
 
@@ -1205,7 +1214,7 @@ async function main(): Promise<void> {
 
 					console.log(`[transpile] ${SRC_DIR} → ${outDir}${options.excludeTests ? ' (excluding tests)' : ''}`);
 					const t1 = Date.now();
-					await transpile(outDir, options.excludeTests);
+					await transpile(outDir, options.excludeTests, options.nls);
 					await copyAllNonTsFiles(outDir, options.excludeTests);
 					console.log(`[transpile] Done in ${Date.now() - t1}ms`);
 				}

@@ -1,0 +1,89 @@
+{
+  "defaultTimeoutSec": 900,
+  "failFast": false,
+  "gates": [
+    {
+      "name": "typecheck",
+      "scripts": [
+        "typecheck",
+        "type-check",
+        "check-types",
+        "tsc"
+      ],
+      "requiredWhen": "typescript",
+      "timeoutSec": 600
+    },
+    {
+      "name": "lint",
+      "scripts": [
+        "lint"
+      ],
+      "required": true,
+      "timeoutSec": 600
+    },
+    {
+      "name": "test",
+      "scripts": [
+        "test:ci",
+        "test:unit",
+        "test"
+      ],
+      "required": true,
+      "timeoutSec": 1200
+    },
+    {
+      "name": "build",
+      "scripts": [
+        "build"
+      ],
+      "required": false,
+      "timeoutSec": 1200
+    },
+    {
+      "name": "e2e",
+      "scripts": [
+        "test:e2e"
+      ],
+      "requiredWhen": "frontend",
+      "timeoutSec": 1200,
+      "hint": "node ~/.agent-harness/tools/frontend-init.mjs"
+    },
+    {
+      "name": "a11y",
+      "scripts": [
+        "test:a11y"
+      ],
+      "requiredWhen": "frontend",
+      "timeoutSec": 900,
+      "hint": "node ~/.agent-harness/tools/frontend-init.mjs"
+    },
+    {
+      "name": "visual",
+      "scripts": [
+        "test:visual"
+      ],
+      "requiredWhen": "frontend",
+      "timeoutSec": 900,
+      "hint": "node ~/.agent-harness/tools/frontend-init.mjs"
+    },
+    {
+      "name": "perf",
+      "scripts": [
+        "test:perf",
+        "lhci"
+      ],
+      "requiredWhen": "frontend",
+      "timeoutSec": 1200,
+      "hint": "node ~/.agent-harness/tools/frontend-init.mjs"
+    },
+    {
+      "name": "journeys",
+      "scripts": [
+        "test:journeys"
+      ],
+      "requiredWhen": "frontend",
+      "timeoutSec": 1200,
+      "hint": "node ~/.agent-harness/tools/journeys.mjs --cwd ."
+    }
+  ]
+}

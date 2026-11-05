@@ -21,7 +21,9 @@ import { teamRoutes } from './routes/teams.js';
 import { digest, token } from './security.js';
 
 export async function createServer() {
-	const app = Fastify({ logger: true, bodyLimit: 2 * 1024 * 1024 });
+	// trustProxy: за Caddy request.ip — это 127.0.0.1 для всех клиентов, и rate-limit
+	// бьёт по всей платформе как по одному адресу (логин кладётся 10 запросами).
+	const app = Fastify({ logger: true, bodyLimit: 2 * 1024 * 1024, trustProxy: true });
 	// Пустое тело с content-type: application/json — не ошибка, а «нет данных»: так уходят
 	// запросы без нагрузки (DELETE задачи, снятие ключа), и старые сборки клиента.
 	// Дефолтный парсер Fastify отвечал на это 400 FST_ERR_CTP_EMPTY_JSON_BODY
@@ -37,7 +39,9 @@ export async function createServer() {
 		parseJson(request, raw, done);
 	});
 	await app.register(sensible);
-	await app.register(rateLimit, { global: false });
+	// Глобальный лимит 300 запросов/мин — фон для анти-спама (создание команд, инвайты,
+	// refresh); auth-маршруты имеют свои точечные лимиты в routes/auth.ts.
+	await app.register(rateLimit, { global: true, max: 300, timeWindow: '1 minute' });
 	await app.register(multipart, { limits: { fileSize: config.archiveMaxBytes, files: 1 } });
 	await app.register(websocket);
 	await app.register(authRoutes);

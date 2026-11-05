@@ -67,10 +67,17 @@ export function maskSecret(secret: string): string {
 	return `${s.slice(0, 3)}…${s.slice(-4)}`;
 }
 
-/** Синхронный отпечаток для дедупликации повторной вставки (без async-crypto). */
+/** Синхронный отпечаток для дедупликации повторной вставки (без async-crypto).
+ *  Необратимый хэш (FNV-1a, две цепочки): старый формат `префикс:длина:суффикс`
+ *  держал 8 символов секрета в открытом state-хранилище. */
 export function secretFingerprint(secret: string): string {
 	const s = secret.trim();
-	return `${s.slice(0, 4)}:${s.length}:${s.slice(-4)}`;
+	const fnv = (seed: number, text: string): string => {
+		let h = seed;
+		for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
+		return (h >>> 0).toString(16).padStart(8, '0');
+	};
+	return `${fnv(0x811c9dc5, s)}${fnv(0x811c9dc5, s + '#aura')}`;
 }
 
 /* -------------------------------- bulk parsing ------------------------------- */
@@ -446,16 +453,17 @@ export function sortedGroups(groups: IAuraApiGroup[]): IAuraApiGroup[] {
 	return [...groups].sort((a, b) => a.priority - b.priority);
 }
 
-/** Взвешенный round-robin внутри группы: вероятность пропорциональна weight. */
-export function pickWeightedKey(eligible: IAuraApiKey[], cursor: number): { key: IAuraApiKey; nextCursor: number } | undefined {
+/** Взвешенный round-robin внутри группы: вероятность пропорциональна weight.
+ *  Генерик: используется и ядром маршрутизации, и сервисом банка ключей. */
+export function pickWeightedKey<T extends { weight?: number }>(eligible: T[], cursor: number): { key: T; nextCursor: number } | undefined {
 	if (eligible.length === 0) {
 		return undefined;
 	}
-	const total = eligible.reduce((sum, k) => sum + Math.max(1, k.weight), 0);
+	const total = eligible.reduce((sum, k) => sum + Math.max(1, k.weight ?? 1), 0);
 	const slot = ((cursor % total) + total) % total;
 	let acc = 0;
 	for (const k of eligible) {
-		acc += Math.max(1, k.weight);
+		acc += Math.max(1, k.weight ?? 1);
 		if (slot < acc) {
 			return { key: k, nextCursor: cursor + 1 };
 		}

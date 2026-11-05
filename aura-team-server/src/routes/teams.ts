@@ -352,6 +352,10 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 	app.get<{ Params: { teamId: string; taskId: string } }>('/v1/teams/:teamId/tasks/:taskId/commits', async request => {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
+		// taskId обязан принадлежать :teamId — иначе IDOR: зритель своей команды читал бы
+		// коммиты чужих задач, подобрав их id.
+		const task = database.prepare('SELECT id FROM tasks WHERE id=? AND team_id=?').get(request.params.taskId, request.params.teamId);
+		if (!task) { throw Object.assign(new Error('Not found'), { statusCode: 404 }); }
 		return database.prepare(`
 			SELECT tc.commit_hash AS hash, tc.repository_url AS repositoryUrl, tc.created_at AS createdAt,
 				u.display_name AS author
@@ -365,12 +369,15 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
 	app.get<{ Params: { teamId: string; taskId: string } }>('/v1/teams/:teamId/tasks/:taskId/history', async request => {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'viewer'); } catch (error) { mapAccessError(error); }
+		// Привязка задачи к команде — см. комментарий выше (IDOR).
+		const task = database.prepare('SELECT id FROM tasks WHERE id=? AND team_id=?').get(request.params.taskId, request.params.teamId);
+		if (!task) { throw Object.assign(new Error('Not found'), { statusCode: 404 }); }
 		const rows = database.prepare(`
 			SELECT a.action, a.details, a.created_at AS createdAt, u.display_name AS userName
 			FROM audit_log a JOIN users u ON u.id = a.user_id
-			WHERE a.target_type = 'task' AND a.target_id = ?
+			WHERE a.target_type = 'task' AND a.target_id = ? AND a.team_id = ?
 			ORDER BY a.id DESC LIMIT 30
-		`).all(request.params.taskId) as Array<{ action: string; details: string; createdAt: string; userName: string }>;
+		`).all(request.params.taskId, request.params.teamId) as Array<{ action: string; details: string; createdAt: string; userName: string }>;
 		return rows.map(row => {
 			let details: Record<string, unknown> = {};
 			try { details = JSON.parse(row.details ?? '{}'); } catch { details = {}; }

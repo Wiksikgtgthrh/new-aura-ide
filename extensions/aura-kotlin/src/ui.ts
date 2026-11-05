@@ -14,6 +14,7 @@ import { AndroidPanel } from './android';
 import { ClasspathSync, ModuleInfo } from './classpath';
 import { LspState } from './lsp';
 import { javaServerInstalled } from './javaInstall';
+import { missingToolchain } from './toolchain';
 
 type Node = DeviceNode | AvdNode | ModuleNode | JarNode | DependencyNode | SectionNode | ActionNode | FileNode;
 
@@ -248,7 +249,12 @@ export async function showOnboarding(context: vscode.ExtensionContext, androidPa
 	const missing: string[] = [];
 	const buttons: string[] = [];
 
-	if (looksAndroid && !androidPanel.sdk()) { missing.push(tr('Android SDK (needed for build, devices and emulator)')); buttons.push(tr('Set SDK path')); }
+	// Тулчейн (JDK / kotlinc / SDK) — главный блокер чистой машины; ставится одной кнопкой.
+	const toolchainMissing = await missingToolchain(androidPanel);
+	if (toolchainMissing.length) {
+		missing.push(tr('Toolchain: {0} (installed automatically into the IDE, ~1 GB download)', toolchainMissing.join(', ')));
+		buttons.push(tr('Install everything'));
+	}
 	// Java-исходники в проекте есть, а Java-сервер не установлен — говорим об этом в том же баннере.
 	const hasJavaSources = !!root && ['app/src/main/java', 'src/main/java'].some(relative => fs.existsSync(path.join(root, relative)));
 	if (hasJavaSources && !javaServerInstalled(context)) {
@@ -264,8 +270,8 @@ export async function showOnboarding(context: vscode.ExtensionContext, androidPa
 	if (!missing.length) { return; }
 	const message = tr('To work with this project, install:') + '\n' + missing.map(entry => `• ${entry}`).join('\n');
 	const pick = await vscode.window.showInformationMessage(message, ...buttons);
-	if (pick === tr('Set SDK path')) {
-		await vscode.commands.executeCommand('auraKotlin.androidDoctor');
+	if (pick === tr('Install everything')) {
+		await vscode.commands.executeCommand('auraKotlin.installToolchain');
 	} else if (pick === tr('Install Java LSP')) {
 		await vscode.commands.executeCommand('auraKotlin.java.installLsp');
 	} else if (pick === tr('Install instructions')) {

@@ -17,6 +17,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { execTool } from './gradle';
+import { toolchainSdkRoot } from './toolchain';
 
 const execFileAsync = promisify(execFile);
 
@@ -65,10 +66,10 @@ export class AndroidPanel implements vscode.Disposable {
 		return path.join(sdk, 'platform-tools', process.platform === 'win32' ? 'adb.exe' : 'adb');
 	}
 
-	/** Корень SDK: настройка → env → local.properties → стандартные пути; undefined если нет. */
+	/** Корень SDK: настройка → env → local.properties → автоустановленный тулчейн → стандартные пути. */
 	sdk(): string | undefined {
 		const configured = vscode.workspace.getConfiguration('auraKotlin').get<string>('androidSdkPath', '').trim();
-		const candidates = [configured, process.env.ANDROID_HOME, process.env.ANDROID_SDK_ROOT];
+		const candidates = [configured, process.env.ANDROID_HOME, process.env.ANDROID_SDK_ROOT, toolchainSdkRoot()];
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		if (root) {
 			const localProps = path.join(root, 'local.properties');
@@ -86,14 +87,20 @@ export class AndroidPanel implements vscode.Disposable {
 		return candidates.find(sdk => sdk && fs.existsSync(path.join(sdk, 'platform-tools')));
 	}
 
-	/** SDK есть? Если нет — нотификация с кнопкой «Указать путь». Возвращает путь или undefined. */
+	/** SDK есть? Если нет — нотификация с кнопками автоустановки и ручного пути. */
 	async ensureSdk(): Promise<string | undefined> {
 		const sdk = this.sdk();
 		if (sdk) { return sdk; }
+		const install = tr('Install automatically');
 		const pick = await vscode.window.showWarningMessage(
-			tr('Android SDK not found. Set auraKotlin.androidSdkPath, ANDROID_HOME or install the SDK.'),
+			tr('Android SDK not found. Install it automatically, or set auraKotlin.androidSdkPath / ANDROID_HOME.'),
+			install,
 			tr('Specify path'),
 		);
+		if (pick === install) {
+			await vscode.commands.executeCommand('auraKotlin.installToolchain');
+			return this.sdk();
+		}
 		if (pick) {
 			const folder = (await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectMany: false, openLabel: tr('Android SDK folder') }))?.[0];
 			if (folder) {

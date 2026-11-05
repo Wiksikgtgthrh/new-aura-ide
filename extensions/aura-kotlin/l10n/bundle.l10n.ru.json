@@ -185,5 +185,6 @@
 	"Downloading system image…": "Скачивание системного образа…",
 	"Failed to get SDK data.": "Не удалось получить данные SDK.",
 	"Emulator creation error.": "Ошибка создания эмулятора.",
-	"Emulator \"{0}\" has been created and is now in the Android panel list.": "Эмулятор «{0}» создан и уже в списке панели Android."
+	"Emulator \"{0}\" has been created and is now in the Android panel list.": "Эмулятор «{0}» создан и уже в списке панели Android.",
+	"▶ Run": "▶ Запустить"
 }

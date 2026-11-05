@@ -170,7 +170,7 @@ interface NLSEdit {
 	newLength: number;  // length of replacement text
 }
 
-function transformToPlaceholders(
+export function transformToPlaceholders(
 	source: string,
 	moduleId: string
 ): { code: string; entries: NLSEntry[]; edits: NLSEdit[] } {
@@ -238,7 +238,7 @@ function transformToPlaceholders(
  * original source. esbuild composes this with its own bundle source map so that
  * the final source map points all the way back to the untransformed TypeScript.
  */
-function generateNLSSourceMap(
+export function generateNLSSourceMap(
 	originalSource: string,
 	filePath: string,
 	edits: NLSEdit[]

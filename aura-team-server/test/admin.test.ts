@@ -124,6 +124,7 @@ test('ядро AGGG отдаётся по праву из каталога се�
 	database.prepare('INSERT INTO users(id,email,display_name,password_hash,verified_at,created_at) VALUES(?,?,?,?,?,?)').run(user, `${user}@example.com`, 'Holder', await hash('long-test-password'), 'now', 'now');
 	const authorization = `Bearer ${await accessToken(user)}`;
 
+	// Лицензирование ядра снято: любой вошедший получает 404 без каталога (не 403 без права).
 	const denied = await app.inject({ method: 'GET', url: '/v1/aggg/agent', headers: { authorization } });
 	database.prepare('INSERT INTO entitlements(user_id,feature,note,granted_at) VALUES(?,?,?,?)').run(user, 'aggg52', 'test', 'now');
 	const withoutCatalog = await app.inject({ method: 'GET', url: '/v1/aggg/agent', headers: { authorization } });
@@ -148,7 +149,7 @@ test('ядро AGGG отдаётся по праву из каталога се�
 		hasManifest: body.files['CLAUDE.md'],
 		digestLength: body.digest.length,
 	}, {
-		denied: 403,
+		denied: 404,
 		withoutCatalog: 404,
 		delivered: 200,
 		version: '5.2',

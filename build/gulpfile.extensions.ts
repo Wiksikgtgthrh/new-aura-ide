@@ -51,6 +51,7 @@ function onExtensionCompilationEnd(): void {
 // 	ignore: ['**/out/**', '**/node_modules/**']
 // });
 const compilations = [
+	'extensions/aura-harness/tsconfig.json',
 	'extensions/aura-team/tsconfig.json',
 	'extensions/aura-kotlin/tsconfig.json',
 	'extensions/aura-serverkit/tsconfig.json',

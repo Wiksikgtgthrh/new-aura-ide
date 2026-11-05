@@ -4,7 +4,7 @@
  *  Анимации только на transform/opacity; карточки при первом рендере НЕ анимируются.
  *--------------------------------------------------------------------------------------------*/
 
-@import '../../auraApi/browser/media/auraTokens.css';
+@import '../../../auraApi/browser/media/auraTokens.css';
 
 .aura-market-tab {
 	position: relative;
@@ -133,8 +133,9 @@
 }
 .aura-market-card:hover { border-color: color-mix(in srgb, var(--vscode-focusBorder) 55%, var(--aura-line)); }
 
-/* Отключённый плагин */
-.aura-market-card.is-disabled { opacity: .65; }
+/* Отключённый плагин: карточка остаётся чёткой — состояние читается по кнопкам,
+   а не полупрозрачностью (пользователь просил не приглушать карточки). */
+.aura-market-card.is-disabled { opacity: 1; }
 
 /* Удаление: уезд влево + схлопывание высоты (240ms), затем undo-тост */
 .aura-market-card.is-leaving { opacity: 0; transform: translateX(-24px); overflow: hidden; }

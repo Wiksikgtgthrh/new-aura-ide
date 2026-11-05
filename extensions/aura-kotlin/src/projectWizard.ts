@@ -8,6 +8,8 @@
 
 import * as vscode from 'vscode';
 import { tr } from './l10n';
+import { findGradleCommand, execTool } from './gradle';
+import { GRADLE_VERSION } from './toolchain';
 
 export function registerProjectWizard(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
@@ -26,7 +28,8 @@ async function newProject(folder?: vscode.Uri): Promise<void> {
 	const kind = await vscode.window.showQuickPick([
 		{ label: '$(rocket) Kotlin CLI (kotlinc + JVM)', id: 'cli' },
 		{ label: '$(coffee) Java (Gradle)', id: 'java' },
-		{ label: '$(device-mobile) Android (Gradle)', id: 'android' },
+		{ label: '$(device-mobile) Android (Views, AppCompat)', id: 'android' },
+		{ label: '$(device-mobile) Android (Jetpack Compose)', id: 'compose' },
 	], { placeHolder: tr('Project type') });
 	if (!kind) { return; }
 	const root = vscode.Uri.joinPath(target, namePick);
@@ -45,8 +48,9 @@ async function newProject(folder?: vscode.Uri): Promise<void> {
 		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'settings.gradle.kts'), Buffer.from(`rootProject.name = "${namePick}"\n`, 'utf8'));
 		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'build.gradle.kts'), Buffer.from(`plugins {\n\tjava\n\tapplication\n}\n\nrepositories {\n\tmavenCentral()\n}\n\napplication {\n\tmainClass.set("com.example.${pkg}.Main")\n}\n`, 'utf8'));
 		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(javaDir, 'Main.java'), Buffer.from(`package com.example.${pkg};\n\npublic class Main {\n\tpublic static void main(String[] args) {\n\t\tSystem.out.println("Hello, ${namePick}!");\n\t}\n}\n`, 'utf8'));
-	} else {
+	} else if (kind.id === 'android' || kind.id === 'compose') {
 		// Android-структура как в IntelliJ: pluginManagement + repositories, чтобы Gradle нашёл AGP сразу.
+		const compose = kind.id === 'compose';
 		const mainDir = vscode.Uri.joinPath(root, 'app', 'src', 'main', 'kotlin', 'com', 'example', pkg);
 		const resDir = vscode.Uri.joinPath(root, 'app', 'src', 'main', 'res', 'values');
 		await vscode.workspace.fs.createDirectory(mainDir);
@@ -55,21 +59,40 @@ async function newProject(folder?: vscode.Uri): Promise<void> {
 		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'settings.gradle.kts'), Buffer.from(
 			`pluginManagement {\n\trepositories {\n\t\tgoogle()\n\t\tmavenCentral()\n\t\tgradlePluginPortal()\n\t}\n}\n\ndependencyResolutionManagement {\n\trepositories {\n\t\tgoogle()\n\t\tmavenCentral()\n\t}\n}\n\nrootProject.name = "${namePick}"\ninclude(":app")\n`, 'utf8'));
 		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'build.gradle.kts'), Buffer.from(
-			`plugins {\n\tid("com.android.application") version "8.7.2" apply false\n\tid("org.jetbrains.kotlin.android") version "2.1.0" apply false\n}\n`, 'utf8'));
+			compose
+				? `plugins {\n\tid("com.android.application") version "8.7.2" apply false\n\tid("org.jetbrains.kotlin.android") version "2.1.0" apply false\n\tid("org.jetbrains.kotlin.plugin.compose") version "2.1.0" apply false\n}\n`
+				: `plugins {\n\tid("com.android.application") version "8.7.2" apply false\n\tid("org.jetbrains.kotlin.android") version "2.1.0" apply false\n}\n`, 'utf8'));
 		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'gradle.properties'), Buffer.from(
 			`org.gradle.jvmargs=-Xmx2g\nandroid.useAndroidX=true\nkotlin.code.style=official\n`, 'utf8'));
 		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'app', 'build.gradle.kts'), Buffer.from(
-			`plugins {\n\tid("com.android.application")\n\tid("org.jetbrains.kotlin.android")\n}\n\nandroid {\n\tnamespace = "com.example.${pkg}"\n\tcompileSdk = 35\n\tdefaultConfig {\n\t\tapplicationId = "com.example.${pkg}"\n\t\tminSdk = 24\n\t\ttargetSdk = 35\n\t}\n}\n\ndependencies {\n\timplementation("androidx.core:core-ktx:1.15.0")\n\timplementation("androidx.appcompat:appcompat:1.7.0")\n}\n`, 'utf8'));
+			compose
+				? `plugins {\n\tid("com.android.application")\n\tid("org.jetbrains.kotlin.android")\n\tid("org.jetbrains.kotlin.plugin.compose")\n}\n\nandroid {\n\tnamespace = "com.example.${pkg}"\n\tcompileSdk = 35\n\tdefaultConfig {\n\t\tapplicationId = "com.example.${pkg}"\n\t\tminSdk = 24\n\t\ttargetSdk = 35\n\t}\n\tbuildFeatures {\n\t\tcompose = true\n\t}\n}\n\ndependencies {\n\timplementation(platform("androidx.compose:compose-bom:2024.12.01"))\n\timplementation("androidx.activity:activity-compose:1.9.3")\n\timplementation("androidx.compose.ui:ui")\n\timplementation("androidx.compose.ui:ui-tooling-preview")\n\timplementation("androidx.compose.material3:material3")\n\tdebugImplementation("androidx.compose.ui:ui-tooling")\n}\n`
+				: `plugins {\n\tid("com.android.application")\n\tid("org.jetbrains.kotlin.android")\n}\n\nandroid {\n\tnamespace = "com.example.${pkg}"\n\tcompileSdk = 35\n\tdefaultConfig {\n\t\tapplicationId = "com.example.${pkg}"\n\t\tminSdk = 24\n\t\ttargetSdk = 35\n\t}\n}\n\ndependencies {\n\timplementation("androidx.core:core-ktx:1.15.0")\n\timplementation("androidx.appcompat:appcompat:1.7.0")\n}\n`, 'utf8'));
 		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'app', 'src', 'main', 'AndroidManifest.xml'), Buffer.from(
-			`<?xml version="1.0" encoding="utf-8"?>\n<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n\t<application android:label="${namePick}" android:theme="@style/Theme.AppCompat">\n\t\t<activity android:name=".${activity}Activity" android:exported="true">\n\t\t\t<intent-filter>\n\t\t\t\t<action android:name="android.intent.action.MAIN" />\n\t\t\t\t<category android:name="android.intent.category.LAUNCHER" />\n\t\t\t</intent-filter>\n\t\t</activity>\n\t</application>\n</manifest>\n`, 'utf8'));
+			`<?xml version="1.0" encoding="utf-8"?>\n<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n\t<application android:label="${namePick}" android:theme="${compose ? '@android:style/Theme.Material.NoActionBar' : '@style/Theme.AppCompat'}">\n\t\t<activity android:name=".${activity}Activity" android:exported="true">\n\t\t\t<intent-filter>\n\t\t\t\t<action android:name="android.intent.action.MAIN" />\n\t\t\t\t<category android:name="android.intent.category.LAUNCHER" />\n\t\t\t</intent-filter>\n\t\t</activity>\n\t</application>\n</manifest>\n`, 'utf8'));
 		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(mainDir, `${activity}Activity.kt`), Buffer.from(
-			`package com.example.${pkg}\n\nimport android.os.Bundle\nimport androidx.appcompat.app.AppCompatActivity\n\nclass ${activity}Activity : AppCompatActivity() {\n\toverride fun onCreate(savedInstanceState: Bundle?) {\n\t\tsuper.onCreate(savedInstanceState)\n\t}\n}\n`, 'utf8'));
+			compose
+				? `package com.example.${pkg}\n\nimport android.os.Bundle\nimport androidx.activity.ComponentActivity\nimport androidx.activity.compose.setContent\nimport androidx.compose.foundation.layout.fillMaxSize\nimport androidx.compose.material3.MaterialTheme\nimport androidx.compose.material3.Surface\nimport androidx.compose.material3.Text\nimport androidx.compose.runtime.Composable\nimport androidx.compose.ui.Modifier\n\nclass ${activity}Activity : ComponentActivity() {\n\toverride fun onCreate(savedInstanceState: Bundle?) {\n\t\tsuper.onCreate(savedInstanceState)\n\t\tsetContent {\n\t\t\tMaterialTheme {\n\t\t\t\tSurface(modifier = Modifier.fillMaxSize()) { Greeting("${namePick}") }\n\t\t\t}\n\t\t}\n\t}\n}\n\n@Composable\nfun Greeting(name: String) {\n\tText(text = "Hello, $name!")\n}\n`
+				: `package com.example.${pkg}\n\nimport android.os.Bundle\nimport androidx.appcompat.app.AppCompatActivity\n\nclass ${activity}Activity : AppCompatActivity() {\n\toverride fun onCreate(savedInstanceState: Bundle?) {\n\t\tsuper.onCreate(savedInstanceState)\n\t}\n}\n`, 'utf8'));
 		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(resDir, 'strings.xml'), Buffer.from(
 			`<?xml version="1.0" encoding="utf-8"?>\n<resources>\n\t<string name="app_name">${namePick}</string>\n</resources>\n`, 'utf8'));
 	}
 
+	// Gradle-проекты получают wrapper: без него сборка требует системного gradle,
+	// а с wrapper'ом проект самодостаточен (gradlew скачает нужный дистрибутив сам).
+	if (kind.id !== 'cli') { await generateGradleWrapper(root); }
+
 	const open = await vscode.window.showInformationMessage(tr('Project \'{0}\' created.', namePick), tr('Open folder'));
 	if (open) { await vscode.commands.executeCommand('vscode.openFolder', root); }
+}
+
+/** gradle wrapper в новом проекте через установленный Gradle (тулчейн/PATH). Молча пропускаем, если Gradle недоступен. */
+async function generateGradleWrapper(root: vscode.Uri): Promise<void> {
+	try {
+		const gradle = await findGradleCommand(root.fsPath);
+		if (!gradle) { return; }
+		await execTool(gradle.command, [...gradle.args, 'wrapper', '--gradle-version', GRADLE_VERSION, '--distribution-type', 'bin', '-q'], { cwd: root.fsPath, timeout: 10 * 60_000 });
+	} catch { /* wrapper не критичен: сборка пойдёт через установленный gradle */ }
 }
 
 // ---------- New File ----------

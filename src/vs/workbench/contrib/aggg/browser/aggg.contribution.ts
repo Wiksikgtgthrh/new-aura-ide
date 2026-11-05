@@ -24,8 +24,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IAuraPluginService, auraPluginEnabledContextKey } from '../../auraMarket/common/auraPluginService.js';
 import { AGGG_ENABLED_SETTING, AGGG_PROJECT_BOOST_SETTING, AGGG_VERSION_SETTING, AGGG_EXTERNAL_AGENT_PATH_SETTING, AGGG_BOOST_PROMPT, agggBoostActive, agggBoostPrompt, normalizeAgggVersion } from '../common/agggBoost.js';
-import { resolveAgggVersion } from '../common/agggEntitlements.js';
-import { queryAgggAgentPath, queryAgggFeatures, resetAgggFeaturesCache } from './agggVersionGate.js';
+import { queryAgggAgentPath, resetAgggFeaturesCache } from './agggVersionGate.js';
 
 export const AGGG_TOGGLE_COMMAND_ID = 'aggg.toggleBoost';
 
@@ -95,8 +94,8 @@ class AgggPluginContribution extends Disposable {
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AGGG_VERSION_SETTING) || e.affectsConfiguration(AGGG_EXTERNAL_AGENT_PATH_SETTING)) {
-				// Правку настройки проверяем заново, не дожидаясь истечения кэша прав:
-				// право могли выдать только что, и пользователь сразу переключает версию.
+				// Сброс кэша поставки: сервер мог обновить обвязку, и переключение
+				// версии должно подтянуть её сразу, а не через TTL.
 				resetAgggFeaturesCache();
 				void this.restartKernel();
 			}
@@ -120,26 +119,13 @@ class AgggPluginContribution extends Disposable {
 	}
 
 	/**
-	 * «Перезапуск ядра»: для 5.2 читаем harness/core.txt внешнего агента из
-	 * aggg.externalAgentPath, для 2.0.0 — возвращаем встроенное ядро.
-	 * Внешнее ядро грузится только при выданном праве аккаунта: настройка сама
-	 * по себе доступа не даёт — версия 5.2 закрыта на стороне Team.
+	 * «Перезапуск ядра»: для 5.2 читаем harness/core.txt внешнего агента — из
+	 * aggg.externalAgentPath или из поставки, которую скачало расширение Team
+	 * с сервера; для 2.0.0 возвращаем встроенное ядро.
+	 * Версия 5.2 открыта всем: обвязку обновляют на сервере, а не сборкой IDE.
 	 */
 	private async restartKernel(): Promise<void> {
-		const features = await queryAgggFeatures(this.commandService);
-		const decision = resolveAgggVersion(this.configurationService.getValue<string>(AGGG_VERSION_SETTING), features);
-		if (decision.blocked) {
-			agggBoostPrompt.current = AGGG_BOOST_PROMPT;
-			if (this.pluginActive) {
-				this.notificationService.notify({
-					severity: Severity.Warning,
-					message: localize('aggg.license.missing', "AGGG 5.2 доступна по лицензии: право не выдано аккаунту. Используется встроенное ядро 2.0.0."),
-				});
-			}
-			this.updateStatus();
-			return;
-		}
-		const version = normalizeAgggVersion(decision.version);
+		const version = normalizeAgggVersion(this.configurationService.getValue<string>(AGGG_VERSION_SETTING));
 		if (version === '2.0.0') {
 			agggBoostPrompt.current = AGGG_BOOST_PROMPT;
 			this.updateStatus();
@@ -176,7 +162,7 @@ class AgggPluginContribution extends Disposable {
 						? localize('aggg.external.incomplete', "AGGG 5.2: сервер отдал неполную поставку ядра. Используется встроенное ядро 2.0.0.")
 						: root
 							? localize('aggg.external.missing', "AGGG 5.2: каталог агента не найден ({0}) — проверьте aggg.externalAgentPath. Используется встроенное ядро 2.0.0.", root)
-							: localize('aggg.external.license', "AGGG 5.2: ядро не доступно — право не выдано аккаунту или команде (или сервер не поставляет ядро). Используется встроенное ядро 2.0.0."),
+							: localize('aggg.external.nocore', "AGGG 5.2: ядро не доступно — сервер не поставляет обвязку (или расширение Team не установлено). Используется встроенное ядро 2.0.0."),
 				});
 			}
 		}

@@ -1,0 +1,91 @@
+{
+  "name": "aggg-harness",
+  "version": "2.3.0",
+  "paths": {
+    "piSkills": ".pi/agent/skills",
+    "piAgents": ".pi/agent/agents",
+    "opencodeSkills": "opencode/skills",
+    "opencodeAgents": "opencode/agents",
+    "opencodeCommands": "opencode/commands",
+    "tools": "tools",
+    "templates": "templates"
+  },
+  "platformSpecificSkills": [
+    "web-surf",
+    "mcp-setup"
+  ],
+  "install": {
+    "pi": {
+      "skills": "~/.pi/agent/skills",
+      "agents": "~/.pi/agent/agents",
+      "prompts": "~/.pi/agent/prompts",
+      "configExamples": {
+        ".pi/agent/settings.json.example": "~/.pi/agent/settings.json",
+        ".pi/agent/web-search.json.example": "~/.pi/agent/web-search.json",
+        ".pi/agent/mcp.json.example": "~/.config/mcp/mcp.json"
+      }
+    },
+    "opencode": {
+      "skills": "~/.config/opencode/skills",
+      "agents": "~/.config/opencode/agents",
+      "commands": "~/.config/opencode/commands",
+      "configExamples": {
+        "opencode/opencode.jsonc.example": "~/.config/opencode/opencode.jsonc"
+      }
+    },
+    "universal": {
+      "agents": {
+        "label": "Agent Skills standard (Codex, Cursor, Gemini CLI, OpenCode, Amp и др.)",
+        "detect": [],
+        "skills": "~/.agents/skills"
+      },
+      "claude": {
+        "label": "Claude Code / Claude Desktop",
+        "detect": [
+          "~/.claude"
+        ],
+        "skills": "~/.claude/skills",
+        "agents": "~/.claude/agents",
+        "commands": "~/.claude/commands",
+        "instructions": "~/.claude/CLAUDE.md",
+        "instructionsMode": "import"
+      },
+      "codex": {
+        "label": "OpenAI Codex CLI / Codex app",
+        "detect": [
+          "~/.codex"
+        ],
+        "skills": "~/.codex/skills",
+        "instructions": "~/.codex/AGENTS.md",
+        "instructionsMode": "copy"
+      },
+      "gemini": {
+        "label": "Gemini CLI",
+        "detect": [
+          "~/.gemini"
+        ],
+        "skills": "~/.gemini/skills",
+        "instructions": "~/.gemini/GEMINI.md",
+        "instructionsMode": "import"
+      },
+      "cursor": {
+        "label": "Cursor",
+        "detect": [
+          "~/.cursor"
+        ],
+        "skills": "~/.cursor/skills"
+      },
+      "zcode": {
+        "label": "ZCode (Z.ai desktop)",
+        "detect": [
+          "~/.zcode"
+        ],
+        "skills": "~/.zcode/skills",
+        "instructions": "~/.zcode/AGENTS.md",
+        "instructionsMode": "copy",
+        "instructionsSource": "zcode/AGENTS.md"
+      }
+    },
+    "runtime": "~/.agent-harness"
+  }
+}

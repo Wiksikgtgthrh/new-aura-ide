@@ -53,6 +53,7 @@ export interface IAuraMarketText {
 	readonly busyInstalling: string;
 	readonly hideVersions: string;
 	readonly languageLabel: string;
+	readonly languagePackUnavailable: string;
 	readonly versions: (count: number) => string;
 	readonly confirmInstall: (name: string, sizeNote: string) => string;
 	readonly notBundled: (name: string) => string;
@@ -84,6 +85,7 @@ const MARKET_TEXT_RU: IAuraMarketText = {
 	busyInstalling: 'Установка…',
 	hideVersions: 'Скрыть версии',
 	languageLabel: 'Язык',
+	languagePackUnavailable: 'Не удалось установить языковой пакет IDE. Проверьте подключение к интернету и попробуйте ещё раз.',
 	versions: count => `Версии (${count})`,
 	confirmInstall: (name, sizeNote) => `«${name}» требует загрузки инструментов: ${sizeNote} Продолжить установку?`,
 	notBundled: name => `«${name}»: загрузка этого плагина будет подключена следующим шагом.`,
@@ -115,6 +117,7 @@ const MARKET_TEXT_EN: IAuraMarketText = {
 	busyInstalling: 'Installing…',
 	hideVersions: 'Hide versions',
 	languageLabel: 'Language',
+	languagePackUnavailable: 'Could not install the IDE language pack. Check your internet connection and try again.',
 	versions: count => `Versions (${count})`,
 	confirmInstall: (name, sizeNote) => `"${name}" needs to download tools: ${sizeNote} Continue with the installation?`,
 	notBundled: name => `"${name}": downloading this plugin will be wired up in the next step.`,

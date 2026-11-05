@@ -1,0 +1,6 @@
+{
+  "searxngBaseUrl": "http://127.0.0.1:8080",
+  "ssrf": {
+    "allowRanges": ["127.0.0.0/8"]
+  }
+}

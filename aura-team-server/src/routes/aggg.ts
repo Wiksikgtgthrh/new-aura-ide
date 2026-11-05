@@ -8,7 +8,6 @@ import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { userId } from '../access.js';
 import { config } from '../config.js';
-import { hasEntitlement } from '../database.js';
 import { GATED_FEATURES } from '../features.js';
 import { digest } from '../security.js';
 
@@ -19,22 +18,21 @@ const AGENT_FILES = ['VERSION', 'CLAUDE.md', join('harness', 'core.txt')] as con
 const MAX_FILE_BYTES = 512 * 1024;
 
 /**
- * Внешнее ядро AGGG 5.2 отдаётся с сервера и только по праву.
+ * Внешнее ядро AGGG 5.2 отдаётся с сервера всем вошедшим аккаунтам.
  *
- * Так лицензия проверяется там, где её нельзя обойти: файлы ядра просто не попадают
- * к тому, у кого нет права, — даже если он соберёт IDE из исходников и уберёт
- * проверку в интерфейсе. Локальный каталог, заданный в настройках вручную,
- * по-прежнему работает: это файлы самого пользователя, не поставка Aura.
+ * Раньше поставка была закрыта правом `aggg52`; теперь обвязка (harness) обновляется
+ * прямо на сервере и доступна каждому — новая версия не требует сборки IDE.
+ * Файлы всё равно приходят клиенту только отсюда: в поставке IDE ядра нет.
+ * Локальный каталог, заданный в настройках вручную, тоже работает: это файлы
+ * самого пользователя, не поставка Aura.
  */
 export async function agggRoutes(app: FastifyInstance): Promise<void> {
 
 	app.get('/v1/aggg/features', async () => ({ features: GATED_FEATURES }));
 
 	app.get('/v1/aggg/agent', async (request, reply) => {
-		const user = await userId(request);
-		if (!hasEntitlement(user, 'aggg52')) {
-			return reply.code(403).send({ error: 'AGGG 5.2 is not licensed for this account', feature: 'aggg52' });
-		}
+		// Авторизация обязательна (ядро не отдаём анонимам), лицензия — нет.
+		await userId(request);
 		const root = (config.agggCorePath ?? '').trim();
 		if (!root) {
 			return reply.code(404).send({ error: 'The server does not ship AGGG 5.2: set AURA_AGGG_CORE_PATH' });

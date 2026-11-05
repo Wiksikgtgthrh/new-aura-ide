@@ -96,11 +96,11 @@ export class AgggVersionWidget extends Disposable {
 		return normalizeAgggVersion(this.configurationService.getValue<string>(AGGG_VERSION_SETTING));
 	}
 
-	/** Подписи версий: закрытая 5.2 помечена, а не спрятана — пользователь видит, что она есть. */
+	/** Подписи версий: 5.2 открыта всем — обвязку обновляют на сервере. */
 	private optionLabels(): { text: string }[] {
 		return AGGG_VERSION_VALUES.map(value => ({
 			text: agggVersionOptionKind(value, this.features) === 'external-locked'
-				? this.language.t('5.2 — внешний агент (по лицензии)', '5.2 — external agent (licensed)')
+				? this.language.t('5.2 — внешний агент (недоступна)', '5.2 — external agent (unavailable)')
 				: value === AGGG_EXTERNAL_VERSION
 					? this.language.t('5.2 — внешний агент', '5.2 — external agent')
 					: this.language.t('2.0.0 — встроенное ядро', '2.0.0 — bundled core'),
@@ -162,12 +162,12 @@ export class AgggVersionWidget extends Disposable {
 			// Ядро на месте: если его отдал сервер, говорим об этом прямо — путь
 			// в настройках у такого пользователя пуст, и это нормально.
 			this.warnRow.style.display = this.serverRoot ? '' : 'none';
-			if (this.serverRoot) { this.pathLabel.textContent = this.language.t('Ядро 5.2 получено с сервера Team по праву аккаунта', 'The 5.2 core was delivered by the Team server under the account entitlement'); }
+			if (this.serverRoot) { this.pathLabel.textContent = this.language.t('Ядро 5.2 скачано с сервера Team', 'The 5.2 core was downloaded from the Team server'); }
 			return;
 		}
 		this.warnRow.style.display = '';
 		this.pathLabel.textContent = this.serverRoot
-			? this.language.t('Сервер отдал неполную поставку ядра — проверьте право и AURA_AGGG_CORE_PATH', 'The server delivered an incomplete core bundle — check the entitlement and AURA_AGGG_CORE_PATH')
+			? this.language.t('Сервер отдал неполную поставку ядра — проверьте AURA_AGGG_CORE_PATH', 'The server delivered an incomplete core bundle — check AURA_AGGG_CORE_PATH')
 			: this.language.t('Каталог агента не найден', 'Agent directory not found');
 	}
 

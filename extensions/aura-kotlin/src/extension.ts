@@ -11,18 +11,23 @@ import { registerLspCommands } from './lspClient';
 import { registerAndroidPanel } from './android';
 import { ClasspathSync } from './classpath';
 import { registerKotlinDebugger } from './debugAdapter';
+import { registerKotlinRun } from './run';
 import { registerGradleIntegration, execTool } from './gradle';
 import { AndroidTreeProvider, registerLspStatusbar, showOnboarding } from './ui';
 import { registerProjectWizard } from './projectWizard';
 import { registerDeviceScreen } from './deviceScreen';
+import { initToolchain, resolveJavaBinary, resolveKotlincBinary, reportToolFailure } from './toolchain';
 
 function pathSep(): string { return process.platform === 'win32' ? ';' : ':'; }
 
 export function activate(context: vscode.ExtensionContext): void {
+	// Тулчейн первым: инъектирует JDK/SDK в process.env до старта LSP и панелей.
+	const toolchain = initToolchain(context);
 	context.subscriptions.push(
 		vscode.commands.registerCommand('auraKotlin.checkToolchain', () => checkToolchain()),
 		vscode.commands.registerCommand('auraKotlin.compileFile', () => compileFile()),
 		vscode.commands.registerCommand('auraKotlin.androidDoctor', () => androidDoctor()),
+		vscode.commands.registerCommand('auraKotlin.installToolchain', () => installToolchain(toolchain)),
 	);
 
 	// Мастера создания проектов (Kotlin CLI / Java / Android) и файлов (класс, Activity, layout…).
@@ -32,6 +37,9 @@ export function activate(context: vscode.ExtensionContext): void {
 	// кэш на диске с ключом по mtime build-файлов.
 	classpathSync = new ClasspathSync();
 	classpathSync.start(context);
+
+	// Запуск текущего файла одной кнопкой: команда в заголовке редактора + CodeLens над fun main().
+	registerKotlinRun(context, classpathSync);
 
 	// Этап 6 ТЗ: LSP — didSave/signatureHelp/symbols/references/rename/codeAction,
 	// инкрементальные изменения, перезапуск с новым classpath (с дебаунсом).
@@ -110,15 +118,22 @@ async function writeKotlinTemplate(file: vscode.Uri): Promise<void> {
 }
 
 async function checkToolchain(): Promise<void> {
-	const configuration = vscode.workspace.getConfiguration('auraKotlin');
-	const compiler = configuration.get<string>('compilerPath', 'kotlinc');
-	const java = configuration.get<string>('javaPath', 'java');
+	const compiler = resolveKotlincBinary();
+	const java = resolveJavaBinary();
 	const results = await Promise.all([
 		toolVersion(compiler, ['-version']),
 		toolVersion(java, ['-version']),
 	]);
 	const message = `Kotlin: ${results[0]}\nJava: ${results[1]}`;
 	vscode.window.showInformationMessage(message, { modal: true });
+}
+
+/** Установка тулчейна по команде: прогресс и итоговое сообщение с предложением перезапуска. */
+async function installToolchain(toolchain: import('./toolchain').Toolchain): Promise<void> {
+	const ok = await toolchain.installAll();
+	if (ok) {
+		void vscode.window.showInformationMessage(tr('Toolchain installed: JDK, Kotlin compiler, Gradle and Android SDK are ready. Restart the IDE to pick it up in terminals.'));
+	}
 }
 
 let classpathSync: ClasspathSync;
@@ -129,7 +144,7 @@ async function compileFile(): Promise<void> {
 		vscode.window.showWarningMessage(tr('Open a Kotlin file first.'));
 		return;
 	}
-	const compiler = vscode.workspace.getConfiguration('auraKotlin').get<string>('compilerPath', 'kotlinc');
+	const compiler = resolveKotlincBinary();
 	const workspace = vscode.workspace.workspaceFolders?.[0]?.uri;
 	if (!workspace) {
 		vscode.window.showWarningMessage(tr('Open a Kotlin workspace first.'));
@@ -148,7 +163,7 @@ async function compileFile(): Promise<void> {
 		const result = await execTool(compiler, args, { cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath });
 		vscode.window.showInformationMessage(result.stderr || 'Kotlin compilation completed.');
 	} catch (error) {
-		vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error));
+		await reportToolFailure(error, compiler);
 	}
 }
 

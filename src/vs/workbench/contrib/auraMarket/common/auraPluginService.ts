@@ -60,7 +60,7 @@ const PLUGIN_STORAGE_CLEANUP: Readonly<Record<string, readonly string[]>> = {
  * работали всегда: без флага по умолчанию их вьюхи (when: auraPlugin.<id>.enabled)
  * исчезли бы у пользователя после обновления.
  */
-const DEFAULT_INSTALLED_PLUGINS: ReadonlySet<string> = new Set(['api-keys', 'aura-kotlin', 'aura-team', 'langgraph-orchestrator', 'aura-harness', 'n8n-panel']);
+const DEFAULT_INSTALLED_PLUGINS: ReadonlySet<string> = new Set(['api-keys', 'aura-kotlin', 'aura-team', 'langgraph-orchestrator', 'aura-harness']);
 
 export class AuraPluginService extends Disposable implements IAuraPluginService {
 

@@ -15,6 +15,7 @@
 | `src/tools/index.ts` | инструменты агентов: fs.readFile/listFiles/search/writeFile, terminal.run, diagnostics.get |
 | `src/sidecar/rpcClient.ts`, `processManager.ts` | JSON-RPC клиент + жизненный цикл сайдкара (watchdog, рестарт ≤3/5мин) |
 | `src/panel/*` | вкладка Custom Editor (`auraOrchestrator.panel`), ru/en |
+| `src/harness/runner.ts` | HarnessRunner: мост к плагину `aura.aura-harness` (или фолбэк на ~/.agent-harness/tools), запуск CLI через ELECTRON_RUN_AS_NODE |
 | `src/util/throttle.ts` | троттлинг отправки состояния в панель (ведущее ребро + хвост) |
 | `sidecar/src/*` | Node-сайдкар: LangGraph.js StateGraph (планировщик → router → worker → reducer → verify → join), LlmClient (HTTP-прокси/RPC/mock), агентный цикл, Gate, FileSaver |
 | `build/compile-sidecar.mjs` | esbuild-бандл сайдкара → `dist/sidecar.cjs` |
@@ -29,6 +30,20 @@
 - нотификации сайдкара: `{kind:'ntf', method: graph.event|checkpoint|log, params}`
 
 ## Решения, которые надо знать перед правками
+
+- **Agent Harness — отдельный встроенный плагин** (`extensions/aura-harness`). Везёт снапшот
+  харнесса в `harness/` (обновляется `npm run snapshot` в его папке), ставит в
+  `~/.agent-harness` при первом запуске, отдаёт публичный API (apiVersion 1). Оркестратор
+  ходит в него только через HarnessRunner — сборочной зависимости нет.
+- **Очередь харнесса на доске** — третий вид вкладки Board («Харнесс»): статусы
+  orchestrator.mjs сведены в колонки Очередь/В работе/Готово/Ошибки; перетаскивание
+  карточки зовёт `harness.taskAction` (claim/finish/fail/reopen/cancel с агентом
+  `aura-panel`). Для этого в CLI харнесса есть `reopen` и `claim --id`.
+- **DnD доски — общий для всех видов**: ghost-призрак, placeholder-позиция в колонке,
+  клавиатурный перенос (Пробел/стрелки/Esc, анонсы в #kanbanLive), FLIP-перелёт карточек
+  после перерисовки. Дроп на доске Team шлёт и position (место в колонке).
+- **Инструменты harness.*** (`harness.tasks/doctor/gates/journeys`) объявлены в TOOL_DEFS и
+  доступны агентам графа; gates/journeys — mutating, проходят политику аппрувов.
 
 - **Секреты не покидают ядро.** LLM-вызов сайдкара — всегда RPC в расширение,
   дальше `vscode.lm`. Не добавлять путей, где сайдкар получает ключи напрямую.

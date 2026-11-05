@@ -1,0 +1,7 @@
+{
+  "name": "auth-postgres",
+  "type": "module",
+  "private": true,
+  "dependencies": { "pg": "^8.13.0" },
+  "scripts": { "start": "node server.mjs" }
+}

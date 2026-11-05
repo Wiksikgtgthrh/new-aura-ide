@@ -12,10 +12,17 @@ import { accessToken, digest, id, token } from '../security.js';
 
 interface Credentials { email: string; password: string; displayName?: string; }
 
+// Единая минимальная длина пароля (раньше регистрация пускала 8, смена требовала 10,
+// а текст ошибки говорил про 8 — три разные цифры).
+const MIN_PASSWORD_LENGTH = 10;
+// Валидный, но «ничей» хэш: верифицируем его при отсутствующем email, чтобы время
+// ответа не выдавало существование аккаунта (timing-оракул на перечисление почт).
+const DUMMY_PASSWORD_HASH = '$argon2id$v=19$m=65536,t=3,p=1$c29tZXNhbHRzb21lc2FsdA$RdescudvJCsgt3ub+b+dWRWJTmaaJBi2VlKkZFHoyBY';
+
 export async function authRoutes(app: FastifyInstance): Promise<void> {
 	app.post<{ Body: Credentials }>('/v1/auth/register', { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } }, async (request, reply) => {
 		const email = request.body.email?.trim().toLowerCase();
-		if (!email?.includes('@') || request.body.password?.length < 8) { return reply.badRequest('Use a valid email and a password of at least 8 characters'); }
+		if (!email?.includes('@') || request.body.password?.length < MIN_PASSWORD_LENGTH) { return reply.badRequest(`Use a valid email and a password of at least ${MIN_PASSWORD_LENGTH} characters`); }
 		// Существующий аккаунт не переприсваивается даже если он не подтверждён:
 		// раньше повторная регистрация того же email перезаписывала пароль и
 		// активировала чужой (в том числе старый неподтверждённый) аккаунт — это
@@ -46,15 +53,18 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
 	app.post<{ Body: Credentials }>('/v1/auth/login', { config: { rateLimit: { max: 10, timeWindow: '15 minutes' } } }, async (request, reply) => {
 		const row = database.prepare('SELECT id,password_hash,verified_at FROM users WHERE email=?').get(request.body.email?.trim().toLowerCase()) as { id: string; password_hash: string; verified_at?: string } | undefined;
-		if (!row || !await verify(row.password_hash, request.body.password ?? '')) { return reply.unauthorized('Invalid email or password'); }
+		// Timing-оракул: argon2 вызывается и для несуществующего email (по dummy-хэшу),
+		// иначе разница ~100 мс позволяла перечислять зарегистрированные почты.
+		if (!await verify(row?.password_hash ?? DUMMY_PASSWORD_HASH, request.body.password ?? '')) { return reply.unauthorized('Invalid email or password'); }
+		if (!row) { return reply.unauthorized('Invalid email or password'); }
 		if (!row.verified_at) { return reply.forbidden('Verify your email first'); }
 		return issueTokens(row.id);
 	});
 
 	app.post<{ Body: { currentPassword?: string; newPassword?: string } }>('/v1/auth/password', { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } }, async (request, reply) => {
 		const user = await userId(request);
-		if (!request.body.currentPassword || !request.body.newPassword || request.body.newPassword.length < 10) {
-			return reply.badRequest('The new password must contain at least 8 characters');
+		if (!request.body.currentPassword || !request.body.newPassword || request.body.newPassword.length < MIN_PASSWORD_LENGTH) {
+			return reply.badRequest(`The new password must contain at least ${MIN_PASSWORD_LENGTH} characters`);
 		}
 		const row = database.prepare('SELECT password_hash FROM users WHERE id=?').get(user) as { password_hash: string } | undefined;
 		if (!row || !await verify(row.password_hash, request.body.currentPassword)) { return reply.unauthorized('Current password is incorrect'); }
@@ -75,7 +85,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 	app.get('/register', async (_request, reply) => reply.type('text/html').send(registerPage()));
 	app.post<{ Body: Credentials & { code: string } }>('/v1/auth/device/authorize', { config: { rateLimit: { max: 10, timeWindow: '15 minutes' } } }, async (request, reply) => {
 		const row = database.prepare('SELECT id,password_hash,verified_at FROM users WHERE email=?').get(request.body.email?.trim().toLowerCase()) as { id: string; password_hash: string; verified_at?: string } | undefined;
-		if (!row || !row.verified_at || !await verify(row.password_hash, request.body.password ?? '')) { return reply.unauthorized('Invalid or unverified account'); }
+		// Timing-оракул — см. /v1/auth/login выше.
+		if (!await verify(row?.password_hash ?? DUMMY_PASSWORD_HASH, request.body.password ?? '')) { return reply.unauthorized('Invalid or unverified account'); }
+		if (!row || !row.verified_at) { return reply.unauthorized('Invalid or unverified account'); }
 		const result = database.prepare('UPDATE device_codes SET user_id=? WHERE user_code_hash=? AND expires_at>? AND consumed_at IS NULL AND user_id IS NULL').run(row.id, digest(request.body.code?.trim().toUpperCase()), new Date().toISOString());
 		if (result.changes !== 1) { return reply.badRequest('Code is invalid or expired'); }
 		return { ok: true };

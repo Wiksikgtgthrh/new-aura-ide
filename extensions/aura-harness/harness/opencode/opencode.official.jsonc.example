@@ -1,0 +1,41 @@
+// Вариант по опубликованной схеме opencode.ai/config.json: mcp.<имя>, enabled, {env:VAR}.
+// Используй, если `opencode mcp list` не видит серверов из opencode.jsonc.example.
+// permission генерируется: node ~/.agent-harness/tools/policy.mjs opencode-permission
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "searxng": {
+      "type": "local",
+      "command": ["npx", "-y", "mcp-searxng"],
+      "environment": { "SEARXNG_URL": "http://127.0.0.1:8080" },
+      "enabled": true
+    },
+    "tavily": {
+      "type": "local",
+      "command": ["npx", "-y", "tavily-mcp@latest"],
+      "environment": {
+        "TAVILY_API_KEY": "{env:TAVILY_API_KEY}",
+        "DEFAULT_PARAMETERS": "{\"max_results\": 10, \"search_depth\": \"advanced\"}"
+      },
+      "enabled": true
+    },
+    "fetch": { "type": "local", "command": ["uvx", "mcp-server-fetch"], "enabled": true },
+    "playwright": { "type": "local", "command": ["npx", "-y", "@playwright/mcp@latest", "--isolated"], "enabled": true },
+    "chrome-devtools": { "type": "local", "command": ["npx", "-y", "chrome-devtools-mcp@latest", "--isolated"], "enabled": true },
+    "context7": { "type": "local", "command": ["npx", "-y", "@upstash/context7-mcp@latest"], "enabled": true },
+    "shadcn": { "type": "local", "command": ["npx", "-y", "shadcn@latest", "mcp"], "enabled": true },
+    "figma": { "type": "remote", "url": "http://127.0.0.1:3845/mcp", "enabled": false },
+    "fal": {
+      "type": "remote",
+      "url": "https://mcp.fal.ai/mcp",
+      "headers": { "Authorization": "Bearer {env:FAL_KEY}" },
+      "enabled": false
+    },
+    "replicate": {
+      "type": "local",
+      "command": ["npx", "-y", "replicate-mcp@latest"],
+      "environment": { "REPLICATE_API_TOKEN": "{env:REPLICATE_API_TOKEN}" },
+      "enabled": false
+    }
+  }
+}

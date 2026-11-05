@@ -270,7 +270,8 @@ test('админка: одноразовый код, командная выда
 	const devEntitlements = (await app.inject({ method: 'GET', url: '/v1/me', headers: { authorization: devAuth } })).json().entitlements as unknown[];
 	const bossMe = (await app.inject({ method: 'GET', url: '/v1/me', headers: { authorization: bossAuth } })).json() as { admin?: boolean };
 
-	// Ядро 5.2 отдаётся по праву; без права — 403, без каталога на сервере — 404.
+	// Ядро 5.2 отдаётся всем вошедшим (лицензирование снято решением выше); без каталога
+	// на сервере — 404 для любой роли.
 	const coreForDev = await app.inject({ method: 'GET', url: '/v1/aggg/agent', headers: { authorization: devAuth } });
 	const coreForBoss = await app.inject({ method: 'GET', url: '/v1/aggg/agent', headers: { authorization: bossAuth } });
 
@@ -321,7 +322,7 @@ test('админка: одноразовый код, командная выда
 		ownerInherits: 'team',
 		ownerTeamName: 'Licensed Team',
 		devDoesNotInherit: 0,
-		coreForDev: 403,
+		coreForDev: 404,
 		coreForBossWithoutCatalog: 404,
 		accountGrant: 200,
 		outsiderFeatures: ['aggg52'],

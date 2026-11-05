@@ -1,0 +1,15 @@
+{
+  "url": "http://127.0.0.1:3000/",
+  "seed": 42,
+  "storageContract": {
+    "allowed": []
+  },
+  "selectors": {},
+  "visual": { "maxDiffRatio": 0.01 },
+  "perf": {
+    "sessionSec": 12,
+    "maxMutationsPerSec": 400,
+    "maxHeapGrowthMb": 30,
+    "maxResizeMs": 400
+  }
+}

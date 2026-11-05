@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "commands": {
+    "default": "ask",
+    "denySecretFiles": true,
+    "allow": [
+      "git status*", "git diff*", "git log*", "git show*", "git branch", "git branch --list*", "git rev-parse*", "git worktree list*",
+      "ls*", "pwd", "cat *", "head *", "tail *", "wc *", "rg *", "grep *", "find *", "tree*", "which *", "echo *",
+      "node *", "pnpm run *", "pnpm test*", "pnpm lint*", "pnpm typecheck*", "npm run *", "npm test*", "yarn run *", "yarn test*", "bun run *", "bun test*",
+      "npx tsc*", "npx eslint*", "npx prettier --check*", "npx playwright test*", "npx playwright show-report*",
+      "pnpm exec tsc*", "pnpm exec eslint*", "pnpm exec playwright test*", "pnpm exec vitest run*", "npx vitest run*",
+      "npx lhci autorun*", "pnpm exec lhci autorun*", "npx @lhci/cli autorun*",
+      "pnpm why *", "pnpm list*", "npm ls*"
+    ],
+    "ask": [
+      "rm *", "mv *", "git add*", "git commit*", "git push*", "git merge*", "git rebase*", "git checkout*", "git switch*", "git stash*", "git tag*",
+      "pnpm add*", "pnpm install*", "pnpm remove*", "npm install*", "npm i *", "yarn add*", "bun add*",
+      "npm publish*", "pnpm publish*", "vercel*", "docker *", "docker-compose *", "kubectl *", "helm *", "terraform *",
+      "ssh *", "scp *", "rsync *", "systemctl *", "service *", "ufw *", "iptables *", "crontab *", "sudo *",
+      "psql *", "mysql *", "mongosh *", "redis-cli *", "*prisma migrate*", "*drizzle-kit push*", "*drizzle-kit migrate*", "*db:migrate*", "*db:push*",
+      "curl *", "wget *",
+      "node -e*", "node --eval*", "node -p*", "find * -exec*", "find * -delete*",
+      "*orchestrator.mjs approve*", "*policy.mjs approve-release*", "*worktree.mjs remove*--force*",
+      "*--update-snapshots*", "*playwright test* -u*", "*vitest* -u*", "*vitest*--update*",
+      "npx playwright install*", "pnpm exec playwright install*", "*frontend-init.mjs*--write*"
+    ],
+    "deny": [
+      "rm -rf /", "rm -rf /*", "rm -rf ~*", "rm -rf $HOME*", "rm -rf .", "rm -rf ./", "rm -rf ..*", "mkfs*", "dd if=* of=/dev/*", ":(){*",
+      "git push --force*", "git push -f*", "git push *--force*", "git reset --hard*", "git clean -f*", "git clean -d*", "git checkout -- .", "git restore .",
+      "chmod -R 777*", "chown -R * /*",
+      "curl * | sh*", "curl * | bash*", "wget * | sh*", "wget * | bash*",
+      "cat *id_rsa*", "cat *id_ed25519*", "cat *.env", "cat *.env.local", "cat *.env.production", "printenv*", "env"
+    ]
+  },
+  "release": {
+    "requireCleanTree": true,
+    "requireGatesPassed": true,
+    "gatesMaxAgeMinutes": 60,
+    "requireApproval": true,
+    "requireRollbackPlan": true
+  }
+}

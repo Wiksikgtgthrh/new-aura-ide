@@ -6,6 +6,7 @@
 	"configuration.androidSdkPath": "Android SDK path; leave empty to auto-detect (ANDROID_HOME, ANDROID_SDK_ROOT, local.properties, default locations)",
 	"configuration.javaPath": "Path or command for Java (JDK 11+ recommended)",
 	"command.checkToolchain": "Check Kotlin Toolchain",
+	"command.installToolchain": "Install Toolchain (JDK, Kotlin, Gradle, Android SDK)",
 	"command.compileFile": "Compile Kotlin File",
 	"command.androidDoctor": "Check Android SDK",
 	"command.newProject": "New Kotlin/Android Project",

@@ -20,6 +20,7 @@ import {
 	parseKeysBulk, detectProvider, defaultBaseUrl, secretFingerprint,
 	classifyHttpStatus, cooldownMsForStatus, modelAuthenticityPercent,
 	routerLimits, nextLatencyUpdate, slowThresholdMs, pushLatencySample, medianLatency, bestMedianLatency,
+	pickWeightedKey,
 	SLOW_STREAK_LIMIT, LATENCY_WINDOW,
 	type AuraProvider, type IAuraApiGroup, type AuraHealthStatus,
 } from './auraApiModel.js';
@@ -217,6 +218,8 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 	private keys: IAuraApiKey[] = [];
 	private groups: IAuraApiGroup[] = [];
 	private readonly statuses = new Map<string, IAuraApiKeyStatus>();
+	/** Курсоры взвешенного round-robin по группам: без них весь трафик бил в один ключ. */
+	private readonly rrCursors = new Map<string, number>();
 	private readonly checkLimiter = new Limiter<unknown>(QUEUE_PARALLEL);
 	private checkCts: CancellationTokenSource | undefined;
 
@@ -453,10 +456,11 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 			if (ping.status === 401 || ping.status === 403) {
 				return this.setStatus(id, { checking: false, lastChecked: Date.now(), pingMs: ping.ms, ok: false, error: `HTTP ${ping.status}: ключ отклонён (недействителен или нет доступа)` });
 			}
-			if (ping.status === 404) {
-				return this.setStatus(id, { checking: false, lastChecked: Date.now(), pingMs: ping.ms, ok: false, error: 'HTTP 404: baseUrl не похож на OpenAI-совместимый API (нет /models)' });
-			}
-			if (ping.status !== undefined && (ping.status < 200 || ping.status >= 300)) {
+			// 404/405 на списке моделей — ещё не приговор: многие OpenAI-совместимые шлюзы
+			// вообще не отдают /models. Решает живой запрос к чату (шаг 2 ниже), поэтому
+			// здесь только помечаем, что список моделей недоступен, и не выходим раньше времени.
+			const modelsUnavailable = ping.status === 404 || ping.status === 405;
+			if (!modelsUnavailable && ping.status !== undefined && (ping.status < 200 || ping.status >= 300)) {
 				return this.setStatus(id, {
 					checking: false, lastChecked: Date.now(), pingMs: ping.ms, ok: false,
 					error: `HTTP ${ping.status}`,
@@ -471,6 +475,7 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 			let authenticityPct: number | null = null;
 			let securityPct: number | null = null;
 			let securityNotes: string[] = [];
+			let chatOk = false;
 			try {
 				const chat = await this.timedRequest(probeUrl, {
 					type: 'POST',
@@ -479,6 +484,7 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 					data: probeData,
 				});
 				if (chat.status !== undefined && chat.status >= 200 && chat.status < 300) {
+					chatOk = true;
 					const answer = parseAnswer(chat.body);
 					const expected = (key.expectedModel ?? key.model).toLowerCase();
 					const family = expected.split(/[-.]/).filter(w => w.length > 3);
@@ -503,13 +509,22 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 				this.logService.warn('[AuraAPI] authenticity probe failed', e);
 			}
 
+			// /models нет, и живой запрос к чату тоже не прошёл — вот тут ключ действительно мёртв.
+			if (modelsUnavailable && !chatOk) {
+				return this.setStatus(id, {
+					checking: false, lastChecked: Date.now(), pingMs: ping.ms, ok: false,
+					error: `HTTP ${ping.status}: нет /models, и запрос к чату не прошёл — проверьте base URL и модель`,
+				});
+			}
+
 			return this.setStatus(id, {
 				checking: false, lastChecked: Date.now(), pingMs: ping.ms, ok: true,
 				authenticityPct, securityPct, securityNotes,
 				excludedHighPing,
 				excludedReason: excludedHighPing ? 'ping' : undefined,
 				health: 'ok', cooldownUntil: undefined,
-				error: excludedHighPing ? `Высокий пинг (${ping.ms} мс > ${HIGH_PING_MS} мс) — ключ исключён из использования` : undefined,
+				error: excludedHighPing ? `Высокий пинг (${ping.ms} мс > ${HIGH_PING_MS} мс) — ключ исключён из использования`
+					: modelsUnavailable ? 'Шлюз без /models — доступ подтверждён запросом к чату' : undefined,
 			});
 		} catch (e) {
 			const msg = e instanceof Error ? e.message : String(e);
@@ -756,12 +771,17 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 			if (st.ok !== true || st.excludedHighPing) { return false; }
 			return true;
 		};
-		// группы по приоритету, внутри — по weight и ping
+		// группы по приоритету, внутри — взвешенный round-robin (не всегда первый ключ,
+		// иначе один живой быстрый ключ получал 100% трафика до падения)
 		for (const group of this.getGroups()) {
 			const pool = this.keys.filter(k => eligible(k) && (this.groups.find(g => g.name === k.group)?.id ?? this.groups[0].id) === group.id);
 			if (pool.length === 0) { continue; }
 			pool.sort((a, b) => (b.weight ?? 1) - (a.weight ?? 1) || this.speedMs(a.id) - this.speedMs(b.id));
-			return pool[0];
+			const picked = pickWeightedKey(pool, this.rrCursors.get(group.id) ?? 0);
+			if (picked) {
+				this.rrCursors.set(group.id, picked.nextCursor);
+				return picked.key;
+			}
 		}
 		return undefined;
 	}
@@ -769,9 +789,11 @@ export class AuraApiKeysService extends Disposable implements IAuraApiKeysServic
 	maskedSecretLabel(id: string): string {
 		const key = this.keys.find(k => k.id === id);
 		if (!key) { return '—'; }
+		// Fingerprint — необратимый хэш: в маске показываем его края, секрет не утекает.
 		if (!key.secretFingerprint) { return '••••'; }
-		const [prefix = '', , suffix = ''] = key.secretFingerprint.split(':');
-		return `${prefix.slice(0, 3)}…${suffix}`;
+		const fp = key.secretFingerprint.split(':')[0] ?? '';
+		if (fp.length < 8) { return '••••'; }
+		return `${fp.slice(0, 4)}…${fp.slice(-4)}`;
 	}
 
 	async selectForChat(id: string): Promise<void> {

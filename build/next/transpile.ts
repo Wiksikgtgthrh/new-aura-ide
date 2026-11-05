@@ -6,6 +6,8 @@
 import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
+import { adjustSourceMap } from './private-to-property.ts';
+import { generateNLSSourceMap, postProcessNLS, transformToPlaceholders, type NLSPluginOptions } from './nls-plugin.ts';
 
 const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
 
@@ -26,8 +28,20 @@ const transformOptions: esbuild.TransformOptions = {
 	}),
 };
 
-export async function transpileFile(srcPath: string, destPath: string): Promise<void> {
-	const source = await fs.promises.readFile(srcPath, 'utf-8');
+export async function transpileFile(srcPath: string, destPath: string, nls?: NLSPluginOptions): Promise<void> {
+	let source = await fs.promises.readFile(srcPath, 'utf-8');
+	if (nls) {
+		const moduleId = path.relative(nls.baseDir, srcPath).replace(/\\/g, '/').replace(/\.ts$/, '');
+		const transformed = transformToPlaceholders(source, moduleId);
+		for (const entry of transformed.entries) {
+			nls.collector.add(entry);
+		}
+		if (transformed.entries.length > 0) {
+			const sourceMap = generateNLSSourceMap(source, path.basename(srcPath), transformed.edits);
+			const encodedMap = Buffer.from(sourceMap).toString('base64');
+			source = transformed.code + `\n//# sourceMappingURL=data:application/json;base64,${encodedMap}\n`;
+		}
+	}
 	const result = await esbuild.transform(source, {
 		...transformOptions,
 		sourcefile: srcPath,
@@ -35,6 +49,23 @@ export async function transpileFile(srcPath: string, destPath: string): Promise<
 
 	await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
 	await fs.promises.writeFile(destPath, adjustEsmUrl(result.code));
+}
+
+export async function postProcessFileNLS(destPath: string, indexMap: Map<string, number>): Promise<void> {
+	const content = await fs.promises.readFile(destPath, 'utf-8');
+	const result = postProcessNLS(content, indexMap, false);
+	if (result.edits.length === 0) {
+		return;
+	}
+
+	let code = result.code;
+	const inlineMap = content.match(/\/\/# sourceMappingURL=data:application\/json;base64,([A-Za-z0-9+/=]+)/);
+	if (inlineMap) {
+		const sourceMap = JSON.parse(Buffer.from(inlineMap[1], 'base64').toString('utf8'));
+		const adjustedMap = adjustSourceMap(sourceMap, content, result.edits);
+		code = code.replace(inlineMap[1], Buffer.from(JSON.stringify(adjustedMap)).toString('base64'));
+	}
+	await fs.promises.writeFile(destPath, code);
 }
 
 export async function copyFile(srcPath: string, destPath: string): Promise<void> {

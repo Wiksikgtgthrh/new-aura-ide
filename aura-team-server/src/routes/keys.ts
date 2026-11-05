@@ -129,6 +129,17 @@ export async function keyRoutes(app: FastifyInstance): Promise<void> {
 		return results;
 	});
 
+	// Показать исходный ключ: значение хранится зашифрованным, поэтому это отдельное
+	// явное действие — только maintainer и выше, и каждый показ попадает в аудит.
+	app.post<{ Params: { teamId: string; keyId: string } }>('/v1/teams/:teamId/keys/:keyId/reveal', async (request, reply) => {
+		const user = await userId(request);
+		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }
+		const row = database.prepare('SELECT id,encrypted_value FROM api_keys WHERE id=? AND team_id=?').get(request.params.keyId, request.params.teamId) as { id: string; encrypted_value: string } | undefined;
+		if (!row) { return reply.notFound('Key not found'); }
+		audit(user, 'api_key.reveal', request.params.teamId, 'api_key', row.id);
+		return { value: decrypt(row.encrypted_value) };
+	});
+
 	app.post<{ Params: { teamId: string }; Body: { provider?: string; value?: string; accessRole?: string; label?: string; priority?: number; groupId?: string; baseUrl?: string; model?: string } }>('/v1/teams/:teamId/keys', async (request, reply) => {
 		const user = await userId(request);
 		try { requireRole(user, request.params.teamId, 'maintainer'); } catch (error) { mapAccessError(error); }

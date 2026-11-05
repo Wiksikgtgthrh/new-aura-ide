@@ -14,6 +14,7 @@ import { JdwpConnection, EventKind, StepSize, StepDepth, Tag, JdwpFrame, JdwpLoc
 import { ClasspathSync } from './classpath';
 import { AndroidPanel } from './android';
 import { findGradleCommand, needsShell, execTool } from './gradle';
+import { resolveJavaBinary, resolveKotlincBinary } from './toolchain';
 
 const DEBUG_TYPE = 'kotlin';
 
@@ -41,7 +42,7 @@ interface LaunchArguments {
 
 /** Компилирует .kt во временный jar (stdout подавляется, ошибки — в исключение). */
 async function compileToJar(programPath: string, classpath: string[]): Promise<string> {
-	const compiler = vscode.workspace.getConfiguration('auraKotlin').get<string>('compilerPath', 'kotlinc');
+	const compiler = resolveKotlincBinary();
 	const os = await import('node:os');
 	const path = await import('node:path');
 	const fs = await import('node:fs');
@@ -243,7 +244,7 @@ export class KotlinDebugAdapter implements vscode.DebugAdapter {
 				this.mainClass = args.mainClass ?? '';
 			}
 		}
-		const java = vscode.workspace.getConfiguration('auraKotlin').get<string>('javaPath', 'java');
+		const java = resolveJavaBinary();
 		const main = args.request === 'launch'
 			? (this.jarPath ? ['-jar', this.jarPath] : [this.mainClass])
 			: [];

@@ -1,0 +1,17 @@
+{
+  "mcp": {
+    "servers": {
+      "fal": {
+        "type": "http",
+        "url": "https://mcp.fal.ai/mcp",
+        "headers": { "Authorization": "Bearer PASTE_FAL_KEY" }
+      },
+      "replicate": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "replicate-mcp@latest"],
+        "env": { "REPLICATE_API_TOKEN": "PASTE_REPLICATE_TOKEN" }
+      }
+    }
+  }
+}

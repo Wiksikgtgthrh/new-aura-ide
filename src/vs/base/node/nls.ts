@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { join } from '../common/path.js';
+import { createHash } from 'crypto';
 import { promises } from 'fs';
 import { mark } from '../common/performance.js';
 import { ILanguagePacks, INLSConfiguration } from '../../nls.js';
@@ -43,14 +44,15 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 	mark('code/willGenerateNls');
 
 	if (
-		process.env['VSCODE_DEV'] ||
 		userLocale === 'pseudo' ||
 		userLocale.startsWith('en') ||
-		!commit ||
 		!userDataPath
 	) {
 		return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
 	}
+
+	// Aura: в dev-прогоне кэш должен меняться вместе с содержимым NLS-файлов.
+	let effectiveCommit = commit ?? 'dev';
 
 	try {
 		const languagePacks = await getLanguagePackConfigurations(userDataPath);
@@ -75,9 +77,13 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 			return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
 		}
 
+		if (process.env['VSCODE_DEV']) {
+			effectiveCommit = await getDevCacheKey(nlsMetadataPath, mainLanguagePackPath);
+		}
+
 		const languagePackId = `${languagePack.hash}.${resolvedLanguage}`;
 		const globalLanguagePackCachePath = join(userDataPath, 'clp', languagePackId);
-		const commitLanguagePackCachePath = join(globalLanguagePackCachePath, commit);
+		const commitLanguagePackCachePath = join(globalLanguagePackCachePath, effectiveCommit);
 		const languagePackMessagesFile = join(commitLanguagePackCachePath, 'nls.messages.json');
 		const translationsConfigFile = join(globalLanguagePackCachePath, 'tcf.json');
 		const languagePackCorruptMarkerFile = join(globalLanguagePackCachePath, 'corrupted.info');
@@ -158,6 +164,14 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 	}
 
 	return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
+}
+
+async function getDevCacheKey(nlsMetadataPath: string, mainLanguagePackPath: string): Promise<string> {
+	const hash = createHash('sha256');
+	for (const file of [join(nlsMetadataPath, 'nls.keys.json'), join(nlsMetadataPath, 'nls.messages.json'), mainLanguagePackPath]) {
+		hash.update(await promises.readFile(file));
+	}
+	return `dev-${hash.digest('hex').slice(0, 16)}`;
 }
 
 /**

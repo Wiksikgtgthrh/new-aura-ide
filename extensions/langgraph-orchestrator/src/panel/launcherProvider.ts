@@ -31,6 +31,12 @@ export class OrchestratorLauncherProvider implements vscode.WebviewViewProvider 
 			}
 		});
 
+		// Клик по иконке в activity bar = открыть вкладку оркестратора и убрать
+		// боковое меню: сама панель живёт центральной вкладкой, лаунчер-вью —
+		// лишь запасной вход, если пользователь вернёт сайдбар руками.
+		void vscode.commands.executeCommand('auraOrchestrator.open');
+		void vscode.commands.executeCommand('workbench.action.closeSidebar');
+
 		const sub = this.host.onDidChangeState(() => this.pushState(view));
 		view.onDidDispose(() => sub.dispose());
 		view.onDidChangeVisibility(() => {

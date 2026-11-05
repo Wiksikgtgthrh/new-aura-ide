@@ -11,6 +11,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { findGradleCommand, execTool } from './gradle';
+import { toolchainSdkRoot } from './toolchain';
 
 const BUILD_FILES = ['build.gradle', 'build.gradle.kts', 'pom.xml'];
 const SETTINGS_FILES = ['settings.gradle', 'settings.gradle.kts'];
@@ -620,10 +621,10 @@ export function androidJar(compileSdk: number): string | undefined {
 	return candidates.find(file => fs.existsSync(file));
 }
 
-/** Корень Android SDK: настройка → ANDROID_HOME → ANDROID_SDK_ROOT → local.properties → стандартные пути. */
+/** Корень Android SDK: настройка → ANDROID_HOME → ANDROID_SDK_ROOT → local.properties → тулчейн → стандартные пути. */
 export function sdkRoot(): string | undefined {
 	const configured = vscode.workspace.getConfiguration('auraKotlin').get<string>('androidSdkPath', '').trim();
-	const fromEnv = configured || process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
+	const fromEnv = configured || process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || toolchainSdkRoot();
 	if (fromEnv && fs.existsSync(fromEnv)) { return fromEnv; }
 	const root = rootFolder();
 	if (root) {

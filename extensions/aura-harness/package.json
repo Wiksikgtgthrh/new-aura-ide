@@ -1,0 +1,41 @@
+{
+	"name": "aura-harness",
+	"displayName": "Agent Harness",
+	"description": "Агентный харнесс AGGG: скилы, инструменты (gates, journeys, doctor, оркестратор задач) и автоустановка в ~/.agent-harness.",
+	"version": "2.3.0",
+	"publisher": "aura",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.100.0"
+	},
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"main": "./out/extension",
+	"scripts": {
+		"compile": "gulp compile-extension:aura-harness",
+		"watch": "gulp watch-extension:aura-harness",
+		"snapshot": "node ./scripts/snapshot.mjs"
+	},
+	"contributes": {
+		"commands": [
+			{ "command": "auraHarness.install", "title": "Установить/обновить харнесс", "category": "Harness", "enablement": "auraPlugin.aura-harness.enabled == true", "icon": "$(cloud-download)" },
+			{ "command": "auraHarness.doctor", "title": "Проверить окружение (doctor)", "category": "Harness", "enablement": "auraPlugin.aura-harness.enabled == true", "icon": "$(pulse)" },
+			{ "command": "auraHarness.status", "title": "Статус установки", "category": "Harness", "enablement": "auraPlugin.aura-harness.enabled == true", "icon": "$(info)" },
+			{ "command": "auraHarness.openFolder", "title": "Открыть папку харнесса", "category": "Harness", "enablement": "auraPlugin.aura-harness.enabled == true", "icon": "$(folder-opened)" }
+		],
+		"configuration": {
+			"title": "Agent Harness",
+			"properties": {
+				"auraHarness.autoInstall": {
+					"type": "boolean",
+					"default": true,
+					"description": "Автоматически устанавливать харнесс в ~/.agent-harness при первом запуске и предлагать обновление, когда встроенная версия новее."
+				}
+			}
+		}
+	},
+	"devDependencies": {
+		"@types/node": "24.x"
+	}
+}

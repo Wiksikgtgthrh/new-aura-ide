@@ -57,6 +57,7 @@ export class AuraMarketEditorPane extends EditorPane {
 	private langSelectEl!: HTMLSelectElement;
 	private readonly segButtons = new Map<AuraMarketFilter, HTMLButtonElement>();
 	private toastTimer: ReturnType<typeof setTimeout> | undefined;
+	private localeChangeSequence = 0;
 	private readonly expandedVersions = new Set<string>();
 	private readonly renderDisposables = this._register(new DisposableStore());
 	private readonly toastDisposables = this._register(new DisposableStore());
@@ -157,7 +158,7 @@ export class AuraMarketEditorPane extends EditorPane {
 		this.langLabelEl = append(wrap, $('span.aura-market-lang-label'));
 		const select = append(wrap, $('select.aura-market-lang-select')) as HTMLSelectElement;
 		this.langSelectEl = select;
-		select.setAttribute('aria-label', 'Язык интерфейса');
+		select.setAttribute('aria-label', this.text.languageLabel);
 		for (const language of AURA_LANGUAGES) {
 			const option = append(select, $('option')) as HTMLOptionElement;
 			option.value = language;
@@ -177,25 +178,37 @@ export class AuraMarketEditorPane extends EditorPane {
 	 * Заодно переключить язык самого IDE: строки VS Code (проводник, «Открыть папку»,
 	 * меню) живут в языковых пакетах и никак не зависят от aura.language. Без этого
 	 * «русский в маркете» оставлял оболочку английской.
-	 * Пакет не установлен — молчим: язык Aura уже применён, а тянуть установку из
-	 * галереи за пользователя нельзя. setLocale сам выходит, если язык уже активен,
-	 * и спрашивает про перезапуск — без него смена локали не применяется.
+	 * Отсутствующий пакет берём из доступных: setLocale штатно установит его из
+	 * галереи и спросит про перезапуск — без него смена локали не применяется.
 	 */
 	private async applyIdeLocale(language: AuraLanguage): Promise<void> {
+		const sequence = ++this.localeChangeSequence;
 		if (language === 'auto') { return; }
 		try {
 			const installed = await this.languagePackService.getInstalledLanguages();
-			const pack = installed?.find(item => item.id === language);
-			if (!pack) { return; }
+			if (sequence !== this.localeChangeSequence) { return; }
+			let pack = installed?.find(item => item.id === language);
+			if (!pack) {
+				const available = await this.languagePackService.getAvailableLanguages();
+				if (sequence !== this.localeChangeSequence) { return; }
+				pack = available.find(item => item.id === language);
+			}
+			if (!pack) {
+				this.notificationService.warn(this.text.languagePackUnavailable);
+				return;
+			}
 			await this.localeService.setLocale(pack);
 		} catch {
-			// Ошибка локали не должна откатывать уже применённый язык Aura.
+			if (sequence === this.localeChangeSequence) {
+				this.notificationService.warn(this.text.languagePackUnavailable);
+			}
 		}
 	}
 
 	/** Подписи вариантов — всегда на текущем языке интерфейса, значение — из настройки. */
 	private syncLanguageSwitcher(): void {
 		this.langLabelEl.textContent = this.text.languageLabel;
+		this.langSelectEl.setAttribute('aria-label', this.text.languageLabel);
 		const language = this.languageService.language;
 		Array.from(this.langSelectEl.options).forEach((option, index) => {
 			option.textContent = AURA_LANGUAGE_LABELS[AURA_LANGUAGES[index]][language];

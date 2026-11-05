@@ -9,9 +9,9 @@ import { promises as fs } from 'fs';
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const rootDir = path.resolve(import.meta.dirname, '..', '..');
 
-function runProcess(command: string, args: ReadonlyArray<string> = []) {
+function runProcess(command: string, args: ReadonlyArray<string> = [], shell = process.platform === 'win32') {
 	return new Promise<void>((resolve, reject) => {
-		const child = spawn(command, args, { cwd: rootDir, stdio: 'inherit', env: process.env, shell: process.platform === 'win32' });
+		const child = spawn(command, args, { cwd: rootDir, stdio: 'inherit', env: process.env, shell });
 		child.on('exit', err => !err ? resolve() : process.exit(err ?? 1));
 		child.on('error', reject);
 	});
@@ -58,8 +58,9 @@ async function isExpectedElectronInstalled(): Promise<boolean> {
 }
 
 async function ensureCompiled() {
-	if (!(await exists('out'))) {
-		await runProcess(npm, ['run', 'compile']);
+	// Aura: языковые пакеты требуют NLS-индексы и в обычных dev-файлах.
+	if (!(await exists('out/nls.keys.json')) || !(await exists('out/nls.messages.json'))) {
+		await runProcess(process.execPath, ['build/next/index.ts', 'transpile', '--nls', '--out', 'out'], false);
 	}
 }
 

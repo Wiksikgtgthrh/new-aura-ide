@@ -75,6 +75,13 @@
 	background: var(--vscode-button-background);
 }
 
+.aura-api-header-icon.codicon-key::before,
+.aura-api-empty-icon.codicon-key::before {
+	display: block;
+	transform: rotate(48deg);
+	transform-origin: center;
+}
+
 .aura-api-header .count {
 	min-width: 20px;
 	height: 20px;
@@ -599,8 +606,16 @@
 	align-items: center;
 	justify-content: center;
 	font-size: 22px !important;
+	/* codicon — шрифтовая иконка: без явной единичной высоты строки унаследованный
+	   line-height родителя смещает глиф из центра круга */
+	line-height: 1;
 	color: var(--aura-fg-muted);
 	background: color-mix(in srgb, var(--aura-fg) 7%, transparent);
+}
+
+.aura-api-empty-icon::before {
+	display: block;
+	line-height: 1;
 }
 
 .aura-api-empty-title {

@@ -6,7 +6,7 @@
  *    node scripts/start-local.mjs --check  — только проверить, что сервер отвечает (exit 0/1)
  *--------------------------------------------------------------------------------------------*/
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -61,10 +61,22 @@ async function main() {
 		console.log('[aura-team] generated new master key -> data/.master-key');
 	}
 
-	// Сборка, если dist/ ещё нет.
+	// Сборка: dist/ нет — или он старше исходников (иначе сервер работает на протухшем
+	// коде, а свежие фиксы лежат в src/ мёртвым грузом — так ключи когда-то помечались
+	// «не отвечает» старым пробником при живых ключах).
 	const entry = join(serverRoot, 'dist', 'server.js');
-	if (!existsSync(entry)) {
-		console.log('[aura-team] dist/ not found, building...');
+	const newestSrcMtime = (dir) => {
+		let newest = 0;
+		for (const entry of readdirSync(dir, { withFileTypes: true })) {
+			const full = join(dir, entry.name);
+			if (entry.isDirectory()) { newest = Math.max(newest, newestSrcMtime(full)); }
+			else if (entry.name.endsWith('.ts')) { newest = Math.max(newest, statSync(full).mtimeMs); }
+		}
+		return newest;
+	};
+	const distStale = existsSync(entry) && newestSrcMtime(join(serverRoot, 'src')) > statSync(entry).mtimeMs;
+	if (!existsSync(entry) || distStale) {
+		console.log(existsSync(entry) ? '[aura-team] src/ newer than dist/, rebuilding...' : '[aura-team] dist/ not found, building...');
 		const tsc = spawn(process.execPath, [join(serverRoot, 'node_modules', 'typescript', 'bin', 'tsc'), '-p', join(serverRoot, 'tsconfig.json')], { stdio: 'inherit', cwd: serverRoot });
 		const status = await new Promise(resolve => tsc.on('exit', code => resolve(code ?? 1)));
 		if (status !== 0) { process.exit(status); }

@@ -88,9 +88,7 @@ suite('Aura Market — каталог плагинов', () => {
 		const match = /DEFAULT_INSTALLED_PLUGINS[^=]*=\s*new Set\(\[([^\]]*)\]\)/.exec(source);
 		assert.ok(match, 'не найден список плагинов, установленных по умолчанию');
 		const ids = (match ? match[1] : '').split(',').map(part => part.trim().replace(/^'|'$/g, '')).filter(Boolean);
-		// aggg — тоже по умолчанию: иначе у его карточки нет селектора версии ядра
-		// (он рендерится только у установленного плагина) и команда с индикатором скрыты.
-		for (const gated of ['aura-team', 'langgraph-orchestrator', 'aggg']) {
+		for (const gated of ['aura-team', 'langgraph-orchestrator']) {
 			assert.ok(ids.includes(gated), `«${gated}» гейтится, но не считается установленным по умолчанию`);
 		}
 	});
@@ -203,6 +201,13 @@ suite('Aura Market — каталог плагинов', () => {
 		for (const key of Object.keys(ru)) {
 			assert.strictEqual(typeof en[key], typeof ru[key], `«${key}»: в переводах разный тип значения`);
 		}
+	});
+
+	test('переключатель языка доустанавливает отсутствующий пакет ядра', () => {
+		const source = fs.readFileSync('src/vs/workbench/contrib/auraMarket/browser/auraMarketEditorPane.ts', 'utf8');
+		const applyLocale = source.slice(source.indexOf('private async applyIdeLocale'), source.indexOf('private syncLanguageSwitcher'));
+		assert.match(applyLocale, /getAvailableLanguages\(\)/, 'без поиска доступного пакета выбор языка молча оставляет Workbench английским');
+		assert.match(applyLocale, /localeService\.setLocale\(pack\)/, 'доступный пакет должен передаваться штатной службе установки и перезапуска');
 	});
 
 	test('панель маркета не держит текст в себе: либо набор строк, либо сервис языка', () => {

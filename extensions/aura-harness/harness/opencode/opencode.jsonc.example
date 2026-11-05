@@ -1,0 +1,70 @@
+// Формат mcp.servers + disabled проверен на opencode v2.0.17 (см. скилл mcp-setup).
+// Если твоя сборка его не понимает — бери opencode.official.jsonc.example (mcp.<имя> + enabled).
+// Ключи только из окружения. Проверка: opencode mcp list
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "searxng": {
+        "type": "local",
+        "command": ["npx", "-y", "mcp-searxng"],
+        "environment": { "SEARXNG_URL": "http://127.0.0.1:8080" }
+      },
+      "tavily": {
+        "type": "local",
+        "command": ["npx", "-y", "tavily-mcp@latest"],
+        "environment": {
+          "TAVILY_API_KEY": "${TAVILY_API_KEY}",
+          "DEFAULT_PARAMETERS": "{\"max_results\": 10, \"search_depth\": \"advanced\"}"
+        }
+      },
+      "fetch": {
+        "type": "local",
+        "command": ["uvx", "mcp-server-fetch"]
+      },
+      "playwright": {
+        "type": "local",
+        "command": ["npx", "-y", "@playwright/mcp@latest", "--isolated"]
+      },
+      // Трассы производительности, Lighthouse, сеть, консоль (скилл web-perf)
+      "chrome-devtools": {
+        "type": "local",
+        "command": ["npx", "-y", "chrome-devtools-mcp@latest", "--isolated"]
+      },
+      // Актуальные docs по версии библиотеки (скилл docs-lookup). Ключ опционален.
+      "context7": {
+        "type": "local",
+        "command": ["npx", "-y", "@upstash/context7-mcp@latest"]
+      },
+      // Реестр компонентов shadcn/ui: поиск, примеры, add
+      "shadcn": {
+        "type": "local",
+        "command": ["npx", "-y", "shadcn@latest", "mcp"]
+      },
+      // REA (ReVa): реверс через Ghidra headless. ТОЛЬКО для задач реверса. Нужен GHIDRA_INSTALL_DIR.
+      "reva": {
+        "type": "local",
+        "command": ["mcp-reva"]
+      },
+      // Figma Dev Mode MCP: включи в Figma Desktop (Preferences -> Dev Mode MCP Server)
+      "figma": {
+        "type": "remote",
+        "url": "http://127.0.0.1:3845/mcp",
+        "disabled": true
+      },
+      // Генерация картинок/видео (скилл media-assets). Включай один, нужен ключ в env.
+      "fal": {
+        "type": "remote",
+        "url": "https://mcp.fal.ai/mcp",
+        "headers": { "Authorization": "Bearer ${FAL_KEY}" },
+        "disabled": true
+      },
+      "replicate": {
+        "type": "local",
+        "command": ["npx", "-y", "replicate-mcp@latest"],
+        "environment": { "REPLICATE_API_TOKEN": "${REPLICATE_API_TOKEN}" },
+        "disabled": true
+      }
+    }
+  }
+}

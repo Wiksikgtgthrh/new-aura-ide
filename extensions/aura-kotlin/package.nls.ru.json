@@ -6,6 +6,7 @@
 	"configuration.androidSdkPath": "Путь к Android SDK; оставьте пустым для автоопределения (ANDROID_HOME, ANDROID_SDK_ROOT, local.properties, стандартные пути)",
 	"configuration.javaPath": "Путь или команда для Java (рекомендуется JDK 11+)",
 	"command.checkToolchain": "Проверить инструментальную цепочку Kotlin",
+	"command.installToolchain": "Установить тулчейн (JDK, Kotlin, Gradle, Android SDK)",
 	"command.compileFile": "Скомпилировать файл Kotlin",
 	"command.androidDoctor": "Проверить Android SDK",
 	"command.newProject": "Новый проект Kotlin/Android",

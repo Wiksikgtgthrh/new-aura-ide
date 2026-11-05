@@ -67,3 +67,28 @@ test('проверка ключа: рабочий ключ через шлюз �
 	assert.equal(byLabel['sk-good'].baseUrl, baseUrl);
 	assert.equal(byLabel['sk-good'].model, 'gpt-4o-mini');
 });
+
+test('раскрытие ключа: владелец получает расшифрованное значение, чужой — нет', async () => {
+	const [{ createServer }, { database }, { accessToken }, { hash }] = await Promise.all([
+		import('../src/server.js'), import('../src/database.js'), import('../src/security.js'), import('@node-rs/argon2')
+	]);
+	const app = await createServer();
+	const insertUser = async (prefix: string, name: string) => {
+		const user = `${prefix}-${Date.now()}${Math.round(Math.random() * 1000)}`;
+		database.prepare('INSERT INTO users(id,email,display_name,password_hash,verified_at,created_at) VALUES(?,?,?,?,?,?)').run(user, `${user}@example.com`, name, await hash('long-test-password'), 'now', 'now');
+		return `Bearer ${await accessToken(user)}`;
+	};
+	const auth = await insertUser('reveal', 'Reveal');
+	const teamId = (await app.inject({ method: 'POST', url: '/v1/teams', headers: { authorization: auth }, payload: { name: 'Reveal' } })).json().id as string;
+	const keyId = (await app.inject({ method: 'POST', url: `/v1/teams/${teamId}/keys`, headers: { authorization: auth }, payload: { provider: 'openai', value: 'sk-secret-value', label: 'secret' } })).json().id as string;
+
+	const revealed = await app.inject({ method: 'POST', url: `/v1/teams/${teamId}/keys/${keyId}/reveal`, headers: { authorization: auth } });
+	assert.equal(revealed.statusCode, 200);
+	assert.equal(revealed.json().value, 'sk-secret-value', 'ключ расшифровывается для владельца');
+
+	// Чужой пользователь вне команды не видит ни ключа, ни его значения.
+	const strangerAuth = await insertUser('reveal-x', 'Stranger');
+	const denied = await app.inject({ method: 'POST', url: `/v1/teams/${teamId}/keys/${keyId}/reveal`, headers: { authorization: strangerAuth } });
+	assert.ok(denied.statusCode === 403 || denied.statusCode === 404, `ожидали отказ, получили ${denied.statusCode}`);
+	await app.close();
+});

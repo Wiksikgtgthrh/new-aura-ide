@@ -1,19 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  AGGG — кому доступна версия ядра 5.2.
- *  Внешний агент 5.2 — отдельная поставка: право выдаётся аккаунту на стороне Team
- *  (таблица entitlements, `npm run grant -- --feature aggg52`), а не появляется вместе
- *  с плагином. Здесь только чистая логика решения — её и покрывают тесты.
+ *  AGGG — версии ядра буста.
+ *
+ *  Версия 5.2 открыта всем: файлы обвязки (harness) едут с сервера Team, а не лежат
+ *  в поставке IDE, поэтому обновлять её можно без выпуска новой сборки. Право
+ *  `aggg52` больше ничего не блокирует — сервер отдаёт ядро любому вошедшему аккаунту.
+ *
+ *  Раньше 5.2 была платной: право выдавалось аккаунту на стороне Team. Логику
+ *  оставили прежней по форме (решение, вид пункта), чтобы интерфейс и виджет версии
+ *  не переписывать, но доступ теперь не зависит от списка возможностей.
+ *
+ *  Файл чистый (без vscode), поэтому его покрывают обычные mocha-тесты.
  *--------------------------------------------------------------------------------------------*/
 
 export const AGGG_BUILTIN_VERSION = '2.0.0';
 export const AGGG_EXTERNAL_VERSION = '5.2';
 
-/** Возможность аккаунта, открывающая внешнее ядро 5.2. */
+/** Возможность аккаунта, когда-то открывавшая внешнее ядро 5.2. Право больше не требуется. */
 export const AGGG_52_FEATURE = 'aggg52';
 
 export type AgggVersion = typeof AGGG_BUILTIN_VERSION | typeof AGGG_EXTERNAL_VERSION;
 
-/** Почему версия недоступна: право не выдано аккаунту. */
+/** Почему версия недоступна. Гейта больше нет — тип оставлен для совместимости вызывающих. */
 export type AgggVersionBlock = 'license' | undefined;
 
 export interface IAgggVersionDecision {
@@ -24,32 +31,23 @@ export interface IAgggVersionDecision {
 	readonly reason: AgggVersionBlock;
 }
 
-/** Доступна ли версия при данном списке возможностей аккаунта. */
-export function agggVersionAvailable(version: string, features: readonly string[]): boolean {
-	if (version !== AGGG_EXTERNAL_VERSION) { return true; }
-	return features.includes(AGGG_52_FEATURE);
+/** Доступна ли версия. Все версии открыты: ядро 5.2 приходит с сервера по запросу. */
+export function agggVersionAvailable(_version: string, _features: readonly string[] = []): boolean {
+	return true;
 }
 
-/**
- * Что делать, если в настройке выбрана недоступная версия: молча работать на внешнем
- * ядре нельзя, но и падать в пустой экран — тоже. Откатываемся на встроенное ядро
- * и говорим об этом в интерфейсе.
- */
-export function resolveAgggVersion(setting: string | undefined, features: readonly string[]): IAgggVersionDecision {
+/** Выбранная версия всегда играбельна: откатываться на встроенное ядро больше не за что. */
+export function resolveAgggVersion(setting: string | undefined, _features: readonly string[] = []): IAgggVersionDecision {
 	const requested: AgggVersion = String(setting ?? '').trim() === AGGG_EXTERNAL_VERSION ? AGGG_EXTERNAL_VERSION : AGGG_BUILTIN_VERSION;
-	if (agggVersionAvailable(requested, features)) {
-		return { version: requested, blocked: false, reason: undefined };
-	}
-	return { version: AGGG_BUILTIN_VERSION, blocked: true, reason: 'license' };
+	return { version: requested, blocked: false, reason: undefined };
 }
 
 /**
- * Вид пункта в списке версий: закрытая версия честно помечена, а не спрятана.
- * Возвращаем вид, а не строку, чтобы локализация осталась в виджете.
+ * Вид пункта в списке версий. Закрытых пунктов больше нет: внешняя версия
+ * всегда выбирается, а её файлы приходят с сервера.
  */
 export type AgggVersionOptionKind = 'builtin' | 'external' | 'external-locked';
 
-export function agggVersionOptionKind(version: string, features: readonly string[]): AgggVersionOptionKind {
-	if (version !== AGGG_EXTERNAL_VERSION) { return 'builtin'; }
-	return agggVersionAvailable(version, features) ? 'external' : 'external-locked';
+export function agggVersionOptionKind(version: string, _features: readonly string[] = []): AgggVersionOptionKind {
+	return version !== AGGG_EXTERNAL_VERSION ? 'builtin' : 'external';
 }
