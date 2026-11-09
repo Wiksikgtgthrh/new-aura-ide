@@ -53,7 +53,7 @@ export default {
           await page.locator(s.loginPassword).fill('secret-123');
           await page.locator(s.eye).click();
           const type = await page.locator(s.loginPassword).getAttribute('type');
-          if (type !== 'text') throw new Error(`пароль не раскрылся, type=${type}`);
+          if (type !== 'text') {throw new Error(`пароль не раскрылся, type=${type}`);}
           await page.locator(s.eye).click();
         },
       },

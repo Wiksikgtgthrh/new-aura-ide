@@ -48,7 +48,7 @@ export default {
             await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
             return performance.now() - start;
           }, s.chart);
-          if (ms > budget.maxResizeMs) throw new Error(`resize: ${Math.round(ms)}мс при бюджете ${budget.maxResizeMs}мс`);
+          if (ms > budget.maxResizeMs) {throw new Error(`resize: ${Math.round(ms)}мс при бюджете ${budget.maxResizeMs}мс`);}
         },
       },
       {
@@ -56,11 +56,11 @@ export default {
         run: async (page) => {
           const read = async () => page.evaluate(() => performance.memory?.usedJSHeapSize ?? null);
           const before = await read();
-          if (before === null) return; // без CDP-метрик — шаг unverified молча нельзя: честно пропускаем
+          if (before === null) {return;} // без CDP-метрик — шаг unverified молча нельзя: честно пропускаем
           for (let i = 0; i < 10; i++) {
             for (const tab of ['orders', 'positions', 'balances', 'history']) {
               const btn = page.locator(`[data-panel-tab="${tab}"]`);
-              if (await btn.count()) await btn.click();
+              if (await btn.count()) {await btn.click();}
             }
           }
           await page.waitForTimeout(500);

@@ -28,7 +28,7 @@ export default {
         screenshot: 'theme-dark',
         a11y: true,
         run: async (page) => {
-          if ((await themeOf(page)) !== 'dark') await page.locator(s.toggle).click();
+          if ((await themeOf(page)) !== 'dark') {await page.locator(s.toggle).click();}
           await assertChartAlive(page, s.chart);
         },
       },
@@ -39,7 +39,7 @@ export default {
         run: async (page) => {
           await page.locator(s.toggle).click();
           await page.waitForTimeout(400);
-          if ((await themeOf(page)) !== 'light') throw new Error('тема не переключилась в light');
+          if ((await themeOf(page)) !== 'light') {throw new Error('тема не переключилась в light');}
           await assertChartAlive(page, s.chart);
         },
       },
@@ -48,7 +48,7 @@ export default {
         run: async (page, ctx) => {
           await page.reload({ waitUntil: 'networkidle' });
           await page.waitForTimeout(400);
-          if ((await themeOf(page)) !== 'light') throw new Error('тема не пережила refresh');
+          if ((await themeOf(page)) !== 'light') {throw new Error('тема не пережила refresh');}
           await storageWithinContract(page, ctx.config.storageContract?.allowed ?? []);
         },
       },
@@ -58,7 +58,7 @@ export default {
           await page.locator(s.toggle).click();
           await page.reload({ waitUntil: 'networkidle' });
           await page.waitForTimeout(400);
-          if ((await themeOf(page)) !== 'dark') throw new Error('тема не вернулась в dark после refresh');
+          if ((await themeOf(page)) !== 'dark') {throw new Error('тема не вернулась в dark после refresh');}
         },
       },
     ];

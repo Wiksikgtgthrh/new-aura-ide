@@ -25,7 +25,7 @@ const require = createRequire(import.meta.url);
 const { contentTypeHeader } = require(compiled);
 
 let failures = 0;
-const check = (name, ok) => { console.log((ok ? '  ok   ' : '  FAIL ') + name); if (!ok) failures++; };
+const check = (name, ok) => { console.log((ok ? '  ok   ' : '  FAIL ') + name); if (!ok) {failures++;} };
 const keys = (value) => Object.keys(contentTypeHeader(value));
 
 check('DELETE without a body: no content-type header at all', keys(undefined).length === 0);

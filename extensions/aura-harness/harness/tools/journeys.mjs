@@ -23,7 +23,7 @@ async function waitForUrl(url, timeoutMs = 15000) {
   while (Date.now() < deadline) {
     try {
       const res = await fetch(url, { method: 'HEAD' });
-      if (res.ok) return true;
+      if (res.ok) {return true;}
     } catch { /* ещё не поднялся */ }
     await new Promise((r) => setTimeout(r, 400));
   }
@@ -46,7 +46,7 @@ async function main() {
   }
 
   const url = flags.url && flags.url !== true ? flags.url : config.url;
-  if (!url) fail('Не задан URL: --url http://... или "url" в journeys.config.json', 2);
+  if (!url) {fail('Не задан URL: --url http://... или "url" в journeys.config.json', 2);}
 
   const playwright = await loadPlaywright(cwd);
   if (!playwright) {
@@ -58,14 +58,14 @@ async function main() {
   // --- dev-сервер: поднимаем, если задан и url недоступен ---
   let server = null;
   if (!(await waitForUrl(url, 3000))) {
-    if (!config.serve) fail(`URL ${url} недоступен и "serve" в journeys.config.json не задан`, 2);
+    if (!config.serve) {fail(`URL ${url} недоступен и "serve" в journeys.config.json не задан`, 2);}
     server = spawn(config.serve, { cwd, shell: true, stdio: 'ignore' });
-    if (!(await waitForUrl(url))) fail(`serve не поднял ${url}: ${config.serve}`, 2);
+    if (!(await waitForUrl(url))) {fail(`serve не поднял ${url}: ${config.serve}`, 2);}
   }
 
   const only = list(flags.journey);
   const selected = journeys.filter((j) => !only.length || only.includes(j.id));
-  if (!selected.length) fail(`Нет journeys под фильтр: ${only.join(', ')}`, 2);
+  if (!selected.length) {fail(`Нет journeys под фильтр: ${only.join(', ')}`, 2);}
 
   const runId = new Date().toISOString().replace(/[:.]/g, '-');
   const artifactsDir = path.join(stateDir(cwd), 'artifacts', `journeys-${runId}`);
@@ -83,7 +83,7 @@ async function main() {
       await context.addInitScript(
         deterministicInitScript(seed, journey.fixtures?.clock ?? null, { startPaused: Boolean(journey.fixtures?.freezeOnLoad) })
       );
-      if (journey.fixtures?.cleanStorage) await cleanStorage(context);
+      if (journey.fixtures?.cleanStorage) {await cleanStorage(context);}
 
       const page = await context.newPage();
       const pageErrors = [];
@@ -114,7 +114,7 @@ async function main() {
           continue;
         }
         const res = await runStep(step, page, ctx);
-        if (res.status === 'failed' && step.optional) res.status = 'warning';
+        if (res.status === 'failed' && step.optional) {res.status = 'warning';}
         if (res.a11y && res.a11y.status === 'failed') {
           res.status = step.optional ? 'warning' : 'failed';
           res.error = `axe: ${res.a11y.violations.map((v) => `${v.impact}:${v.id}(${v.nodes})`).join(', ')}`;
@@ -124,7 +124,7 @@ async function main() {
         console.log(`  [${mark}] ${step.name}${res.error ? ` — ${res.error}` : ''}`);
         if (res.status === 'failed') { jr.status = 'failed'; broken = true; }
       }
-      if (jr.steps.some((s) => s.status === 'warning') && jr.status === 'passed') jr.status = 'warning';
+      if (jr.steps.some((s) => s.status === 'warning') && jr.status === 'passed') {jr.status = 'warning';}
       await context.close();
       results.push(jr);
     }
@@ -164,7 +164,7 @@ async function main() {
 
   appendEvent(cwd, { type: 'journeys.finished', runId, verdict });
   console.log(`\nVerdict: ${verdict.toUpperCase()}  artifacts: ${path.relative(cwd, artifactsDir)}`);
-  if (warned.length) console.log(`Warnings (known gaps): ${warned.map((r) => r.id).join(', ')}`);
+  if (warned.length) {console.log(`Warnings (known gaps): ${warned.map((r) => r.id).join(', ')}`);}
   process.exit(verdict === 'passed' ? 0 : 1);
 }
 

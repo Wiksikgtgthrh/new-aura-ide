@@ -14,8 +14,8 @@ const LOCKFILES = [
 
 export function detectPackageManager(cwd) {
   const pkg = readJson(path.join(cwd, 'package.json'), null);
-  if (pkg?.packageManager) return pkg.packageManager.split('@')[0];
-  for (const [lockfile, pm] of LOCKFILES) if (fs.existsSync(path.join(cwd, lockfile))) return pm;
+  if (pkg?.packageManager) {return pkg.packageManager.split('@')[0];}
+  for (const [lockfile, pm] of LOCKFILES) {if (fs.existsSync(path.join(cwd, lockfile))) {return pm;}}
   return pkg ? 'npm' : null;
 }
 
@@ -23,14 +23,14 @@ const FRONTEND_DEPS = ['next', 'react', 'vue', 'nuxt', 'svelte', '@sveltejs/kit'
 
 export function detectFrontend(cwd) {
   const pkg = readJson(path.join(cwd, 'package.json'), null);
-  if (!pkg) return false;
+  if (!pkg) {return false;}
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
   return FRONTEND_DEPS.some((d) => d in deps);
 }
 
 function isRequired(gate, ctx) {
-  if (gate.requiredWhen === 'frontend') return ctx.frontend;
-  if (gate.requiredWhen === 'typescript') return ctx.typescript;
+  if (gate.requiredWhen === 'frontend') {return ctx.frontend;}
+  if (gate.requiredWhen === 'typescript') {return ctx.typescript;}
   return gate.required !== false;
 }
 
@@ -65,7 +65,7 @@ async function main() {
   const { flags } = parseArgs(process.argv.slice(2));
   const cwd = path.resolve(flags.cwd && flags.cwd !== true ? flags.cwd : process.cwd());
   const configPath = flags.config && flags.config !== true ? flags.config : resolveConfig('.agent-gates.json', cwd);
-  if (!configPath) fail('No .agent-gates.json found in project, ~/.agent-harness or harness root');
+  if (!configPath) {fail('No .agent-gates.json found in project, ~/.agent-harness or harness root');}
   const config = readJson(configPath);
   const only = list(flags.only);
   const gates = config.gates.filter((g) => !only.length || only.includes(g.name));
@@ -91,7 +91,7 @@ async function main() {
     const res = await runScript(pm, script, cwd, gate.timeoutSec ?? config.defaultTimeoutSec ?? 900, logFile);
     results.push({ name: gate.name, script, required, log: path.relative(cwd, logFile), ...res });
     console.log(`  ${res.status} (${Math.round(res.durationMs / 1000)}s)`);
-    if (res.status !== 'passed' && required && config.failFast) break;
+    if (res.status !== 'passed' && required && config.failFast) {break;}
   }
 
   const requiredBroken = results.filter((r) => r.required && (r.status === 'failed' || r.status === 'timeout'));

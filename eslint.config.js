@@ -2983,4 +2983,21 @@ export default defineConfig(
 		rules: {
 			'local/code-no-new-javascript-files': 'error',
 		},
+	},
+	// Aura fork code (aura-* extensions, orchestrator sidecar, server scripts).
+	// It is not Microsoft code, so the mandatory copyright header does not apply
+	// there: the rule's autofix used to inject a false authorship notice into
+	// fork files. Strings in these tests are check data rather than UI text, so
+	// the externalized-strings rule does not apply either.
+	{
+		files: [
+			'extensions/aura-*/**/*.{js,cjs,mjs}',
+			'extensions/langgraph-orchestrator/**/*.{js,cjs,mjs}',
+			'aura-team-server/**/*.{js,cjs,mjs}',
+			'docs/swarm/**/*.{js,cjs,mjs}',
+		],
+		rules: {
+			'header/header': 'off',
+			'local/code-no-unexternalized-strings': 'off',
+		},
 	});

@@ -52,7 +52,7 @@ export default {
           await second.click();
           await page.waitForTimeout(300);
           const after = await page.locator(s.pairTitle).textContent();
-          if (before === after) throw new Error(`заголовок пары не сменился: «${before}»`);
+          if (before === after) {throw new Error(`заголовок пары не сменился: «${before}»`);}
         },
       },
       {
@@ -60,7 +60,7 @@ export default {
         run: async (page) => {
           await page.locator(s.tf('1H')).click();
           const pressed = await page.locator(s.tf('1H')).getAttribute('aria-pressed');
-          if (pressed !== 'true') throw new Error('таймфрейм 1ч не стал активным');
+          if (pressed !== 'true') {throw new Error('таймфрейм 1ч не стал активным');}
         },
       },
       {
@@ -71,7 +71,7 @@ export default {
             await page.locator(s.chartMode(m)).click();
             await page.waitForTimeout(200);
             const pressed = await page.locator(s.chartMode(m)).getAttribute('aria-pressed');
-            if (pressed !== 'true') throw new Error(`режим ${m} не активировался`);
+            if (pressed !== 'true') {throw new Error(`режим ${m} не активировался`);}
           }
         },
       },
@@ -89,7 +89,7 @@ export default {
         run: async (page) => {
           await page.locator(s.bookRow).first().click();
           const val = await page.locator(s.priceInput).inputValue();
-          if (!val || val === 'Рыночная') throw new Error('цена из стакана не попала в форму');
+          if (!val || val === 'Рыночная') {throw new Error('цена из стакана не попала в форму');}
         },
       },
       {
@@ -157,7 +157,7 @@ export default {
             await page.locator(s.panelTab(tab)).click();
             await page.waitForTimeout(150);
             const view = page.locator(`#view-${tab}`);
-            if (await view.isHidden()) throw new Error(`вкладка ${tab} не открылась`);
+            if (await view.isHidden()) {throw new Error(`вкладка ${tab} не открылась`);}
           }
         },
       },

@@ -37,14 +37,14 @@ const tokens = { root: {}, dark: {}, theme: {} };
 let tailwindMode = fs.readdirSync(cwd).some((f) => /^tailwind\.config\./.test(f)) ? 'v3 (tailwind.config)' : null;
 for (const file of cssFiles) {
   const css = fs.readFileSync(file, 'utf8');
-  if (/@import\s+["']tailwindcss["']/.test(css)) tailwindMode = 'v4 (@import "tailwindcss" + @theme)';
+  if (/@import\s+["']tailwindcss["']/.test(css)) {tailwindMode = 'v4 (@import "tailwindcss" + @theme)';}
   for (const [scope, re] of [
     ['root', /:root\s*\{([^}]*)\}/g],
     ['dark', /\.dark\s*\{([^}]*)\}/g],
     ['theme', /@theme(?:\s+inline)?\s*\{([^}]*)\}/g],
   ]) {
     for (const block of css.matchAll(re)) {
-      for (const decl of block[1].matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) tokens[scope][decl[1]] = decl[2].trim();
+      for (const decl of block[1].matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {tokens[scope][decl[1]] = decl[2].trim();}
     }
   }
 }
@@ -52,7 +52,7 @@ for (const file of cssFiles) {
 const fonts = new Set();
 for (const f of files.filter((x) => /\.(tsx|jsx|ts|js)$/.test(x) && /layout|_app|root/.test(path.basename(x)))) {
   const src = fs.readFileSync(f, 'utf8');
-  for (const m of src.matchAll(/import\s*\{([^}]+)\}\s*from\s*["']next\/font\/(google|local)["']/g)) for (const n of m[1].split(',')) fonts.add(`${n.trim()} (${m[2]})`);
+  for (const m of src.matchAll(/import\s*\{([^}]+)\}\s*from\s*["']next\/font\/(google|local)["']/g)) {for (const n of m[1].split(',')) {fonts.add(`${n.trim()} (${m[2]})`);}}
 }
 
 const DRIFT_RULES = [
@@ -67,7 +67,7 @@ for (const f of files.filter((x) => /\.(tsx|jsx|vue|svelte)$/.test(x))) {
   const src = fs.readFileSync(f, 'utf8');
   for (const r of DRIFT_RULES) {
     const n = (src.match(r.re) ?? []).length;
-    if (!n) continue;
+    if (!n) {continue;}
     drift[r.id].count += n;
     drift[r.id].files[rel(f)] = n;
   }
@@ -129,10 +129,10 @@ if (flags.compare && flags.compare !== true) {
     process.exit(1);
   }
   const worse = Object.entries(map.drift).filter(([k, v]) => v.count > (before.drift?.[k]?.count ?? 0));
-  for (const [k, v] of Object.entries(map.drift)) console.log(`${k.padEnd(16)} ${String(before.drift?.[k]?.count ?? 0).padStart(5)} -> ${String(v.count).padStart(5)}`);
+  for (const [k, v] of Object.entries(map.drift)) {console.log(`${k.padEnd(16)} ${String(before.drift?.[k]?.count ?? 0).padStart(5)} -> ${String(v.count).padStart(5)}`);}
   console.log(worse.length ? `\nDrift increased: ${worse.map(([k]) => k).join(', ')}` : '\nNo drift increase.');
   process.exit(worse.length ? 1 : 0);
 }
 
-if (flags.json) console.log(JSON.stringify(map, null, 2));
-else console.log(`${md}\nSaved: ${rel(path.join(outDir, 'design-map.md'))}`);
+if (flags.json) {console.log(JSON.stringify(map, null, 2));}
+else {console.log(`${md}\nSaved: ${rel(path.join(outDir, 'design-map.md'))}`);}

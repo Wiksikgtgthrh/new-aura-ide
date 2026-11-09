@@ -62,7 +62,7 @@ export default {
         name: 'tab/tabpanel-семантика у вкладок',
         run: async (page) => {
           const tabs = await page.locator(s.tabs).count();
-          if (tabs === 0) throw new Error('вкладок с role=tab не найдено');
+          if (tabs === 0) {throw new Error('вкладок с role=tab не найдено');}
           const withSelected = await page.locator(`${s.tabs}[aria-selected]`).count();
           if (withSelected !== tabs) {
             throw new Error(`aria-selected есть не у всех вкладок: ${withSelected}/${tabs}`);

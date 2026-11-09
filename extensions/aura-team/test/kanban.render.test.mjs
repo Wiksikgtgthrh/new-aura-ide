@@ -326,7 +326,8 @@ check('composeDescription собирает markdown-чекбоксы', roundTrip
 // Доска пишет подзадачи — расширение их же читает для сайдбара: формат должен совпадать.
 const extOut = readFileSync(join(here, '..', 'out', 'extension.js'), 'utf8');
 const extReSrc = extOut.match(/const m = (\/\^[^\n]*?\/)\.exec\(line\)/);
-const extRe = extReSrc ? eval(extReSrc[1]) : null;
+// Из литерала /…/flags собираем RegExp без eval: в тесте исполнять строку незачем.
+const extRe = extReSrc ? new RegExp(extReSrc[1].slice(1, extReSrc[1].lastIndexOf('/')), extReSrc[1].slice(extReSrc[1].lastIndexOf('/') + 1)) : null;
 const written = probe(`composeDescription('Проза', [{ done: true, text: 'Готово' }, { done: false, text: 'Ещё' }])`);
 check('Расширение читает тот же формат подзадач, что пишет доска', !!extRe && written.split('\n').filter((line) => extRe.test(line)).length === 2);
 // Описание только из чекбоксов — без пустого блока описания

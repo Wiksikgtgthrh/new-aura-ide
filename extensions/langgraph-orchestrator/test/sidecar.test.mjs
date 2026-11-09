@@ -1228,11 +1228,11 @@ test('Этап 4.3: конфликт merge поднимает interrupt с фа�
 		runId: 'run-9', workspaceRoot: '/repo', baseCommit: 'base1',
 		invokeTool: async (name, input) => {
 			calls.push({ name, input });
-			if (name === 'git.worktreeAdd') return { isolated: true, worktree: input.worktree, branch: input.branch };
-			if (name === 'git.commitWorktree') return { commit: 'sha', clean: false };
-			if (name === 'git.diffStat') return { diffStat: ' 1 file changed' };
-			if (name === 'git.mergeNode') return { ok: false, conflicts: ['src/shared.ts'] };
-			if (name === 'git.finalPatch') return { stat: '', files: [] };
+			if (name === 'git.worktreeAdd') {return { isolated: true, worktree: input.worktree, branch: input.branch };}
+			if (name === 'git.commitWorktree') {return { commit: 'sha', clean: false };}
+			if (name === 'git.diffStat') {return { diffStat: ' 1 file changed' };}
+			if (name === 'git.mergeNode') {return { ok: false, conflicts: ['src/shared.ts'] };}
+			if (name === 'git.finalPatch') {return { stat: '', files: [] };}
 			return { output: 'ok' };
 		},
 	}, { checkpointer: new MemorySaver() });

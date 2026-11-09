@@ -24,7 +24,7 @@ export default {
             links
               .filter((a) => {
                 // ссылка на текущую страницу (aria-current) — не заглушка
-                if (a.getAttribute('aria-current')) return false;
+                if (a.getAttribute('aria-current')) {return false;}
                 const href = (a.getAttribute('href') || '').trim();
                 return (
                   href === '' ||
@@ -48,7 +48,7 @@ export default {
           for (const link of links) {
             const label = ((await link.textContent()) || '').trim().slice(0, 40);
             const visibleLink = await link.isVisible().catch(() => false);
-            if (!visibleLink) continue;
+            if (!visibleLink) {continue;}
 
             const snapshot = await page.evaluate(() => document.body.innerText.length);
             await link.click();
@@ -66,8 +66,8 @@ export default {
               throw new Error(`пункт «${label}» ничего не открывает — мёртвая навигация`);
             }
             // вернуться в исходное состояние
-            if (overlayOpened) await page.keyboard.press('Escape');
-            else if (urlChanged) await page.goBack().catch(() => {});
+            if (overlayOpened) {await page.keyboard.press('Escape');}
+            else if (urlChanged) {await page.goBack().catch(() => {});}
             await page.waitForTimeout(200);
           }
         },

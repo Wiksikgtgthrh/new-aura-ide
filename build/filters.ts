@@ -70,6 +70,13 @@ export const unicodeFilter = Object.freeze<string[]>([
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',
 
+	// Aura fork is a Russian-first product: Cyrillic in comments and UI strings
+	// is expected there, not a violation.
+	'!extensions/aura-*/**',
+	'!extensions/langgraph-orchestrator/**',
+	'!aura-team-server/**',
+	'!docs/swarm/**',
+
 	'!src/vs/base/browser/dompurify/**',
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
@@ -141,6 +148,13 @@ export const indentationFilter = Object.freeze<string[]>([
 
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',
+
+	// Aura fork has its own style (2-space indent, multi-line help text inside
+	// template literals): the VS Code indentation check does not apply there.
+	'!extensions/aura-*/**',
+	'!extensions/langgraph-orchestrator/**',
+	'!aura-team-server/**',
+	'!docs/swarm/**',
 
 	// except specific file types
 	'!src/vs/*/**/*.d.ts',
@@ -228,6 +242,14 @@ export const copyrightFilter = Object.freeze<string[]>([
 
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',
+
+	// Aura fork code is not Microsoft code: the mandatory Microsoft copyright
+	// header does not apply there (the rule's autofix used to inject a false
+	// authorship notice into fork files).
+	'!extensions/aura-*/**',
+	'!extensions/langgraph-orchestrator/**',
+	'!aura-team-server/**',
+	'!docs/swarm/**',
 ]);
 
 export const tsFormattingFilter = Object.freeze<string[]>([

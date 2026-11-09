@@ -41,7 +41,7 @@ export function parseArgs(argv) {
 }
 
 export function list(value) {
-  if (value === undefined || value === true || value === '') return [];
+  if (value === undefined || value === true || value === '') {return [];}
   return String(value).split(',').map((s) => s.trim()).filter(Boolean);
 }
 
@@ -49,7 +49,7 @@ export function readJson(file, fallback) {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch (error) {
-    if (error.code === 'ENOENT' && fallback !== undefined) return fallback;
+    if (error.code === 'ENOENT' && fallback !== undefined) {return fallback;}
     throw new Error(`Cannot read JSON ${file}: ${error.message}`);
   }
 }
@@ -62,12 +62,12 @@ export function stripJsonComments(text) {
     const next = text[i + 1];
     if (inString) {
       out += ch;
-      if (ch === '\\') { out += next ?? ''; i += 1; } else if (ch === '"') inString = false;
+      if (ch === '\\') { out += next ?? ''; i += 1; } else if (ch === '"') {inString = false;}
       continue;
     }
     if (ch === '"') { inString = true; out += ch; continue; }
-    if (ch === '/' && next === '/') { while (i < text.length && text[i] !== '\n') i += 1; out += '\n'; continue; }
-    if (ch === '/' && next === '*') { i += 2; while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i += 1; i += 1; continue; }
+    if (ch === '/' && next === '/') { while (i < text.length && text[i] !== '\n') {i += 1;} out += '\n'; continue; }
+    if (ch === '/' && next === '*') { i += 2; while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) {i += 1;} i += 1; continue; }
     out += ch;
   }
   return out.replace(/,(\s*[}\]])/g, '$1');
@@ -97,7 +97,7 @@ export function withLock(lockPath, fn, { timeoutMs = 15000, staleMs = 30000 } = 
       fs.writeFileSync(path.join(lockPath, 'owner'), `${process.pid} ${new Date().toISOString()}`);
       break;
     } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
+      if (error.code !== 'EEXIST') {throw error;}
       try {
         const age = Date.now() - fs.statSync(lockPath).mtimeMs;
         if (age > staleMs) {
@@ -107,7 +107,7 @@ export function withLock(lockPath, fn, { timeoutMs = 15000, staleMs = 30000 } = 
       } catch {
         continue;
       }
-      if (Date.now() - started > timeoutMs) throw new Error(`Lock timeout: ${lockPath}`);
+      if (Date.now() - started > timeoutMs) {throw new Error(`Lock timeout: ${lockPath}`);}
       sleepSync(25 + Math.floor(Math.random() * 50));
     }
   }
@@ -135,15 +135,15 @@ export function sha256(file) {
 
 export function walkFiles(dir, { skip = ['node_modules', '.git', '.agent-state', '.agent-worktrees', '.next', 'dist'] } = {}) {
   const out = [];
-  if (!fs.existsSync(dir)) return out;
+  if (!fs.existsSync(dir)) {return out;}
   const stack = [dir];
   while (stack.length) {
     const current = stack.pop();
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      if (skip.includes(entry.name)) continue;
+      if (skip.includes(entry.name)) {continue;}
       const full = path.join(current, entry.name);
-      if (entry.isDirectory()) stack.push(full);
-      else if (entry.isFile()) out.push(full);
+      if (entry.isDirectory()) {stack.push(full);}
+      else if (entry.isFile()) {out.push(full);}
     }
   }
   return out.sort();
@@ -153,7 +153,7 @@ export function copyDir(src, dest, { onFile } = {}) {
   for (const file of walkFiles(src, { skip: [] })) {
     const rel = path.relative(src, file);
     const target = path.join(dest, rel);
-    if (onFile && onFile(file, target) === false) continue;
+    if (onFile && onFile(file, target) === false) {continue;}
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(file, target);
   }

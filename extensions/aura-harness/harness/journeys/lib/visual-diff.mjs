@@ -27,7 +27,7 @@ export async function diffScreenshots(page, baselinePath, currentPath, { maxDiff
     let diff = 0;
     for (let i = 0; i < da.length; i += 4) {
       const d = Math.abs(da[i] - db[i]) + Math.abs(da[i + 1] - db[i + 1]) + Math.abs(da[i + 2] - db[i + 2]);
-      if (d > thr * 3) diff++;
+      if (d > thr * 3) {diff++;}
     }
     const diffRatio = diff / (da.length / 4);
     return { ok: diffRatio <= 0 /* порог снаружи */, diffRatio, diffPixels: diff };

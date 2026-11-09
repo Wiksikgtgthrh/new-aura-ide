@@ -25,7 +25,7 @@ export const SECRET_RULES = [
 
 export function loadPolicy(cwd = process.cwd()) {
   const file = resolveConfig('.release-policy.json', cwd);
-  if (!file) fail('No .release-policy.json found');
+  if (!file) {fail('No .release-policy.json found');}
   return { file, policy: readJson(file) };
 }
 
@@ -40,8 +40,8 @@ export function touchesSecretFile(text) {
 function unwrapShell(command) {
   const nested = [];
   const re = /\b(?:bash|sh|zsh|dash)\s+(?:-\w+\s+)*-c\s+(['"])([\s\S]*?)\1/g;
-  for (const m of command.matchAll(re)) nested.push(m[2]);
-  for (const m of command.matchAll(/\$\(([^()]*)\)|`([^`]*)`/g)) nested.push(m[1] ?? m[2]);
+  for (const m of command.matchAll(re)) {nested.push(m[2]);}
+  for (const m of command.matchAll(/\$\(([^()]*)\)|`([^`]*)`/g)) {nested.push(m[1] ?? m[2]);}
   return nested;
 }
 
@@ -70,16 +70,16 @@ export function classify(command, policy) {
     const ask = matchList(rules.ask, text);
     const allow = matchList(rules.allow, text);
     let current;
-    if (deny) current = { decision: 'deny', rule: deny, segment: text };
-    else if (ask) current = { decision: 'ask', rule: ask, segment: text };
+    if (deny) {current = { decision: 'deny', rule: deny, segment: text };}
+    else if (ask) {current = { decision: 'ask', rule: ask, segment: text };}
     else if (allow) {
       anyAllowed = true;
       continue;
-    } else if (text === command.trim()) continue;
-    else current = { decision: rules.default ?? 'ask', rule: '(default)', segment: text };
-    if (RANK[current.decision] > RANK[decision.decision]) decision = current;
+    } else if (text === command.trim()) {continue;}
+    else {current = { decision: rules.default ?? 'ask', rule: '(default)', segment: text };}
+    if (RANK[current.decision] > RANK[decision.decision]) {decision = current;}
   }
-  if (!anyAllowed && decision.decision === 'allow') decision = { decision: rules.default ?? 'ask', rule: '(default)', segment: command.trim() };
+  if (!anyAllowed && decision.decision === 'allow') {decision = { decision: rules.default ?? 'ask', rule: '(default)', segment: command.trim() };}
   return decision;
 }
 
@@ -89,8 +89,8 @@ function scanText(text) {
   lines.forEach((line, index) => {
     for (const rule of SECRET_RULES) {
       const match = line.match(rule.re);
-      if (!match) continue;
-      if (rule.placeholder && rule.placeholder.test(match[0])) continue;
+      if (!match) {continue;}
+      if (rule.placeholder && rule.placeholder.test(match[0])) {continue;}
       const value = match[1] ?? match[0];
       findings.push({ line: index + 1, rule: rule.id, preview: `${value.slice(0, 4)}…${'*'.repeat(6)}` });
     }
@@ -107,10 +107,10 @@ export function scanFiles(files) {
     } catch {
       continue;
     }
-    if (!stat.isFile() || stat.size > 1_000_000) continue;
+    if (!stat.isFile() || stat.size > 1_000_000) {continue;}
     const buf = fs.readFileSync(file);
-    if (buf.includes(0)) continue;
-    for (const f of scanText(buf.toString('utf8'))) results.push({ file, ...f });
+    if (buf.includes(0)) {continue;}
+    for (const f of scanText(buf.toString('utf8'))) {results.push({ file, ...f });}
   }
   return results;
 }
@@ -118,16 +118,16 @@ export function scanFiles(files) {
 function gitFiles(cwd, staged) {
   const args = staged ? ['diff', '--cached', '--name-only', '--diff-filter=ACM'] : ['ls-files', '--cached', '--others', '--exclude-standard'];
   const res = spawnSync('git', args, { cwd, encoding: 'utf8' });
-  if (res.status !== 0) return null;
+  if (res.status !== 0) {return null;}
   return res.stdout.split('\n').filter(Boolean).map((f) => path.join(cwd, f));
 }
 
 function opencodePermission(policy) {
   const rules = policy.commands ?? {};
   const bash = { '*': rules.default ?? 'ask' };
-  for (const p of rules.allow ?? []) bash[p] = 'allow';
-  for (const p of rules.ask ?? []) bash[p] = 'ask';
-  for (const p of rules.deny ?? []) bash[p] = 'deny';
+  for (const p of rules.allow ?? []) {bash[p] = 'allow';}
+  for (const p of rules.ask ?? []) {bash[p] = 'ask';}
+  for (const p of rules.deny ?? []) {bash[p] = 'deny';}
   return {
     permission: {
       bash,
@@ -157,7 +157,7 @@ function opencodePermission(policy) {
 const cwd = process.cwd();
 const commands = {
   check([command]) {
-    if (!command) fail('Usage: policy.mjs check "<command>"');
+    if (!command) {fail('Usage: policy.mjs check "<command>"');}
     const { policy } = loadPolicy(cwd);
     const result = classify(command, policy);
     console.log(JSON.stringify(result));
@@ -166,17 +166,17 @@ const commands = {
 
   scan(paths, flags) {
     let files;
-    if (paths.length) files = paths.flatMap((p) => (fs.statSync(p).isDirectory() ? walkFiles(p) : [path.resolve(p)]));
-    else files = gitFiles(cwd, Boolean(flags.staged)) ?? walkFiles(cwd);
+    if (paths.length) {files = paths.flatMap((p) => (fs.statSync(p).isDirectory() ? walkFiles(p) : [path.resolve(p)]));}
+    else {files = gitFiles(cwd, Boolean(flags.staged)) ?? walkFiles(cwd);}
     const findings = scanFiles(files);
-    for (const f of findings) console.log(`${path.relative(cwd, f.file)}:${f.line}  ${f.rule}  ${f.preview}`);
+    for (const f of findings) {console.log(`${path.relative(cwd, f.file)}:${f.line}  ${f.rule}  ${f.preview}`);}
     console.log(findings.length ? `\n${findings.length} potential secret(s). Remove them and rotate the keys.` : `No secrets found in ${files.length} file(s).`);
     process.exit(findings.length ? 1 : 0);
   },
 
   'approve-release'(_, flags) {
-    if (!flags.by || flags.by === true) fail('--by <human> is required');
-    if (!flags.rollback || flags.rollback === true || !fs.existsSync(flags.rollback)) fail('--rollback <file> must point to an existing rollback plan');
+    if (!flags.by || flags.by === true) {fail('--by <human> is required');}
+    if (!flags.rollback || flags.rollback === true || !fs.existsSync(flags.rollback)) {fail('--rollback <file> must point to an existing rollback plan');}
     const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).stdout.trim() || null;
     const record = { by: flags.by, rollback: flags.rollback, target: flags.target ?? null, head, at: new Date().toISOString() };
     writeJsonAtomic(path.join(stateDir(cwd), 'approvals', 'release.json'), record);
@@ -192,7 +192,7 @@ const commands = {
 
     const status = spawnSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' });
     const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).stdout.trim();
-    if (rules.requireCleanTree) add('clean-tree', status.status === 0 && !status.stdout.trim(), status.status === 0 ? `${status.stdout.split('\n').filter(Boolean).length} changed file(s)` : 'not a git repo');
+    if (rules.requireCleanTree) {add('clean-tree', status.status === 0 && !status.stdout.trim(), status.status === 0 ? `${status.stdout.split('\n').filter(Boolean).length} changed file(s)` : 'not a git repo');}
 
     if (rules.requireGatesPassed) {
       const gates = readJson(path.join(stateDir(cwd), 'artifacts', 'gates-latest.json'), null);
@@ -205,11 +205,11 @@ const commands = {
 
     if (rules.requireApproval || rules.requireRollbackPlan) {
       const approval = readJson(path.join(stateDir(cwd), 'approvals', 'release.json'), null);
-      if (rules.requireApproval) add('approval', Boolean(approval) && (!approval.head || approval.head === head), approval ? `by ${approval.by} for ${approval.head?.slice(0, 10)}` : 'missing');
-      if (rules.requireRollbackPlan) add('rollback-plan', Boolean(approval?.rollback && fs.existsSync(path.resolve(cwd, approval.rollback))), approval?.rollback ?? 'missing');
+      if (rules.requireApproval) {add('approval', Boolean(approval) && (!approval.head || approval.head === head), approval ? `by ${approval.by} for ${approval.head?.slice(0, 10)}` : 'missing');}
+      if (rules.requireRollbackPlan) {add('rollback-plan', Boolean(approval?.rollback && fs.existsSync(path.resolve(cwd, approval.rollback))), approval?.rollback ?? 'missing');}
     }
 
-    for (const c of checks) console.log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.name.padEnd(14)} ${c.detail}`);
+    for (const c of checks) {console.log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.name.padEnd(14)} ${c.detail}`);}
     const ok = checks.every((c) => c.ok);
     console.log(`\nRelease gate: ${ok ? 'OPEN' : 'BLOCKED'}`);
     process.exit(ok ? 0 : 1);

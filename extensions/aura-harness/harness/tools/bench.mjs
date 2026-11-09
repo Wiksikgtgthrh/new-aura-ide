@@ -6,7 +6,7 @@ import { HARNESS_ROOT, parseArgs, list, readJson, writeJsonAtomic, stateDir, fai
 
 function harnessCommit() {
   const rev = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: HARNESS_ROOT, encoding: 'utf8' });
-  if (rev.status !== 0) return null;
+  if (rev.status !== 0) {return null;}
   const dirty = spawnSync('git', ['status', '--porcelain'], { cwd: HARNESS_ROOT, encoding: 'utf8' }).stdout.trim();
   return `${rev.stdout.trim()}${dirty ? '-dirty' : ''}`;
 }
@@ -22,29 +22,29 @@ function task(taskId) {
 }
 
 if (command === 'list' || !command) {
-  for (const t of tasks) console.log(`${t.id.padEnd(20)} ${t.title}  (${t.checks.length} checks)`);
+  for (const t of tasks) {console.log(`${t.id.padEnd(20)} ${t.title}  (${t.checks.length} checks)`);}
 } else if (command === 'start') {
   const t = task(id);
-  if (!flags.agent || !flags.model) fail('--agent pi|opencode and --model <id> are required for comparable runs');
+  if (!flags.agent || !flags.model) {fail('--agent pi|opencode and --model <id> are required for comparable runs');}
   const run = { task: t.id, agent: flags.agent, model: flags.model, harness: readJson(path.join(HARNESS_ROOT, 'harness.json')).version, harnessCommit: harnessCommit(), node: process.versions.node, platform: process.platform, startedAt: new Date().toISOString(), checks: Object.fromEntries(t.checks.map((c) => [c, null])) };
   const file = path.join(runsDir, `${t.id}-${Date.now()}.json`);
   writeJsonAtomic(file, run);
   console.log(`Run file: ${file}\n${t.setup ? `\nSetup: ${t.setup}\n` : ''}\nPrompt:\n${t.prompt}\n\nChecks:\n${t.checks.map((c, i) => `  ${i + 1}. ${c}`).join('\n')}`);
 } else if (command === 'score') {
   const file = flags.run;
-  if (!file || file === true) fail('--run <run-file> is required');
+  if (!file || file === true) {fail('--run <run-file> is required');}
   const run = readJson(file);
   const keys = Object.keys(run.checks);
   const pick = (v) => list(v).map((n) => keys[Number(n) - 1] ?? fail(`No check #${n}`));
-  for (const k of pick(flags.pass)) run.checks[k] = true;
-  for (const k of pick(flags.fail)) run.checks[k] = false;
+  for (const k of pick(flags.pass)) {run.checks[k] = true;}
+  for (const k of pick(flags.fail)) {run.checks[k] = false;}
   run.note = flags.note ?? run.note ?? null;
   run.scoredAt = new Date().toISOString();
   writeJsonAtomic(file, run);
   const passed = Object.values(run.checks).filter((v) => v === true).length;
   console.log(`${run.task}: ${passed}/${keys.length}${Object.values(run.checks).includes(null) ? ' (some checks unscored)' : ''}`);
 } else if (command === 'report') {
-  if (!fs.existsSync(runsDir)) fail('No runs yet');
+  if (!fs.existsSync(runsDir)) {fail('No runs yet');}
   for (const f of fs.readdirSync(runsDir).filter((n) => n.endsWith('.json')).sort()) {
     const r = readJson(path.join(runsDir, f));
     const vals = Object.values(r.checks);

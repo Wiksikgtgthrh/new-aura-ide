@@ -19,7 +19,7 @@ function emptyState() {
 
 function load() {
   const state = readJson(file, emptyState());
-  if (state.version !== 2) fail(`Unsupported state version in ${file}. Move it away and run init.`);
+  if (state.version !== 2) {fail(`Unsupported state version in ${file}. Move it away and run init.`);}
   return state;
 }
 
@@ -38,14 +38,14 @@ function now() {
 
 function requireTask(state, id) {
   const task = state.tasks[id];
-  if (!task) fail(`Unknown task ${id}`);
+  if (!task) {fail(`Unknown task ${id}`);}
   return task;
 }
 
 function requireOwner(task, agent, force) {
-  if (force) return;
-  if (!agent) fail('--agent is required');
-  if (task.owner !== agent) fail(`Task ${task.id} is owned by ${task.owner ?? 'nobody'}, not ${agent}`);
+  if (force) {return;}
+  if (!agent) {fail('--agent is required');}
+  if (task.owner !== agent) {fail(`Task ${task.id} is owned by ${task.owner ?? 'nobody'}, not ${agent}`);}
 }
 
 function touch(task, patch) {
@@ -56,8 +56,8 @@ function reclaimExpired(state) {
   const reclaimed = [];
   const current = Date.now();
   for (const task of Object.values(state.tasks)) {
-    if (task.status !== 'running' || !task.leaseUntil) continue;
-    if (Date.parse(task.leaseUntil) > current) continue;
+    if (task.status !== 'running' || !task.leaseUntil) {continue;}
+    if (Date.parse(task.leaseUntil) > current) {continue;}
     applyFailure(task, 'timeout', `Lease expired for ${task.owner}`);
     reclaimed.push(task.id);
   }
@@ -77,8 +77,8 @@ function applyFailure(task, errorClass, message) {
 
 function depsState(state, task) {
   const deps = task.deps.map((id) => state.tasks[id]);
-  if (deps.some((d) => !d || d.status === 'failed' || d.status === 'cancelled')) return 'broken';
-  if (deps.every((d) => d.status === 'done')) return 'ready';
+  if (deps.some((d) => !d || d.status === 'failed' || d.status === 'cancelled')) {return 'broken';}
+  if (deps.every((d) => d.status === 'done')) {return 'ready';}
   return 'waiting';
 }
 
@@ -100,22 +100,22 @@ function printTable(state) {
 const commands = {
   init(flags) {
     mutate((state) => {
-      if (flags['max-tasks']) state.budget.maxTasks = Number(flags['max-tasks']);
-      if (flags['max-attempts']) state.budget.maxAttempts = Number(flags['max-attempts']);
-      if (flags['timeout']) state.budget.defaultTimeoutMin = Number(flags.timeout);
+      if (flags['max-tasks']) {state.budget.maxTasks = Number(flags['max-tasks']);}
+      if (flags['max-attempts']) {state.budget.maxAttempts = Number(flags['max-attempts']);}
+      if (flags['timeout']) {state.budget.defaultTimeoutMin = Number(flags.timeout);}
       console.log(`Initialized ${file}`, JSON.stringify(state.budget));
     });
   },
 
   add(flags) {
-    if (!flags.title || flags.title === true) fail('--title is required');
+    if (!flags.title || flags.title === true) {fail('--title is required');}
     const risk = flags.risk ?? 'write';
-    if (!RISKS.includes(risk)) fail(`--risk must be one of ${RISKS.join(', ')}`);
+    if (!RISKS.includes(risk)) {fail(`--risk must be one of ${RISKS.join(', ')}`);}
     const task = mutate((state) => {
       const active = Object.values(state.tasks).filter((t) => t.status !== 'cancelled').length;
-      if (active >= state.budget.maxTasks) fail(`Budget exceeded: maxTasks=${state.budget.maxTasks}`);
+      if (active >= state.budget.maxTasks) {fail(`Budget exceeded: maxTasks=${state.budget.maxTasks}`);}
       const deps = list(flags.deps);
-      for (const dep of deps) if (!state.tasks[dep]) fail(`Unknown dependency ${dep}`);
+      for (const dep of deps) {if (!state.tasks[dep]) {fail(`Unknown dependency ${dep}`);}}
       state.seq += 1;
       const id = `T-${String(state.seq).padStart(4, '0')}`;
       const created = {
@@ -147,10 +147,10 @@ const commands = {
   },
 
   approve(flags) {
-    if (!flags.id || !flags.by || flags.by === true) fail('--id and --by are required');
+    if (!flags.id || !flags.by || flags.by === true) {fail('--id and --by are required');}
     mutate((state) => {
       const task = requireTask(state, flags.id);
-      if (task.status !== 'awaiting_approval') fail(`Task ${task.id} is ${task.status}, not awaiting_approval`);
+      if (task.status !== 'awaiting_approval') {fail(`Task ${task.id} is ${task.status}, not awaiting_approval`);}
       touch(task, { status: 'pending', approval: { by: flags.by, note: flags.note ?? null, at: now() } });
     });
     appendEvent(cwd, { type: 'task.approved', id: flags.id, by: flags.by });
@@ -158,26 +158,26 @@ const commands = {
   },
 
   claim(flags) {
-    if (!flags.agent || flags.agent === true) fail('--agent is required');
+    if (!flags.agent || flags.agent === true) {fail('--agent is required');}
     const role = flags.role && flags.role !== true ? flags.role : null;
     const wantedId = flags.id && flags.id !== true ? flags.id : null;
     const claimed = mutate((state) => {
       const reclaimed = reclaimExpired(state);
-      for (const id of reclaimed) appendEvent(cwd, { type: 'task.reclaimed', id });
+      for (const id of reclaimed) {appendEvent(cwd, { type: 'task.reclaimed', id });}
       let candidate;
       if (wantedId) {
         const task = state.tasks[wantedId];
-        if (!task) fail(`Unknown task ${wantedId}`);
-        if (task.status !== 'pending') fail(`Task ${wantedId} is ${task.status}, not pending`);
+        if (!task) {fail(`Unknown task ${wantedId}`);}
+        if (task.status !== 'pending') {fail(`Task ${wantedId} is ${task.status}, not pending`);}
         const deps = depsState(state, task);
-        if (deps !== 'ready') fail(`Task ${wantedId} deps are ${deps}`);
+        if (deps !== 'ready') {fail(`Task ${wantedId} deps are ${deps}`);}
         candidate = task;
       } else {
         candidate = Object.values(state.tasks).find(
           (t) => t.status === 'pending' && (!role || t.role === role) && depsState(state, t) === 'ready',
         );
       }
-      if (!candidate) return null;
+      if (!candidate) {return null;}
       const lease = new Date(Date.now() + candidate.timeoutMin * 60_000).toISOString();
       touch(candidate, { status: 'running', owner: flags.agent, attempts: candidate.attempts + 1, leaseUntil: lease });
       return candidate;
@@ -193,7 +193,7 @@ const commands = {
   heartbeat(flags) {
     mutate((state) => {
       const task = requireTask(state, flags.id);
-      if (task.status !== 'running') fail(`Task ${task.id} is ${task.status}`);
+      if (task.status !== 'running') {fail(`Task ${task.id} is ${task.status}`);}
       requireOwner(task, flags.agent, false);
       touch(task, { leaseUntil: new Date(Date.now() + task.timeoutMin * 60_000).toISOString() });
     });
@@ -201,11 +201,11 @@ const commands = {
   },
 
   note(flags) {
-    if (!flags.text || flags.text === true) fail('--text is required');
+    if (!flags.text || flags.text === true) {fail('--text is required');}
     mutate((state) => {
       const task = requireTask(state, flags.id);
       task.notes.push({ at: now(), by: flags.agent ?? null, text: flags.text });
-      if (flags.next && flags.next !== true) task.next = flags.next;
+      if (flags.next && flags.next !== true) {task.next = flags.next;}
       touch(task, {});
     });
     console.log(`Note added to ${flags.id}`);
@@ -214,13 +214,13 @@ const commands = {
   finish(flags) {
     const evidence = list(flags.evidence);
     const unverified = Boolean(flags.unverified);
-    if (!evidence.length && !unverified) fail('Provide --evidence path1,path2 or mark explicitly with --unverified');
+    if (!evidence.length && !unverified) {fail('Provide --evidence path1,path2 or mark explicitly with --unverified');}
     mutate((state) => {
       const task = requireTask(state, flags.id);
-      if (task.status !== 'running') fail(`Task ${task.id} is ${task.status}, not running`);
+      if (task.status !== 'running') {fail(`Task ${task.id} is ${task.status}, not running`);}
       requireOwner(task, flags.agent, Boolean(flags.force));
       task.evidence.push(...evidence);
-      if (flags.note && flags.note !== true) task.notes.push({ at: now(), by: flags.agent ?? null, text: flags.note });
+      if (flags.note && flags.note !== true) {task.notes.push({ at: now(), by: flags.agent ?? null, text: flags.note });}
       touch(task, { status: 'done', owner: null, leaseUntil: null, verified: evidence.length > 0 && !unverified });
     });
     appendEvent(cwd, { type: 'task.finished', id: flags.id, verified: evidence.length > 0 && !unverified });
@@ -229,10 +229,10 @@ const commands = {
 
   fail(flags) {
     const errorClass = flags.class ?? 'permanent';
-    if (!ERROR_CLASSES.includes(errorClass)) fail(`--class must be one of ${ERROR_CLASSES.join(', ')}`);
+    if (!ERROR_CLASSES.includes(errorClass)) {fail(`--class must be one of ${ERROR_CLASSES.join(', ')}`);}
     const task = mutate((state) => {
       const t = requireTask(state, flags.id);
-      if (t.status !== 'running') fail(`Task ${t.id} is ${t.status}, not running`);
+      if (t.status !== 'running') {fail(`Task ${t.id} is ${t.status}, not running`);}
       requireOwner(t, flags.agent, Boolean(flags.force));
       applyFailure(t, errorClass, flags.error && flags.error !== true ? flags.error : 'unspecified');
       return t;
@@ -244,7 +244,7 @@ const commands = {
   cancel(flags) {
     mutate((state) => {
       const task = requireTask(state, flags.id);
-      if (TERMINAL.has(task.status)) fail(`Task ${task.id} is already ${task.status}`);
+      if (TERMINAL.has(task.status)) {fail(`Task ${task.id} is already ${task.status}`);}
       task.notes.push({ at: now(), by: flags.by ?? null, text: `cancelled: ${flags.reason ?? 'no reason'}` });
       touch(task, { status: 'cancelled', owner: null, leaseUntil: null });
     });
@@ -254,14 +254,14 @@ const commands = {
 
   reclaim() {
     const reclaimed = mutate((state) => reclaimExpired(state));
-    for (const id of reclaimed) appendEvent(cwd, { type: 'task.reclaimed', id });
+    for (const id of reclaimed) {appendEvent(cwd, { type: 'task.reclaimed', id });}
     console.log(reclaimed.length ? `Reclaimed: ${reclaimed.join(', ')}` : 'Nothing to reclaim.');
   },
 
   reopen(flags) {
     mutate((state) => {
       const task = requireTask(state, flags.id);
-      if (task.status !== 'failed' && task.status !== 'cancelled') fail(`Task ${task.id} is ${task.status}, not failed/cancelled`);
+      if (task.status !== 'failed' && task.status !== 'cancelled') {fail(`Task ${task.id} is ${task.status}, not failed/cancelled`);}
       const reset = Boolean(flags['reset-attempts']);
       touch(task, {
         status: NEEDS_APPROVAL.has(task.risk) ? 'awaiting_approval' : 'pending',
