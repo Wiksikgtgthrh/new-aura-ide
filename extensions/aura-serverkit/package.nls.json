@@ -1,8 +1,8 @@
 {
 	"displayName": "ServerKit",
-	"description": "Server control panel: app deployment, databases, Docker containers and monitoring right from the IDE.",
+	"description": "Server control panel (upstream jhd3197/ServerKit): apps, databases, Docker containers, DNS, SSL and monitoring right from the IDE.",
 	"configuration.title": "ServerKit",
-	"configuration.serverUrl": "URL of the deployed ServerKit (server control panel)",
+	"configuration.serverUrl": "URL of the deployed ServerKit without /api, e.g. https://serverkit.auraide.xyz",
 	"command.openDashboard": "Open Dashboard",
 	"command.checkStatus": "Check Server Status"
 }

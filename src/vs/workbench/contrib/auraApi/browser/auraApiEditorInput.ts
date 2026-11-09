@@ -3,9 +3,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { localize } from '../../../../nls.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorSerializer } from '../../../common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+
+export const apiKeysEditorIcon = registerIcon('api-keys-editor-icon', Codicon.key, localize('apiKeysEditorIcon', 'Icon of the API keys editor.'));
 
 export class AuraApiEditorInput extends EditorInput {
 
@@ -17,7 +22,7 @@ export class AuraApiEditorInput extends EditorInput {
 	override get resource(): URI { return AuraApiEditorInput.RESOURCE; }
 
 	override getName(): string { return 'API'; }
-	override getIcon() { return undefined; }
+	override getIcon() { return apiKeysEditorIcon; }
 
 	override matches(other: unknown): boolean {
 		return other instanceof AuraApiEditorInput;

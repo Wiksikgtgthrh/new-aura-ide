@@ -87,10 +87,20 @@ export function jdtlsArgs(dir: string, dataDir: string): string[] | undefined {
 }
 
 /** Кандидаты JDK: настройка, JAVA_HOME, каталоги JDK, Android Studio JBR, PATH. */
-function javaCandidates(): string[] {
+function javaCandidates(context?: vscode.ExtensionContext): string[] {
 	const candidates: string[] = [];
 	const configured = vscode.workspace.getConfiguration('auraKotlin').get<string>('javaPath', 'java').trim();
 	if (configured) { candidates.push(configured); }
+
+	// JDK, скачанный расширением под конкретную версию jdtls.
+	if (context) {
+		try {
+			const javaDir = path.join(context.globalStorageUri.fsPath, 'java');
+			for (const name of fs.readdirSync(javaDir)) {
+				if (name.startsWith('jdk-')) { candidates.push(path.join(javaDir, name, 'bin', process.platform === 'win32' ? 'java.exe' : 'java')); }
+			}
+		} catch { /* каталога нет */ }
+	}
 
 	const home = process.env.JAVA_HOME;
 	if (home) { candidates.push(path.join(home, 'bin', 'java')); }
@@ -112,22 +122,79 @@ function javaCandidates(): string[] {
 
 /**
  * Самый новый JDK на машине: снимки jdtls требуют свежую Java, а auraKotlin.javaPath
- * обычно указывает на 17 ради Kotlin-сервера.
+ * обычно указывает на 17 ради Kotlin-сервера. Если известна требуемая версия
+ * (из лога упавшего сервера), берём JDK не ниже неё.
  */
-export async function pickServerJava(): Promise<{ command: string; version: number } | undefined> {
-	if (cachedJava) { return cachedJava; }
-	const probes = await Promise.all(javaCandidates().map(async command => ({ command, version: await javaMajorVersion(command) })));
-	const usable = probes.filter(probe => probe.version !== undefined && probe.version >= MIN_JAVA_MAJOR) as Array<{ command: string; version: number }>;
+export async function pickServerJava(required?: number, context?: vscode.ExtensionContext): Promise<{ command: string; version: number } | undefined> {
+	if (cachedJava && (!required || cachedJava.version >= required)) { return cachedJava; }
+	const probes = await Promise.all(javaCandidates(context).map(async command => ({ command, version: await javaMajorVersion(command) })));
+	const minimum = Math.max(MIN_JAVA_MAJOR, required ?? 0);
+	const usable = probes.filter(probe => probe.version !== undefined && probe.version >= minimum) as Array<{ command: string; version: number }>;
 	if (!usable.length) { return undefined; }
 	usable.sort((a, b) => b.version - a.version);
 	cachedJava = usable[0];
 	return cachedJava;
 }
 
+/** Сбросить кэш выбранной Java: после установки JDK его нужно перечитать. */
+export function forgetServerJava(): void { cachedJava = undefined; }
+
+/**
+ * Скачивает Temurin JDK нужной мажорной версии в globalStorage расширения.
+ * Нужен, когда снимок jdtls требует Java новее установленной: без этого сервер
+ * падает на старте («Unresolved requirement: osgi.ee … version=25»).
+ */
+export async function installJdk(context: vscode.ExtensionContext, major: number): Promise<string | undefined> {
+	const platform = process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux';
+	const arch = process.arch === 'arm64' ? 'aarch64' : 'x64';
+	const url = `https://api.adoptium.net/v3/binary/latest/${major}/ga/${platform}/${arch}/jdk/hotspot/normal/eclipse`;
+	const base = path.join(context.globalStorageUri.fsPath, 'java');
+	const dest = path.join(base, `jdk-${major}`);
+	const javaExe = path.join(dest, 'bin', process.platform === 'win32' ? 'java.exe' : 'java');
+	if (fs.existsSync(javaExe)) { forgetServerJava(); return dest; }
+
+	return vscode.window.withProgress(
+		{ location: vscode.ProgressLocation.Notification, title: tr('Downloading JDK {0}…', String(major)), cancellable: false },
+		async () => {
+			const isZip = process.platform === 'win32';
+			const archive = path.join(os.tmpdir(), `jdk-${major}-${Date.now()}${isZip ? '.zip' : '.tar.gz'}`);
+			let extractDir: string | undefined;
+			try {
+				fs.mkdirSync(base, { recursive: true });
+				await downloadFile(url, archive);
+				extractDir = path.join(base, `.jdk-extract-${Date.now()}`);
+				fs.mkdirSync(extractDir, { recursive: true });
+				if (isZip) {
+					await execFileAsync('powershell', ['-NoProfile', '-Command', `Expand-Archive -LiteralPath '${archive}' -DestinationPath '${extractDir}' -Force`], { timeout: 10 * 60_000 });
+				} else {
+					await extractTarGz(archive, extractDir);
+				}
+				// Архив содержит один каталог вида jdk-25.0.x+y — приводим к java/jdk-<major>.
+				const unpacked = extractDir;
+				const inner = fs.readdirSync(unpacked).map(name => path.join(unpacked, name)).find(candidate => fs.statSync(candidate).isDirectory());
+				if (!inner) { throw new Error(tr('JDK archive unpacked to nothing')); }
+				fs.rmSync(dest, { recursive: true, force: true });
+				fs.renameSync(inner, dest);
+				extractDir = undefined;
+				forgetServerJava();
+				if (!fs.existsSync(javaExe)) { throw new Error(tr('JDK unpacked, but bin/java not found')); }
+				return dest;
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				void vscode.window.showErrorMessage(tr('Toolchain installation failed: {0}', message));
+				return undefined;
+			} finally {
+				fs.rmSync(archive, { force: true });
+				if (extractDir) { fs.rmSync(extractDir, { recursive: true, force: true }); }
+			}
+		},
+	);
+}
+
 /** Найденный/установленный сервер и команда его запуска. */
 export async function resolveJavaServer(context: vscode.ExtensionContext, dataDir: string): Promise<ServerLaunch | undefined> {
 	const setting = vscode.workspace.getConfiguration('auraKotlin').get<string>('javaLspPath', '').trim();
-	const java = await pickServerJava();
+	const java = await pickServerJava(undefined, context);
 	if (!java) { return undefined; }
 
 	const roots: Array<{ dir?: string; source: ServerLaunch['source'] }> = [
@@ -162,7 +229,13 @@ function hashString(value: string): string {
  * Нужно для внятного сообщения, когда сервер не стартует на установленном JDK.
  */
 export function javaRequirementFromLogs(dir: string, configName?: string): number | undefined {
-	const candidates = fs.existsSync(path.join(dir, 'config')) ? [path.join(dir, 'config')] : [];
+	// jdtls пишет лог рядом с конфигурацией (config_win/config_linux/…), а не в dir/config.
+	const candidates = [path.join(dir, 'config')];
+	try {
+		for (const entry of fs.readdirSync(dir)) {
+			if (entry.startsWith('config')) { candidates.push(path.join(dir, entry)); }
+		}
+	} catch { /* каталога нет */ }
 	if (configName && fs.existsSync(configName)) { candidates.push(configName); }
 	const logs: Array<{ file: string; time: number }> = [];
 	for (const candidate of candidates) {
@@ -185,65 +258,162 @@ export function javaRequirementFromLogs(dir: string, configName?: string): numbe
 	return undefined;
 }
 
+/** Идущая установка: повторный вызов возвращает тот же промис, а не качает второй раз. */
+let javaServerInstall: Promise<string | undefined> | undefined;
+
 /** Скачивает и распаковывает jdtls. Возвращает каталог сервера. */
 export async function installJavaServer(context: vscode.ExtensionContext): Promise<string | undefined> {
-	const destBase = path.join(context.globalStorageUri.fsPath, 'java');
 	const existing = serverDir(context, 'downloaded');
 	if (existing) { return existing; }
+	// Двойной клик по кнопке или повторная команда раньше запускали вторую загрузку:
+	// два архива, два распака в один каталог — и пустой .extract-* после гонки rename.
+	javaServerInstall ??= doInstallJavaServer(context).finally(() => { javaServerInstall = undefined; });
+	return javaServerInstall;
+}
 
+async function doInstallJavaServer(context: vscode.ExtensionContext): Promise<string | undefined> {
+	const destBase = path.join(context.globalStorageUri.fsPath, 'java');
 	return vscode.window.withProgress(
 		{ location: vscode.ProgressLocation.Notification, title: tr('Downloading Java Language Server ({0})…', JAVA_SERVER_SIZE), cancellable: false },
 		async () => {
+			const archive = path.join(os.tmpdir(), `jdtls-${Date.now()}.tar.gz`);
+			let extractDir: string | undefined;
 			try {
 				fs.mkdirSync(destBase, { recursive: true });
-				const archive = path.join(os.tmpdir(), `jdtls-${Date.now()}.tar.gz`);
+				// Обломки прерванных распаковок копятся в globalStorage — чистим перед новой.
+				for (const entry of fs.readdirSync(destBase)) {
+					if (entry.startsWith('.extract-')) { fs.rmSync(path.join(destBase, entry), { recursive: true, force: true }); }
+				}
 				await downloadFile(SERVER_URL, archive);
-				const extractDir = path.join(destBase, `.extract-${Date.now()}`);
+				extractDir = path.join(destBase, `.extract-${Date.now()}`);
 				fs.mkdirSync(extractDir, { recursive: true });
 				await extractTarGz(archive, extractDir);
 				const dest = path.join(destBase, DIR_NAME);
 				if (fs.existsSync(dest)) { fs.rmSync(dest, { recursive: true, force: true }); }
 				fs.renameSync(extractDir, dest);
-				fs.rmSync(archive, { force: true });
+				extractDir = undefined;
 				return launcherJar(dest) ? dest : undefined;
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				void vscode.window.showErrorMessage(tr('Java Language Server download failed: {0}', message));
 				return undefined;
+			} finally {
+				fs.rmSync(archive, { force: true });
+				if (extractDir) { fs.rmSync(extractDir, { recursive: true, force: true }); }
 			}
 		},
 	);
 }
 
-/** Скачивание файла с поддержкой редиректов (download.eclipse.org отдаёт через них). */
-export function downloadFile(url: string, dest: string): Promise<void> {
+/**
+ * Скачивание файла с поддержкой редиректов (download.eclipse.org отдаёт через них).
+ *
+ * Сервер регулярно обрывает тело за десяток килобайт до конца: соединение просто
+ * замолкает, ошибки нет. Поэтому не начинаем заново, а докачиваем остаток
+ * Range-запросом — иначе 51 МБ качались заново на каждой попытке и установка
+ * не завершалась никогда.
+ */
+export async function downloadFile(url: string, dest: string, attempts = 6): Promise<void> {
+	let lastError: Error | undefined;
+	for (let attempt = 1; attempt <= attempts; attempt++) {
+		const have = fs.existsSync(dest) ? fs.statSync(dest).size : 0;
+		try {
+			const total = await downloadOnce(url, dest, have);
+			const size = fs.existsSync(dest) ? fs.statSync(dest).size : 0;
+			if (total > 0 && size !== total) { throw new Error(`incomplete download: ${size} of ${total} bytes`); }
+			return;
+		} catch (error) {
+			lastError = error instanceof Error ? error : new Error(String(error));
+			// 404/403 повторять бессмысленно — только сетевые обрывы и 5xx.
+			if (/^HTTP (4\d\d)$/.test(lastError.message)) { fs.rmSync(dest, { force: true }); throw lastError; }
+			if (attempt < attempts) { await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); }
+		}
+	}
+	fs.rmSync(dest, { force: true });
+	throw lastError ?? new Error('download failed');
+}
+
+/** Одна попытка: докачивает с offset, возвращает полный размер файла (0 — неизвестен). */
+function downloadOnce(url: string, dest: string, from = 0): Promise<number> {
 	return new Promise((resolve, reject) => {
-		const follow = (target: string, redirects: number): void => {
+		const follow = (target: string, redirects: number, offset: number): void => {
 			if (redirects > 5) { reject(new Error('too many redirects')); return; }
 			const mod = target.startsWith('https:') ? https : http;
-			mod.get(target, response => {
+			let settled = false;
+			const fail = (error: Error): void => { if (!settled) { settled = true; reject(error); } };
+			const done = (total: number): void => { if (!settled) { settled = true; resolve(total); } };
+			const headers: Record<string, string> = offset > 0 ? { Range: `bytes=${offset}-` } : {};
+			const request = mod.get(target, { headers }, response => {
 				if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
 					response.resume();
-					follow(new URL(response.headers.location, target).toString(), redirects + 1);
+					follow(new URL(response.headers.location, target).toString(), redirects + 1, offset);
 					return;
 				}
-				if (response.statusCode !== 200) { reject(new Error(`HTTP ${response.statusCode}`)); return; }
-				const file = fs.createWriteStream(dest);
+				// 206 — сервер согласился докачивать; 200 — отдаёт файл целиком с нуля.
+				const resume = response.statusCode === 206;
+				if (response.statusCode !== 200 && !resume) { fail(new Error(`HTTP ${response.statusCode}`)); return; }
+				const expected = Number(response.headers['content-length'] ?? 0);
+				const total = expected > 0 ? (resume ? offset + expected : expected) : 0;
+				let received = 0;
+				const file = fs.createWriteStream(dest, { flags: resume ? 'a' : 'w' });
+				const truncated = (): void => {
+					file.destroy();
+					fail(new Error(`incomplete download: ${(resume ? offset : 0) + received} of ${total || '?'} bytes`));
+				};
+				// Соединение может просто замолчать на середине (прокси, CDN): без таймаута
+				// прогресс висел вечно, а архив оставался недокачанным. Тишина дольше 45 с — обрыв.
+				request.setTimeout(45_000, () => { request.destroy(); truncated(); });
+				response.on('data', chunk => { received += chunk.length; request.setTimeout(45_000); });
+				response.on('aborted', truncated);
+				response.on('error', truncated);
 				response.pipe(file);
-				file.on('finish', () => file.close(() => resolve()));
-				file.on('error', reject);
-			}).on('error', reject);
+				file.on('finish', () => file.close(() => {
+					if (expected > 0 && received !== expected) { truncated(); return; }
+					done(total);
+				}));
+				file.on('error', error => fail(error));
+			});
+			request.on('timeout', () => { request.destroy(); fail(new Error('download timed out')); });
+			request.on('error', error => fail(error));
 		};
-		follow(url, 0);
+		follow(url, 0, from);
 	});
 }
 
-/** Распаковка .tar.gz системным tar (есть на Windows 10+, macOS и Linux). */
+/**
+ * Распаковка .tar.gz системным tar (есть на Windows 10+, macOS и Linux).
+ *
+ * На Windows «tar» из PATH часто оказывается GNU tar из Git/MSYS: он читает «C:»
+ * в пути как имя удалённого хоста и падает с «Cannot connect to C». Поэтому берём
+ * системный bsdtar из System32, а если его нет — просим GNU tar не разбирать двоеточия.
+ */
 export async function extractTarGz(archive: string, destDir: string): Promise<void> {
-	try {
-		await execFileAsync('tar', ['-xzf', archive, '-C', destDir], { timeout: 10 * 60_000 });
-	} catch (error) {
-		throw new Error(tr('could not unpack {0}: {1}', path.basename(archive), error instanceof Error ? error.message : String(error)));
+	const systemTar = process.platform === 'win32'
+		? path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe')
+		: undefined;
+	const candidates = systemTar && fs.existsSync(systemTar)
+		? [{ command: systemTar, args: [] as string[] }, { command: 'tar', args: ['--force-local'] }]
+		: [{ command: 'tar', args: process.platform === 'win32' ? ['--force-local'] : [] }];
+	let lastError: unknown;
+	for (const candidate of candidates) {
+		try {
+			await execFileAsync(candidate.command, [...candidate.args, '-xzf', archive, '-C', destDir], { timeout: 10 * 60_000 });
+			lastError = undefined;
+			break;
+		} catch (error) {
+			lastError = error;
+			// GNU tar без поддержки --force-local: повторяем без флага, чтобы не терять рабочий случай.
+			if (candidate.args.length && /unrecognized option|invalid option/i.test(String(error))) {
+				try {
+					await execFileAsync(candidate.command, ['-xzf', archive, '-C', destDir], { timeout: 10 * 60_000 });
+					lastError = undefined;
+					break;
+				} catch (retryError) { lastError = retryError; }
+			}
+		}
+	}
+	if (lastError) {
+		throw new Error(tr('could not unpack {0}: {1}', path.basename(archive), lastError instanceof Error ? lastError.message : String(lastError)));
 	}
 	if (fs.readdirSync(destDir).length === 0) {
 		throw new Error(tr('archive {0} unpacked to nothing', path.basename(archive)));

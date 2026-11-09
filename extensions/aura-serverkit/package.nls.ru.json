@@ -1,8 +1,8 @@
 {
 	"displayName": "ServerKit",
-	"description": "ServerKit — панель управления сервером: деплой приложений, базы данных, Docker-контейнеры и мониторинг прямо из IDE.",
+	"description": "ServerKit — панель управления сервером (оригинальный jhd3197/ServerKit): приложения, базы данных, Docker-контейнеры, DNS, SSL и мониторинг прямо из IDE.",
 	"configuration.title": "ServerKit",
-	"configuration.serverUrl": "URL развернутого ServerKit (панель управления сервером)",
+	"configuration.serverUrl": "URL развёрнутого ServerKit без /api, например https://serverkit.auraide.xyz",
 	"command.openDashboard": "Открыть панель управления",
 	"command.checkStatus": "Проверить статус сервера"
 }

@@ -17,7 +17,7 @@ import { prepareJavaProject, JavaProjectResult } from './javaProject';
 import { planSources, downloadSources, sourcesCacheDir, PLATFORM_SOURCES_SIZE, SourcesPlan } from './javaSources';
 import { registerJdtContentProvider } from './javaUris';
 import {
-	dataDirFor, installJavaServer, offerJavaServerInstall, resolveJavaServer, serverDirForDiagnostics,
+	dataDirFor, installJavaServer, installJdk, offerJavaServerInstall, resolveJavaServer, serverDirForDiagnostics,
 	javaRequirementFromLogs, pickServerJava, JAVA_SERVER_SIZE, MIN_JAVA_MAJOR,
 } from './javaInstall';
 
@@ -244,12 +244,23 @@ export class JavaLspClient implements vscode.Disposable {
 
 	/** Внятное объяснение, когда сервер не стартует из-за версии Java. */
 	async explainCrash(): Promise<void> {
-		const requirement = javaRequirementFromLogs(serverDirForDiagnostics(this.context), this.context.globalStorageUri.fsPath);
-		const java = await pickServerJava();
+		const requirement = javaRequirementFromLogs(serverDirForDiagnostics(this.context));
+		const java = await pickServerJava(undefined, this.context);
 		const openLog = tr('Open log');
 		const message = requirement
 			? tr('Java Language Server needs Java {0} (found {1}). Install a newer JDK or point auraKotlin.javaLspPath to an older jdtls.', String(requirement), String(java?.version ?? 0))
 			: tr('Java Language Server stopped. See the “Java Language Server” output.');
+		// Снимок jdtls требует Java новее установленной (например 25 при JDK 21) — сервер
+		// выходит с кодом 13. Предлагаем поставить нужный JDK, а не только жалуемся.
+		if (requirement && (!java || java.version < requirement)) {
+			const install = tr('Install JDK {0}', String(requirement));
+			const pick = await vscode.window.showErrorMessage(message, install, openLog);
+			if (pick === install) {
+				const dir = await installJdk(this.context, requirement);
+				if (dir) { await this.restart(); }
+			} else if (pick === openLog) { this.lsp.showOutput(); }
+			return;
+		}
 		const pick = await vscode.window.showErrorMessage(message, openLog);
 		if (pick === openLog) { this.lsp.showOutput(); }
 	}

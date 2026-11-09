@@ -77,6 +77,10 @@
 				"when": "view == auraKotlin.androidView && viewItem == avdRunning",
 				"group": "inline@2"
 			}, {
+				"command": "auraKotlin.android.stopEmulator",
+				"when": "view == auraKotlin.androidView && viewItem == avdBooting",
+				"group": "inline@1"
+			}, {
 				"command": "auraKotlin.android.deviceScreen",
 				"when": "view == auraKotlin.androidView && viewItem == device",
 				"group": "inline@1"
@@ -208,6 +212,6 @@
 			}]
 		}]
 	},
-	"scripts": { "compile": "gulp compile-extension:aura-kotlin", "watch": "gulp watch-extension:aura-kotlin", "fetch-server": "node scripts/fetch-lsp.mjs" },
+	"scripts": { "compile": "gulp compile-extension:aura-kotlin", "watch": "gulp watch-extension:aura-kotlin", "test": "node test/run-all.mjs", "fetch-server": "node scripts/fetch-lsp.mjs" },
 	"devDependencies": { "@types/node": "24.x" }
 }

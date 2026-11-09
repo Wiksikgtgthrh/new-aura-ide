@@ -64,22 +64,23 @@
 }
 
 .aura-api-header-icon {
-	width: 28px;
-	height: 28px;
-	border-radius: var(--r-ctl);
+	width: 32px;
+	height: 32px;
+	border-radius: 8px;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 16px !important;
+	font-size: 19px !important;
 	color: var(--vscode-button-foreground);
 	background: var(--vscode-button-background);
 }
 
-.aura-api-header-icon.codicon-key::before,
-.aura-api-empty-icon.codicon-key::before {
+/* Ключ — свой вертикальный SVG (глиф codicon-key нарисован по диагонали и выглядит
+   перекошенным), поэтому размер задаётся самому svg, а не шрифту. */
+.aura-api-header-icon > svg {
+	width: 19px;
+	height: 19px;
 	display: block;
-	transform: rotate(48deg);
-	transform-origin: center;
 }
 
 .aura-api-header .count {
@@ -599,23 +600,29 @@
 }
 
 .aura-api-empty-icon {
-	width: 44px;
-	height: 44px;
+	width: 56px;
+	height: 56px;
 	border-radius: 50%;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 22px !important;
+	font-size: 28px !important;
 	/* codicon — шрифтовая иконка: без явной единичной высоты строки унаследованный
 	   line-height родителя смещает глиф из центра круга */
 	line-height: 1;
-	color: var(--aura-fg-muted);
-	background: color-mix(in srgb, var(--aura-fg) 7%, transparent);
+	color: color-mix(in srgb, var(--aura-fg) 62%, transparent);
+	background: color-mix(in srgb, var(--aura-fg) 9%, transparent);
 }
 
 .aura-api-empty-icon::before {
 	display: block;
 	line-height: 1;
+}
+
+.aura-api-empty-icon > svg {
+	width: 28px;
+	height: 28px;
+	display: block;
 }
 
 .aura-api-empty-title {
@@ -714,13 +721,13 @@
 
 .aura-api-form-icon {
 	flex: none;
-	width: 30px;
-	height: 30px;
-	border-radius: var(--r-ctl);
+	width: 32px;
+	height: 32px;
+	border-radius: 8px;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 16px !important;
+	font-size: 18px !important;
 	color: var(--aura-focus);
 	background: color-mix(in srgb, var(--aura-focus) 16%, transparent);
 }

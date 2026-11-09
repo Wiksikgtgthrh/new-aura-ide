@@ -6,7 +6,7 @@ const Module = (await import('node:module')).default;
 const path = (await import('node:path')).default;
 const { fileURLToPath } = await import('node:url');
 const here = path.dirname(fileURLToPath(import.meta.url));
-const stubPath = path.join(here, 'node_modules', 'vscode');
+const stubPath = path.join(here, 'fixtures', 'vscode-stub.cjs');
 const origResolve = Module._resolveFilename;
 Module._resolveFilename = function (request, ...args) {
 	if (request === 'vscode') { request = stubPath; }

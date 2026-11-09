@@ -1206,7 +1206,7 @@ const DICT = {
 		verifyNow: 'Подтвердить почту', verifyHint: 'SMTP пока не настроен: подтвердите адрес в один клик (ссылка от сервера).', verifyOpened: 'Ссылка подтверждения открыта',
 		verifNote: 'Подтверждение почты не нужно: после создания аккаунта просто войдите.',
 		showPass: 'Показать пароль',
-		regNameShort: 'Имя — минимум 2 символа', regBadEmail: 'Некорректный email', regPassShort: 'Пароль — минимум 8 символов', regPassMin: 8,
+		regNameShort: 'Введите имя', regBadEmail: 'Некорректный email', regPassShort: 'Пароль — минимум 8 символов', regPassMin: 8,
 		githubConnected: 'GitHub подключён', githubConnect: 'Подключить GitHub', githubToken: 'Токен доступа (personal access token)',
 		githubTokenPh: 'ghp_… (scope repo)', githubRepos: 'Мои репозитории', githubReposEmpty: 'Репозитории не найдены.',
 		githubClone: 'Клонировать', githubCloned: 'Репозиторий склонирован и открыт ✓', githubLoading: 'Загрузка…',
@@ -1395,7 +1395,7 @@ const DICT = {
 		verifyNow: 'Verify email', verifyHint: 'SMTP is not configured yet: confirm your address with one click (server-provided link).', verifyOpened: 'Verification link opened',
 		verifNote: 'No email confirmation needed: after creating an account, just sign in.',
 		showPass: 'Show password',
-		regNameShort: 'Name — at least 2 characters', regBadEmail: 'Invalid email', regPassShort: 'Password — at least 8 characters',
+		regNameShort: 'Enter a name', regBadEmail: 'Invalid email', regPassShort: 'Password — at least 8 characters',
 		team: 'Team', commitDone: 'Committed ✓', commitPushed: 'Committed and pushed to GitHub ✓', commitLocal: 'Committed locally ✓', pushFail: 'Push failed', pushDone: 'Pushed ✓', pullDone: 'Pulled ✓', gitHubDone: 'GitHub connected ✓',
 		demoTeamCreated: 'Team created', demoTeamJoined: 'You joined the team', demoInvite: 'Code generated',
 		demoTaskAdded: 'Task added', demoRoleUpdated: 'Role updated', demoTeamSelected: 'Team selected',
@@ -2031,7 +2031,7 @@ function wireLoginForm() {
 		const name = regName.value.trim();
 		const mail = regEmail.value.trim();
 		const pass = regPass.value;
-		if (name.length < 2) { toast(T('regNameShort'), 'err'); return; }
+		if (!name) { toast(T('regNameShort'), 'err'); return; }
 		if (!/^\S+@\S+\.\S+$/.test(mail)) { toast(T('regBadEmail'), 'err'); return; }
 		if (pass.length < 8) { toast(T('regPassShort'), 'err'); return; }
 		regSubmit.disabled = true;

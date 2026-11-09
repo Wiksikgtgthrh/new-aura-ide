@@ -661,7 +661,9 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			const fullPath = path.join(cwd, dep);
 
 			await stripAuthenticodeSignature(fullPath);
-			await rcedit(fullPath, {
+			// На затенённой папке (OneDrive) или при антивирусе rcedit изредка не может
+			// записать PE — повторяем: локальная сборка не должна падать из-за версий ресурсов.
+			const fingerprint = {
 				'file-version': baseVersion,
 				'version-string': {
 					'CompanyName': 'Microsoft Corporation',
@@ -673,10 +675,29 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 					'ProductName': product.nameLong,
 					'ProductVersion': packageJson.version,
 				}
-			});
+			};
+			for (let attempt = 1; ; attempt++) {
+				try {
+					await rcedit(fullPath, fingerprint);
+					break;
+				} catch (error) {
+					if (attempt >= 3) {
+						console.warn(`[patch-win32] rcedit failed for ${dep}: ${error instanceof Error ? error.message : error}`);
+						return;
+					}
+					await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+				}
+			}
 		});
 
-		await Promise.all(patchPromises);
+		// Штамп версии в PE-ресурсах — косметика (свойства файла в проводнике). Если
+		// rcedit не смог загрузить файл (занят антивирусом/OneDrive, путь с не-ASCII),
+		// локальная сборка не должна падать: приложение уже собрано и работоспособно.
+		try {
+			await Promise.all(patchPromises);
+		} catch (error) {
+			console.warn(`[patch-win32] не удалось обновить ресурсы PE: ${error instanceof Error ? error.message : error}`);
+		}
 	};
 }
 
@@ -693,6 +714,10 @@ function prepareCopilotRipgrepShimTask(platform: string, arch: string, destinati
 		const appNodeModulesDir = path.join(appBase, 'node_modules.asar.unpacked');
 
 		const builtInCopilotExtensionDir = path.join(appBase, 'extensions', 'copilot');
+		if (!fs.existsSync(builtInCopilotExtensionDir)) {
+			console.warn('[prepareBuiltInCopilotRipgrepShim] copilot extension is not part of this build, skipping');
+			return;
+		}
 		prepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, appNodeModulesDir);
 	};
 }

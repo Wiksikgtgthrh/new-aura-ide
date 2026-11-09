@@ -479,6 +479,14 @@ export function packageCopilotExtensionStream(disableMangle: boolean): Stream {
 		return es.readArray([]);
 	}
 
+	// Building the extension from source needs its own dependencies installed. When they are
+	// absent (a fork that removes Copilot, or a partial checkout) the extension cannot be
+	// bundled, so leave it out of the build instead of failing it.
+	if (!fs.existsSync(path.join(extensionPath, 'node_modules'))) {
+		fancyLog(ansiColors.yellow('[skip]'), 'extensions/copilot: dependencies not installed, excluded from this build');
+		return es.readArray([]);
+	}
+
 	const localExtensionsStream = minifyExtensionResources(
 		fromLocal(extensionPath, false, disableMangle)
 			.pipe(rename(p => p.dirname = `extensions/copilot/${p.dirname}`))
@@ -486,6 +494,11 @@ export function packageCopilotExtensionStream(disableMangle: boolean): Stream {
 
 	const productionDependencies = getProductionDependencies('extensions/copilot');
 	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
+
+	// gulp.src rejects an empty glob list; only merge dependencies when there are any.
+	if (dependenciesSrc.length === 0) {
+		return localExtensionsStream.pipe(util2.setExecutableBit(['**/*.sh']));
+	}
 
 	return es.merge(
 		localExtensionsStream,

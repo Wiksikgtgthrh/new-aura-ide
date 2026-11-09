@@ -14,7 +14,7 @@ interface Credentials { email: string; password: string; displayName?: string; }
 
 // Единая минимальная длина пароля (раньше регистрация пускала 8, смена требовала 10,
 // а текст ошибки говорил про 8 — три разные цифры).
-const MIN_PASSWORD_LENGTH = 10;
+const MIN_PASSWORD_LENGTH = 8;
 // Валидный, но «ничей» хэш: верифицируем его при отсутствующем email, чтобы время
 // ответа не выдавало существование аккаунта (timing-оракул на перечисление почт).
 const DUMMY_PASSWORD_HASH = '$argon2id$v=19$m=65536,t=3,p=1$c29tZXNhbHRzb21lc2FsdA$RdescudvJCsgt3ub+b+dWRWJTmaaJBi2VlKkZFHoyBY';

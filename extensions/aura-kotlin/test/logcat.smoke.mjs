@@ -35,7 +35,7 @@ const vscodeStub = {
 	window: {
 		createOutputChannel: () => ({ append() { }, appendLine() { }, show() { }, dispose() { } }),
 		createStatusBarItem: () => { const item = { text: '', show() { }, hide() { }, dispose() { } }; statusbars.push(item); return item; },
-		withProgress: (_options, task) => task({ report() { } }),
+		withProgress: (_options, task) => task({ report() { }, isCancellationRequested: false, onCancellationRequested: () => ({ dispose() { } }) }),
 		showInformationMessage: async text => { messages.push(String(text)); return undefined; },
 		showWarningMessage: async text => { messages.push(String(text)); return undefined; },
 		showErrorMessage: async text => { messages.push(String(text)); return undefined; },
@@ -132,7 +132,12 @@ panel.logcatPidPkg = undefined;
 panel.logcatPid = undefined;
 messages.length = 0;
 await panel.openLogcat();
-await new Promise(resolve => setTimeout(resolve, 4000));
+// Фиксированные 4 с были гонкой: только что загруженный эмулятор отдаёт первые строки
+// logcat заметно позже, и тест падал на «0 строк». Ждём появления данных, но не вечно.
+for (let attempt = 0; attempt < 40 && panel.logcatBuffer.length === 0; attempt++) {
+	await new Promise(resolve => setTimeout(resolve, 500));
+}
+await new Promise(resolve => setTimeout(resolve, 1500));
 
 const appends = messages.filter(message => message && message.command === 'append');
 const appended = appends.reduce((total, message) => total + message.lines.length, 0);
@@ -141,8 +146,13 @@ check('поток logcat идёт', buffered > 0, `${buffered} строк, ча�
 // Старая реализация присылала последние 2000 строк на КАЖДЫЙ чанк: при таком же числе
 // чанков это были бы сотни тысяч строк. Дельты — в разы меньше (плюс один догон истории).
 const avg = Math.round(appended / Math.max(appends.length, 1));
-check('строки уходят дельтой, а не всем буфером каждый раз', avg < 100 && appended < buffered * 2,
-	`передано ${appended}, в среднем ${avg} на чанк, в буфере ${buffered}`);
+const maxChunk = appends.reduce((max, message) => Math.max(max, message.lines.length), 0);
+// Чанк — это буфер одного read() от adb. Старая реализация слала последние 2000 строк
+// на КАЖДЫЙ чанк: тогда средняя была ~2000 и каждый чанк был огромным. Сравнивать сумму
+// с текущим буфером нельзя — он ограничен 20 000 строк и прокручивается при длинном потоке,
+// поэтому дельты суммарно законно больше. Признак дельты — средняя и максимум на чанк.
+check('строки уходят дельтой, а не всем буфером каждый раз', avg < 500 && maxChunk < 1000,
+	`передано ${appended}, в среднем ${avg} на чанк, максимум ${maxChunk}, в буфере ${buffered}`);
 check('нет пустых чанков', appends.every(message => message.lines.length > 0));
 check('при открытии отправлен reset', messages.some(message => message && message.command === 'reset'));
 

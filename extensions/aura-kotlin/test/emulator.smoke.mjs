@@ -17,8 +17,18 @@ import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
+
+// Сообщения расширение отдаёт через tr() из ru-бандла (интерфейс Russian-first),
+// поэтому проверяем локаль по ключам, а не по английским литералам.
+const ruBundle = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'l10n', 'bundle.l10n.ru.json'), 'utf8'));
+const trText = (key, ...args) => {
+	let text = ruBundle[key] ?? key;
+	args.forEach((arg, index) => { text = text.split(`{${index}}`).join(String(arg)); });
+	return text;
+};
 
 const SDK = process.env.ANDROID_SDK_ROOT || process.env.ANDROID_HOME || 'C:\\android-sdk';
 const adbExe = path.join(SDK, 'platform-tools', process.platform === 'win32' ? 'adb.exe' : 'adb');
@@ -50,7 +60,7 @@ const vscodeStub = {
 	window: {
 		createOutputChannel: makeOutput,
 		createStatusBarItem: () => { const item = { text: '', tooltip: '', command: undefined, show() { item.visible = true; }, hide() { item.visible = false; }, dispose() { } }; statusbars.push(item); return item; },
-		withProgress: (_options, task) => task({ report() { } }),
+		withProgress: (_options, task) => task({ report() { }, isCancellationRequested: false, onCancellationRequested: () => ({ dispose() { } }) }),
 		showInformationMessage: async (text, ...rest) => { messages.push(String(text)); void rest; return undefined; },
 		showWarningMessage: async (text, ...rest) => { messages.push(String(text)); void rest; return undefined; },
 		showErrorMessage: async (text, ...rest) => { messages.push(String(text)); void rest; return undefined; },
@@ -129,22 +139,24 @@ if (serial) {
 	check('sys.boot_completed=1 именно у запущенного эмулятора (adb -s)', adb('-s', serial, 'shell', 'getprop', 'sys.boot_completed') === '1', `за ${seconds} с`);
 	check('статус-бар показывает устройство', statusbars.some(item => String(item.text).includes(serial)), statusbars.map(item => item.text).join(' | '));
 }
-check('есть сообщение о готовности', messages.some(text => text.includes('is ready')), messages.join(' | '));
-check('ошибок запуска не было', !messages.some(text => text.includes('exited during startup') || text.includes('did not finish booting')));
+check('есть сообщение о готовности', messages.some(text => text.includes(trText('Emulator {0} is ready.', avd))), messages.join(' | '));
+check('ошибок запуска не было', !messages.some(text => text.includes('завершился при запуске') || text.includes('exited during startup') || text.includes('не успел загрузиться') || text.includes('did not finish booting')));
 
 // Остановка конкретного AVD не должна трогать остальные (здесь других нет — проверяем, что гасится нужный).
+// adb emu kill отвечает сразу, а сам эмулятор гасится в фоне: на холодном AVD это
+// занимает больше 20 с, поэтому ждём до минуты, а не считаем выключенным мгновенно.
 await panel.stopEmulator({ name: avd });
 let gone = false;
-for (let attempt = 0; attempt < 20 && !gone; attempt++) {
+for (let attempt = 0; attempt < 60 && !gone; attempt++) {
 	await new Promise(resolve => setTimeout(resolve, 1000));
 	gone = emulatorSerials().length === 0;
 }
 check('stopEmulator(avd) остановил эмулятор', gone, emulatorSerials().join(', ') || 'устройств нет');
-check('сообщение об остановке — про конкретный AVD', messages.some(text => text.includes(`${avd} stopped`) || text.includes('Emulators stopped')), messages.slice(-2).join(' | '));
+check('сообщение об остановке — про конкретный AVD', messages.some(text => text.includes(trText('Emulator {0} stopped.', avd)) || text.includes(trText('Emulators stopped.'))), messages.slice(-2).join(' | '));
 check('выбор устройства сброшен после остановки', panel.selectedDevice === undefined, String(panel.selectedDevice));
 
 await panel.stopEmulator({ name: 'AuraNoSuchAvd' });
-check('для незапущенного AVD — сообщение «не запущен», без ошибок', messages.some(text => text.includes('is not running')));
+check('для незапущенного AVD — сообщение «не запущен», без ошибок', messages.some(text => text.includes(trText('Emulator {0} is not running.', 'AuraNoSuchAvd'))));
 
 const failed = results.filter(result => !result.ok).length;
 console.log(`\n${results.length - failed}/${results.length} проверок пройдено`);

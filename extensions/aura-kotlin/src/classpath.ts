@@ -95,13 +95,17 @@ export class ClasspathSync implements vscode.Disposable {
 		this.statusbar.command = 'auraKotlin.showClasspath';
 		context.subscriptions.push(this.statusbar);
 
+		// Без открытой папки (окно Welcome) workspaceFolders пуст: вотчер создавать не на чем,
+		// а обращение к workspaceFolders![0] роняло всю активацию расширения.
 		const root = rootFolder();
-		const base = root ? vscode.Uri.file(root) : vscode.workspace.workspaceFolders![0].uri;
-		this.watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(base, '**/{build.gradle,build.gradle.kts,settings.gradle,settings.gradle.kts,pom.xml,libs.versions.toml}'));
-		this.watcher.onDidChange(() => this.scheduleSync());
-		this.watcher.onDidCreate(() => this.scheduleSync());
-		this.watcher.onDidDelete(() => this.scheduleSync());
-		context.subscriptions.push(this.watcher);
+		const base = root ? vscode.Uri.file(root) : vscode.workspace.workspaceFolders?.[0]?.uri;
+		if (base) {
+			this.watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(base, '**/{build.gradle,build.gradle.kts,settings.gradle,settings.gradle.kts,pom.xml,libs.versions.toml}'));
+			this.watcher.onDidChange(() => this.scheduleSync());
+			this.watcher.onDidCreate(() => this.scheduleSync());
+			this.watcher.onDidDelete(() => this.scheduleSync());
+			context.subscriptions.push(this.watcher);
+		}
 
 		context.subscriptions.push(vscode.commands.registerCommand('auraKotlin.showClasspath', () => this.show()));
 		context.subscriptions.push(vscode.commands.registerCommand('auraKotlin.syncDependencies', () => { this.invalidateCache(); return this.sync(tr('manual sync')); }));

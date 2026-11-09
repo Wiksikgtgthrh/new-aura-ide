@@ -84,7 +84,8 @@ export function activate(context: vscode.ExtensionContext): void {
 function registerAndroidUi(context: vscode.ExtensionContext, classpathSync: ClasspathSync, androidPanel: import('./android').AndroidPanel, lsp: KotlinLspClient, javaLsp: JavaLspClient): void {
 	const provider = new AndroidTreeProvider(androidPanel, classpathSync);
 	const tree = vscode.window.createTreeView('auraKotlin.androidView', { treeDataProvider: provider });
-	context.subscriptions.push(tree);
+	provider.attach(tree);
+	context.subscriptions.push(tree, provider);
 
 	context.subscriptions.push(		vscode.commands.registerCommand('auraKotlin.refreshAndroidView', () => provider.refresh()));
 

@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/auraApiEditor.css';
-import { $, append, addDisposableListener, EventType } from '../../../../base/browser/dom.js';
+import { $, append, addDisposableListener, EventType, svgElem } from '../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { Dimension } from '../../../../base/browser/dom.js';
@@ -25,6 +25,32 @@ const PING_SLOW_MS = 2000;
 const DELETE_CONFIRM_MS = 3000;
 
 type KeyHealth = 'ok' | 'warn' | 'error' | 'checking' | 'unchecked' | 'off';
+
+/**
+ * Ключ — вертикальный: глиф codicon-key нарисован по диагонали и на малых размерах
+ * читается как перекошенная загогулина, поэтому здесь свой SVG.
+ */
+function auraKeyIcon(className: string): HTMLElement {
+	const el = $('span.' + className);
+	// innerHTML здесь запрещён политикой Trusted Types (вкладка падала с
+	// «This document requires 'TrustedHTML' assignment»), поэтому SVG собираем узлами.
+	const svg = svgElem('svg', {
+		fill: 'none',
+		stroke: 'currentColor',
+		'stroke-width': '1.6',
+		'stroke-linecap': 'round',
+		'aria-hidden': 'true',
+	}).root;
+	// viewBox ставим как есть: svgElem переводит camelCase в kebab-case и сделал бы view-box.
+	svg.setAttribute('viewBox', '0 0 16 16');
+	svg.appendChild(svgElem('circle', { cx: '8', cy: '4.6', r: '3.1' }).root);
+	svg.appendChild(svgElem('path', { d: 'M8 7.7V14' }).root);
+	svg.appendChild(svgElem('path', { d: 'M8 10.7h2.9' }).root);
+	svg.appendChild(svgElem('path', { d: 'M8 13h2.1' }).root);
+	el.appendChild(svg);
+	return el;
+}
+
 
 export class AuraApiEditorPane extends EditorPane {
 
@@ -47,6 +73,8 @@ export class AuraApiEditorPane extends EditorPane {
 	private readonly renderDisposables = this._register(new DisposableStore());
 	/** Слушатели открытой формы: живут, пока форма на экране. */
 	private readonly formDisposables = this._register(new DisposableStore());
+	/** Кадр, в котором запланирован рендер таблицы (см. scheduleRender). */
+	private renderFrame: number | undefined;
 
 	constructor(
 		group: IEditorGroup,
@@ -57,8 +85,20 @@ export class AuraApiEditorPane extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(AuraApiEditorPane.ID, group, telemetryService, themeService, storageService);
-		this._register(this.keysService.onDidChange(() => this.renderTable()));
-		this._register({ dispose: () => { if (this.pendingDeleteTimer) { clearTimeout(this.pendingDeleteTimer); } } });
+		// Проверка ключей обновляет статус каждого ключа отдельным событием: при N ключах
+		// таблица перерисовывалась N раз подряд. Кадр — минимальная задержка, которую
+		// пользователь не замечает, а лишние пересборки DOM исчезают.
+		this._register(this.keysService.onDidChange(() => this.scheduleRender()));
+		this._register({ dispose: () => { if (this.pendingDeleteTimer) { clearTimeout(this.pendingDeleteTimer); } if (this.renderFrame !== undefined) { cancelAnimationFrame(this.renderFrame); } } });
+	}
+
+	/** Перерисовать таблицу не чаще одного раза за кадр. */
+	private scheduleRender(): void {
+		if (this.renderFrame !== undefined) { return; }
+		this.renderFrame = requestAnimationFrame(() => {
+			this.renderFrame = undefined;
+			this.renderTable();
+		});
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -68,7 +108,7 @@ export class AuraApiEditorPane extends EditorPane {
 		const hero = append(this.rootEl, $('.aura-api-hero'));
 		const heroText = append(hero, $('.aura-api-hero-text'));
 		const header = append(heroText, $('h2.aura-api-header'));
-		append(header, $('span.aura-api-header-icon.codicon.codicon-key'));
+		append(header, auraKeyIcon('aura-api-header-icon'));
 		append(header, $('span')).textContent = 'Ключи API';
 		const count = append(header, $('span.count'));
 		count.textContent = String(this.keysService.getKeys().length);
@@ -93,7 +133,8 @@ export class AuraApiEditorPane extends EditorPane {
 		this.searchInput.setAttribute('aria-label', 'Поиск ключей');
 		this._register(addDisposableListener(this.searchInput, EventType.INPUT, () => {
 			this.query = this.searchInput.value.trim().toLowerCase();
-			this.renderTable();
+			// Ввод идёт чаще кадра — перерисовка схлопывается, курсор не дёргается.
+			this.scheduleRender();
 		}));
 		this.groupChips = append(toolbar, $('.aura-api-chips'));
 		this.groupChips.setAttribute('role', 'tablist');
@@ -338,7 +379,11 @@ export class AuraApiEditorPane extends EditorPane {
 		const cell = append(row, $('td.aura-api-empty')) as HTMLTableCellElement;
 		cell.colSpan = 6;
 		const box = append(cell, $('.aura-api-empty-box'));
-		append(box, $(`span.aura-api-empty-icon.codicon.codicon-${icon}`));
+		if (icon === 'key') {
+			append(box, auraKeyIcon('aura-api-empty-icon'));
+		} else {
+			append(box, $(`span.aura-api-empty-icon.codicon.codicon-${icon}`));
+		}
 		append(box, $('.aura-api-empty-title')).textContent = title;
 		append(box, $('.aura-api-empty-text')).textContent = text;
 		const acts = append(box, $('.aura-api-empty-actions'));
