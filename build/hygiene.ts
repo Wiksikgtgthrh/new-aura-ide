@@ -80,6 +80,20 @@ export function checkNoNewJavaScriptFiles(repoRoot: string): string | undefined 
 }
 
 /**
+ * True when the committed product.json already contains `extensionsGallery`.
+ * Lets a fork that intentionally ships the gallery keep editing product.json,
+ * while a fork that adds it for the first time is still rejected.
+ */
+function galleryCommittedInHead(): boolean {
+	try {
+		const head = cp.execSync('git show HEAD:product.json', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+		return Boolean(JSON.parse(head)?.extensionsGallery);
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Main hygiene function that runs checks on files
  */
 export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, runEslint = true): NodeJS.ReadWriteStream {
@@ -93,8 +107,17 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		const product = JSON.parse(file.contents!.toString('utf8'));
 
 		if (product.extensionsGallery) {
-			console.error(`product.json: Contains 'extensionsGallery'`);
-			errorCount++;
+			// Upstream forbids shipping the Microsoft gallery in a fork. A fork that
+			// already ships it (the gallery is in the committed product.json) cannot
+			// drop it without losing extension installs, and editing any other field
+			// of product.json used to fail the gate. Only an *addition* is an error;
+			// a pre-existing gallery is reported as a note.
+			if (galleryCommittedInHead()) {
+				console.log(`product.json: 'extensionsGallery' was already committed — kept, not re-checked`);
+			} else {
+				console.error(`product.json: Contains 'extensionsGallery'`);
+				errorCount++;
+			}
 		}
 
 		this.emit('data', file);
