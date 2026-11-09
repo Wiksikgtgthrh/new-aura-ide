@@ -121,7 +121,25 @@ class AuraApiChatKeysViewPane extends ViewPane {
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
-		this._register(this.keysService.onDidChange(() => this.renderKeys()));
+		// Проверка ключей сообщает о каждом ключе отдельным событием: схлопываем
+		// перерисовку строк до одного кадра, иначе список мигал на каждом статусе.
+		this._register(this.keysService.onDidChange(() => this.scheduleRender()));
+	}
+
+	/** Кадр, в котором запланирован рендер строк (см. scheduleRender). */
+	private renderFrame: number | undefined;
+
+	private scheduleRender(): void {
+		if (this.renderFrame !== undefined) { return; }
+		this.renderFrame = requestAnimationFrame(() => {
+			this.renderFrame = undefined;
+			this.renderKeys();
+		});
+	}
+
+	override dispose(): void {
+		if (this.renderFrame !== undefined) { cancelAnimationFrame(this.renderFrame); this.renderFrame = undefined; }
+		super.dispose();
 	}
 
 	protected override renderBody(container: HTMLElement): void {

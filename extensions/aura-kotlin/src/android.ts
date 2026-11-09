@@ -21,11 +21,27 @@ import { toolchainSdkRoot } from './toolchain';
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Сколько ждём, пока погашенный эмулятор пропадёт из `adb devices`.
+ * Холодное гашение (сброс состояния диска) на реальном AVD занимает 20–40 с: при
+ * прежних 20 с команда успевала сообщить «всё ещё отвечает» уже после реальной остановки.
+ */
+const STOP_TIMEOUT_MS = 60_000;
+
+/** Буфер logcat: обрезаем редко и сразу с запасом, чтобы не копировать массив на каждом чанке. */
+const LOG_BUFFER_TRIM_AT = 30_000;
+const LOG_BUFFER_KEEP = 20_000;
+
+/** runninGDevice с этим значением: серийник уже есть, но sys.boot_completed ещё не пришёл. */
+export const STARTING = '\u0000starting';
+
 export interface AndroidDevice {
 	id: string;
 	/** Эмулятор (avd) или физическое устройство. */
 	emulator: boolean;
 	model: string;
+	/** Состояние из `adb devices`: device — доступно, offline/unauthorized/booting — нет. */
+	online: boolean;
 }
 
 export class AndroidPanel implements vscode.Disposable {
@@ -55,6 +71,7 @@ export class AndroidPanel implements vscode.Disposable {
 		this.output.dispose();
 		this.emulatorOutput.dispose();
 		this.logcatPanel?.dispose();
+		this.disposeEmulators();
 	}
 
 	// ---------- SDK ----------
@@ -122,12 +139,13 @@ export class AndroidPanel implements vscode.Disposable {
 	async devices(): Promise<AndroidDevice[]> {
 		try {
 			const text = await this.adb('devices', '-l');
+			// Первая строка — заголовок «List of devices attached»; у adb «* daemon started…» идёт в stderr.
 			return text.split(/\r?\n/).slice(1).filter(line => line.trim()).map(line => {
 				const parts = line.trim().split(/\s+/);
 				const id = parts[0];
 				const emulator = id.startsWith('emulator-');
 				const model = /model:(\S+)/.exec(line)?.[1] ?? (emulator ? 'AVD' : 'device');
-				return { id, emulator, model };
+				return { id, emulator, model, online: parts[1] === 'device' };
 			});
 		} catch {
 			return [];
@@ -188,6 +206,16 @@ export class AndroidPanel implements vscode.Disposable {
 		if (found) { this.updateDeviceStatus(found); } else { this.statusbar.hide(); }
 	}
 
+	/** Как часто дерево перечитывает запущенные AVD, пока видны разделы Android. */
+	static readonly REFRESH_INTERVAL_MS = 3000;
+	/** Состояние запущенных AVD изменилось (эмулятор поднялся или погас) — дерево и статус-бар обновляются. */
+	private readonly emulatorsEmitter = new vscode.EventEmitter<void>();
+	readonly onDidChangeEmulators = this.emulatorsEmitter.event;
+	/** Снимок «AVD → серийник» на прошлой проверке: изменения сравниваем с ним. */
+	private emulatorsSnapshot = '';
+
+	disposeEmulators(): void { this.emulatorsEmitter.dispose(); }
+
 	// ---------- Эмуляторы ----------
 
 	/** emulator -list-avds. */
@@ -229,11 +257,12 @@ export class AndroidPanel implements vscode.Disposable {
 	 * Нужен, чтобы следить именно за запущенным эмулятором: без `-s` adb отвечает от первого
 	 * подключённого устройства (подключённый телефон делал эмулятор «мгновенно загруженным»,
 	 * а при двух устройствах команда просто падала).
+	 * @param cancelled — загрузку отменили из прогресса: выходим без ожидания таймаута.
 	 */
-	private async waitForEmulatorSerial(before: string[], hasExited: () => number | undefined, timeoutMs: number): Promise<string | undefined> {
+	private async waitForEmulatorSerial(before: string[], hasExited: () => number | undefined, timeoutMs: number, cancelled?: () => boolean): Promise<string | undefined> {
 		const deadline = Date.now() + timeoutMs;
 		while (Date.now() < deadline) {
-			if (hasExited() !== undefined) { return undefined; }
+			if (hasExited() !== undefined || cancelled?.()) { return undefined; }
 			const fresh = (await this.emulatorSerials()).find(id => !before.includes(id));
 			if (fresh) { return fresh; }
 			await new Promise(resolve => setTimeout(resolve, 1000));
@@ -255,6 +284,8 @@ export class AndroidPanel implements vscode.Disposable {
 	/**
 	 * Остановить эмулятор: конкретный AVD (target с полем name) или все сразу.
 	 * Раньше команда всегда гасила все запущенные эмуляторы, даже нажатая у одного AVD.
+	 * `adb emu kill` только просит эмулятор выйти: устройство пропадает из `adb devices`
+	 * через несколько секунд, поэтому ждём именно исчезновения серийника, а не отвечаем «готово» сразу.
 	 */
 	async stopEmulator(target?: { name?: string } | string): Promise<void> {
 		const avd = typeof target === 'string' ? target : target?.name;
@@ -264,24 +295,62 @@ export class AndroidPanel implements vscode.Disposable {
 				void vscode.window.showInformationMessage(tr('Emulator {0} is not running.', avd));
 				return;
 			}
-			await this.adb('-s', serial, 'emu', 'kill').catch(() => undefined);
-			if (this.selectedDevice === serial) { this.selectedDevice = undefined; this.statusbar.hide(); }
-			void vscode.window.showInformationMessage(tr('Emulator {0} stopped.', avd));
+			await this.killEmulator(serial);
+			const gone = await this.waitForDeviceGone(serial, STOP_TIMEOUT_MS);
+			this.afterEmulatorStopped(gone ? [serial] : []);
+			void vscode.window.showInformationMessage(gone
+				? tr('Emulator {0} stopped.', avd)
+				: tr('Emulator {0} is shutting down, but is still responding.', avd));
 			return;
 		}
 		const devices = (await this.devices()).filter(device => device.emulator);
 		if (!devices.length) { return; }
+		for (const device of devices) { await this.killEmulator(device.id); }
+		const gone: string[] = [];
 		for (const device of devices) {
-			await this.adb('-s', device.id, 'emu', 'kill').catch(() => undefined);
+			if (await this.waitForDeviceGone(device.id, STOP_TIMEOUT_MS)) { gone.push(device.id); }
 		}
-		this.statusbar.hide();
-		void vscode.window.showInformationMessage(tr('Emulators stopped.'));
+		this.afterEmulatorStopped(gone);
+		void vscode.window.showInformationMessage(gone.length === devices.length
+			? tr('Emulators stopped.')
+			: tr('{0} of {1} emulators stopped — the rest are still shutting down.', gone.length, devices.length));
+	}
+
+	/** `adb -s <serial> emu kill`; ошибка не фатальна: эмулятор мог выйти сам. */
+	private async killEmulator(serial: string): Promise<void> {
+		await this.adb('-s', serial, 'emu', 'kill').catch(() => undefined);
+	}
+
+	/** Ждём, пока серийник пропадёт из `adb devices` (или станет offline). */
+	private async waitForDeviceGone(serial: string, timeoutMs: number): Promise<boolean> {
+		const deadline = Date.now() + timeoutMs;
+		while (Date.now() < deadline) {
+			const device = (await this.devices()).find(d => d.id === serial);
+			if (!device || !device.online) { return true; }
+			await new Promise(resolve => setTimeout(resolve, 500));
+		}
+		return false;
+	}
+
+	/** После остановки: снять выбранное устройство и обновить дерево/статус-бар. */
+	private afterEmulatorStopped(gone: string[]): void {
+		const selected = this.selectedDevice;
+		if (selected && (gone.includes(selected) || !gone.length)) {
+			this.selectedDevice = undefined;
+			this.statusbar.hide();
+		}
+		this.emulatorsEmitter.fire();
 	}
 
 	/** Имена запущенных эмуляторов: AVD name → device id (через emu avd name). */
 	async runningAvds(): Promise<Map<string, string>> {
+		return this.deviceAvdNames((await this.devices()).filter(d => d.emulator && d.online));
+	}
+
+	/** AVD name → серийник для уже отфильтрованного списка устройств. */
+	private async deviceAvdNames(devices: AndroidDevice[]): Promise<Map<string, string>> {
 		const map = new Map<string, string>();
-		for (const device of (await this.devices()).filter(d => d.emulator)) {
+		for (const device of devices) {
 			try {
 				const text = await this.adb('-s', device.id, 'emu', 'avd', 'name');
 				const name = text.split(/\r?\n/)[0]?.trim();
@@ -289,6 +358,40 @@ export class AndroidPanel implements vscode.Disposable {
 			} catch { /* старый эмулятор без emu avd name */ }
 		}
 		return map;
+	}
+
+	/** Загрузочное состояние каждого запущенного эмулятора: серийник → загрузился ли Android. */
+	private async bootedEmulators(devices: AndroidDevice[]): Promise<Map<string, boolean>> {
+		const booted = new Map<string, boolean>();
+		await Promise.all(devices.map(async device => {
+			const out = await this.adb('-s', device.id, 'shell', 'getprop', 'sys.boot_completed').catch(() => '');
+			booted.set(device.id, out.trim() === '1');
+		}));
+		return booted;
+	}
+
+	/**
+	 * Один опрос состояния для дерева: снимок «AVD → серийник» и запущенные AVD, которых нет
+	 * в `emulator -list-avds` (переименованный с диска AVD или сбой чтения списка) — иначе такой
+	 * запущенный эмулятор в дереве не появлялся и остановить его оттуда было нечем.
+	 * Серийник без sys.boot_completed=1 отдаётся как STARTING: эмулятор ещё грузится или повис.
+	 * Если состояние изменилось с прошлого опроса — сообщаем подписчикам.
+	 */
+	async emulatorStates(): Promise<Array<{ name: string; runningDevice?: string }>> {
+		const [avds, devices] = await Promise.all([this.listAvds(), this.devices()]);
+		const emulators = devices.filter(device => device.emulator && device.online);
+		const [running, booted] = await Promise.all([this.deviceAvdNames(emulators), this.bootedEmulators(emulators)]);
+		const stateOf = (serial: string): string => booted.get(serial) ? serial : STARTING;
+		const states = avds.map(name => ({ name, runningDevice: running.get(name) && stateOf(running.get(name)!) } as { name: string; runningDevice?: string }));
+		for (const [name, serial] of running) {
+			if (!avds.includes(name)) { states.push({ name, runningDevice: stateOf(serial) }); }
+		}
+		const snapshot = states.map(state => `${state.name}=${state.runningDevice ?? ''}`).join('|');
+		if (snapshot !== this.emulatorsSnapshot) {
+			this.emulatorsSnapshot = snapshot;
+			this.emulatorsEmitter.fire();
+		}
+		return states;
 	}
 
 	/** Запуск конкретного AVD по имени: появление серийника → готовность sys.boot_completed. */
@@ -311,20 +414,32 @@ export class AndroidPanel implements vscode.Disposable {
 			// На Windows emulator.exe часто отдаёт управление qemu-system-* и завершается с кодом 0 —
 			// это не провал запуска, поэтому фатальным считаем только ненулевой код.
 			child.on('exit', code => { if (code) { exited = code; } });
+			// Процесс поднялся: серийник может появиться уже через пару секунд, пока мы ждём
+			// boot_completed — дерево должно показать «запускается», а не «остановлен».
+			this.emulatorsEmitter.fire();
 		}
 		const serial = await vscode.window.withProgress(
-			{ location: vscode.ProgressLocation.Notification, title: tr('Waiting for emulator {0} to boot…', avd), cancellable: false },
-			async () => {
-				const found = alreadyRunning ?? await this.waitForEmulatorSerial(before, () => exited, 90_000);
+			{
+				location: vscode.ProgressLocation.Notification,
+				// Загрузку можно прервать: иначе крутящийся прогресс висел до 4,5 минут даже
+				// после того, как эмулятор погасили, и запуск нового выглядел «бесконечным».
+				title: tr('Waiting for emulator {0} to boot…', avd),
+				cancellable: true,
+			},
+			async (_progress, token) => {
+				// Токен может не прийти (старый хост/стаб): отмена — необязательное удобство.
+				const cancelled = () => Boolean(token?.isCancellationRequested);
+				const found = alreadyRunning ?? await this.waitForEmulatorSerial(before, () => exited, 90_000, cancelled);
 				if (!found) { return undefined; }
 				return await this.waitForBoot(found, 180_000) ? found : undefined;
 			},
 		);
+		this.emulatorsEmitter.fire();
 		if (serial) {
 			// Запущенный эмулятор сразу становится выбранным устройством: без этого
 			// pickDevice() при нескольких устройствах каждый раз спрашивал заново.
 			this.selectedDevice = serial;
-			this.updateDeviceStatus({ id: serial, emulator: true, model: avd });
+			this.updateDeviceStatus({ id: serial, emulator: true, model: avd, online: true });
 			void vscode.window.showInformationMessage(tr('Emulator {0} is ready.', avd));
 			return;
 		}
@@ -332,6 +447,11 @@ export class AndroidPanel implements vscode.Disposable {
 			this.emulatorOutput.appendLine(`--- emulator -avd ${avd} ---`);
 			this.emulatorOutput.appendLine(log.trim());
 			this.emulatorOutput.show(true);
+		}
+		// Остановленный вручную запуск — не ошибка: предупреждение было бы ложным.
+		if (await this.runningAvds().then(map => map.has(avd))) {
+			void vscode.window.showInformationMessage(tr('Emulator {0} is still booting — the device panel will catch up.', avd));
+			return;
 		}
 		void vscode.window.showWarningMessage(exited !== undefined
 			? tr('Emulator {0} exited during startup (code {1}). See the “Android Emulator” output for the reason.', avd, String(exited))
@@ -672,7 +792,9 @@ export class AndroidPanel implements vscode.Disposable {
 			const fresh = chunk.toString().split(/\r?\n/).filter(line => line.trim());
 			if (!fresh.length) { return; }
 			this.logcatBuffer.push(...fresh);
-			if (this.logcatBuffer.length > 20_000) { this.logcatBuffer = this.logcatBuffer.slice(-15_000); }
+			// Обрезка пачками, а не на каждом чанке: при активном logcat буфер упирался в
+			// 20 000 строк и каждый следующий чанк копировал 15 000 элементов заново.
+			if (this.logcatBuffer.length > LOG_BUFFER_TRIM_AT) { this.logcatBuffer = this.logcatBuffer.slice(-LOG_BUFFER_KEEP); }
 			void this.logcatPanel?.webview.postMessage({ command: 'append', lines: fresh });
 		});
 		child.stderr?.on('data', (chunk: Buffer) => {

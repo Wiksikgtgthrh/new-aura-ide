@@ -119,8 +119,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 	context.subscriptions.push(boardEmitter);
 	// Есть ли в окне оркестратор: команда регистрируется только активным оркестратором.
 	// По этому признаку доска показывает кнопку «Отдать агентам».
+	// getCommands(true) — RPC в main-процесс со списком всех команд IDE, а buildState
+	// вызывается на каждое событие доски. Держим ответ 15 с и сбрасываем при активации
+	// любого расширения: состав команд меняется именно тогда.
+	const COMMANDS_TTL_MS = 15_000;
+	let commandsCache: { at: number; ids: Set<string> } | undefined;
+	context.subscriptions.push(vscode.extensions.onDidChange(() => { commandsCache = undefined; }));
+	const commandIds = async (): Promise<Set<string>> => {
+		if (commandsCache && Date.now() - commandsCache.at < COMMANDS_TTL_MS) { return commandsCache.ids; }
+		const ids = new Set(await vscode.commands.getCommands(true));
+		commandsCache = { at: Date.now(), ids };
+		return ids;
+	};
 	const orchestratorAvailable = async (): Promise<boolean> => {
-		try { return (await vscode.commands.getCommands(true)).includes('orchestrator.runTeamTask'); } catch { return false; }
+		try { return (await commandIds()).has('orchestrator.runTeamTask'); } catch { return false; }
 	};
 
 	const demoMode = (): boolean => vscode.workspace.getConfiguration('auraTeam').get<boolean>('demoMode', false);
@@ -238,6 +250,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 			return undefined;
 		}
 	};
+	// Наличие GitHub-токена читается из SecretStorage — на Windows это расшифровка через
+	// DPAPI на каждый вызов, а buildState идёт на каждое событие доски. Держим ответ 30 с
+	// и сбрасываем там, где токен реально меняется (вход/выход из GitHub).
+	const GITHUB_TOKEN_TTL_MS = 30_000;
+	let githubTokenCache: { at: number; value: boolean } | undefined;
+	const githubConnected = async (): Promise<boolean> => {
+		if (githubTokenCache && Date.now() - githubTokenCache.at < GITHUB_TOKEN_TTL_MS) { return githubTokenCache.value; }
+		const value = await hasGitHubToken(context);
+		githubTokenCache = { at: Date.now(), value };
+		return value;
+	};
 	// Подзадачи живут markdown-чекбоксами в описании задачи, а /summary описаний не отдаёт:
 	// добираем прогресс из уже загруженной доски, чтобы сайдбар читался без открытия карточки.
 	const subtaskProgress = (description?: string): { done: number; total: number } | undefined => {
@@ -271,7 +294,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 		simpleMode: simpleMode(),
 		serverUrl: serverUrl(),
 		signedIn: !!state.session,
-		githubConnected: await hasGitHubToken(context),
+		githubConnected: await githubConnected(),
 		githubAccount: githubLogin,
 		ideLanguage: vscode.env.language,
 		uiLanguage: uiLanguage(),
@@ -279,7 +302,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 	});
 
 	const launcher = new AuraTeamLauncherViewProvider((view, filter) => openTab(view, filter), () => buildState(), (id, args) => handlerFor(id, args));
-	const broadcast = async (): Promise<void> => { const s = await buildState(); provider.broadcast(s); await launcher.push(); boardEmitter.fire(state.board); };
+	const broadcast = async (): Promise<void> => { const s = await buildState(); provider.broadcast(s); await launcher.push(s); boardEmitter.fire(state.board); };
 
 	// Общий переключатель языка: смена aura.language перерисовывает панель Team сразу,
 	// без перезагрузки окна — маркет и панели не должны разъезжаться по языку.
@@ -367,21 +390,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 	const notifyOnChanges = (previousBoard: BoardSnapshot | undefined, previousActivity: TeamActivityEvent[] | undefined): void => {
 		const me = state.session?.user.id;
 		if (previousBoard && me && state.board) {
+			// Прежнее назначение по id: поиск по массиву в цикле давал O(n²) на каждое
+			// обновление доски (250 задач — десятки тысяч сравнений на каждый broadcast).
+			const before = new Map(previousBoard.tasks.map(task => [task.id, task.assigneeId] as const));
 			for (const task of state.board.tasks) {
-				if (task.assigneeId === me && !previousBoard.tasks.some(prev => prev.id === task.id && prev.assigneeId === me)) {
-					const onOther = previousBoard.tasks.some(prev => prev.id === task.id);
-					if (onOther || !previousBoard.tasks.some(prev => prev.id === task.id)) {
-						// Назначена тебе (ранее была без тебя) или создана сразу на тебя.
-						if (previousBoard.tasks.some(prev => prev.id === task.id && prev.assigneeId !== me) || !previousBoard.tasks.some(prev => prev.id === task.id)) {
-							notifyToast(vscode.l10n.t('📋 Task assigned to you: {0}', task.title));
-						}
-					}
-				}
+				if (task.assigneeId !== me) { continue; }
+				// Была моей раньше — не новость. Новая задача или переход от коллеги — новость.
+				if (before.get(task.id) === me) { continue; }
+				notifyToast(vscode.l10n.t('📋 Task assigned to you: {0}', task.title));
 			}
 		}
 		// Новые события в ленте (кроме собственных) — один тост на партию.
 		if (previousActivity && state.activity?.length) {
-			const fresh = state.activity.filter(ev => !previousActivity.some(prev => prev.createdAt === ev.createdAt && prev.action === ev.action) && ev.userId !== me);
+			const known = new Set(previousActivity.map(ev => `${ev.createdAt}|${ev.action}`));
+			const fresh = state.activity.filter(ev => ev.userId !== me && !known.has(`${ev.createdAt}|${ev.action}`));
 			if (fresh.length) {
 				const first = fresh[0];
 				notifyToast(vscode.l10n.t('🔔 {0}: {1}', first.userName, first.action));
@@ -665,7 +687,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 		const displayName = data?.displayName?.trim();
 		const password = data?.password ?? '';
 		if (!email?.includes('@')) { throw new Error(vscode.l10n.t('Enter a valid email.')); }
-		if (!displayName || displayName.length < 2) { throw new Error(vscode.l10n.t('Display name must be at least 2 characters.')); }
+		if (!displayName) { throw new Error(vscode.l10n.t('Enter a display name.')); }
 		if (password.length < 8) { throw new Error(vscode.l10n.t('Password must be at least 8 characters.')); }
 		return await api.register(email, password, displayName);
 	}, false);
@@ -700,6 +722,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 	register('auraTeam.connectGitHub', async () => {
 		const result = await connectGitHub(context);
 		githubLogin = result.login;
+		githubTokenCache = undefined;
 		await context.globalState.update(GITHUB_LOGIN_KEY, result.login);
 		vscode.window.showInformationMessage(result.via === 'browser'
 			? vscode.l10n.t('GitHub connected as {0}.', result.login)
@@ -711,6 +734,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 		if (!await confirm(vscode.l10n.t('Disconnect GitHub? Push and pull to private repositories will stop working.'))) { return; }
 		await disconnectGitHub(context);
 		githubLogin = undefined;
+		githubTokenCache = undefined;
 		await context.globalState.update(GITHUB_LOGIN_KEY, undefined);
 		vscode.window.showInformationMessage(vscode.l10n.t('GitHub disconnected.'));
 		await refresh();
@@ -910,7 +934,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<AuraTe
 	register('auraTeam.auraApiImportState', async () => {
 		const keys = await listAuraKeys();
 		// Плагин ключей — это workbench-модуль, а не расширение: наличие проверяем по его командам.
-		const pluginInstalled = (await vscode.commands.getCommands(true)).includes('apiKeys.exportKeysList');
+		const pluginInstalled = (await commandIds()).has('apiKeys.exportKeysList');
 		return {
 			// available=false — плагин ключей не установлен или в нём нет ключей: UI объяснит, что делать.
 			available: keys.length > 0,
@@ -1598,11 +1622,16 @@ class AuraTeamLauncherViewProvider implements vscode.WebviewViewProvider {
 		this.pendingInvite = undefined;
 	}
 
-	/** Протолкнуть свежее состояние в сайдбар (вызывается из broadcast). */
-	async push(): Promise<void> {
+	/**
+	 * Протолкнуть свежее состояние в сайдбар (вызывается из broadcast).
+	 * @param prebuilt — состояние, уже собранное вызывающим: broadcast строит его для
+	 * панели редактора, и повторный buildState удваивал работу (getCommands(true),
+	 * чтение секретов, git snapshot) на каждое из 30+ событий.
+	 */
+	async push(prebuilt?: unknown): Promise<void> {
 		// Скрытая панель не получает обновления — состояние догоним при возврате видимости.
 		if (!this.visible) { return; }
-		this.lastState = await this.getState();
+		this.lastState = prebuilt ?? await this.getState();
 		if (this.view) {
 			void this.view.webview.postMessage({ type: 'state', state: this.lastState, inviteCode: this.lastInviteCode, inviteExpires: this.lastInviteExpires, inviteRole: this.lastInviteRole ?? undefined });
 		}
