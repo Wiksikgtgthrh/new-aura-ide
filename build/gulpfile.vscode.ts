@@ -268,6 +268,63 @@ function getFoundryLocalExcludeFilter(): string[] {
 	];
 }
 
+/**
+ * Раскладка с папкой версии (`win32VersionedUpdate`): Electron ищет ресурсы в КОРНЕ установки
+ * (`resources/default_app.asar`, `icudtl.dat`, `*.pak`…), а упаковщик в этом режиме уносит всё,
+ * кроме exe, в `<commit-10>\`. Без этого приложение падает ещё до JS:
+ * `[ERROR:base\i18n\icu_util.cc:232] Invalid file descriptor to ICU data received.`
+ * Копируем корневые файлы Electron обратно в корень; `resources\app` остаётся в папке версии —
+ * именно его должен подхватить bootstrap. В установщике эти файлы исключены
+ * (`app.iss`), поэтому копия живёт только в собранной папке и в фоновом обновлении.
+ */
+function restoreElectronRootForVersionedLayoutTask(destinationFolderName: string) {
+	const versionedResourcesFolder = util.getVersionedResourcesFolder('win32', commit!);
+	const cwd = path.join(path.dirname(root), destinationFolderName);
+
+	return async () => {
+		if (!versionedResourcesFolder) { return; } // обычная раскладка — всё уже на месте
+		const versioned = path.join(cwd, versionedResourcesFolder);
+		if (!fs.existsSync(versioned)) {
+			throw new Error(`[versioned-layout] нет папки версии ${versioned}`);
+		}
+		const required = ['icudtl.dat', 'resources.pak', 'snapshot_blob.bin', 'v8_context_snapshot.bin', 'version'];
+		const missing = required.filter(name => !fs.existsSync(path.join(versioned, name)));
+		if (missing.length) {
+			throw new Error(`[versioned-layout] в папке версии нет ${missing.join(', ')} — Electron не запустится`);
+		}
+		// Корневые файлы Electron (кроме exe и resources\app) + папки locales.
+		for (const entry of await fs.promises.readdir(versioned, { withFileTypes: true })) {
+			const source = path.join(versioned, entry.name);
+			const target = path.join(cwd, entry.name);
+			if (entry.isDirectory()) {
+				// resources: только default_app.asar (сам app остаётся в папке версии).
+				if (entry.name === 'resources') {
+					const asar = path.join(source, 'default_app.asar');
+					if (fs.existsSync(asar)) {
+						await fs.promises.mkdir(target, { recursive: true });
+						await fs.promises.copyFile(asar, path.join(target, 'default_app.asar'));
+					}
+					continue;
+				}
+				await fs.promises.cp(source, target, { recursive: true, force: true });
+				continue;
+			}
+			if (entry.name.toLowerCase().endsWith('.exe')) { continue; }
+			await fs.promises.copyFile(source, target);
+		}
+		// default_app.asar упаковщик при этом режиме не кладёт в корень — берём из собранного Electron.
+		const targetDefaultApp = path.join(cwd, 'resources', 'default_app.asar');
+		const electronDefaultApp = path.join(root, '.build', 'electron', 'resources', 'default_app.asar');
+		if (!fs.existsSync(targetDefaultApp)) {
+			if (!fs.existsSync(electronDefaultApp)) {
+				throw new Error(`[versioned-layout] нет ${electronDefaultApp} — Electron не запустится без resources/default_app.asar`);
+			}
+			await fs.promises.mkdir(path.dirname(targetDefaultApp), { recursive: true });
+			await fs.promises.copyFile(electronDefaultApp, targetDefaultApp);
+		}
+	};
+}
+
 function packageTask(platform: string, arch: string, sourceFolderName: string, destinationFolderName: string, _opts?: { stats?: boolean }) {
 	const destination = path.join(path.dirname(root), destinationFolderName);
 	platform = platform || process.platform;
@@ -752,6 +809,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 		if (platform === 'win32') {
 			packageTasks.push(patchWin32DependenciesTask(destinationFolderName));
+			packageTasks.push(restoreElectronRootForVersionedLayoutTask(destinationFolderName));
 		}
 
 		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...packageTasks));

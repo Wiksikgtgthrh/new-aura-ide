@@ -2996,6 +2996,7 @@ export default defineConfig(
 			'aura-team-server/**/*.{js,cjs,mjs}',
 			'docs/swarm/**/*.{js,cjs,mjs}',
 			'src/vs/workbench/contrib/auraMarket/**/*.{ts,js,cjs,mjs}',
+			'scripts/check-ide-release.mjs',
 		],
 		rules: {
 			'header/header': 'off',

@@ -35,6 +35,7 @@
 	"win32ShellNameShort": "&IDE",
 	"win32TunnelServiceMutex": "vscodeoss-tunnelservice",
 	"win32TunnelMutex": "vscodeoss-tunnel",
+	"win32VersionedUpdate": true,
 	"darwinBundleIdentifier": "com.visualstudio.code.oss",
 	"darwinProfileUUID": "47827DD9-4734-49A0-AF80-7E19B11495CC",
 	"darwinProfilePayloadUUID": "CF808BE7-53F3-46C6-A7E2-7EDB98A5E959",

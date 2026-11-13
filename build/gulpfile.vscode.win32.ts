@@ -151,9 +151,10 @@ function updateIcon(executablePath: string): task.CallbackTask {
 		const icon = path.join(repoPath, 'resources', 'win32', 'code.ico');
 		// Иконка — оформление: если rcedit не смог загрузить файл (путь с не-ASCII,
 		// файл занят антивирусом), сборка продолжается без перекрашивания exe.
-		rcedit(executablePath, { icon }, error => {
+		const done = typeof cb === 'function' ? cb : () => undefined;
+		rcedit(executablePath, { icon }, (error: Error | null) => {
 			if (error) { console.warn(`[icon] rcedit skipped for ${path.basename(executablePath)}: ${error.message}`); }
-			cb();
+			done();
 		});
 	};
 }

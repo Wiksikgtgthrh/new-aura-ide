@@ -95,10 +95,18 @@ Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{
 Name: "{app}"; AfterInstall: DisableAppDirInheritance
 
 [Files]
-Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\policies,\policies\*,\appx,\appx\*,\{#ProductJsonRelativePath},\{#ExeBasename}.exe,\{#ExeBasename}.VisualElementsManifest.xml,\bin,\bin\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#ExeBasename}.exe"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetExeBasename}"; Flags: ignoreversion
-Source: "{#ExeBasename}.VisualElementsManifest.xml"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetVisualElementsManifest}"; Flags: ignoreversion
+Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\policies,\policies\*,\appx,\appx\*,\{#ProductJsonRelativePath},\bin,\bin\*,\resources\default_app.asar,\icudtl.dat,\resources.pak,\snapshot_blob.bin,\v8_context_snapshot.bin,\version,\locales,\locales\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "tools\*"; DestDir: "{app}\{#VersionedResourcesFolder}\tools"; Flags: ignoreversion
+// Корневые файлы Electron, которые нужны win32VersionedUpdate: Electron ищет их в корне
+// {app}, а основной stream кладёт всё (кроме exe) в папку коммита. Check: IsVersionedUpdate —
+// для обычной раскладки эти строки не применяются.
+Source: "icudtl.dat"; DestDir: "{app}"; Flags: ignoreversion; Check: IsVersionedUpdate
+Source: "resources.pak"; DestDir: "{app}"; Flags: ignoreversion; Check: IsVersionedUpdate
+Source: "snapshot_blob.bin"; DestDir: "{app}"; Flags: ignoreversion; Check: IsVersionedUpdate
+Source: "v8_context_snapshot.bin"; DestDir: "{app}"; Flags: ignoreversion; Check: IsVersionedUpdate
+Source: "version"; DestDir: "{app}"; Flags: ignoreversion; Check: IsVersionedUpdate
+Source: "resources\default_app.asar"; DestDir: "{app}\resources"; Flags: ignoreversion; Check: IsVersionedUpdate
+Source: "locales\*"; DestDir: "{app}\locales"; Flags: ignoreversion; Check: IsVersionedUpdate
 Source: "policies\*"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\policies"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "bin\{#TunnelApplicationName}.exe"; DestDir: "{code:GetDestDir}\bin"; DestName: "{code:GetBinDirTunnelApplicationFilename}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "bin\{#ApplicationName}.cmd"; DestDir: "{code:GetDestDir}\bin"; DestName: "{code:GetBinDirApplicationCmdFilename}"; Flags: ignoreversion

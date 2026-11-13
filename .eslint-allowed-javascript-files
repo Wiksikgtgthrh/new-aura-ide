@@ -104,6 +104,7 @@ scripts/code-server.js
 scripts/code-sessions-web.js
 scripts/code-web.js
 scripts/xterm-update.js
+scripts/check-ide-release.mjs
 src/vs/base/browser/dompurify/dompurify.js
 src/vs/base/common/marked/marked.js
 src/vs/base/common/semver/semver.js

@@ -77,6 +77,10 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!aura-team-server/**',
 	'!docs/swarm/**',
 	'!src/vs/workbench/contrib/auraMarket/**',
+	'!scripts/publish-ide-update.sh',
+	'!scripts/check-ide-release.mjs',
+	'!build/gulpfile.vscode.ts',
+	'!build/gulpfile.vscode.win32.ts',
 
 	'!src/vs/base/browser/dompurify/**',
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
@@ -156,6 +160,8 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!extensions/langgraph-orchestrator/**',
 	'!aura-team-server/**',
 	'!docs/swarm/**',
+	'!scripts/publish-ide-update.sh',
+	'!scripts/check-ide-release.mjs',
 
 	// except specific file types
 	'!src/vs/*/**/*.d.ts',
@@ -252,6 +258,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!aura-team-server/**',
 	'!docs/swarm/**',
 	'!src/vs/workbench/contrib/auraMarket/**',
+	'!scripts/check-ide-release.mjs',
 ]);
 
 export const tsFormattingFilter = Object.freeze<string[]>([
