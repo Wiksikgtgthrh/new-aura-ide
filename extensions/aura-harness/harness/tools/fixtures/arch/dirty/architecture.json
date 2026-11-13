@@ -1,0 +1,15 @@
+{
+  "layers": [
+    { "name": "domain", "path": "src/domain", "mayImport": ["domain"] },
+    { "name": "application", "path": "src/application", "mayImport": ["domain", "application"] },
+    { "name": "infrastructure", "path": "src/infrastructure", "mayImport": ["domain", "application", "infrastructure"] },
+    { "name": "ui", "path": "src/ui", "mayImport": ["application", "domain", "ui"] }
+  ],
+  "forbidden": [
+    { "from": "src/ui/**", "to": "src/infrastructure/**", "reason": "UI must not reach persistence directly" },
+    { "from": "src/domain/**", "to": "src/ui/**", "reason": "domain must not know about UI" }
+  ],
+  "budgets": { "maxFileLines": 120, "maxFunctionLines": 30, "maxParams": 4, "maxNesting": 3 },
+  "cycles": true,
+  "failOn": ["layer-violation", "forbidden-import", "cycle"]
+}

@@ -25,6 +25,10 @@ description: >-
 | Сигнал | Скилл |
 |---|---|
 | UI, лендинг, дашборд, вёрстка | `ui-craft`, потом `visual-qa` |
+| 3D на сайте, сцена, WebGL, шейдеры | `threejs-stack` |
+| вода, океан, камера на воду, фон с водой | `ultra-water` |
+| игра, геймплей, пиксель, спрайты | `game-dev`, дальше по типу: `pixelfx`, `ultra-water` |
+| заклинания, взрывы, боевые эффекты | `ultra-elements` |
 | дифф, PR, «проверь» | `code-review`, при auth/платежах ещё `security-audit` |
 | «выкати», деплой, релиз | `deploy-release` |
 | база, миграция, импорт | `data-safety` |

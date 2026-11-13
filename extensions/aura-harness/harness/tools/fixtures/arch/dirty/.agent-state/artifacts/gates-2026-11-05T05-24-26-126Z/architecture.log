@@ -1,0 +1,19 @@
+Modules: 7  imports: 4  external packages: 0
+  domain           src/domain                   files=1  mayImport=[domain]
+  application      src/application              files=3  mayImport=[domain, application]
+  infrastructure   src/infrastructure           files=1  mayImport=[domain, application, infrastructure]
+  ui               src/ui                       files=2  mayImport=[application, domain, ui]
+
+Errors:
+  [forbidden-import] src/ui/Panel.ts -> src/infrastructure/MemoryUserRepository.ts — UI must not reach persistence directly
+  [forbidden-import] src/domain/Policy.ts -> src/ui/App.ts — domain must not know about UI
+  [cycle] import cycle (2): src/application/A.ts -> src/application/B.ts -> src/application/A.ts
+
+Warnings (non-blocking):
+  [unresolved-import] src/ui/App.ts imports "../domain/User" which does not resolve to a project file
+  [unresolved-import] src/infrastructure/MemoryUserRepository.ts imports "../domain/User" which does not resolve to a project file
+  [function-too-long] src/application/Big.ts:1 processEverything is 48 lines (budget 30)
+  [too-many-params] src/application/Big.ts:1 processEverything takes 6 parameters (budget 4)
+  [deep-nesting] src/application/Big.ts:1 processEverything nests 4 levels (budget 3)
+
+Verdict: FAILED  artifacts: .agent-state/artifacts/arch-latest.json

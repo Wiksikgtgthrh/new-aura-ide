@@ -352,8 +352,18 @@ export const AURA_MARKET_ITEMS: IAuraMarketItem[] = [
 		builtinId: 'aura-harness',
 		name: 'Agent Harness',
 		kind: 'plugin',
-		version: '2.3.0',
+		version: '2.4.0',
 		versions: [
+			{
+				version: '2.4.0',
+				date: '2026-11-05',
+				changelog: [
+					'arch.mjs — архитектурный контур: карта модулей, границы слоёв, циклы и бюджеты сложности',
+					'scope.mjs — гейт радиуса поражения: изменённые файлы обязаны попасть в allowed/forbidden',
+					'gates.mjs: command-гейты, requiredWhen: architecture, код 2 = unverified',
+					'Новые инструменты: spells.mjs, water.mjs, imagegen.mjs, selftest.mjs',
+				]
+			},
 			{
 				version: '2.3.0',
 				date: '2026-10-05',

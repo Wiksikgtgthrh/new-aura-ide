@@ -29,7 +29,7 @@ const readBody = (req) =>
     let data = '';
     req.on('data', (c) => {
       data += c;
-      if (data.length > 16_384) {reject(new Error('body too large'));}
+      if (data.length > 16_384) reject(new Error('body too large'));
     });
     req.on('end', () => { try { resolve(JSON.parse(data || '{}')); } catch { reject(new Error('bad json')); } });
   });
@@ -54,7 +54,7 @@ async function createSession(res, userId) {
 async function userBySession(req) {
   const cookie = req.headers.cookie || '';
   const sid = cookie.split(';').map((s) => s.trim()).find((s) => s.startsWith('sid='));
-  if (!sid) {return null;}
+  if (!sid) return null;
   const tokenHash = crypto.createHash('sha256').update(sid.slice(4)).digest('hex');
   const { rows } = await pool.query(
     `select u.id, u.email, u.name from sessions s join users u on u.id = s.user_id
@@ -77,11 +77,11 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
 
     if (req.method === 'POST' && url.pathname === '/api/register') {
-      if (rateLimited(req.socket.remoteAddress)) {return json(res, 429, { error: 'Слишком много попыток' });}
+      if (rateLimited(req.socket.remoteAddress)) return json(res, 429, { error: 'Слишком много попыток' });
       const { email, name, password } = await readBody(req);
-      if (!isEmail(email)) {return json(res, 400, { error: 'Некорректный email' });}
+      if (!isEmail(email)) return json(res, 400, { error: 'Некорректный email' });
       if (typeof password !== 'string' || password.length < 8)
-        {return json(res, 400, { error: 'Пароль — минимум 8 символов' });}
+        return json(res, 400, { error: 'Пароль — минимум 8 символов' });
       const mail = email.trim().toLowerCase();
       try {
         const { rows } = await pool.query(
@@ -90,19 +90,19 @@ const server = http.createServer(async (req, res) => {
         await createSession(res, rows[0].id);
         return json(res, 201, { ok: true });
       } catch (e) {
-        if (e.code === '23505') {return json(res, 409, { error: 'Такой email уже зарегистрирован' });}
+        if (e.code === '23505') return json(res, 409, { error: 'Такой email уже зарегистрирован' });
         throw e;
       }
     }
 
     if (req.method === 'POST' && url.pathname === '/api/login') {
-      if (rateLimited(req.socket.remoteAddress)) {return json(res, 429, { error: 'Слишком много попыток' });}
+      if (rateLimited(req.socket.remoteAddress)) return json(res, 429, { error: 'Слишком много попыток' });
       const { email, password } = await readBody(req);
       const mail = (email || '').trim().toLowerCase();
       const { rows } = await pool.query('select id, pass_hash from users where email = $1', [mail]);
       const fail = () => json(res, 401, { error: 'Неверная пара email/пароль' });
-      if (!rows[0]) {return fail();}
-      if (typeof password !== 'string' || !checkPass(password, rows[0].pass_hash)) {return fail();}
+      if (!rows[0]) return fail();
+      if (typeof password !== 'string' || !checkPass(password, rows[0].pass_hash)) return fail();
       await createSession(res, rows[0].id);
       return json(res, 200, { ok: true });
     }
@@ -120,7 +120,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/api/me') {
       const user = await userBySession(req);
-      if (!user) {return json(res, 401, { error: 'unauthorized' });}
+      if (!user) return json(res, 401, { error: 'unauthorized' });
       return json(res, 200, { user });
     }
 

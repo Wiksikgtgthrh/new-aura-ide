@@ -10,7 +10,7 @@ export async function discoverJourneys() {
   const out = [];
   for (const f of files) {
     const mod = await import(pathToFileURL(path.join(dir, f)).href);
-    if (mod.default?.id) {out.push(mod.default);}
+    if (mod.default?.id) out.push(mod.default);
   }
   return out;
 }

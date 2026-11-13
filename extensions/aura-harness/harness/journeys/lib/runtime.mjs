@@ -18,16 +18,16 @@ function resolvePackage(name, cwd) {
 
 export async function loadPlaywright(cwd) {
   const entry = resolvePackage('playwright', cwd) ?? resolvePackage('playwright-core', cwd);
-  if (!entry) {return null;}
+  if (!entry) return null;
   const mod = await import(pathToFileURL(entry).href);
   return mod.chromium ? mod : mod.default;
 }
 
 export function axeSource(cwd) {
   const entry = resolvePackage('axe-core', cwd) ?? resolvePackage('axe-core/axe.min.js', cwd);
-  if (!entry) {return null;}
+  if (!entry) return null;
   const file = entry.endsWith('.js') && fs.existsSync(entry) ? entry : null;
-  if (!file) {return null;}
+  if (!file) return null;
   // берём min-сборку рядом, если основная — CJS-обёртка
   const min = path.join(path.dirname(file), 'axe.min.js');
   return fs.existsSync(min) ? fs.readFileSync(min, 'utf8') : fs.readFileSync(file, 'utf8');
@@ -39,8 +39,8 @@ export async function runStep(step, page, ctx) {
   const result = { name: step.name, status: 'passed', durationMs: 0 };
   try {
     await step.run(page, ctx);
-    if (step.screenshot) {result.screenshot = await ctx.shot(step.screenshot === true ? step.name : step.screenshot);}
-    if (step.a11y) {result.a11y = await ctx.axe(page);}
+    if (step.screenshot) result.screenshot = await ctx.shot(step.screenshot === true ? step.name : step.screenshot);
+    if (step.a11y) result.a11y = await ctx.axe(page);
   } catch (error) {
     result.status = 'failed';
     result.error = error.message;
@@ -63,7 +63,7 @@ export function makeCtx({ page, journey, config, artifactsDir, axeSrc, updateSna
       return path.basename(file);
     },
     async axe(pg) {
-      if (!axeSrc) {return { status: 'unverified', reason: 'axe-core not resolvable (npm i -D axe-core)' };}
+      if (!axeSrc) return { status: 'unverified', reason: 'axe-core not resolvable (npm i -D axe-core)' };
       await pg.addScriptTag({ content: axeSrc });
       const res = await pg.evaluate(async () => {
         const r = await window.axe.run({ resultTypes: ['violations'] });

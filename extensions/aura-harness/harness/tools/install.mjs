@@ -26,7 +26,7 @@ const targets = requested.includes('all')
     : ['pi', 'opencode', ...detected];
 const customSkillDirs = list(flags['skills-dir']);
 
-for (const t of targets) {if (!known.includes(t)) {fail(`Unknown target ${t}. Known: ${known.join(', ')}, all`);}}
+for (const t of targets) if (!known.includes(t)) fail(`Unknown target ${t}. Known: ${known.join(', ')}, all`);
 
 const preflight = [
   ...validateSkillsDir(path.join(HARNESS_ROOT, manifest.paths.piSkills)),
@@ -34,7 +34,7 @@ const preflight = [
   ...parity(manifest),
 ].filter((i) => i.level === 'error');
 if (preflight.length) {
-  for (const i of preflight) {console.error(`ERROR ${i.where}: ${i.message}`);}
+  for (const i of preflight) console.error(`ERROR ${i.where}: ${i.message}`);
   fail('Harness is inconsistent; fix it before installing (node tools/skills.mjs validate).');
 }
 
@@ -60,8 +60,8 @@ function place(src, dest) {
 
 function placeTree(srcRel, destTilde) {
   const src = path.join(HARNESS_ROOT, srcRel);
-  if (!fs.existsSync(src)) {return;}
-  for (const file of walkFiles(src, { skip: [] })) {place(file, path.join(expand(destTilde), path.relative(src, file)));}
+  if (!fs.existsSync(src)) return;
+  for (const file of walkFiles(src, { skip: [] })) place(file, path.join(expand(destTilde), path.relative(src, file)));
 }
 
 function placeIfMissing(srcRel, destTilde, alsoBlockedBy = []) {
@@ -79,7 +79,7 @@ if (targets.includes('pi')) {
   placeTree(manifest.paths.piSkills, cfg.skills);
   placeTree(manifest.paths.piAgents, cfg.agents);
   placeTree(manifest.paths.opencodeCommands, cfg.prompts);
-  for (const [src, dest] of Object.entries(cfg.configExamples)) {placeIfMissing(src, dest);}
+  for (const [src, dest] of Object.entries(cfg.configExamples)) placeIfMissing(src, dest);
 }
 
 if (targets.includes('opencode')) {
@@ -87,7 +87,7 @@ if (targets.includes('opencode')) {
   placeTree(manifest.paths.opencodeSkills, cfg.skills);
   placeTree(manifest.paths.opencodeAgents, cfg.agents);
   placeTree(manifest.paths.opencodeCommands, cfg.commands);
-  for (const [src, dest] of Object.entries(cfg.configExamples)) {placeIfMissing(src, dest, ['~/.config/opencode/opencode.json']);}
+  for (const [src, dest] of Object.entries(cfg.configExamples)) placeIfMissing(src, dest, ['~/.config/opencode/opencode.json']);
 }
 
 function writeGenerated(content, dest, { force = false } = {}) {
@@ -96,7 +96,7 @@ function writeGenerated(content, dest, { force = false } = {}) {
     return;
   }
   if (fs.existsSync(dest) && !force) {
-    if (!dryRun) {fs.writeFileSync(`${dest}.harness-new`, content);}
+    if (!dryRun) fs.writeFileSync(`${dest}.harness-new`, content);
     log.skipped.push(`${dest} differs: new version saved as ${path.basename(dest)}.harness-new (merge by hand or rerun with --force-agents)`);
     return;
   }
@@ -118,9 +118,9 @@ function writeGenerated(content, dest, { force = false } = {}) {
 function portableAgent(file) {
   const raw = fs.readFileSync(file, 'utf8');
   const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (!match) {return raw;}
+  if (!match) return raw;
   const keep = match[1].split('\n').filter((line) => /^(name|description):/.test(line));
-  if (!keep.some((line) => line.startsWith('name:'))) {keep.unshift(`name: ${path.basename(file, '.md')}`);}
+  if (!keep.some((line) => line.startsWith('name:'))) keep.unshift(`name: ${path.basename(file, '.md')}`);
   return `---\n${keep.join('\n')}\n---\n${match[2]}`;
 }
 
@@ -135,20 +135,20 @@ for (const name of targets.filter((t) => universal[t])) {
       writeGenerated(portableAgent(file), path.join(expand(cfg.agents), path.relative(src, file)));
     }
   }
-  if (cfg.commands) {placeTree(manifest.paths.opencodeCommands, cfg.commands);}
+  if (cfg.commands) placeTree(manifest.paths.opencodeCommands, cfg.commands);
   if (cfg.instructions) {
     const dest = expand(cfg.instructions);
     const force = Boolean(flags['force-agents']);
-    if (cfg.instructionsMode === 'import') {writeGenerated(instructionsImport, dest, { force });}
-    else {writeGenerated(fs.readFileSync(path.join(HARNESS_ROOT, cfg.instructionsSource ?? 'AGENTS.md'), 'utf8'), dest, { force });}
+    if (cfg.instructionsMode === 'import') writeGenerated(instructionsImport, dest, { force });
+    else writeGenerated(fs.readFileSync(path.join(HARNESS_ROOT, cfg.instructionsSource ?? 'AGENTS.md'), 'utf8'), dest, { force });
   }
 }
 
-for (const dir of customSkillDirs) {placeTree(manifest.paths.opencodeSkills, dir);}
+for (const dir of customSkillDirs) placeTree(manifest.paths.opencodeSkills, dir);
 
 const runtime = expand(manifest.install.runtime);
 placeTree(manifest.paths.tools, path.join(runtime, 'tools'));
-for (const f of ['harness.json', '.agent-gates.json', '.release-policy.json', 'VERSION.md']) {place(path.join(HARNESS_ROOT, f), path.join(runtime, f));}
+for (const f of ['harness.json', '.agent-gates.json', '.release-policy.json', 'VERSION.md']) place(path.join(HARNESS_ROOT, f), path.join(runtime, f));
 placeTree('bench', path.join(runtime, 'bench'));
 placeTree(manifest.paths.templates ?? 'templates', path.join(runtime, 'templates'));
 place(path.join(HARNESS_ROOT, 'opencode', 'opencode.official.jsonc.example'), path.join(runtime, 'examples', 'opencode.official.jsonc.example'));
@@ -156,11 +156,11 @@ place(path.join(HARNESS_ROOT, 'zcode', 'mcp.example.json'), path.join(runtime, '
 
 const agentsTarget = path.join(home, 'AGENTS.md');
 const agentsSrc = path.join(HARNESS_ROOT, 'AGENTS.md');
-if (!fs.existsSync(agentsTarget)) {place(agentsSrc, agentsTarget);}
-else if (sha256(agentsSrc) === sha256(agentsTarget)) {log.unchanged.push(agentsTarget);}
-else if (flags['force-agents']) {place(agentsSrc, agentsTarget);}
+if (!fs.existsSync(agentsTarget)) place(agentsSrc, agentsTarget);
+else if (sha256(agentsSrc) === sha256(agentsTarget)) log.unchanged.push(agentsTarget);
+else if (flags['force-agents']) place(agentsSrc, agentsTarget);
 else {
-  if (!dryRun) {fs.copyFileSync(agentsSrc, `${agentsTarget}.harness-new`);}
+  if (!dryRun) fs.copyFileSync(agentsSrc, `${agentsTarget}.harness-new`);
   log.skipped.push(`${agentsTarget} differs: new version saved as AGENTS.md.harness-new (merge by hand or rerun with --force-agents)`);
 }
 
@@ -177,6 +177,6 @@ if (!dryRun) {
 console.log(`${dryRun ? '[dry-run] ' : ''}aggg-harness ${manifest.version} -> ${targets.join(', ')}`);
 console.log(`  written:   ${log.written.length}`);
 console.log(`  unchanged: ${log.unchanged.length}`);
-if (log.backedUp.length) {console.log(`  backed up: ${log.backedUp.length} -> ${backupRoot}`);}
-for (const s of log.skipped) {console.log(`  skipped:   ${s}`);}
+if (log.backedUp.length) console.log(`  backed up: ${log.backedUp.length} -> ${backupRoot}`);
+for (const s of log.skipped) console.log(`  skipped:   ${s}`);
 console.log(`\nNext: node "${path.join(runtime, 'tools', 'doctor.mjs')}"`);

@@ -2995,6 +2995,7 @@ export default defineConfig(
 			'extensions/langgraph-orchestrator/**/*.{js,cjs,mjs}',
 			'aura-team-server/**/*.{js,cjs,mjs}',
 			'docs/swarm/**/*.{js,cjs,mjs}',
+			'src/vs/workbench/contrib/auraMarket/**/*.{ts,js,cjs,mjs}',
 		],
 		rules: {
 			'header/header': 'off',

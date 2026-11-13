@@ -2,7 +2,7 @@
 	"name": "aura-harness",
 	"displayName": "Agent Harness",
 	"description": "Агентный харнесс AGGG: скилы, инструменты (gates, journeys, doctor, оркестратор задач) и автоустановка в ~/.agent-harness.",
-	"version": "2.3.0",
+	"version": "2.4.0",
 	"publisher": "aura",
 	"license": "MIT",
 	"engines": {

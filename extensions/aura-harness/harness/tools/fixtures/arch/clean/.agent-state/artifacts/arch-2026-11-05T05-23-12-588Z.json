@@ -1,0 +1,15 @@
+{
+  "runId": "2026-11-05T05-23-12-588Z",
+  "cwd": "C:\\Users\\isaog\\.agent-harness\\tools\\fixtures\\arch\\clean",
+  "config": "C:\\Users\\isaog\\.agent-harness\\tools\\fixtures\\arch\\clean\\architecture.json",
+  "verdict": "passed",
+  "stats": {
+    "files": 5,
+    "edges": 7,
+    "external": 0
+  },
+  "byRule": {},
+  "errors": [],
+  "warnings": [],
+  "finishedAt": "2026-11-05T05:23:12.590Z"
+}

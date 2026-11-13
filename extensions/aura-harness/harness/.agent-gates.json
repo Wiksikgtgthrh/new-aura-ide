@@ -40,6 +40,20 @@
       "timeoutSec": 1200
     },
     {
+      "name": "architecture",
+      "command": "node \"{harness}/tools/arch.mjs\" check",
+      "requiredWhen": "architecture",
+      "timeoutSec": 300,
+      "hint": "node ~/.agent-harness/tools/arch.mjs init"
+    },
+    {
+      "name": "scope",
+      "command": "node \"{harness}/tools/scope.mjs\"",
+      "required": false,
+      "timeoutSec": 120,
+      "hint": "add \"scope\": { \"allowed\": [...], \"forbidden\": [...] } to architecture.json"
+    },
+    {
       "name": "e2e",
       "scripts": [
         "test:e2e"

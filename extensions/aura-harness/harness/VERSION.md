@@ -1,10 +1,18 @@
 # VERSION
 
-**Версия:** `2.3.0`
+**Версия:** `2.4.0`
 
 - Проект: AGGG Workspace
 - Автор: [@hilartem](https://t.me/hilartem)
-- Дата: 2026-10-02
+- Дата: 2026-11-05
+
+## 2.4.0
+
+- Архитектурный контур: `arch.mjs` — карта модулей, границы слоёв (`mayImport`), запрещённые импорты и пакеты, циклы (Tarjan), бюджеты сложности (файл, функция, параметры, вложенность). Команды `check`, `map`, `init`; артефакт `.agent-state/artifacts/arch-latest.json`.
+- `scope.mjs` — гейт радиуса поражения: изменённые (`git status`) или diff (`--base`) файлы обязаны попасть в `allowed` и не попасть в `forbidden`; служебные `.agent-state`, `node_modules`, `dist` игнорируются.
+- `gates.mjs`: command-гейты (`command` с токеном `{harness}`), условие `requiredWhen: architecture`, код выхода 2 от инструмента трактуется как `unverified`, а не `failed`.
+- В `.agent-gates.json` добавлены гейты `architecture` (required при наличии конфига) и `scope` (необязательный).
+- Шаблон `architecture.example.json`, справка `docs/ARCHITECTURE.md`, селфтест `tools/selftest.mjs` (8 проверок) и фикстуры `tools/fixtures/arch/{clean,dirty}`.
 
 ## 2.3.0
 

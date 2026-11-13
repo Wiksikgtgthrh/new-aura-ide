@@ -249,6 +249,12 @@ export const AURA_MARKET_ITEMS_EN: Readonly<Record<string, IAuraMarketTranslatio
 		description: 'AGGG agent harness: 40+ skills for coding assistants, toolchain CLIs (gates, journeys, doctor, worktree, a task orchestrator with leases and approvals) and automatic install into every detected target - ZCode, Claude, Codex, Gemini, Cursor, OpenCode, pi.',
 		size: '~ 1.1 MB',
 		changelog: {
+			'2.4.0': [
+				'arch.mjs - architecture contour: module map, layer boundaries, cycles and complexity budgets',
+				'scope.mjs - blast-radius gate: changed files must fall within allowed/forbidden paths',
+				'gates.mjs: command gates, requiredWhen: architecture, exit code 2 = unverified',
+				'New tools: spells.mjs, water.mjs, imagegen.mjs, selftest.mjs',
+			],
 			'2.3.0': [
 				'Harness is now built into Aura IDE: auto-installs to ~/.agent-harness on first launch',
 				'LangGraph Orchestrator integration: harness.* tools and a kanban view of the task queue',

@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { parseArgs, list, readJson, writeJsonAtomic, resolveConfig, stateDir, appendEvent, fail } from './lib.mjs';
+import { parseArgs, list, readJson, writeJsonAtomic, resolveConfig, stateDir, appendEvent, fail, HARNESS_ROOT } from './lib.mjs';
 
 const LOCKFILES = [
   ['pnpm-lock.yaml', 'pnpm'],
@@ -14,8 +14,8 @@ const LOCKFILES = [
 
 export function detectPackageManager(cwd) {
   const pkg = readJson(path.join(cwd, 'package.json'), null);
-  if (pkg?.packageManager) {return pkg.packageManager.split('@')[0];}
-  for (const [lockfile, pm] of LOCKFILES) {if (fs.existsSync(path.join(cwd, lockfile))) {return pm;}}
+  if (pkg?.packageManager) return pkg.packageManager.split('@')[0];
+  for (const [lockfile, pm] of LOCKFILES) if (fs.existsSync(path.join(cwd, lockfile))) return pm;
   return pkg ? 'npm' : null;
 }
 
@@ -23,22 +23,27 @@ const FRONTEND_DEPS = ['next', 'react', 'vue', 'nuxt', 'svelte', '@sveltejs/kit'
 
 export function detectFrontend(cwd) {
   const pkg = readJson(path.join(cwd, 'package.json'), null);
-  if (!pkg) {return false;}
+  if (!pkg) return false;
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
   return FRONTEND_DEPS.some((d) => d in deps);
 }
 
 function isRequired(gate, ctx) {
-  if (gate.requiredWhen === 'frontend') {return ctx.frontend;}
-  if (gate.requiredWhen === 'typescript') {return ctx.typescript;}
+  if (gate.requiredWhen === 'frontend') return ctx.frontend;
+  if (gate.requiredWhen === 'typescript') return ctx.typescript;
+  if (gate.requiredWhen === 'architecture') return ctx.architecture;
   return gate.required !== false;
 }
 
 function runScript(pm, script, cwd, timeoutSec, logFile) {
+  return runCommand(pm, ['run', script], cwd, timeoutSec, logFile);
+}
+
+function runCommand(bin, args, cwd, timeoutSec, logFile, forceShell = false) {
   return new Promise((resolve) => {
     const started = Date.now();
     const out = fs.createWriteStream(logFile);
-    const child = spawn(pm, ['run', script], { cwd, shell: process.platform === 'win32', env: { ...process.env, CI: '1', FORCE_COLOR: '0' } });
+    const child = spawn(bin, args, { cwd, shell: forceShell || process.platform === 'win32', env: { ...process.env, CI: '1', FORCE_COLOR: '0' } });
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
@@ -55,7 +60,8 @@ function runScript(pm, script, cwd, timeoutSec, logFile) {
     child.on('close', (code) => {
       clearTimeout(timer);
       out.end();
-      const status = timedOut ? 'timeout' : code === 0 ? 'passed' : 'failed';
+      // exit code 2 is the harness convention for "could not verify" (missing config, no scope, etc.)
+      const status = timedOut ? 'timeout' : code === 0 ? 'passed' : code === 2 ? 'unverified' : 'failed';
       resolve({ status, exitCode: code, durationMs: Date.now() - started });
     });
   });
@@ -65,7 +71,7 @@ async function main() {
   const { flags } = parseArgs(process.argv.slice(2));
   const cwd = path.resolve(flags.cwd && flags.cwd !== true ? flags.cwd : process.cwd());
   const configPath = flags.config && flags.config !== true ? flags.config : resolveConfig('.agent-gates.json', cwd);
-  if (!configPath) {fail('No .agent-gates.json found in project, ~/.agent-harness or harness root');}
+  if (!configPath) fail('No .agent-gates.json found in project, ~/.agent-harness or harness root');
   const config = readJson(configPath);
   const only = list(flags.only);
   const gates = config.gates.filter((g) => !only.length || only.includes(g.name));
@@ -76,29 +82,40 @@ async function main() {
   const artifactDir = path.join(stateDir(cwd), 'artifacts', `gates-${runId}`);
   fs.mkdirSync(artifactDir, { recursive: true });
 
-  const ctx = { frontend: detectFrontend(cwd), typescript: fs.existsSync(path.join(cwd, 'tsconfig.json')) };
+  const ctx = {
+    frontend: detectFrontend(cwd),
+    typescript: fs.existsSync(path.join(cwd, 'tsconfig.json')),
+    architecture: ['architecture.json', '.agent-arch.json', 'architecture.jsonc'].some((f) => fs.existsSync(path.join(cwd, f))),
+  };
   const results = [];
   for (const gate of gates) {
     const required = isRequired(gate, ctx);
-    const script = (gate.scripts ?? [gate.name]).find((s) => scripts[s]);
-    if (!pm || !script) {
+    const command = typeof gate.command === 'string' && gate.command.trim()
+      ? gate.command.replaceAll('{harness}', HARNESS_ROOT)
+      : null;
+    const script = command ? null : (gate.scripts ?? [gate.name]).find((s) => scripts[s]);
+    if (!command && (!pm || !script)) {
       results.push({ name: gate.name, status: 'skipped', reason: pm ? `no script among ${(gate.scripts ?? [gate.name]).join('|')}` : 'no package.json', required, hint: gate.hint ?? null });
       console.log(`- ${gate.name}: skipped${required ? ' (REQUIRED)' : ''}${required && gate.hint ? `  -> ${gate.hint}` : ''}`);
       continue;
     }
     const logFile = path.join(artifactDir, `${gate.name}.log`);
-    console.log(`> ${gate.name}: ${pm} run ${script}`);
-    const res = await runScript(pm, script, cwd, gate.timeoutSec ?? config.defaultTimeoutSec ?? 900, logFile);
-    results.push({ name: gate.name, script, required, log: path.relative(cwd, logFile), ...res });
+    const timeoutSec = gate.timeoutSec ?? config.defaultTimeoutSec ?? 900;
+    console.log(`> ${gate.name}: ${command ?? `${pm} run ${script}`}`);
+    const res = command
+      ? await runCommand(command, [], cwd, timeoutSec, logFile, true)
+      : await runScript(pm, script, cwd, timeoutSec, logFile);
+    results.push({ name: gate.name, command: command ?? undefined, script: script ?? undefined, required, log: path.relative(cwd, logFile), ...res });
     console.log(`  ${res.status} (${Math.round(res.durationMs / 1000)}s)`);
-    if (res.status !== 'passed' && required && config.failFast) {break;}
+    if (res.status !== 'passed' && required && config.failFast) break;
   }
 
   const requiredBroken = results.filter((r) => r.required && (r.status === 'failed' || r.status === 'timeout'));
   const requiredSkipped = results.filter((r) => r.required && r.status === 'skipped');
+  const requiredUnverified = results.filter((r) => r.required && r.status === 'unverified');
   const ran = results.filter((r) => r.status !== 'skipped');
-  const verdict = requiredBroken.length ? 'failed' : ran.length === 0 || requiredSkipped.length ? 'unverified' : 'passed';
-  const summary = { runId, cwd, packageManager: pm, frontend: ctx.frontend, config: configPath, verdict, missingRequired: requiredSkipped.map((r) => r.name), finishedAt: new Date().toISOString(), results };
+  const verdict = requiredBroken.length ? 'failed' : ran.length === 0 || requiredSkipped.length || requiredUnverified.length ? 'unverified' : 'passed';
+  const summary = { runId, cwd, packageManager: pm, frontend: ctx.frontend, architecture: ctx.architecture, config: configPath, verdict, missingRequired: requiredSkipped.map((r) => r.name), unverifiedRequired: requiredUnverified.map((r) => r.name), finishedAt: new Date().toISOString(), results };
 
   writeJsonAtomic(path.join(artifactDir, 'summary.json'), summary);
   writeJsonAtomic(path.join(stateDir(cwd), 'artifacts', 'gates-latest.json'), summary);

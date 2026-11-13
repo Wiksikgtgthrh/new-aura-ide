@@ -26,7 +26,7 @@ export default {
     const checkpoint = (name, prepare) => ({
       name: `checkpoint: ${name}`,
       run: async (page, ctx) => {
-        if (prepare) {await prepare(page);}
+        if (prepare) await prepare(page);
         await freeze(page);
         await page.waitForTimeout(150);
         const shotName = await ctx.shot(`visual-${name}`, { animations: 'disabled' });

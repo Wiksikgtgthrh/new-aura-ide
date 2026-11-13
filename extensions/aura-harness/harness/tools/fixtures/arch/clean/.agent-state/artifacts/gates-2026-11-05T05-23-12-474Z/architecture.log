@@ -1,0 +1,7 @@
+Modules: 5  imports: 7  external packages: 0
+  domain           src/domain                   files=2  mayImport=[domain]
+  application      src/application              files=1  mayImport=[domain, application]
+  infrastructure   src/infrastructure           files=1  mayImport=[domain, application, infrastructure]
+  ui               src/ui                       files=1  mayImport=[application, domain, ui]
+
+Verdict: PASSED  artifacts: .agent-state/artifacts/arch-latest.json

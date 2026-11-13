@@ -48,12 +48,12 @@ export default {
           const a = await readPrice(page);
           await page.waitForTimeout(2500);
           const b = await readPrice(page);
-          if (a !== b) {throw new Error('при замороженных таймерах цена изменилась');}
-          if (!(await isFrozen(page))) {throw new Error('фикстура не в состоянии pause');}
+          if (a !== b) throw new Error('при замороженных таймерах цена изменилась');
+          if (!(await isFrozen(page))) throw new Error('фикстура не в состоянии pause');
           await resume(page);
           await page.waitForTimeout(2500);
           const c = await readPrice(page);
-          if (b === c) {throw new Error('после resume цена не ожила');}
+          if (b === c) throw new Error('после resume цена не ожила');
         },
       },
       {
@@ -76,7 +76,7 @@ export default {
           await page.waitForTimeout(1200);
           const hasFallback = await page.evaluate((sel) => {
             const host = document.querySelector(sel);
-            if (!host) {return false;}
+            if (!host) return false;
             return host.textContent.trim().length > 0 || host.querySelector('[role="alert"], .chart-fallback');
           }, s.chart);
           if (!hasFallback) {

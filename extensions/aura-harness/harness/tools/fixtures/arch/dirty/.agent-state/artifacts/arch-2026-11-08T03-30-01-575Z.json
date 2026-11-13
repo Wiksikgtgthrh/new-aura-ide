@@ -1,0 +1,76 @@
+{
+  "runId": "2026-11-08T03-30-01-575Z",
+  "cwd": "C:\\Users\\isaog\\.agent-harness\\tools\\fixtures\\arch\\dirty",
+  "config": "C:\\Users\\isaog\\.agent-harness\\tools\\fixtures\\arch\\dirty\\architecture.json",
+  "verdict": "failed",
+  "stats": {
+    "files": 7,
+    "edges": 4,
+    "external": 0
+  },
+  "byRule": {
+    "forbidden-import": 2,
+    "cycle": 1
+  },
+  "errors": [
+    {
+      "rule": "forbidden-import",
+      "severity": "error",
+      "file": "src/ui/Panel.ts",
+      "line": 0,
+      "message": "src/ui/Panel.ts -> src/infrastructure/MemoryUserRepository.ts — UI must not reach persistence directly"
+    },
+    {
+      "rule": "forbidden-import",
+      "severity": "error",
+      "file": "src/domain/Policy.ts",
+      "line": 0,
+      "message": "src/domain/Policy.ts -> src/ui/App.ts — domain must not know about UI"
+    },
+    {
+      "rule": "cycle",
+      "severity": "error",
+      "file": "src/application/A.ts",
+      "line": 0,
+      "message": "import cycle (2): src/application/A.ts -> src/application/B.ts -> src/application/A.ts"
+    }
+  ],
+  "warnings": [
+    {
+      "rule": "unresolved-import",
+      "severity": "warning",
+      "file": "src/ui/App.ts",
+      "line": 0,
+      "message": "src/ui/App.ts imports \"../domain/User\" which does not resolve to a project file"
+    },
+    {
+      "rule": "unresolved-import",
+      "severity": "warning",
+      "file": "src/infrastructure/MemoryUserRepository.ts",
+      "line": 0,
+      "message": "src/infrastructure/MemoryUserRepository.ts imports \"../domain/User\" which does not resolve to a project file"
+    },
+    {
+      "rule": "function-too-long",
+      "file": "src/application/Big.ts",
+      "line": 1,
+      "message": "src/application/Big.ts:1 processEverything is 48 lines (budget 30)",
+      "severity": "warning"
+    },
+    {
+      "rule": "too-many-params",
+      "file": "src/application/Big.ts",
+      "line": 1,
+      "message": "src/application/Big.ts:1 processEverything takes 6 parameters (budget 4)",
+      "severity": "warning"
+    },
+    {
+      "rule": "deep-nesting",
+      "file": "src/application/Big.ts",
+      "line": 1,
+      "message": "src/application/Big.ts:1 processEverything nests 4 levels (budget 3)",
+      "severity": "warning"
+    }
+  ],
+  "finishedAt": "2026-11-08T03:30:01.576Z"
+}

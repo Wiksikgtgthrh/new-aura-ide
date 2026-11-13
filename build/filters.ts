@@ -76,6 +76,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/langgraph-orchestrator/**',
 	'!aura-team-server/**',
 	'!docs/swarm/**',
+	'!src/vs/workbench/contrib/auraMarket/**',
 
 	'!src/vs/base/browser/dompurify/**',
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
@@ -250,6 +251,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!extensions/langgraph-orchestrator/**',
 	'!aura-team-server/**',
 	'!docs/swarm/**',
+	'!src/vs/workbench/contrib/auraMarket/**',
 ]);
 
 export const tsFormattingFilter = Object.freeze<string[]>([

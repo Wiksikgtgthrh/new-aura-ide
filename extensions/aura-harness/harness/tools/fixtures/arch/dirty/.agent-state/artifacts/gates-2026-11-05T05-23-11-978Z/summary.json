@@ -1,0 +1,34 @@
+{
+  "runId": "2026-11-05T05-23-11-978Z",
+  "cwd": "C:\\Users\\isaog\\.agent-harness\\tools\\fixtures\\arch\\dirty",
+  "packageManager": null,
+  "frontend": false,
+  "architecture": true,
+  "config": "C:\\Users\\isaog\\.agent-harness\\.agent-gates.json",
+  "verdict": "failed",
+  "missingRequired": [],
+  "unverifiedRequired": [
+    "scope"
+  ],
+  "finishedAt": "2026-11-05T05:23:12.198Z",
+  "results": [
+    {
+      "name": "architecture",
+      "command": "node \"C:\\Users\\isaog\\.agent-harness/tools/arch.mjs\" check",
+      "required": true,
+      "log": ".agent-state\\artifacts\\gates-2026-11-05T05-23-11-978Z\\architecture.log",
+      "status": "failed",
+      "exitCode": 1,
+      "durationMs": 116
+    },
+    {
+      "name": "scope",
+      "command": "node \"C:\\Users\\isaog\\.agent-harness/tools/scope.mjs\"",
+      "required": true,
+      "log": ".agent-state\\artifacts\\gates-2026-11-05T05-23-11-978Z\\scope.log",
+      "status": "unverified",
+      "exitCode": 2,
+      "durationMs": 100
+    }
+  ]
+}

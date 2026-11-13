@@ -1,0 +1,23 @@
+{
+  "runId": "2026-11-05T05-23-12-474Z",
+  "cwd": "C:\\Users\\isaog\\.agent-harness\\tools\\fixtures\\arch\\clean",
+  "packageManager": null,
+  "frontend": false,
+  "architecture": true,
+  "config": "C:\\Users\\isaog\\.agent-harness\\.agent-gates.json",
+  "verdict": "passed",
+  "missingRequired": [],
+  "unverifiedRequired": [],
+  "finishedAt": "2026-11-05T05:23:12.620Z",
+  "results": [
+    {
+      "name": "architecture",
+      "command": "node \"C:\\Users\\isaog\\.agent-harness/tools/arch.mjs\" check",
+      "required": true,
+      "log": ".agent-state\\artifacts\\gates-2026-11-05T05-23-12-474Z\\architecture.log",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 143
+    }
+  ]
+}
